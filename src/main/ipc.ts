@@ -336,4 +336,8 @@ export function setupIpc() {
       }
     }
   })
+
+  ipcMain.handle('get-app-version', () => {
+    return app.getVersion()
+  })
 }

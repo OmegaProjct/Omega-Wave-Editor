@@ -18,6 +18,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   const [checkingUpdates, setCheckingUpdates] = useState(false)
   const [updateStatus, setUpdateStatus] = useState<string | null>(null)
   const [updateInfo, setUpdateInfo] = useState<any | null>(null)
+  const [currentVersion, setCurrentVersion] = useState<string>('0.1.0')
 
   const handleCheckForUpdates = async () => {
     setCheckingUpdates(true)
@@ -44,6 +45,9 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
     window.api.getSettings().then(s => {
       setSettings((prev: any) => ({ ...prev, ...s }))
     })
+    window.api.getAppVersion().then(v => {
+      setCurrentVersion(v)
+    }).catch(e => console.error('Fehler beim Abrufen der App-Version:', e))
   }, [])
 
   const handleSave = async () => {
@@ -165,7 +169,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             <h3 className="text-center font-semibold mb-3 text-sm">Software-Updates</h3>
             <div className="flex flex-col gap-2.5 items-center text-xs mt-1">
               <div className="text-gray-400">
-                Aktuelle Version: <span className="text-white font-mono bg-[#1a1d21] px-2 py-0.5 rounded border border-gray-700 ml-1">v0.1.0</span>
+                Aktuelle Version: <span className="text-white font-mono bg-[#1a1d21] px-2 py-0.5 rounded border border-gray-700 ml-1">v{currentVersion}</span>
               </div>
               
               <button 
