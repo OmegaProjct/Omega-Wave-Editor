@@ -1,26 +1,159 @@
-# Omega Wave Editor 🎚️🔊
+<p align="center">
+  <img src="assets/logo.png" alt="Omega Wave Editor Logo" width="420"/>
+</p>
 
-[![Release](https://img.shields.io/github/v/release/OmegaProjct/Omega-Wave-Editor?color=blue&style=flat-square)](https://github.com/OmegaProjct/Omega-Wave-Editor/releases)
-[![Platform Support](https://img.shields.io/badge/platform-windows%20%7C%20macos%20%7C%20linux-lightgrey?style=flat-square)](#)
-[![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](#)
-[![Built with Electron](https://img.shields.io/badge/built%20with-Electron%20%7C%20React%20%7C%20TypeScript-blueviolet?style=flat-square)](https://electronjs.org)
+<p align="center">
+  <a href="#english">English Documentation</a> • <a href="#deutsch">Deutsche Dokumentation</a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/github/v/release/OmegaProjct/Omega-Wave-Editor?color=blue&style=flat-square" alt="Release" />
+  <img src="https://img.shields.io/badge/platform-windows%20%7C%20macos%20%7C%20linux-lightgrey?style=flat-square" alt="Platform Support" />
+  <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License" />
+  <img src="https://img.shields.io/badge/built%20with-Electron%20%7C%20React%20%7C%20TypeScript-blueviolet?style=flat-square" alt="Built with Electron" />
+</p>
+
+---
+
+## 📸 Screenshots
+
+<p align="center">
+  <img src="assets/screenshot_1.png" width="49%" alt="Omega Wave Editor Workspace" />
+  <img src="assets/screenshot_2.png" width="49%" alt="Equalizer & Effects Panel" />
+</p>
+
+---
+
+<a name="english"></a>
+# 🇬🇧 English Documentation
+
+A modern, cross-platform **desktop audio editor & DAW** (Digital Audio Workstation) for fast, non-destructive, and creative audio editing. 
+
+**Omega Wave Editor** combines the flexibility of modern web technologies (**Electron, React, TypeScript, TailwindCSS**) with the power of the **Web Audio API** and **FFmpeg** to provide a fluid, real-time audio editing experience directly on your computer.
+
+---
+
+## 🌟 Core Features
+
+### 1. Professional Multitrack Timeline
+* **Non-Destructive Clip Handling**: Cut, move, rename, and arrange audio regions freely across multiple tracks.
+* **Real-Time Gain Dragging (Volume Line)**: Adjust clip gain envelopes directly on the timeline with instant audio feedback during playback.
+* **Fade-In & Fade-Out**: Drag and drop smooth volume transitions directly at the start or end of any audio clip.
+* **Solo / Mute / Pan**: Full track controls for precise mixdown blending.
+* **Click-Event Absorber**: Intelligent click-propagation defense prevents accidental playback jumps when releasing fades or volume lines.
+
+### 2. Real-Time Object DSP Effects (Per Clip)
+Apply non-destructive, isolated effects per audio clip, computed in real time via the Web Audio API:
+* **10-Band Graphic Equalizer**: Precise frequency shaping from 60 Hz to 16 kHz (up to ±15 dB boost/cut).
+* **Compressor**: Dynamics leveling with adjustable threshold and compression ratio (1:1 to 20:1).
+* **Reverb (Hall)**: Add spatial depth with adjustable dry/wet mix and decay time (0.1s to 8.0s).
+* **Delay (Echo)**: Rhythmic delay taps with adjustable feedback and time (10ms to 2000ms).
+* **De-Esser**: Dynamically suppress sharp sibilants (S, SH, and Z sounds) above 6 kHz.
+* **Pitch & Timestretch**: Adjust playback speed and pitch in real time (factor 0.5x to 2.0x).
+* **Preset Manager**: Save and load effect chains (`.owea`), copy/paste settings between clips, or apply the current chain to all clips.
+
+### 3. Audio Cleaning Suite
+A dedicated tool for restoring and enhancing low-quality or noisy recordings:
+* **DeClipper**: Automatically reconstruct digitally clipped/distorted audio signals.
+* **DeNoiser**: Attenuate background noise and hum using tailored profiles (e.g., camera noise, mains hum).
+* **DeHisser**: High-frequency filter for tape hiss and high-end static.
+* **Stereo FX**: Enhance stereo width, adjust pan balance, and create mono downmixes.
+* **Preset Export**: Save cleaning configurations as `.owepreset` files.
+
+### 4. VST Plugin Bridge (Windows)
+* **Plugin Scanner**: Automatically scans default Windows paths (`C:\Program Files\VSTPlugins`, `C:\Program Files\Common Files\VST3`, etc.) for installed VST2 and VST3 effects.
+* **Native UI Windowing**: Opens the original VST graphical interface in a separate window directly from the wave editor.
+
+### 5. Recording, Import & Export
+* **Built-in Recorder**: Record audio directly from your default mic or audio interface and insert it instantly into the timeline.
+* **High-Quality Export (Mixdown)**: Mix down all tracks to MP3, WAV, or FLAC via FFmpeg (respects mute, solo, and delay offsets).
+* **ID3 Tag Editor**: Edit title, artist, album, year, genre, and comments within the export window. Features full Windows Explorer compatibility (ID3v2.3 tagging).
+* **Audio Extractor**: Extract audio tracks from any video file with a single click.
+* **File Browser**: Browse local drives with audio previewing in the side panel.
+
+---
+
+## 🛠️ Tech Stack & Architecture
+
+```mermaid
+graph TD
+    A[Electron Main Process] -->|IPC-Bridge| B[React Renderer Frontend]
+    B -->|User Interaction| C[Timeline & Components]
+    B -->|Web Audio API| D[Echtzeit DSP Engine]
+    A -->|FFmpeg / FFprobe| E[Audio-Extraktion & Mixdown]
+    A -->|System APIs| F[VST Plugin Bridge & File I/O]
+    A -->|GitHub API| G[Auto-Updater]
+```
+
+* **Frontend**: React (18), TypeScript, TailwindCSS, Lucide Icons, Framer Motion.
+* **Backend**: Electron (30), Node.js, native system bridges.
+* **Audio Engines**: Web Audio API (real-time playback/effects), FFmpeg & FFprobe (conversions/mixdown).
+* **CI/CD**: GitHub Actions workflows compile builds on every tag push.
+
+---
+
+## 🚀 Installation & Development
+
+### Prerequisites
+* **Node.js** (v18 or higher recommended)
+* **npm** or **yarn**
+
+### Local Setup
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/OmegaProjct/Omega-Wave-Editor.git
+   cd Omega-Wave-Editor
+   ```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Start development server:
+   ```bash
+   npm run dev
+   ```
+
+### Compile Releases
+Creates installable files and portable binaries under `dist-bin/`:
+```bash
+# Build frontend assets
+npm run build
+
+# Pack installers (OS-specific)
+npm run dist
+```
+
+---
+
+## 📦 Supported Distribution Packages
+
+Every release automatically compiles the following:
+* **Windows**:
+  * Setup Installer (`.exe`)
+  * **Portable Binary** (`Omega-Wave-Editor-Portable-X.Y.Z.exe` – standalone, no installation required)
+* **macOS**:
+  * DMG Image (`.dmg`)
+  * ZIP Archive (`.zip`)
+* **Linux**:
+  * AppImage (portable format)
+  * Debian Package (`.deb`)
+
+---
+
+## ❤️ Support the Project
+
+Omega Wave Editor is free, open-source software. If you find the program useful and would like to support its development, feel free to buy us a coffee via PayPal:
+
+👉 [**Support us on PayPal**](https://www.paypal.com/paypalme/OmegaProjects)
+
+---
+
+<a name="deutsch"></a>
+# 🇩🇪 Deutsche Dokumentation
 
 Ein moderner, plattformübergreifender **Desktop-Audioeditor & DAW** (Digital Audio Workstation) für die schnelle, verlustfreie und kreative Audio-Bearbeitung. 
 
 Der **Omega Wave Editor** kombiniert die Flexibilität moderner Webtechnologien (**Electron, React, TypeScript, TailwindCSS**) mit der Leistung der **Web Audio API** und **FFmpeg**, um eine flüssige Echtzeit-Audiobearbeitung direkt auf Ihrem Rechner zu ermöglichen.
-
----
-
-## 📸 Screenshots & Impressionen
-
-<p align="center">
-  <img src="assets/promo_1.png" width="49%" alt="Omega Wave Editor Timeline & Workspace" />
-  <img src="assets/promo_2.png" width="49%" alt="Audio Cleaning Dialog & Tools" />
-</p>
-<p align="center">
-  <img src="assets/promo_3.png" width="49%" alt="Objekt-DSP-Effekt-Panel" />
-  <img src="assets/promo_4.png" width="49%" alt="Audio Export & ID3-Metadaten-Editor" />
-</p>
 
 ---
 
@@ -66,18 +199,6 @@ Ein dediziertes Werkzeug zur Restaurierung und Verbesserung problematischer Aufn
 
 ## 🛠️ Technologie & Architektur
 
-Der Omega Wave Editor ist modular und leistungsorientiert aufgebaut:
-
-```mermaid
-graph TD
-    A[Electron Main Process] -->|IPC-Bridge| B[React Renderer Frontend]
-    B -->|User Interaction| C[Timeline & Components]
-    B -->|Web Audio API| D[Echtzeit DSP Engine]
-    A -->|FFmpeg / FFprobe| E[Audio-Extraktion & Mixdown]
-    A -->|System APIs| F[VST Plugin Bridge & File I/O]
-    A -->|GitHub API| G[Auto-Updater]
-```
-
 * **Frontend**: React (18), TypeScript, TailwindCSS, Lucide Icons, Framer Motion.
 * **Backend**: Electron (30), Node.js, native System-Verbindungen.
 * **Audio-Processing**: Web Audio API (für Echtzeit-Effekte/Wiedergabe) und FFmpeg / FFprobe (für Konvertierung und Mixdown).
@@ -97,12 +218,10 @@ graph TD
    git clone https://github.com/OmegaProjct/Omega-Wave-Editor.git
    cd Omega-Wave-Editor
    ```
-
 2. Abhängigkeiten installieren:
    ```bash
    npm install
    ```
-
 3. Entwicklungsmodus starten:
    ```bash
    npm run dev
