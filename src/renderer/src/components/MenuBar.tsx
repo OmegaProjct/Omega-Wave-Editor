@@ -148,6 +148,8 @@ export function MenuBar({
             <MenuItem label="Arrangement exportieren (.owea)..." action="export_arrangement" />
             <MenuItem label="Layer exportieren (.owel)..." action="export_layer" />
             <MenuItem divider />
+            <MenuItem label="Einstellungen" shortcut="Strg+P" action="settings" />
+            <MenuItem divider />
             <MenuItem label="Beenden" shortcut="Alt+F4" action="quit" />
           </div>
         )}
