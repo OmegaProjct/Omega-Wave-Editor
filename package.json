@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "description": "Omega Wave Editor",
   "main": "./out/main/index.js",
-  "author": "Omega Projects <info@omegaprojects.de>",
+  "author": "Omega Projects <omegaproject1337@gmail.com>",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/OmegaProjct/Omega-Wave-Editor.git"
