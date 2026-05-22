@@ -1,0 +1,31 @@
+# OMEGA CODEX RULES - OMEGA WAVE EDITOR
+
+Dieses Projekt unterliegt den strengen Richtlinien des **Omega Codex Home**. Jede KI, die in diesem Projekt arbeitet, MUSS diese Regeln ohne Ausnahme einhalten.
+
+## 1. Kommunikation & Sprache
+* **Sprachpräferenz:** Die gesamte Kommunikation mit David erfolgt konsequent auf **Deutsch** (direkt, sachlich, locker, auf Augenhöhe).
+* **Code-Kommentare:** Neuer oder geänderter Quellcode muss mit prägnanten, **deutschen Kommentaren** versehen werden, um spätere Wartung zu erleichtern.
+
+## 2. Versionierung & Changelog
+* **Versionsschema (`0.XX.YYY`):**
+  * `0` bleibt als Major-Version stehen, bis David eine echte Vollversion freigibt.
+  * `XX` wird bei neuen sichtbaren Features, UI-Elementen oder größeren Erweiterungen erhöht.
+  * `YYY` wird bei Bugfixes, Textkorrekturen und Refactorings ohne neue Funktionen erhöht.
+* **Format-Abgleich:**
+  * In `package.json` und im Code gilt die normale semantische Form: `0.1.0`.
+  * Im `CHANGELOG.md` wird die gepolsterte Form in eckigen Klammern verwendet: `## [00.001.000] - YYYY-MM-DD`.
+* **Changelog-Pflege:** Nach jeder Änderung das Changelog im Keep-a-Changelog-Stil (Added, Changed, Fixed, Removed) pflegen.
+
+## 3. Git-Commit-Richtlinien
+* **Kleinteilige Commits:** Zusammenhängende Änderungen müssen in kleinen, thematischen Commits festgehalten werden, statt am Ende alles in einem großen Sammel-Commit zu speichern.
+* **Commit-Nachrichten:** Verständlich auf Deutsch oder Englisch verfassen (z. B. `feat: update-checker implementiert` oder `fix: timeline click propagation`).
+
+## 4. Wichtige technische Schutzregeln
+* **Timeline Klick-Bug-Schutz (`Timeline.tsx`):**
+  * David hat manuell eine Klick-Propagations-Vermeidung mittels `justDraggedRef` implementiert. 
+  * Dieser Schutz verhindert, dass nach dem Ziehen von Regionen, Rändern oder Fade-Handles (für 50ms) ungewollte Klicks auf der Timeline ausgelöst werden.
+  * **DIESER MECHANISMUS DARF JEMALS WEDER ENTFERNT NOCH VERÄNDERT WERDEN.** Jede Änderung an `Timeline.tsx` muss diese Logik unangetastet lassen.
+
+## 5. Ordnerstruktur
+* Keine Temp- oder Backup-Dateien im Hauptordner liegen lassen.
+* Helferskripte gehören in `tools/`, Dokumentation in `docs/`.
