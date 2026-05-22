@@ -4,6 +4,11 @@
   "description": "Omega Wave Editor",
   "main": "./out/main/index.js",
   "author": "Omega Projects",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OmegaProjct/Omega-Wave-Editor.git"
+  },
+  "homepage": "https://github.com/OmegaProjct/Omega-Wave-Editor#readme",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
@@ -46,6 +51,13 @@
     "directories": {
       "output": "dist-bin"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "OmegaProjct",
+        "repo": "Omega-Wave-Editor"
+      }
+    ],
     "win": {
       "target": [
         "nsis",
