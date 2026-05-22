@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+﻿import React, { useState, useEffect, useMemo } from 'react'
 import { Folder, Save, Tag } from 'lucide-react'
 
 const ID3_FORMATS = ['MP3 (Lame Encoder)', 'M4A (AAC Audio)', 'OGG (Vorbis)', 'OPUS (Interactive)']
@@ -393,3 +393,4 @@ export function ExportModal({ onClose, tracks }: { onClose: () => void, tracks: 
     </div>
   )
 }
+

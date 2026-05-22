@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+﻿import React, { useState } from 'react'
 import { FileText, Music, Info, Copy, HelpCircle } from 'lucide-react'
 
 type Tab = 'Allgemein' | 'Audio'

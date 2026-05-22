@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+﻿import React, { useState } from 'react'
 import { Play, Square, SkipBack, SkipForward, Info, ChevronDown } from 'lucide-react'
 
 import { AudioEngine } from '../lib/AudioEngine'

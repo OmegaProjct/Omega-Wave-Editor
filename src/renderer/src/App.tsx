@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+﻿import { useState, useCallback, useEffect } from 'react'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import { FileExplorer } from './components/FileExplorer'
 import { Timeline } from './components/Timeline'
@@ -174,3 +174,4 @@ function App(): JSX.Element {
 }
 
 export default App
+

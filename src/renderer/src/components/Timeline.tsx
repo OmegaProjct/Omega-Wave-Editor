@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react'
+﻿import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, useMotionValue, useAnimationFrame } from 'framer-motion'
 import { WaveformRenderer } from './WaveformRenderer'
 import { HistoryManager } from '../lib/HistoryManager'
@@ -1930,3 +1930,4 @@ export function Timeline({
     </div>
   )
 }
+

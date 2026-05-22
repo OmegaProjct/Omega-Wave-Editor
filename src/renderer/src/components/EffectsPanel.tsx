@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+﻿import React, { useState, useEffect } from 'react'
 import { RotateCcw, ChevronUp, ChevronDown, Save, FolderOpen, Copy, Clipboard, Check, RefreshCw } from 'lucide-react'
 import { AudioEngine } from '../lib/AudioEngine'
 
@@ -696,3 +696,4 @@ export function EffectsPanel({
     </div>
   )
 }
+
