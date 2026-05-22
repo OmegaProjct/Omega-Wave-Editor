@@ -5,6 +5,114 @@
 
 export type EQBand = { freq: number; gain: number; type: BiquadFilterType };
 
+class Jungle {
+  public input: GainNode;
+  public output: GainNode;
+  private ctx: BaseAudioContext;
+  private delay1: DelayNode;
+  private delay2: DelayNode;
+  private mod1: AudioBufferSourceNode;
+  private mod2: AudioBufferSourceNode;
+  private mod1Gain: GainNode;
+  private mod2Gain: GainNode;
+  private fade1: AudioBufferSourceNode;
+  private fade2: AudioBufferSourceNode;
+  private fade1Gain: GainNode;
+  private fade2Gain: GainNode;
+  private delayTime: number = 0.100;
+
+  constructor(ctx: BaseAudioContext) {
+    this.ctx = ctx;
+    this.input = ctx.createGain();
+    this.output = ctx.createGain();
+    this.delay1 = ctx.createDelay(1.0);
+    this.delay2 = ctx.createDelay(1.0);
+    this.mod1Gain = ctx.createGain();
+    this.mod2Gain = ctx.createGain();
+    this.fade1Gain = ctx.createGain();
+    this.fade2Gain = ctx.createGain();
+
+    this.input.connect(this.delay1);
+    this.input.connect(this.delay2);
+    this.delay1.connect(this.fade1Gain);
+    this.delay2.connect(this.fade2Gain);
+    this.fade1Gain.connect(this.output);
+    this.fade2Gain.connect(this.output);
+
+    this.mod1Gain.gain.value = this.delayTime;
+    this.mod2Gain.gain.value = this.delayTime;
+    this.fade1Gain.gain.value = 0;
+    this.fade2Gain.gain.value = 0;
+
+    const sampleRate = ctx.sampleRate;
+    const length = sampleRate * this.delayTime;
+
+    const modBuffer = ctx.createBuffer(1, length, sampleRate);
+    const modData = modBuffer.getChannelData(0);
+    for (let i = 0; i < length; i++) modData[i] = i / (length - 1);
+
+    const fadeBuffer = ctx.createBuffer(1, length, sampleRate);
+    const fadeData = fadeBuffer.getChannelData(0);
+    for (let i = 0; i < length; i++) fadeData[i] = Math.sin((i / (length - 1)) * Math.PI);
+
+    this.mod1 = ctx.createBufferSource();
+    this.mod2 = ctx.createBufferSource();
+    this.mod1.buffer = modBuffer;
+    this.mod2.buffer = modBuffer;
+    this.mod1.loop = true;
+    this.mod2.loop = true;
+
+    this.fade1 = ctx.createBufferSource();
+    this.fade2 = ctx.createBufferSource();
+    this.fade1.buffer = fadeBuffer;
+    this.fade2.buffer = fadeBuffer;
+    this.fade1.loop = true;
+    this.fade2.loop = true;
+
+    this.mod1.connect(this.mod1Gain);
+    this.mod1Gain.connect(this.delay1.delayTime);
+    this.mod2.connect(this.mod2Gain);
+    this.mod2Gain.connect(this.delay2.delayTime);
+    this.fade1.connect(this.fade1Gain.gain);
+    this.fade2.connect(this.fade2Gain.gain);
+  }
+
+  public setPitchRatio(ratio: number) {
+    const delayRate = 1.0 - ratio;
+    const speed = Math.abs(delayRate);
+    const playRate = Math.max(0.001, Math.min(100.0, speed));
+    this.mod1.playbackRate.setValueAtTime(playRate, this.ctx.currentTime);
+    this.mod2.playbackRate.setValueAtTime(playRate, this.ctx.currentTime);
+    this.fade1.playbackRate.setValueAtTime(playRate, this.ctx.currentTime);
+    this.fade2.playbackRate.setValueAtTime(playRate, this.ctx.currentTime);
+
+    if (delayRate >= 0) {
+      this.mod1Gain.gain.setValueAtTime(this.delayTime, this.ctx.currentTime);
+      this.mod2Gain.gain.setValueAtTime(this.delayTime, this.ctx.currentTime);
+    } else {
+      this.mod1Gain.gain.setValueAtTime(-this.delayTime, this.ctx.currentTime);
+      this.mod2Gain.gain.setValueAtTime(-this.delayTime, this.ctx.currentTime);
+    }
+  }
+
+  public start(when: number = 0) {
+    const now = this.ctx.currentTime;
+    const startTime = Math.max(now, when);
+    const halfPeriod = this.delayTime / 2;
+    this.mod1.start(startTime);
+    this.mod2.start(startTime + halfPeriod);
+    this.fade1.start(startTime);
+    this.fade2.start(startTime + halfPeriod);
+  }
+
+  public stop() {
+    try { this.mod1.stop(); } catch {}
+    try { this.mod2.stop(); } catch {}
+    try { this.fade1.stop(); } catch {}
+    try { this.fade2.stop(); } catch {}
+  }
+}
+
 type TrackNode = {
   id: string;
   pan: StereoPannerNode;
@@ -31,6 +139,7 @@ type ActiveRegionNode = {
   delayFeedback: GainNode;
   delayGain: GainNode;
   fadeGain: GainNode;
+  pitchShifter?: Jungle;
 };
 
 export class AudioEngine {
@@ -44,7 +153,11 @@ export class AudioEngine {
   public isPlaying: boolean = false;
   private startTime: number = 0;
   private pauseTime: number = 0;
+  private activeDeviceId: string = 'default';
   
+  // LRU cache management
+  private bufferAccessTimes: Map<string, number> = new Map();
+
   // Keep track of all active playing region nodes for real-time DSP parameter updates
   private activeRegions: Map<string, ActiveRegionNode[]> = new Map();
   
@@ -76,7 +189,49 @@ export class AudioEngine {
     return AudioEngine.instance;
   }
 
+  private getBufferSize(buffer: AudioBuffer): number {
+    return buffer.numberOfChannels * buffer.length * 4;
+  }
+
+  private checkMemoryAndClean() {
+    let totalSize = 0;
+    for (const [_, buf] of this.buffers.entries()) {
+      totalSize += this.getBufferSize(buf);
+    }
+
+    // Unload buffers if they exceed 500 MB
+    if (totalSize > 500 * 1024 * 1024) {
+      console.warn(`Audio buffer cache exceeds 500 MB limit: ${(totalSize / 1024 / 1024).toFixed(1)} MB.`);
+      
+      // Dispatch alert to UI
+      window.dispatchEvent(new CustomEvent('SHOW_GLOBAL_MODAL', {
+        detail: {
+          type: 'warning',
+          title: 'Hoher Speicherverbrauch',
+          message: `Der Audio-Cache verwendet derzeit ${(totalSize / 1024 / 1024).toFixed(0)} MB RAM. Um die Stabilität zu gewährleisten, werden nicht genutzte Audiodaten automatisch freigegeben.`
+        }
+      }));
+
+      // Sort keys by oldest access time
+      const sorted = Array.from(this.buffers.keys()).sort((a, b) => {
+        return (this.bufferAccessTimes.get(a) || 0) - (this.bufferAccessTimes.get(b) || 0);
+      });
+
+      for (const filePath of sorted) {
+        if (totalSize <= 350 * 1024 * 1024) break;
+        const buf = this.buffers.get(filePath);
+        if (buf) {
+          totalSize -= this.getBufferSize(buf);
+          this.buffers.delete(filePath);
+          this.bufferAccessTimes.delete(filePath);
+          console.log(`LRU Memory Unloaded buffer: ${filePath}`);
+        }
+      }
+    }
+  }
+
   public async loadFile(filePath: string): Promise<AudioBuffer> {
+    this.bufferAccessTimes.set(filePath, Date.now());
     if (this.buffers.has(filePath)) return this.buffers.get(filePath)!;
     
     try {
@@ -88,6 +243,9 @@ export class AudioEngine {
       
       const audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
       this.buffers.set(filePath, audioBuffer);
+      this.bufferAccessTimes.set(filePath, Date.now());
+      
+      this.checkMemoryAndClean();
       return audioBuffer;
     } catch (err: any) {
       throw new Error(`Fehler beim Einlesen der Datei: ${err.message}`);
@@ -163,11 +321,35 @@ export class AudioEngine {
     return track;
   }
 
+  // mathematically precise equal power curves
+  private getEqualPowerFadeInCurve(startGain: number = 0): Float32Array {
+    const size = 128;
+    const curve = new Float32Array(size);
+    for (let i = 0; i < size; i++) {
+      const x = i / (size - 1);
+      const targetVal = Math.sin(x * 0.5 * Math.PI);
+      curve[i] = startGain + (1.0 - startGain) * targetVal;
+    }
+    return curve;
+  }
+
+  private getEqualPowerFadeOutCurve(startGain: number = 1.0): Float32Array {
+    const size = 128;
+    const curve = new Float32Array(size);
+    for (let i = 0; i < size; i++) {
+      const x = i / (size - 1);
+      const targetVal = Math.cos(x * 0.5 * Math.PI);
+      curve[i] = startGain * targetVal;
+    }
+    return curve;
+  }
+
   public play(project: { tracks: any[] }, startTime: number = 0) {
     this.stop(); // Always destroy previous state to prevent layering
     if (this.ctx.state === 'suspended') this.ctx.resume();
 
     this.startTime = this.ctx.currentTime - startTime;
+    this.pauseTime = startTime;
     this.isPlaying = true;
     this.activeRegions.clear();
 
@@ -179,6 +361,10 @@ export class AudioEngine {
 
       const trackNode = this.tracks.get(t.id) || this.createTrack(t.id);
       
+      // Re-apply track volume & pan instantly
+      trackNode.output.gain.setValueAtTime(t.volume !== undefined ? t.volume : 1.0, this.ctx.currentTime);
+      trackNode.pan.pan.setValueAtTime(t.pan !== undefined ? t.pan : 0.0, this.ctx.currentTime);
+      
       // Sort regions by start position for crossfade detection
       const sortedRegions = [...t.regions].sort((a: any, b: any) => a.startPos - b.startPos);
 
@@ -189,7 +375,9 @@ export class AudioEngine {
           source.buffer = buffer;
           
           const effects = r.effects || {};
-          source.playbackRate.value = effects.pitchRate !== undefined ? effects.pitchRate : 1.0;
+          const pitchRate = effects.pitchRate !== undefined ? effects.pitchRate : 1.0;
+          const keepPitch = effects.keepPitch || false;
+          source.playbackRate.value = pitchRate;
           
           let lastNode: AudioNode = source;
           
@@ -202,6 +390,15 @@ export class AudioEngine {
             splitter.connect(merger, channelIndex, 0); // route to left
             splitter.connect(merger, channelIndex, 1); // route to right
             lastNode = merger;
+          }
+
+          // Pitch shifter (Jungle)
+          let shifter: Jungle | undefined = undefined;
+          if (keepPitch) {
+            shifter = new Jungle(this.ctx);
+            shifter.setPitchRatio(1 / pitchRate);
+            lastNode.connect(shifter.input);
+            lastNode = shifter.output;
           }
 
           // Per-region gain node (for volume gain line)
@@ -238,7 +435,7 @@ export class AudioEngine {
           // 3. Compressor Node
           const compressor = this.ctx.createDynamicsCompressor();
           compressor.threshold.value = effects.compThreshold !== undefined ? effects.compThreshold : 0;
-          compressor.ratio.value = (effects.compActive && effects.compRatio !== undefined) ? effects.compRatio : 1; // 1 = bypass
+          compressor.ratio.value = (effects.compActive && effects.compRatio !== undefined) ? Math.max(1, effects.compRatio) : 1; // 1 = bypass
           lastNode.connect(compressor);
           lastNode = compressor;
 
@@ -302,7 +499,8 @@ export class AudioEngine {
             delayTime: delayTimeParam,
             delayFeedback,
             delayGain,
-            fadeGain
+            fadeGain,
+            pitchShifter: shifter
           };
           if (!this.activeRegions.has(r.id)) {
             this.activeRegions.set(r.id, []);
@@ -317,6 +515,9 @@ export class AudioEngine {
             const bufferOffset = (r.sourceOffset || 0) + offset;
             const playDuration = r.duration - offset;
             source.start(this.ctx.currentTime + when, bufferOffset, playDuration);
+            if (shifter) {
+              shifter.start(this.ctx.currentTime + when);
+            }
             
             const absStart = this.ctx.currentTime + when;
             const absEnd = absStart + playDuration;
@@ -385,26 +586,29 @@ export class AudioEngine {
             }
 
             if (inFadeOut) {
-              // Wenn die Wiedergabe direkt im Ausblendbereich einsteigt
-              fadeGain.gain.setValueAtTime(startFadeOutGain, absStart);
-              fadeGain.gain.linearRampToValueAtTime(0.0, absEnd);
+              // Wenn die Wiedergabe direkt im Ausblendbereich einsteigt (Equal-Power Curve)
+              const curve = this.getEqualPowerFadeOutCurve(startFadeOutGain);
+              fadeGain.gain.setValueCurveAtTime(curve, absStart, playDuration);
             } else {
               // Normaler Ablauf (ggf. mit Rest-Fade-In und späterem Fade-Out)
               fadeGain.gain.setValueAtTime(startGain, absStart);
 
               if (fadeInTimeRemaining > 0) {
-                // Ramping vom Teillautstärke-Einstiegspunkt hoch auf 100%
-                fadeGain.gain.linearRampToValueAtTime(1.0, absStart + fadeInTimeRemaining);
+                // Ramping vom Teillautstärke-Einstiegspunkt hoch auf 100% (Equal-Power Curve)
+                const curve = this.getEqualPowerFadeInCurve(startGain);
+                fadeGain.gain.setValueCurveAtTime(curve, absStart, fadeInTimeRemaining);
               }
 
               // Normalen Fade-Out planen
               const fadeOutStartAbs = absStart + (fadeOutStartOffset - offset);
               if (fadeOutStartAbs > absStart + fadeInTimeRemaining) {
                 fadeGain.gain.setValueAtTime(1.0, fadeOutStartAbs);
-                fadeGain.gain.linearRampToValueAtTime(0.0, absEnd);
+                const curve = this.getEqualPowerFadeOutCurve(1.0);
+                fadeGain.gain.setValueCurveAtTime(curve, fadeOutStartAbs, effectiveFadeOut);
               } else {
                 // Falls das Fade-Out das restliche Fade-In überlappt
-                fadeGain.gain.linearRampToValueAtTime(0.0, absEnd);
+                const curve = this.getEqualPowerFadeOutCurve(1.0);
+                fadeGain.gain.setValueCurveAtTime(curve, absStart + fadeInTimeRemaining, effectiveFadeOut);
               }
             }
           }
@@ -413,8 +617,37 @@ export class AudioEngine {
     });
   }
 
+  private disconnectTrack(track: TrackNode) {
+    try {
+      track.pan.disconnect();
+      track.eq.forEach(f => f.disconnect());
+      track.compressor.disconnect();
+      track.reverb.disconnect();
+      track.reverbGain.disconnect();
+      track.delay.disconnect();
+      track.delayFeedback.disconnect();
+      track.delayGain.disconnect();
+      track.deEsser.disconnect();
+      track.output.disconnect();
+    } catch (e) {
+      console.warn('Error disconnecting track nodes:', e);
+    }
+  }
+
   public stop() {
     this.isPlaying = false;
+    this.pauseTime = 0;
+    
+    this.tracks.forEach(track => {
+      this.disconnectTrack(track);
+    });
+
+    this.activeRegions.forEach(nodes => {
+      nodes.forEach(node => {
+        if (node.pitchShifter) node.pitchShifter.stop();
+      });
+    });
+
     this.ctx.close();
     this.ctx = new AudioContext();
     this.masterGain = this.ctx.createGain();
@@ -432,12 +665,23 @@ export class AudioEngine {
     this.masterGain.connect(this.masterLimiter);
     this.masterLimiter.connect(this.masterAnalyser);
     this.masterAnalyser.connect(this.ctx.destination);
+    
+    // Restore dynamic audio output selection
+    if (this.activeDeviceId && this.activeDeviceId !== 'default') {
+      if ((this.ctx as any).setSinkId) {
+        (this.ctx as any).setSinkId(this.activeDeviceId).catch((e: any) => {
+          console.error('Failed to restore output device sink ID:', e);
+        });
+      }
+    }
+
     this.tracks.clear();
     this.activeRegions.clear();
   }
 
   public pause() {
     this.isPlaying = false;
+    this.pauseTime = this.currentTime;
     this.ctx.suspend();
   }
 
@@ -451,36 +695,48 @@ export class AudioEngine {
     this.trackParams.get(trackId)[key] = value;
   }
 
+  // Knack-free audio parameter changes using brief linear ramp values
+  private rampParam(param: AudioParam, targetValue: number) {
+    try {
+      const now = this.ctx.currentTime;
+      param.cancelScheduledValues(now);
+      param.setValueAtTime(param.value, now);
+      param.linearRampToValueAtTime(targetValue, now + 0.01);
+    } catch {
+      param.value = targetValue;
+    }
+  }
+
   public setTrackVolume(trackId: string, linearValue: number) {
     const track = this.tracks.get(trackId) || this.createTrack(trackId);
-    track.output.gain.setTargetAtTime(linearValue, this.ctx.currentTime, 0.02);
+    this.rampParam(track.output.gain, linearValue);
   }
 
   public setTrackPan(trackId: string, panValue: number) {
     const track = this.tracks.get(trackId) || this.createTrack(trackId);
-    track.pan.pan.setTargetAtTime(panValue, this.ctx.currentTime, 0.02);
+    this.rampParam(track.pan.pan, panValue);
   }
 
   public setTrackEQ(trackId: string, bandIndex: number, gain: number) {
     const track = this.tracks.get(trackId) || this.createTrack(trackId);
     if (track.eq[bandIndex]) {
-      track.eq[bandIndex].gain.setTargetAtTime(gain, this.ctx.currentTime, 0.02);
+      this.rampParam(track.eq[bandIndex].gain, gain);
     }
   }
 
   public setTrackCompressor(trackId: string, threshold: number, ratio: number) {
     const track = this.tracks.get(trackId) || this.createTrack(trackId);
-    track.compressor.threshold.setTargetAtTime(threshold, this.ctx.currentTime, 0.02);
-    track.compressor.ratio.setTargetAtTime(ratio, this.ctx.currentTime, 0.02);
+    this.rampParam(track.compressor.threshold, threshold);
+    this.rampParam(track.compressor.ratio, ratio);
     this.saveParam(trackId, 'comp', { threshold, ratio });
   }
 
   public setTrackReverb(trackId: string, mix: number, time: number) {
     const track = this.tracks.get(trackId) || this.createTrack(trackId);
-    track.reverbGain.gain.setTargetAtTime(mix / 100, this.ctx.currentTime, 0.02);
+    this.rampParam(track.reverbGain.gain, mix / 100);
     this.saveParam(trackId, 'reverb', { mix, time });
     
-    // Generate simple impulse response for demo
+    // Generate simple impulse response for reverb
     const length = this.ctx.sampleRate * time;
     const impulse = this.ctx.createBuffer(2, length, this.ctx.sampleRate);
     const left = impulse.getChannelData(0);
@@ -494,15 +750,15 @@ export class AudioEngine {
 
   public setTrackDelay(trackId: string, timeMs: number, feedback: number) {
     const track = this.tracks.get(trackId) || this.createTrack(trackId);
-    track.delay.delayTime.setTargetAtTime(timeMs / 1000, this.ctx.currentTime, 0.02);
-    track.delayFeedback.gain.setTargetAtTime(feedback / 100, this.ctx.currentTime, 0.02);
-    track.delayGain.gain.setTargetAtTime(feedback > 0 ? 0.5 : 0, this.ctx.currentTime, 0.02);
+    this.rampParam(track.delay.delayTime, timeMs / 1000);
+    this.rampParam(track.delayFeedback.gain, feedback / 100);
+    this.rampParam(track.delayGain.gain, feedback > 0 ? 0.5 : 0);
     this.saveParam(trackId, 'delay', { timeMs, feedback });
   }
 
   public setTrackDeEsser(trackId: string, active: boolean, reduction: number) {
     const track = this.tracks.get(trackId) || this.createTrack(trackId);
-    track.deEsser.gain.setTargetAtTime(active ? -reduction : 0, this.ctx.currentTime, 0.02);
+    this.rampParam(track.deEsser.gain, active ? -reduction : 0);
     this.saveParam(trackId, 'deEsser', { active, reduction });
   }
   
@@ -511,8 +767,8 @@ export class AudioEngine {
   }
 
   public setMasterLimiter(threshold: number, release: number) {
-    this.masterLimiter.threshold.setTargetAtTime(threshold, this.ctx.currentTime, 0.02);
-    this.masterLimiter.release.setTargetAtTime(release, this.ctx.currentTime, 0.02);
+    this.rampParam(this.masterLimiter.threshold, threshold);
+    this.rampParam(this.masterLimiter.release, release);
   }
 
   // Basic Audio Cleaning (Denoiser/Dehisser)
@@ -527,7 +783,7 @@ export class AudioEngine {
     const list = this.activeRegions.get(regionId);
     if (!list) return;
     list.forEach(node => {
-      node.gainNode.gain.setTargetAtTime(gain, this.ctx.currentTime, 0.02);
+      this.rampParam(node.gainNode.gain, gain);
     });
   }
 
@@ -536,7 +792,7 @@ export class AudioEngine {
     if (!list) return;
     list.forEach(node => {
       if (node.eqFilters[bandIndex]) {
-        node.eqFilters[bandIndex].gain.setTargetAtTime(gain, this.ctx.currentTime, 0.02);
+        this.rampParam(node.eqFilters[bandIndex].gain, gain);
       }
     });
   }
@@ -545,7 +801,7 @@ export class AudioEngine {
     const list = this.activeRegions.get(regionId);
     if (!list) return;
     list.forEach(node => {
-      node.deEsserFilter.gain.setTargetAtTime(active ? -reduction : 0, this.ctx.currentTime, 0.02);
+      this.rampParam(node.deEsserFilter.gain, active ? -reduction : 0);
     });
   }
 
@@ -553,8 +809,8 @@ export class AudioEngine {
     const list = this.activeRegions.get(regionId);
     if (!list) return;
     list.forEach(node => {
-      node.compressor.threshold.setTargetAtTime(threshold, this.ctx.currentTime, 0.02);
-      node.compressor.ratio.setTargetAtTime(ratio, this.ctx.currentTime, 0.02);
+      this.rampParam(node.compressor.threshold, threshold);
+      this.rampParam(node.compressor.ratio, ratio);
     });
   }
 
@@ -562,7 +818,7 @@ export class AudioEngine {
     const list = this.activeRegions.get(regionId);
     if (!list) return;
     list.forEach(node => {
-      node.reverbGain.gain.setTargetAtTime(mix / 100, this.ctx.currentTime, 0.02);
+      this.rampParam(node.reverbGain.gain, mix / 100);
     });
   }
 
@@ -570,22 +826,32 @@ export class AudioEngine {
     const list = this.activeRegions.get(regionId);
     if (!list) return;
     list.forEach(node => {
-      node.delayTime.setTargetAtTime(timeMs / 1000, this.ctx.currentTime, 0.02);
-      node.delayFeedback.gain.setTargetAtTime(feedback / 100, this.ctx.currentTime, 0.02);
-      node.delayGain.gain.setTargetAtTime(feedback > 0 ? 0.5 : 0.0, this.ctx.currentTime, 0.02);
+      this.rampParam(node.delayTime, timeMs / 1000);
+      this.rampParam(node.delayFeedback.gain, feedback / 100);
+      this.rampParam(node.delayGain.gain, feedback > 0 ? 0.5 : 0.0);
     });
   }
 
-  public updateActiveRegionPitch(regionId: string, rate: number) {
+  public updateActiveRegionPitch(regionId: string, rate: number, keepPitch?: boolean) {
     const list = this.activeRegions.get(regionId);
     if (!list) return;
     list.forEach(node => {
-      node.source.playbackRate.setTargetAtTime(rate, this.ctx.currentTime, 0.02);
+      this.rampParam(node.source.playbackRate, rate);
+      if (node.pitchShifter) {
+        if (keepPitch) {
+          node.pitchShifter.setPitchRatio(1 / rate);
+        } else {
+          node.pitchShifter.setPitchRatio(1.0);
+        }
+      }
     });
   }
 
   public get currentTime() {
-    return this.isPlaying ? this.ctx.currentTime - this.startTime : 0;
+    if (this.isPlaying) {
+      return this.ctx.currentTime - this.startTime;
+    }
+    return this.pauseTime;
   }
 
   public getMasterLevels(): { left: number, right: number } {
@@ -604,7 +870,7 @@ export class AudioEngine {
   }
 
   public setMasterVolume(linearValue: number) {
-    this.masterGain.gain.setTargetAtTime(linearValue, this.ctx.currentTime, 0.02);
+    this.rampParam(this.masterGain.gain, linearValue);
   }
 
   public getMasterGain() {
@@ -613,5 +879,425 @@ export class AudioEngine {
 
   public getMasterAnalyser(): AnalyserNode {
     return this.masterAnalyser;
+  }
+
+  // --- Dynamic Audio Output Device Routing ---
+  public async setOutputDevice(deviceId: string): Promise<boolean> {
+    this.activeDeviceId = deviceId;
+    try {
+      if (this.ctx && (this.ctx as any).setSinkId) {
+        await (this.ctx as any).setSinkId(deviceId);
+        return true;
+      }
+    } catch (err) {
+      console.error('Error setting sink ID for AudioContext:', err);
+    }
+    return false;
+  }
+
+  // --- Complete Offline Mastering Multi-track Audio Renderer ---
+  public async renderOffline(project: { tracks: any[] }, sampleRate: number = 44100): Promise<AudioBuffer> {
+    // 1. Calculate project duration
+    let maxDuration = 1.0;
+    project.tracks.forEach(t => {
+      t.regions.forEach((r: any) => {
+        if (r.startPos + r.duration > maxDuration) {
+          maxDuration = r.startPos + r.duration;
+        }
+      });
+    });
+    
+    // Add 1 second of buffer for reverb tails / delay decays
+    maxDuration += 1.0;
+    
+    const totalFrames = Math.ceil(maxDuration * sampleRate);
+    const offlineCtx = new OfflineAudioContext(2, totalFrames, sampleRate);
+    
+    const masterGain = offlineCtx.createGain();
+    const masterLimiter = offlineCtx.createDynamicsCompressor();
+    
+    masterLimiter.threshold.value = -0.1;
+    masterLimiter.knee.value = 0.0;
+    masterLimiter.ratio.value = 20.0;
+    masterLimiter.attack.value = 0.005;
+    masterLimiter.release.value = 0.050;
+    
+    masterGain.connect(masterLimiter);
+    masterLimiter.connect(offlineCtx.destination);
+    
+    // Replicate master volume from our current master gain
+    masterGain.gain.value = this.masterGain.gain.value;
+    
+    const hasSolo = project.tracks.some(t => t.solo);
+    
+    for (const t of project.tracks) {
+      if (hasSolo && !t.solo) continue;
+      if (t.muted && !t.solo) continue;
+      
+      const sortedRegions = [...t.regions].sort((a: any, b: any) => a.startPos - b.startPos);
+      if (sortedRegions.length === 0) continue;
+      
+      // Create track-level nodes in offline context
+      const trackOutput = offlineCtx.createGain();
+      const trackPan = offlineCtx.createStereoPanner();
+      const trackCompressor = offlineCtx.createDynamicsCompressor();
+      
+      const trackDeEsser = offlineCtx.createBiquadFilter();
+      trackDeEsser.type = 'highshelf';
+      trackDeEsser.frequency.value = 6000;
+      
+      const trackEq: BiquadFilterNode[] = [];
+      const freqs = [60, 170, 310, 600, 800, 1000, 3000, 6000, 12000, 16000];
+      
+      let lastTrackNode: AudioNode = trackPan;
+      freqs.forEach(f => {
+        const filter = offlineCtx.createBiquadFilter();
+        filter.type = 'peaking';
+        filter.frequency.value = f;
+        filter.gain.value = 0;
+        lastTrackNode.connect(filter);
+        trackEq.push(filter);
+        lastTrackNode = filter;
+      });
+      
+      lastTrackNode.connect(trackDeEsser);
+      trackDeEsser.connect(trackCompressor);
+      
+      // Reverb
+      const trackReverb = offlineCtx.createConvolver();
+      const trackReverbGain = offlineCtx.createGain();
+      trackReverbGain.gain.value = 0;
+      trackCompressor.connect(trackReverb);
+      trackReverb.connect(trackReverbGain);
+      trackReverbGain.connect(trackOutput);
+      
+      // Delay
+      const trackDelay = offlineCtx.createDelay(5.0);
+      const trackDelayFeedback = offlineCtx.createGain();
+      const trackDelayGain = offlineCtx.createGain();
+      trackDelayGain.gain.value = 0;
+      trackDelayFeedback.gain.value = 0.4;
+      
+      trackCompressor.connect(trackDelay);
+      trackDelay.connect(trackDelayFeedback);
+      trackDelayFeedback.connect(trackDelay);
+      trackDelay.connect(trackDelayGain);
+      trackDelayGain.connect(trackOutput);
+      
+      // Dry signal
+      trackCompressor.connect(trackOutput);
+      trackOutput.connect(masterGain);
+      
+      // Load stored track values from this.trackParams
+      const p = this.trackParams.get(t.id) || {};
+      
+      // Track Volume & Pan
+      trackOutput.gain.value = t.volume !== undefined ? t.volume : 1.0;
+      trackPan.pan.value = t.pan !== undefined ? t.pan : 0.0;
+      
+      // EQ Gains
+      if (t.eqGains) {
+        t.eqGains.forEach((g: number, idx: number) => {
+          if (trackEq[idx]) trackEq[idx].gain.value = g;
+        });
+      }
+      
+      // Compressor
+      if (p.comp) {
+        trackCompressor.threshold.value = p.comp.threshold;
+        trackCompressor.ratio.value = p.comp.ratio;
+      }
+      
+      // Reverb Convolver setup
+      if (p.reverb && p.reverb.mix > 0) {
+        trackReverbGain.gain.value = p.reverb.mix / 100;
+        const length = sampleRate * p.reverb.time;
+        const impulse = offlineCtx.createBuffer(2, length, sampleRate);
+        const left = impulse.getChannelData(0);
+        const right = impulse.getChannelData(1);
+        for (let i = 0; i < length; i++) {
+          left[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, 3);
+          right[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, 3);
+        }
+        trackReverb.buffer = impulse;
+      }
+      
+      // Delay setup
+      if (p.delay && p.delay.feedback > 0) {
+        trackDelay.delayTime.value = p.delay.timeMs / 1000;
+        trackDelayFeedback.gain.value = p.delay.feedback / 100;
+        trackDelayGain.gain.value = 0.5;
+      }
+      
+      // DeEsser setup
+      if (p.deEsser && p.deEsser.active) {
+        trackDeEsser.gain.value = -p.deEsser.reduction;
+      }
+      
+      // Simple Cleaning Denoise/Dehiss
+      if (t.denoise || t.dehiss) {
+        const denoise = t.denoise || 0;
+        const dehiss = t.dehiss || 0;
+        trackEq[0].gain.value = -denoise; // Cut low freq
+        trackEq[8].gain.value = -dehiss;  // Cut 12k
+        trackEq[9].gain.value = -dehiss;  // Cut 16k
+      }
+      
+      // Replicate all regions inside this track
+      for (const r of sortedRegions) {
+        const buffer = this.buffers.get(r.file.path);
+        if (!buffer) continue;
+        
+        const source = offlineCtx.createBufferSource();
+        source.buffer = buffer;
+        
+        const effects = r.effects || {};
+        const pitchRate = effects.pitchRate !== undefined ? effects.pitchRate : 1.0;
+        const keepPitch = effects.keepPitch || false;
+        source.playbackRate.value = pitchRate;
+        
+        let lastNode: AudioNode = source;
+        
+        // Channel split routing
+        if (r.stereoMode === 'left-only' || r.stereoMode === 'right-only') {
+          const splitter = offlineCtx.createChannelSplitter(2);
+          const merger = offlineCtx.createChannelMerger(2);
+          source.connect(splitter);
+          const channelIndex = r.stereoMode === 'left-only' ? 0 : 1;
+          splitter.connect(merger, channelIndex, 0);
+          splitter.connect(merger, channelIndex, 1);
+          lastNode = merger;
+        }
+
+        // Pitch shifter (Jungle) in offline context
+        let shifter: Jungle | undefined = undefined;
+        if (keepPitch) {
+          shifter = new Jungle(offlineCtx);
+          shifter.setPitchRatio(1 / pitchRate);
+          lastNode.connect(shifter.input);
+          lastNode = shifter.output;
+        }
+        
+        // Region gain
+        const regionGain = offlineCtx.createGain();
+        regionGain.gain.value = r.gain !== undefined ? r.gain : 1.0;
+        lastNode.connect(regionGain);
+        lastNode = regionGain;
+        
+        // Region EQs
+        const eqGains = effects.eqGains || new Array(10).fill(0);
+        freqs.forEach((f, idx) => {
+          const filter = offlineCtx.createBiquadFilter();
+          filter.type = 'peaking';
+          filter.frequency.value = f;
+          filter.gain.value = eqGains[idx] !== undefined ? eqGains[idx] : 0;
+          lastNode.connect(filter);
+          lastNode = filter;
+        });
+        
+        // Region DeEsser
+        const deEsserFilter = offlineCtx.createBiquadFilter();
+        deEsserFilter.type = 'highshelf';
+        deEsserFilter.frequency.value = 6000;
+        deEsserFilter.gain.value = (effects.deEsserActive && effects.deEsserReduction !== undefined)
+          ? -effects.deEsserReduction
+          : 0;
+        lastNode.connect(deEsserFilter);
+        lastNode = deEsserFilter;
+        
+        // Region Compressor
+        const regionCompressor = offlineCtx.createDynamicsCompressor();
+        regionCompressor.threshold.value = effects.compThreshold !== undefined ? effects.compThreshold : 0;
+        regionCompressor.ratio.value = (effects.compActive && effects.compRatio !== undefined) ? Math.max(1, effects.compRatio) : 1;
+        lastNode.connect(regionCompressor);
+        lastNode = regionCompressor;
+        
+        // Parallel Wet Send for Reverb & Delay
+        const regionOutput = offlineCtx.createGain();
+        
+        // Region Reverb Convolver setup
+        if (effects.reverbMix !== undefined && effects.reverbMix > 0) {
+          const regionReverb = offlineCtx.createConvolver();
+          const regionReverbGain = offlineCtx.createGain();
+          regionReverbGain.gain.value = effects.reverbMix / 100;
+          
+          const reverbTimeValue = effects.reverbTime || 1.5;
+          const reverbLength = sampleRate * reverbTimeValue;
+          const reverbImpulse = offlineCtx.createBuffer(2, reverbLength, sampleRate);
+          const leftRev = reverbImpulse.getChannelData(0);
+          const rightRev = reverbImpulse.getChannelData(1);
+          for (let i = 0; i < reverbLength; i++) {
+            leftRev[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / reverbLength, 3);
+            rightRev[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / reverbLength, 3);
+          }
+          regionReverb.buffer = reverbImpulse;
+          
+          lastNode.connect(regionReverb);
+          regionReverb.connect(regionReverbGain);
+          regionReverbGain.connect(regionOutput);
+        }
+        
+        // Region Delay setup
+        if (effects.delayFeedback !== undefined && effects.delayFeedback > 0) {
+          const regionDelay = offlineCtx.createDelay(5.0);
+          regionDelay.delayTime.value = (effects.delayTime !== undefined ? effects.delayTime : 300) / 1000;
+          
+          const regionDelayFeedback = offlineCtx.createGain();
+          regionDelayFeedback.gain.value = effects.delayFeedback / 100;
+          
+          const regionDelayGain = offlineCtx.createGain();
+          regionDelayGain.gain.value = 0.5;
+          
+          lastNode.connect(regionDelay);
+          regionDelay.connect(regionDelayFeedback);
+          regionDelayFeedback.connect(regionDelay);
+          regionDelay.connect(regionDelayGain);
+          regionDelayGain.connect(regionOutput);
+        }
+        
+        // Dry connect
+        lastNode.connect(regionOutput);
+        
+        // Fade gain
+        const fadeGain = offlineCtx.createGain();
+        regionOutput.connect(fadeGain);
+        fadeGain.connect(trackPan);
+        
+        // Schedule fades
+        const playDuration = r.duration;
+        const absStart = r.startPos;
+        const absEnd = absStart + playDuration;
+        
+        const fadeInDuration = r.fadeIn !== undefined ? r.fadeIn : 0.005;
+        const fadeOutDuration = r.fadeOut !== undefined ? r.fadeOut : 0.005;
+        
+        // Crossfade detection
+        let effectiveFadeOut = fadeOutDuration;
+        const nextRegion = sortedRegions.find((other: any) =>
+          other.id !== r.id &&
+          other.startPos < absEnd &&
+          other.startPos > r.startPos
+        );
+        if (nextRegion) {
+          const overlapStart = nextRegion.startPos;
+          const overlapDuration = absEnd - overlapStart;
+          if (overlapDuration > 0) {
+            effectiveFadeOut = Math.max(overlapDuration, fadeOutDuration);
+          }
+        }
+        
+        let effectiveFadeIn = fadeInDuration;
+        const prevRegion = sortedRegions.find((other: any) =>
+          other.id !== r.id &&
+          other.startPos + other.duration > r.startPos &&
+          other.startPos < r.startPos
+        );
+        if (prevRegion) {
+          const overlapDuration = (prevRegion.startPos + prevRegion.duration) - r.startPos;
+          if (overlapDuration > 0) {
+            effectiveFadeIn = Math.max(overlapDuration, fadeInDuration);
+          }
+        }
+        
+        // Schedule fade in (Equal-Power Curve)
+        fadeGain.gain.setValueAtTime(0, absStart);
+        if (effectiveFadeIn > 0) {
+          const fadeInCurve = new Float32Array(128);
+          for (let i = 0; i < 128; i++) {
+            fadeInCurve[i] = Math.sin((i / 127) * 0.5 * Math.PI);
+          }
+          fadeGain.gain.setValueCurveAtTime(fadeInCurve, absStart, effectiveFadeIn);
+        } else {
+          fadeGain.gain.setValueAtTime(1.0, absStart);
+        }
+        
+        // Schedule fade out (Equal-Power Curve)
+        const fadeOutStartAbs = absEnd - effectiveFadeOut;
+        if (effectiveFadeOut > 0 && fadeOutStartAbs > absStart) {
+          fadeGain.gain.setValueAtTime(1.0, fadeOutStartAbs);
+          const fadeOutCurve = new Float32Array(128);
+          for (let i = 0; i < 128; i++) {
+            fadeOutCurve[i] = Math.cos((i / 127) * 0.5 * Math.PI);
+          }
+          fadeGain.gain.setValueCurveAtTime(fadeOutCurve, fadeOutStartAbs, effectiveFadeOut);
+        }
+        
+        const bufferOffset = r.sourceOffset || 0;
+        source.start(absStart, bufferOffset, playDuration);
+        if (shifter) {
+          shifter.start(absStart);
+        }
+      }
+    }
+    
+    // Start offline rendering
+    return await offlineCtx.startRendering();
+  }
+
+  // Direct PCM 16-bit WAV compiler in-memory
+  public exportToWav(audioBuffer: AudioBuffer): ArrayBuffer {
+    const numOfChan = audioBuffer.numberOfChannels;
+    const numSamples = audioBuffer.length;
+    const format = 1; // raw PCM
+    const bitDepth = 16;
+    const sampleRate = audioBuffer.sampleRate;
+    const byteRate = sampleRate * numOfChan * (bitDepth / 8);
+    const blockAlign = numOfChan * (bitDepth / 8);
+    const dataSize = numSamples * numOfChan * (bitDepth / 8);
+    const totalSize = 36 + dataSize;
+    const buffer = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(buffer);
+
+    let pos = 0;
+
+    const writeString = (s: string) => {
+      for (let i = 0; i < s.length; i++) {
+        view.setUint8(pos + i, s.charCodeAt(i));
+      }
+      pos += s.length;
+    };
+
+    const writeUint32 = (n: number) => {
+      view.setUint32(pos, n, true);
+      pos += 4;
+    };
+
+    const writeUint16 = (n: number) => {
+      view.setUint16(pos, n, true);
+      pos += 2;
+    };
+
+    writeString('RIFF');
+    writeUint32(totalSize);
+    writeString('WAVE');
+    writeString('fmt ');
+    writeUint32(16);
+    writeUint16(format);
+    writeUint16(numOfChan);
+    writeUint32(sampleRate);
+    writeUint32(byteRate);
+    writeUint16(blockAlign);
+    writeUint16(bitDepth);
+    writeString('data');
+    writeUint32(dataSize);
+
+    const channels: Float32Array[] = [];
+    for (let c = 0; c < numOfChan; c++) {
+      channels.push(audioBuffer.getChannelData(c));
+    }
+
+    for (let i = 0; i < numSamples; i++) {
+      for (let c = 0; c < numOfChan; c++) {
+        let sample = channels[c][i];
+        if (sample > 1.0) sample = 1.0;
+        else if (sample < -1.0) sample = -1.0;
+        
+        const sampleVal = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+        view.setInt16(pos, sampleVal, true);
+        pos += 2;
+      }
+    }
+
+    return buffer;
   }
 }

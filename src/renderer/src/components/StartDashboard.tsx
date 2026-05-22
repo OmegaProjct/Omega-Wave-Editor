@@ -110,8 +110,7 @@ export function StartDashboard({
         {/* Title Bar (Branding analog zu /// MAGIX) */}
         <div className="bg-[#1a1d21] h-10 px-4 border-b border-gray-800/80 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-2">
-            <span className="text-[14px] font-bold text-gray-400 tracking-widest font-mono">/// OMEGA</span>
-            <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider border-l border-gray-700/80 pl-2">Start Center</span>
+            <span className="text-[14px] font-bold text-white tracking-wide">Omega Wave Editor Start Center</span>
           </div>
           <button 
             onClick={onClose} 

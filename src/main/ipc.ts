@@ -2,6 +2,7 @@ import { ipcMain, shell, dialog, app } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
+import { spawn } from 'child_process'
 import ffmpeg from 'fluent-ffmpeg'
 import ffmpegStatic from 'ffmpeg-static'
 import ffprobeStatic from 'ffprobe-static'
@@ -26,6 +27,12 @@ if (ffprobePath) {
   ffmpeg.setFfprobePath(ffprobePath)
 }
 
+let startupFile: string | null = null
+
+export function setStartupFile(filePath: string | null) {
+  startupFile = filePath
+}
+
 function isNewerVersion(current: string, latest: string): boolean {
   if (!current || !latest) return false
   const parse = (v: string) => {
@@ -44,17 +51,88 @@ function isNewerVersion(current: string, latest: string): boolean {
   return latePatch > currPatch
 }
 
+function isSafePath(filePath: any): boolean {
+  if (typeof filePath !== 'string' || filePath.trim() === '') return false
+  try {
+    const resolved = path.resolve(filePath)
+    if (filePath.includes('file://')) return false
+    if (filePath.includes('javascript:')) return false
+    if (filePath.includes('data:')) return false
+    return true
+  } catch {
+    return false
+  }
+}
+
 export function setupIpc() {
+  const appDataDir = app.getPath('userData')
+  const settingsPath = path.join(appDataDir, 'settings.json')
+
+  function getDefaultProjPath(): string {
+    try {
+      if (fs.existsSync(settingsPath)) {
+        const data = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'))
+        if (data && typeof data.projPath === 'string' && data.projPath.trim() !== '') {
+          return data.projPath
+        }
+      }
+    } catch (e) {
+      console.error('Error reading projPath from settings.json:', e)
+    }
+    let docPath = ''
+    try {
+      docPath = app.getPath('documents')
+    } catch (e) {
+      docPath = path.join(os.homedir(), 'Documents')
+    }
+    return path.join(docPath, 'OmegaProjects', 'Omega Wave Editor', 'Projects')
+  }
+
   ipcMain.handle('open-external', (_, url: string) => {
-    shell.openExternal(url)
+    if (typeof url !== 'string') return
+    try {
+      const parsed = new URL(url)
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+        shell.openExternal(url)
+      } else {
+        console.warn(`Blocked attempt to open insecure external URL: ${url}`)
+      }
+    } catch (e) {
+      console.error(`Invalid URL attempt: ${url}`, e)
+    }
+  })
+
+  ipcMain.handle('open-path', async (_, dirPath: string) => {
+    if (!isSafePath(dirPath)) return { success: false, error: 'Ungültiger Pfad' }
+    try {
+      const resolved = path.resolve(dirPath)
+      if (!fs.existsSync(resolved)) {
+        return { success: false, error: 'Pfad existiert nicht' }
+      }
+      const err = await shell.openPath(resolved)
+      if (err) {
+        return { success: false, error: err }
+      }
+      return { success: true }
+    } catch (e: any) {
+      return { success: false, error: e.message }
+    }
   })
 
   ipcMain.handle('show-open-dialog', async (_, options: any) => {
-    return await dialog.showOpenDialog(options)
+    const opts = (typeof options === 'object' && options !== null) ? { ...options } : {}
+    if (!opts.defaultPath) {
+      opts.defaultPath = getDefaultProjPath()
+    }
+    return await dialog.showOpenDialog(opts)
   })
 
   ipcMain.handle('show-save-dialog', async (_, options: any) => {
-    return await dialog.showSaveDialog(options)
+    const opts = (typeof options === 'object' && options !== null) ? { ...options } : {}
+    if (!opts.defaultPath) {
+      opts.defaultPath = getDefaultProjPath()
+    }
+    return await dialog.showSaveDialog(opts)
   })
 
   ipcMain.handle('get-home-dir', () => {
@@ -66,7 +144,8 @@ export function setupIpc() {
   })
 
   ipcMain.handle('get-media-info', async (_, filePath: string) => {
-    return new Promise((resolve, reject) => {
+    if (!isSafePath(filePath)) return { duration: 10, tags: {} }
+    return new Promise((resolve) => {
       ffmpeg.ffprobe(filePath, (err, metadata) => {
         if (err) {
           resolve({ duration: 10, tags: {} }) // Fallback bei Fehler
@@ -95,6 +174,7 @@ export function setupIpc() {
   })
 
   ipcMain.handle('read-dir', async (_, dirPath: string) => {
+    if (!isSafePath(dirPath)) return []
     try {
       const entries = await fs.promises.readdir(dirPath, { withFileTypes: true })
       const visibleEntries = entries.filter(e => !e.name.startsWith('.'))
@@ -115,10 +195,12 @@ export function setupIpc() {
   })
 
   ipcMain.handle('read-file-buffer', async (_, filePath: string) => {
+    if (!isSafePath(filePath)) throw new Error('Ungültiger Pfad')
     return await fs.promises.readFile(filePath)
   })
 
   ipcMain.handle('extract-audio', async (_, videoPath: string, outputPath: string) => {
+    if (!isSafePath(videoPath) || !isSafePath(outputPath)) throw new Error('Ungültige Pfade')
     return new Promise((resolve, reject) => {
       ffmpeg(videoPath)
         .noVideo()
@@ -130,8 +212,69 @@ export function setupIpc() {
   })
 
   ipcMain.handle('save-project', async (_, filePath: string, data: any) => {
+    if (!isSafePath(filePath)) return { success: false, error: 'Ungültiger Pfad' }
     try {
-      await fs.promises.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8')
+      // Force .owep extension
+      let targetPath = filePath
+      if (!targetPath.endsWith('.owep')) {
+        targetPath = targetPath.replace(/\.[a-zA-Z0-9]+$/, '') + '.owep'
+      }
+
+      // Convert absolute paths inside data to relative paths
+      const projectDir = path.dirname(targetPath)
+      if (data && Array.isArray(data.tracks)) {
+        data.tracks.forEach((track: any) => {
+          if (track && Array.isArray(track.regions)) {
+            track.regions.forEach((region: any) => {
+              if (region && region.file && region.file.path) {
+                const fileAbsPath = region.file.path
+                if (path.isAbsolute(fileAbsPath)) {
+                  const relativePath = path.relative(projectDir, fileAbsPath)
+                  if (!path.isAbsolute(relativePath)) {
+                    region.file.path = relativePath
+                  }
+                }
+              }
+            })
+          }
+        })
+      }
+
+      await fs.promises.writeFile(targetPath, JSON.stringify(data, null, 2), 'utf-8')
+      return { success: true, filePath: targetPath }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  ipcMain.handle('save-project-backup', async (_, filePath: string, data: any) => {
+    if (!isSafePath(filePath)) return { success: false, error: 'Ungültiger Pfad' }
+    try {
+      let targetPath = filePath
+      if (filePath.includes('Recovery')) {
+        await fs.promises.mkdir(path.dirname(filePath), { recursive: true })
+      }
+
+      const projectDir = path.dirname(targetPath)
+      if (data && Array.isArray(data.tracks)) {
+        data.tracks.forEach((track: any) => {
+          if (track && Array.isArray(track.regions)) {
+            track.regions.forEach((region: any) => {
+              if (region && region.file && region.file.path) {
+                const fileAbsPath = region.file.path
+                if (path.isAbsolute(fileAbsPath)) {
+                  const relativePath = path.relative(projectDir, fileAbsPath)
+                  if (!path.isAbsolute(relativePath)) {
+                    region.file.path = relativePath
+                  }
+                }
+              }
+            })
+          }
+        })
+      }
+
+      await fs.promises.writeFile(targetPath, JSON.stringify(data, null, 2), 'utf-8')
       return { success: true }
     } catch (err: any) {
       return { success: false, error: err.message }
@@ -139,15 +282,57 @@ export function setupIpc() {
   })
 
   ipcMain.handle('load-project', async (_, filePath: string) => {
+    if (!isSafePath(filePath)) return { success: false, error: 'Ungültiger Pfad' }
     try {
       const content = await fs.promises.readFile(filePath, 'utf-8')
-      return { success: true, data: JSON.parse(content) }
+      const mainData = JSON.parse(content)
+
+      const projectDir = path.dirname(filePath)
+      const resolvePaths = (data: any) => {
+        if (data && Array.isArray(data.tracks)) {
+          data.tracks.forEach((track: any) => {
+            if (track && Array.isArray(track.regions)) {
+              track.regions.forEach((region: any) => {
+                if (region && region.file && region.file.path) {
+                  const filePathInJson = region.file.path
+                  if (!path.isAbsolute(filePathInJson)) {
+                    region.file.path = path.resolve(projectDir, filePathInJson)
+                  }
+                }
+              })
+            }
+          })
+        }
+      }
+      resolvePaths(mainData)
+
+      // Recovery check: Look for projektname.owep.bak
+      const bakPath = filePath + '.bak'
+      let hasBackup = false
+      let backupData = null
+      if (fs.existsSync(bakPath)) {
+        try {
+          const statMain = fs.statSync(filePath)
+          const statBak = fs.statSync(bakPath)
+          if (statBak.mtimeMs > statMain.mtimeMs) {
+            const bakContent = await fs.promises.readFile(bakPath, 'utf-8')
+            backupData = JSON.parse(bakContent)
+            resolvePaths(backupData)
+            hasBackup = true
+          }
+        } catch (bakErr) {
+          console.error('Error reading backup file:', bakErr)
+        }
+      }
+
+      return { success: true, data: mainData, hasBackup, backupData }
     } catch (err: any) {
       return { success: false, error: err.message }
     }
   })
 
   ipcMain.handle('save-preset', async (_, filePath: string, data: any) => {
+    if (!isSafePath(filePath)) return { success: false, error: 'Ungültiger Pfad' }
     try {
       await fs.promises.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8')
       return { success: true }
@@ -156,7 +341,14 @@ export function setupIpc() {
     }
   })
 
+  ipcMain.handle('get-startup-file', () => {
+    const file = startupFile
+    startupFile = null // Consume startup argument once fetched
+    return file
+  })
+
   ipcMain.handle('get-peaks', async (_, filePath: string, samples: number = 1000) => {
+    if (!isSafePath(filePath)) return Array.from({ length: samples }, () => Math.random() * 0.8)
     return new Promise((resolve) => {
       let peakData: number[] = [];
       const command = ffmpeg(filePath)
@@ -316,6 +508,60 @@ export function setupIpc() {
       console.error('Failed to save recording:', err);
       return { success: false, error: err.message };
     }
+  })
+
+  ipcMain.handle('transcode-export', async (_, tempWavPath: string, outputPath: string, options: any, id3Tags?: any) => {
+    if (!isSafePath(tempWavPath) || !isSafePath(outputPath)) {
+      throw new Error('Ungültige Pfade für Transcodierung')
+    }
+    return new Promise((resolve, reject) => {
+      const command = ffmpeg(tempWavPath)
+      
+      const format = (options && typeof options.format === 'string') ? options.format.toLowerCase() : 'wav'
+      
+      if (format === 'mp3') {
+        command.audioCodec('libmp3lame')
+        const bitrate = (options && options.bitrate) ? `${options.bitrate}` : '320k'
+        command.audioBitrate(bitrate.endsWith('k') ? bitrate : `${bitrate}k`)
+      } else if (format === 'flac') {
+        command.audioCodec('flac')
+      } else if (format === 'm4a') {
+        command.audioCodec('aac')
+      } else {
+        command.audioCodec('pcm_s16le') // wav standard 16-bit
+      }
+      
+      if (id3Tags) {
+        const metadataOpts: string[] = ['-map_metadata', '-1']
+        if (id3Tags.title) metadataOpts.push('-metadata', `title=${id3Tags.title}`)
+        if (id3Tags.artist) metadataOpts.push('-metadata', `artist=${id3Tags.artist}`)
+        if (id3Tags.album) metadataOpts.push('-metadata', `album=${id3Tags.album}`)
+        if (id3Tags.year) metadataOpts.push('-metadata', `date=${id3Tags.year}`)
+        if (id3Tags.genre) metadataOpts.push('-metadata', `genre=${id3Tags.genre}`)
+        if (id3Tags.comment) metadataOpts.push('-metadata', `comment=${id3Tags.comment}`)
+        if (id3Tags.track) metadataOpts.push('-metadata', `track=${id3Tags.track}`)
+        metadataOpts.push('-id3v2_version', '3')
+        command.outputOptions(metadataOpts)
+      }
+      
+      command
+        .save(outputPath)
+        .on('end', () => {
+          // Delete temporary WAV file once transcode completes successfully
+          try {
+            if (fs.existsSync(tempWavPath)) {
+              fs.unlinkSync(tempWavPath)
+            }
+          } catch (err) {
+            console.error('Failed to delete temp WAV file:', err)
+          }
+          resolve(true)
+        })
+        .on('error', (err) => {
+          console.error('Transcode Error:', err)
+          reject(err)
+        })
+    })
   })
 
   // --- SOFTWARE UPDATER ---

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { RotateCcw, ChevronUp, ChevronDown, Save, FolderOpen, Copy, Clipboard, Check, RefreshCw } from 'lucide-react'
 import { AudioEngine } from '../lib/AudioEngine'
 
@@ -14,6 +14,7 @@ export type RegionEffects = {
   delayTime?: number
   delayFeedback?: number
   pitchRate?: number
+  keepPitch?: boolean
 }
 
 interface EffectSliderProps {
@@ -153,7 +154,8 @@ export function EffectsPanel({
     reverbTime: 1.5,
     delayTime: 300,
     delayFeedback: 40,
-    pitchRate: 1.0
+    pitchRate: 1.0,
+    keepPitch: false
   };
 
   const effects = { ...defaultEffects, ...selectedRegion?.effects };
@@ -222,8 +224,10 @@ export function EffectsPanel({
       const dFb = newEffects.delayFeedback !== undefined ? newEffects.delayFeedback : effects.delayFeedback;
       engine.updateActiveRegionDelay(regionId, dTime, dFb);
     }
-    if (newEffects.pitchRate !== undefined) {
-      engine.updateActiveRegionPitch(regionId, newEffects.pitchRate);
+    if (newEffects.pitchRate !== undefined || newEffects.keepPitch !== undefined) {
+      const rate = newEffects.pitchRate !== undefined ? newEffects.pitchRate : effects.pitchRate;
+      const keep = newEffects.keepPitch !== undefined ? newEffects.keepPitch : effects.keepPitch;
+      engine.updateActiveRegionPitch(regionId, rate, keep);
     }
   };
 
@@ -260,7 +264,7 @@ export function EffectsPanel({
             engine.updateActiveRegionDeEsser(regionId, presetEffects.deEsserActive ?? false, presetEffects.deEsserReduction ?? 6);
             engine.updateActiveRegionReverb(regionId, presetEffects.reverbMix ?? 0, presetEffects.reverbTime ?? 1.5);
             engine.updateActiveRegionDelay(regionId, presetEffects.delayTime ?? 300, presetEffects.delayFeedback ?? 40);
-            engine.updateActiveRegionPitch(regionId, presetEffects.pitchRate ?? 1.0);
+            engine.updateActiveRegionPitch(regionId, presetEffects.pitchRate ?? 1.0, presetEffects.keepPitch ?? false);
             
             setStatusMessage('✓ Preset erfolgreich geladen');
           }
@@ -311,7 +315,7 @@ export function EffectsPanel({
     engine.updateActiveRegionDeEsser(regionId, defaultEffects.deEsserActive, defaultEffects.deEsserReduction);
     engine.updateActiveRegionReverb(regionId, defaultEffects.reverbMix, defaultEffects.reverbTime);
     engine.updateActiveRegionDelay(regionId, defaultEffects.delayTime, defaultEffects.delayFeedback);
-    engine.updateActiveRegionPitch(regionId, defaultEffects.pitchRate);
+    engine.updateActiveRegionPitch(regionId, defaultEffects.pitchRate, defaultEffects.keepPitch);
     
     setStatusMessage('✓ Effekte zurückgesetzt');
   };
@@ -337,7 +341,7 @@ export function EffectsPanel({
       engine.updateActiveRegionDeEsser(regionId, clipboard.deEsserActive ?? false, clipboard.deEsserReduction ?? 6);
       engine.updateActiveRegionReverb(regionId, clipboard.reverbMix ?? 0, clipboard.reverbTime ?? 1.5);
       engine.updateActiveRegionDelay(regionId, clipboard.delayTime ?? 300, clipboard.delayFeedback ?? 40);
-      engine.updateActiveRegionPitch(regionId, clipboard.pitchRate ?? 1.0);
+      engine.updateActiveRegionPitch(regionId, clipboard.pitchRate ?? 1.0, clipboard.keepPitch ?? false);
       
       setStatusMessage('✓ Effekte eingefügt');
     } else {
@@ -368,7 +372,7 @@ export function EffectsPanel({
         engine.updateActiveRegionDeEsser(regionId, effects.deEsserActive, effects.deEsserReduction);
         engine.updateActiveRegionReverb(regionId, effects.reverbMix, effects.reverbTime);
         engine.updateActiveRegionDelay(regionId, effects.delayTime, effects.delayFeedback);
-        engine.updateActiveRegionPitch(regionId, effects.pitchRate);
+        engine.updateActiveRegionPitch(regionId, effects.pitchRate, effects.keepPitch);
       });
 
       setStatusMessage('✓ Effekte auf alle Objekte angewendet');
@@ -632,8 +636,20 @@ export function EffectsPanel({
             </div>
           ) : activeCategory === 'Pitch / Timestretch' ? (
             <div className="flex flex-col gap-4 max-w-md">
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-[#1a1d21]/60 border border-gray-700/50 hover:border-gray-600/50 transition-colors">
+                <input
+                  type="checkbox"
+                  id="keepPitchCheckbox"
+                  checked={effects.keepPitch || false}
+                  onChange={(e) => updateEffects({ keepPitch: e.target.checked })}
+                  className="w-4 h-4 rounded text-omega-accent bg-gray-900 border-gray-600 focus:ring-0 accent-omega-accent cursor-pointer"
+                />
+                <label htmlFor="keepPitchCheckbox" className="text-xs text-gray-300 font-medium select-none cursor-pointer">
+                  Tonhöhe beibehalten (Time-Stretching)
+                </label>
+              </div>
               <EffectSlider
-                label="Tonhöhe / Abspielgeschwindigkeit"
+                label="Abspielgeschwindigkeit / Tempo"
                 min={0.5}
                 max={2.0}
                 step={0.01}
@@ -643,9 +659,17 @@ export function EffectsPanel({
                 onChange={(v) => updateEffects({ pitchRate: v })}
               />
               <div className="p-4 bg-[#141619]/60 rounded-lg border border-gray-700/60 text-xs text-gray-400 leading-relaxed shadow-inner">
-                Ändert die Abspielgeschwindigkeit und die relative Tonhöhe des Objekts in Echtzeit. 
+                {effects.keepPitch ? (
+                  <span>
+                    Passt das Tempo (Abspielgeschwindigkeit) der Region an, ohne die ursprüngliche Tonhöhe des Audios zu verändern (Timestretching).
+                  </span>
+                ) : (
+                  <span>
+                    Ändert sowohl die Abspielgeschwindigkeit als auch die relative Tonhöhe des Objekts in Echtzeit (klassischer Bandmaschinen-Effekt).
+                  </span>
+                )}
                 <br />
-                <span className="text-[10px] text-omega-accent font-semibold">Tipp: 1.0x entspricht der Originaltonhöhe.</span>
+                <span className="text-[10px] text-omega-accent font-semibold">Tipp: 1.0x entspricht dem Originaltempo.</span>
               </div>
             </div>
           ) : activeCategory === 'VST Plugins' ? (

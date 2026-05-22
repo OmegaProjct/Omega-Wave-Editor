@@ -20,6 +20,7 @@ export type RegionEffects = {
   delayTime?: number
   delayFeedback?: number
   pitchRate?: number
+  keepPitch?: boolean
 }
 
 export type Region = {
@@ -487,14 +488,15 @@ export function Timeline({
 
   const togglePlayback = useCallback(() => {
     if (isPlaying) {
+      const curTime = engine.currentTime
       engine.pause()
       setIsPlaying(false)
       if (!spacebarStops) {
         setPlayheadPos(playbackStartPosRef.current)
         playheadPosRef.current = playbackStartPosRef.current
       } else {
-        setPlayheadPos(engine.currentTime)
-        playheadPosRef.current = engine.currentTime
+        setPlayheadPos(curTime)
+        playheadPosRef.current = curTime
       }
     } else {
       playbackStartPosRef.current = playheadPos
