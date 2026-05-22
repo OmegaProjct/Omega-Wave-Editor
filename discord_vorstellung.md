@@ -3,7 +3,7 @@
 🎧 Ein moderner, plattformübergreifender Desktop-Audioeditor & DAW für die schnelle, verlustfreie und kreative Audio-Bearbeitung.
 
 💻 GitHub & Download: https://github.com/OmegaProjct/Omega-Wave-Editor
-📦 Direkt zu den Releases (inkl. Portable Version): https://github.com/OmegaProjct/Omega-Wave-Editor/releases
+📦 Direkt zu den Releases: https://github.com/OmegaProjct/Omega-Wave-Editor/releases
 
 
 
@@ -80,11 +80,9 @@ Cleaning-Profile (.owepreset) & Noise-Profile
 
 🚀 AUSPROBIEREN & FEEDBACK GEBEN!
 
-Wir arbeiten unter Hochdruck an neuen Features und würden uns riesig freuen, wenn ihr den Omega Wave Editor ausprobiert!
+Wir arbeiten unter Hochdruck an neuen Features und würden uns riesig freuen, wenn ihr den Omega Wave Editor ausprobiert und testet!
 
-Für Windows-User gibt es eine superpraktische Portable-Version – kein Installieren nötig, einfach herunterladen, starten und loslegen! 
-
-👉 Lade dir das aktuellste Release herunter: 
+👉 Lade dir das aktuellste Release für dein Betriebssystem (Windows, macOS, Linux) herunter: 
 https://github.com/OmegaProjct/Omega-Wave-Editor/releases
 
 Wir freuen uns über jedes Feedback:

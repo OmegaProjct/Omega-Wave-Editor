@@ -1,6 +1,6 @@
 {
   "name": "omega-wave-editor",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Omega Wave Editor",
   "main": "./out/main/index.js",
   "author": "Omega Projects <omegaproject1337@gmail.com>",

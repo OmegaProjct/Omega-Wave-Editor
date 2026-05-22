@@ -2,6 +2,10 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`) als explizite Ausnahme vom Omega Codex Standard.
 
+## [0.2.4] - 2026-05-22
+### Fixed
+- **Start-Crash (Blank Screen)**: Behebung eines kritischen Temporal-Dead-Zone-Fehlers in der Hauptkomponente `App.tsx`, bei dem auf das State-Objekt `tracks` in Hooks vor seiner Deklaration zugegriffen wurde. Dies führte zum Absturz des Render-Prozesses und einem "Blank Screen" (weißer Bildschirm) sowohl in der Entwicklungs- als auch in der Produktions-Version.
+
 ## [0.2.3] - 2026-05-22
 ### Added
 - **Start-Dashboard**: Eleganter Dialog zum schnellen Öffnen bestehender und Neuerstellen neuer Projekte mit Pfadauswahl beim Programmstart.

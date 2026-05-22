@@ -33,9 +33,18 @@ function App(): JSX.Element {
   const [maxUndoSteps, setMaxUndoSteps] = useState(50)
   const [autoSaveInterval, setAutoSaveInterval] = useState(10)
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(true)
-
   // Global Modal State
   const [modalConfig, setModalConfig] = useState<{ type: ModalType, title: string, message: string, onConfirm?: () => void } | null>(null)
+
+  // Initial Tracks
+  const initialTracks = [
+    { id: '1', index: 1, name: '', regions: [], muted: false, solo: false, locked: false, visible: true, volume: 1, height: 64, automation: [] },
+    { id: '2', index: 2, name: '', regions: [], muted: false, solo: false, locked: false, visible: true, volume: 1, height: 64, automation: [] },
+    { id: '3', index: 3, name: '', regions: [], muted: false, solo: false, locked: false, visible: true, volume: 1, height: 64, automation: [] },
+    { id: '4', index: 4, name: '', regions: [], muted: false, solo: false, locked: false, visible: true, volume: 1, height: 64, automation: [] },
+  ];
+
+  const { state: tracks, push: pushTracks, undo, redo } = useHistory(initialTracks, maxUndoSteps);
 
   const openSettings = (tab: 'Wiedergabe' | 'Ordner' | 'Import/Audio' | 'System' | 'Tastaturkürzel' | 'Projekteinstellungen' = 'Ordner') => {
     setSettingsTab(tab)
@@ -219,7 +228,7 @@ function App(): JSX.Element {
           setUpdateAvailable(result)
         }
       } catch (e) {
-        console.error('Automatischer Update-Check fehlgeschlagen:', e)
+        console.error('Automatisches Update-Check fehlgeschlagen:', e)
       }
     }, 2500) // 2.5 Sekunden Verzögerung nach Start für eine flüssige UX
     return () => clearTimeout(timer)
@@ -235,16 +244,6 @@ function App(): JSX.Element {
     }
     setModalConfig(null)
   }
-  
-  // Initial Tracks
-  const initialTracks = [
-    { id: '1', index: 1, name: '', regions: [], muted: false, solo: false, locked: false, visible: true, volume: 1, height: 64, automation: [] },
-    { id: '2', index: 2, name: '', regions: [], muted: false, solo: false, locked: false, visible: true, volume: 1, height: 64, automation: [] },
-    { id: '3', index: 3, name: '', regions: [], muted: false, solo: false, locked: false, visible: true, volume: 1, height: 64, automation: [] },
-    { id: '4', index: 4, name: '', regions: [], muted: false, solo: false, locked: false, visible: true, volume: 1, height: 64, automation: [] },
-  ];
-
-  const { state: tracks, push: pushTracks, undo, redo } = useHistory(initialTracks, maxUndoSteps);
   
   const [selectedRegionIds, setSelectedRegionIds] = useState<Set<string>>(new Set())
   const selectedRegionId = selectedRegionIds.size === 1 ? [...selectedRegionIds][0] : selectedRegionIds.size > 1 ? [...selectedRegionIds][0] : null
