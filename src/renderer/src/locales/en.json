@@ -1,0 +1,9 @@
+{
+  "menu": {
+    "file": "File",
+    "edit": "Edit",
+    "effects": "Effects",
+    "window": "Window",
+    "help": "Help"
+  }
+}
