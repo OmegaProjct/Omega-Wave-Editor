@@ -27,7 +27,11 @@ if (ffprobePath) {
 }
 
 function isNewerVersion(current: string, latest: string): boolean {
-  const parse = (v: string) => v.replace(/^v/, '').split('.').map(Number)
+  if (!current || !latest) return false
+  const parse = (v: string) => {
+    const parts = v.replace(/^v/, '').split('.').map(Number)
+    return [parts[0] || 0, parts[1] || 0, parts[2] || 0]
+  }
   const [currMajor, currMinor, currPatch] = parse(current)
   const [lateMajor, lateMinor, latePatch] = parse(latest)
 

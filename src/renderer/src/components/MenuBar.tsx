@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 
 export function MenuBar({ 
   onOpenSettings, 
@@ -52,8 +52,67 @@ export function MenuBar({
       return
     }
 
-    if (action === 'updates') return onFileAction('SHOW_MODAL', { type: 'info', title: 'Updates', message: 'Prüfe auf Updates...\n\nAktuelle Version: 1.0.0\nIhre Software ist auf dem neuesten Stand.' })
-    if (action === 'about') return onFileAction('SHOW_MODAL', { type: 'info', title: 'Info', message: 'Omega Wave Editor\nVersion 1.0.0\n\n© 2026 Omega Projects\n\nEin verlustfreier, schneller Audio-Editor.' })
+    if (action === 'updates') {
+      onFileAction('SHOW_MODAL', { 
+        type: 'info', 
+        title: 'Updates', 
+        message: 'Prüfe auf Updates...\n\nBitte warten...' 
+      })
+      try {
+        const updateInfo = await window.api.checkForUpdates()
+        if (updateInfo.error) {
+          onFileAction('SHOW_MODAL', {
+            type: 'error',
+            title: 'Updates',
+            message: `Fehler bei der Update-Prüfung:\n${updateInfo.error}`
+          })
+          return
+        }
+        if (updateInfo.available) {
+          onFileAction('SHOW_MODAL', {
+            type: 'confirm',
+            title: 'Updates',
+            message: `Ein neues Update ist verfügbar!\n\nInstallierte Version: v${updateInfo.currentVersion}\nNeueste Version: v${updateInfo.latestVersion}\n\nMöchtest du die Release-Seite öffnen, um das Update herunterzuladen?`,
+            onConfirm: () => {
+              if (updateInfo.url) {
+                window.api.openExternal(updateInfo.url)
+              }
+            }
+          })
+        } else {
+          onFileAction('SHOW_MODAL', {
+            type: 'info',
+            title: 'Updates',
+            message: `Deine Software ist auf dem neuesten Stand.\n\nInstallierte Version: v${updateInfo.currentVersion}\nNeueste Version: v${updateInfo.latestVersion || updateInfo.currentVersion}`
+          })
+        }
+      } catch (err: any) {
+        onFileAction('SHOW_MODAL', {
+          type: 'error',
+          title: 'Updates',
+          message: `Fehler bei der Update-Prüfung: ${err.message}`
+        })
+      }
+      return
+    }
+
+    if (action === 'about') {
+      try {
+        const version = await window.api.getAppVersion()
+        onFileAction('SHOW_MODAL', { 
+          type: 'info', 
+          title: 'Info', 
+          message: `Omega Wave Editor\nVersion ${version}\n\n© 2026 Omega Projects\n\nEin verlustfreier, schneller Audio-Editor.` 
+        })
+      } catch (e: any) {
+        onFileAction('SHOW_MODAL', { 
+          type: 'info', 
+          title: 'Info', 
+          message: 'Omega Wave Editor\nVersion 0.2.0\n\n© 2026 Omega Projects\n\nEin verlustfreier, schneller Audio-Editor.' 
+        })
+      }
+      return
+    }
     if (action === 'help' || action === 'manual') return onFileAction('SHOW_MANUAL')
     
     if (action === 'audio_effects') {
