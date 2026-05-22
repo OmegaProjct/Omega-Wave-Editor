@@ -32,7 +32,28 @@ const api = {
 
   // Software Update
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
-  getAppVersion: () => ipcRenderer.invoke('get-app-version')
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  startUpdateDownload: (payload: { url: string, latestVersion: string }) => ipcRenderer.invoke('start-update-download', payload),
+  installUpdate: (payload: { installNow: boolean }) => ipcRenderer.invoke('install-update', payload),
+
+  // Close Confirmation
+  confirmClose: () => ipcRenderer.send('window-close-confirmed'),
+
+  // Subscriptions
+  onDownloadProgress: (callback: (data: any) => void) => {
+    const subscription = (_event: any, data: any) => callback(data)
+    ipcRenderer.on('download-progress', subscription)
+    return () => {
+      ipcRenderer.removeListener('download-progress', subscription)
+    }
+  },
+  onCloseRequest: (callback: () => void) => {
+    const subscription = () => callback()
+    ipcRenderer.on('window-close-request', subscription)
+    return () => {
+      ipcRenderer.removeListener('window-close-request', subscription)
+    }
+  }
 }
 
 if (process.contextIsolated) {
@@ -45,3 +66,4 @@ if (process.contextIsolated) {
   // @ts-ignore (define in dts)
   window.api = api
 }
+

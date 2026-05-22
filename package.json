@@ -92,7 +92,8 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Omega Wave Editor"
+      "shortcutName": "Omega Wave Editor",
+      "include": "build/installer.nsh"
     }
   }
 }

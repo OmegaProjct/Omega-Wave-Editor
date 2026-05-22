@@ -97,6 +97,10 @@ export function Timeline({
     { id: '3', index: 3, name: '', regions: [], muted: false, solo: false, locked: false, visible: true, volume: 1, height: 64, automation: [] },
     { id: '4', index: 4, name: '', regions: [], muted: false, solo: false, locked: false, visible: true, volume: 1, height: 64, automation: [] },
   ])
+  const [sampleRate, setSampleRate] = useState<number>(48000)
+  const [autoScroll, setAutoScroll] = useState<'Aus' | 'Langsam' | 'Schnell'>('Schnell')
+  const [spacebarStops, setSpacebarStops] = useState<boolean>(false)
+  const playbackStartPosRef = useRef<number>(0)
 
   const [playheadPos, setPlayheadPos] = useState<number>(0)
   const playheadPosRef = useRef(0)
@@ -115,7 +119,7 @@ export function Timeline({
   const setSelectedRegionId = useCallback((id: string | null) => {
     setSelectedRegionIds(id ? new Set([id]) : new Set())
   }, [setSelectedRegionIds])
-  const [draggingRegion, setDraggingRegion] = useState<{ id: string, trackId: string, initialStartPos: number, startX: number, action: 'move' | 'trimStart' | 'trimEnd', initialDuration: number, initialSourceOffset: number } | null>(null)
+  const [draggingRegion, setDraggingRegion] = useState<{ id: string, trackId: string, initialStartPos: number, startX: number, action: 'move' | 'trimStart' | 'trimEnd', initialDuration: number, initialSourceOffset: number, initialFileDuration: number } | null>(null)
   // Lasso / Rubber-Band Selection
   const [lassoRect, setLassoRect] = useState<{ startX: number; startY: number; endX: number; endY: number } | null>(null)
   const lassoStartRef = useRef<{ x: number; y: number } | null>(null)
@@ -476,11 +480,19 @@ export function Timeline({
     if (isPlaying) {
       engine.pause()
       setIsPlaying(false)
+      if (!spacebarStops) {
+        setPlayheadPos(playbackStartPosRef.current)
+        playheadPosRef.current = playbackStartPosRef.current
+      } else {
+        setPlayheadPos(engine.currentTime)
+        playheadPosRef.current = engine.currentTime
+      }
     } else {
+      playbackStartPosRef.current = playheadPos
       engine.play({ tracks }, playheadPos)
       setIsPlaying(true)
     }
-  }, [isPlaying, engine, tracks, playheadPos])
+  }, [isPlaying, engine, tracks, playheadPos, spacebarStops])
 
   const toggleRecording = async () => {
     if (isRecording) {
@@ -520,6 +532,8 @@ export function Timeline({
               file: { name: `Aufnahme ${new Date().toLocaleTimeString()}`, path, isDirectory: false },
               startPos: playheadPos,
               duration: duration, 
+              fileDuration: duration,
+              sourceOffset: 0,
               color: 'bg-red-600'
             };
             updateTracksWithHistory(tracks.map((t, i) => i === 0 ? { ...t, regions: [...t.regions, newRegion] } : t));
@@ -576,16 +590,29 @@ export function Timeline({
       if (externalAction.type === 'SET_TRACKS') {
         setTracks(externalAction.payload);
       } else if (externalAction.type === 'RESET_PROJECT') {
-        const resetTracks = [
-          { id: '1', index: 1, name: '', regions: [], muted: false, solo: false, locked: false, visible: true, volume: 1, height: 64, automation: [] },
-          { id: '2', index: 2, name: '', regions: [], muted: false, solo: false, locked: false, visible: true, volume: 1, height: 64, automation: [] },
-          { id: '3', index: 3, name: '', regions: [], muted: false, solo: false, locked: false, visible: true, volume: 1, height: 64, automation: [] },
-          { id: '4', index: 4, name: '', regions: [], muted: false, solo: false, locked: false, visible: true, volume: 1, height: 64, automation: [] },
-        ];
+        const { sampleRate: rate = 48000, tracksCount = 4 } = externalAction.payload || {};
+        const resetTracks = [];
+        for (let i = 1; i <= tracksCount; i++) {
+          resetTracks.push({
+            id: i.toString(),
+            index: i,
+            name: '',
+            regions: [],
+            muted: false,
+            solo: false,
+            locked: false,
+            visible: true,
+            volume: 1,
+            height: 64,
+            automation: []
+          });
+        }
         setTracks(resetTracks);
         if (onTracksChange) onTracksChange(resetTracks);
         setPlayheadPos(0);
+        setSampleRate(rate);
         ProjectManager.reset();
+        window.dispatchEvent(new CustomEvent('PROJECT_RESET'));
       } else if (externalAction.type === 'SAVE_PROJECT') {
         let path = ProjectManager.getCurrentPath();
         if (!path) {
@@ -593,17 +620,26 @@ export function Timeline({
           if (res.canceled || !res.filePath) return;
           path = res.filePath;
         }
-        await ProjectManager.saveProject(path, tracks, { zoomLevel, playheadPos });
-        window.dispatchEvent(new CustomEvent('SHOW_GLOBAL_MODAL', { detail: { type: 'info', title: 'Erfolg', message: 'Projekt gespeichert.' } }));
-      } else if (externalAction.type === 'LOAD_PROJECT') {
-        const res = await window.api.showOpenDialog({ filters: [{ name: 'Omega Projects', extensions: ['owep'] }], properties: ['openFile'] });
-        if (res.canceled || res.filePaths.length === 0) return;
-        const result = await ProjectManager.loadProject(res.filePaths[0]);
+        const saveRes = await ProjectManager.saveProject(path, tracks, { zoomLevel, playheadPos, sampleRate });
+        if (saveRes.success) {
+          window.dispatchEvent(new CustomEvent('PROJECT_SAVED', { detail: { path } }));
+          window.dispatchEvent(new CustomEvent('SHOW_GLOBAL_MODAL', { detail: { type: 'info', title: 'Erfolg', message: 'Projekt gespeichert.' } }));
+        }
+      } else if (externalAction.type === 'LOAD_PROJECT' || externalAction.type === 'LOAD_PROJECT_DIRECT') {
+        let filePath = externalAction.payload;
+        if (!filePath) {
+          const res = await window.api.showOpenDialog({ filters: [{ name: 'Omega Projects', extensions: ['owep'] }], properties: ['openFile'] });
+          if (res.canceled || res.filePaths.length === 0) return;
+          filePath = res.filePaths[0];
+        }
+        const result = await ProjectManager.loadProject(filePath);
         if (result.success) {
           setTracks(result.data.tracks);
           if (onTracksChange) onTracksChange(result.data.tracks);
-          setZoomLevel(result.data.settings.zoomLevel);
-          setPlayheadPos(result.data.settings.playheadPos);
+          setZoomLevel(result.data.settings.zoomLevel || 1);
+          setPlayheadPos(result.data.settings.playheadPos || 0);
+          setSampleRate(result.data.settings.sampleRate || 48000);
+          window.dispatchEvent(new CustomEvent('PROJECT_LOADED', { detail: { path: filePath } }));
         }
       } else if (externalAction.type === 'EXPORT_ARRANGEMENT') {
         const res = await window.api.showSaveDialog({ filters: [{ name: 'Omega Arrangement', extensions: ['owea'] }] });
@@ -718,57 +754,81 @@ export function Timeline({
            if (onTracksChange) onTracksChange(prevState);
         }
       } else if (e.key === 't' || e.key === 'T') {
-        if (selectedRegionId) {
-          const newTracks = tracks.map(t => {
-            const region = t.regions.find(r => r.id === selectedRegionId)
-            if (!region || playheadPos <= region.startPos || playheadPos >= region.startPos + region.duration) return t
-            const splitPoint = playheadPos
-            const newRegion1 = { ...region, duration: splitPoint - region.startPos }
-            const newRegion2 = { 
-              ...region, 
-              id: Math.random().toString(36).substr(2, 9), 
-              startPos: splitPoint, 
-              duration: region.startPos + region.duration - splitPoint,
-              sourceOffset: (region.sourceOffset || 0) + (splitPoint - region.startPos)
-            }
-            return {
-              ...t,
-              regions: [...t.regions.filter(r => r.id !== selectedRegionId), newRegion1, newRegion2]
+        e.preventDefault();
+        const curPlayhead = playheadPosRef.current;
+        const hasSelection = selectedRegionIds.size > 0;
+        const newTracks = tracks.map(t => {
+          let updatedRegions = [...t.regions];
+          let changed = false;
+          t.regions.forEach(region => {
+            const isTarget = hasSelection ? selectedRegionIds.has(region.id) : (curPlayhead > region.startPos && curPlayhead < region.startPos + region.duration);
+            if (isTarget && curPlayhead > region.startPos && curPlayhead < region.startPos + region.duration) {
+              changed = true;
+              const splitPoint = curPlayhead;
+              const newRegion1 = { ...region, duration: splitPoint - region.startPos };
+              const newRegion2 = { 
+                ...region, 
+                id: Math.random().toString(36).substr(2, 9), 
+                startPos: splitPoint, 
+                duration: region.startPos + region.duration - splitPoint,
+                sourceOffset: (region.sourceOffset || 0) + (splitPoint - region.startPos)
+              };
+              updatedRegions = updatedRegions.filter(r => r.id !== region.id);
+              updatedRegions.push(newRegion1, newRegion2);
             }
           });
-          updateTracksWithHistory(newTracks);
-        }
-      } else if (e.key === 'z' || e.key === 'Z') {
-         if (selectedRegionId && !e.ctrlKey) {
-            const newTracks = tracks.map(t => {
-               const region = t.regions.find(r => r.id === selectedRegionId)
-               if (!region || playheadPos <= region.startPos || playheadPos >= region.startPos + region.duration) return t
-               const cutAmount = playheadPos - region.startPos
-               return {
-                  ...t,
-                  regions: t.regions.map(r => r.id === selectedRegionId ? { ...r, startPos: playheadPos, duration: r.duration - cutAmount, sourceOffset: (r.sourceOffset || 0) + cutAmount } : r)
-               }
-            });
-            updateTracksWithHistory(newTracks);
-         }
+          return changed ? { ...t, regions: updatedRegions } : t;
+        });
+        updateTracksWithHistory(newTracks);
+      } else if ((e.key === 'z' || e.key === 'Z' || e.key === 'c' || e.key === 'C') && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        const curPlayhead = playheadPosRef.current;
+        const hasSelection = selectedRegionIds.size > 0;
+        const newTracks = tracks.map(t => {
+          let changed = false;
+          const updatedRegions = t.regions.map(region => {
+            const isTarget = hasSelection ? selectedRegionIds.has(region.id) : (curPlayhead > region.startPos && curPlayhead < region.startPos + region.duration);
+            if (isTarget && curPlayhead > region.startPos && curPlayhead < region.startPos + region.duration) {
+              changed = true;
+              const cutAmount = curPlayhead - region.startPos;
+              return {
+                ...region,
+                startPos: curPlayhead,
+                duration: region.duration - cutAmount,
+                sourceOffset: (region.sourceOffset || 0) + cutAmount
+              };
+            }
+            return region;
+          });
+          return changed ? { ...t, regions: updatedRegions } : t;
+        });
+        updateTracksWithHistory(newTracks);
       } else if (e.key === 'u' || e.key === 'U') {
-         if (selectedRegionId) {
-            const newTracks = tracks.map(t => {
-               const region = t.regions.find(r => r.id === selectedRegionId)
-               if (!region || playheadPos <= region.startPos || playheadPos >= region.startPos + region.duration) return t
-               return {
-                  ...t,
-                  regions: t.regions.map(r => r.id === selectedRegionId ? { ...r, duration: playheadPos - r.startPos } : r)
-               }
-            });
-            updateTracksWithHistory(newTracks);
-         }
+        e.preventDefault();
+        const curPlayhead = playheadPosRef.current;
+        const hasSelection = selectedRegionIds.size > 0;
+        const newTracks = tracks.map(t => {
+          let changed = false;
+          const updatedRegions = t.regions.map(region => {
+            const isTarget = hasSelection ? selectedRegionIds.has(region.id) : (curPlayhead > region.startPos && curPlayhead < region.startPos + region.duration);
+            if (isTarget && curPlayhead > region.startPos && curPlayhead < region.startPos + region.duration) {
+              changed = true;
+              return {
+                ...region,
+                duration: curPlayhead - region.startPos
+              };
+            }
+            return region;
+          });
+          return changed ? { ...t, regions: updatedRegions } : t;
+        });
+        updateTracksWithHistory(newTracks);
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedRegionId, selectedRegionIds, deleteSelectedRegions, playheadPos, togglePlayback, tracks, handleCopy, handlePaste]);
+  }, [selectedRegionId, selectedRegionIds, deleteSelectedRegions, togglePlayback, tracks, handleCopy, handlePaste]);
 
   // Playhead and VU update loop
   const [vuLevel, setVuLevel] = useState(0);
@@ -777,7 +837,33 @@ export function Timeline({
     const current = engine.currentTime;
     if (engine.isPlaying) {
       playheadPosRef.current = current;
-      playheadMotionX.set(128 + (current * pixelsPerSecond) - scrollLeft);
+      
+      // Real-time Autoscroll implementation
+      let currentScrollLeft = scrollLeft;
+      if (tracksRef.current && autoScroll !== 'Aus') {
+        const visibleWidth = tracksRef.current.clientWidth;
+        if (autoScroll === 'Schnell') {
+          if (current * pixelsPerSecond >= scrollLeft + visibleWidth) {
+            const page = Math.floor((current * pixelsPerSecond) / (visibleWidth || 1));
+            tracksRef.current.scrollLeft = page * visibleWidth;
+            currentScrollLeft = page * visibleWidth;
+            setScrollLeft(currentScrollLeft);
+          } else if (current * pixelsPerSecond < scrollLeft) {
+            const page = Math.floor((current * pixelsPerSecond) / (visibleWidth || 1));
+            tracksRef.current.scrollLeft = page * visibleWidth;
+            currentScrollLeft = page * visibleWidth;
+            setScrollLeft(currentScrollLeft);
+          }
+        } else if (autoScroll === 'Langsam') {
+          const targetScroll = (current * pixelsPerSecond) - (visibleWidth / 2);
+          const clampedScroll = Math.max(0, targetScroll);
+          tracksRef.current.scrollLeft = clampedScroll;
+          currentScrollLeft = clampedScroll;
+          setScrollLeft(currentScrollLeft);
+        }
+      }
+
+      playheadMotionX.set(128 + (current * pixelsPerSecond) - currentScrollLeft);
       playheadRulerMotionWidth.set(current * pixelsPerSecond);
       
       // Throttle state updates for UI
@@ -800,6 +886,103 @@ export function Timeline({
       }
     }));
   });
+
+  // Load initial settings and listen to live settings changes
+  useEffect(() => {
+    window.api.getSettings().then(s => {
+      if (s) {
+        if (s.sampleRate !== undefined) setSampleRate(s.sampleRate);
+        if (s.autoScroll !== undefined) setAutoScroll(s.autoScroll);
+        if (s.spacebarStops !== undefined) setSpacebarStops(s.spacebarStops);
+        if (!initialTracks && s.tracksCount !== undefined) {
+          const count = s.tracksCount;
+          setTracks(prev => {
+            if (prev.length === 4 && prev.every(t => t.regions.length === 0)) {
+              const newTracks: Track[] = [];
+              for (let i = 1; i <= count; i++) {
+                newTracks.push({
+                  id: i.toString(),
+                  index: i,
+                  name: '',
+                  regions: [],
+                  muted: false,
+                  solo: false,
+                  locked: false,
+                  visible: true,
+                  volume: 1,
+                  height: 64,
+                  automation: []
+                });
+              }
+              return newTracks;
+            }
+            return prev;
+          });
+        }
+      }
+    }).catch(err => console.error('Error loading settings in timeline:', err));
+  }, [initialTracks]);
+
+  useEffect(() => {
+    const handleSettingsUpdated = (e: Event) => {
+      const customEvent = e as CustomEvent<any>;
+      const newSettings = customEvent.detail;
+      if (!newSettings) return;
+
+      if (newSettings.sampleRate !== undefined) {
+        setSampleRate(newSettings.sampleRate);
+      }
+      if (newSettings.autoScroll !== undefined) {
+        setAutoScroll(newSettings.autoScroll);
+      }
+      if (newSettings.spacebarStops !== undefined) {
+        setSpacebarStops(newSettings.spacebarStops);
+      }
+
+      if (newSettings.tracksCount !== undefined) {
+        const targetCount = newSettings.tracksCount;
+        setTracks(prevTracks => {
+          let updatedTracks = [...prevTracks];
+          if (updatedTracks.length < targetCount) {
+            for (let i = updatedTracks.length + 1; i <= targetCount; i++) {
+              updatedTracks.push({
+                id: i.toString(),
+                index: i,
+                name: '',
+                regions: [],
+                muted: false,
+                solo: false,
+                locked: false,
+                visible: true,
+                volume: 1,
+                height: 64,
+                automation: []
+              });
+            }
+          } else if (updatedTracks.length > targetCount) {
+            let currentCount = updatedTracks.length;
+            while (currentCount > targetCount) {
+              const lastTrack = updatedTracks[currentCount - 1];
+              if (lastTrack.regions.length === 0) {
+                updatedTracks.pop();
+                currentCount--;
+              } else {
+                break;
+              }
+            }
+          }
+          updatedTracks = updatedTracks.map((t, idx) => ({ ...t, index: idx + 1 }));
+          if (onTracksChange) onTracksChange(updatedTracks);
+          return updatedTracks;
+        });
+      }
+    };
+
+    window.addEventListener('SETTINGS_UPDATED', handleSettingsUpdated as EventListener);
+    return () => {
+      window.removeEventListener('SETTINGS_UPDATED', handleSettingsUpdated as EventListener);
+    };
+  }, [onTracksChange]);
 
   useEffect(() => {
     if (!engine.isPlaying && isPlaying) {
@@ -824,11 +1007,13 @@ export function Timeline({
       engine.stop();
       setIsPlaying(false);
       setPlayheadPos(0);
+      playheadPosRef.current = 0;
     };
     const handleActionSeek = (e: Event) => {
       const customEvent = e as CustomEvent<{ position: number }>;
       const newPos = customEvent.detail.position;
       setPlayheadPos(newPos);
+      playheadPosRef.current = newPos;
       if (engine.isPlaying) {
         engine.stop();
         engine.play({ tracks }, newPos);
@@ -868,6 +1053,7 @@ export function Timeline({
     if (clickX >= 0) {
       const newPos = (clickX + scrollLeft) / pixelsPerSecond
       setPlayheadPos(newPos)
+      playheadPosRef.current = newPos
       if (isPlaying) {
         engine.stop()
         engine.play({ tracks }, newPos)
@@ -996,6 +1182,7 @@ export function Timeline({
       initialStartPos: region.startPos, 
       initialDuration: region.duration,
       initialSourceOffset: region.sourceOffset || 0,
+      initialFileDuration: region.fileDuration || region.duration,
       startX: e.clientX,
       action 
     });
@@ -1172,9 +1359,11 @@ export function Timeline({
           }
 
         } else if (draggingRegion.action === 'trimStart') {
+          // Prevent dragging left edge before the file start (sourceOffset cannot be less than 0)
+          const minPos = Math.max(0, draggingRegion.initialStartPos - draggingRegion.initialSourceOffset);
           const maxDelta = draggingRegion.initialDuration - 0.1;
           const actualDelta = Math.min(deltaTime, maxDelta);
-          const newPos = Math.max(0, draggingRegion.initialStartPos + actualDelta);
+          const newPos = Math.max(minPos, draggingRegion.initialStartPos + actualDelta);
           const actualDeltaClamped = newPos - draggingRegion.initialStartPos;
           
           newTracks[sourceTrackIdx] = {
@@ -1187,7 +1376,11 @@ export function Timeline({
               } : r)
           }
         } else if (draggingRegion.action === 'trimEnd') {
-          const newDuration = Math.max(0.1, draggingRegion.initialDuration + deltaTime);
+          // Prevent dragging right edge beyond the actual physical file length
+          const fileDur = draggingRegion.initialFileDuration;
+          const srcOff = draggingRegion.initialSourceOffset;
+          const maxDur = Math.max(0.1, fileDur - srcOff);
+          const newDuration = Math.min(maxDur, Math.max(0.1, draggingRegion.initialDuration + deltaTime));
           newTracks[sourceTrackIdx] = {
               ...newTracks[sourceTrackIdx],
               regions: newTracks[sourceTrackIdx].regions.map(r => r.id === draggingRegion.id ? { ...r, duration: newDuration } : r)
@@ -1230,8 +1423,11 @@ export function Timeline({
         if (!t.regions.some(r => r.id === regionId)) return t;
         const newRegion1 = { ...region, duration: splitTime - region.startPos };
         const newRegion2 = { 
-          ...region, id: Math.random().toString(36).substr(2, 9), 
-          startPos: splitTime, duration: region.startPos + region.duration - splitTime 
+          ...region, 
+          id: Math.random().toString(36).substr(2, 9), 
+          startPos: splitTime, 
+          duration: region.startPos + region.duration - splitTime,
+          sourceOffset: (region.sourceOffset || 0) + (splitTime - region.startPos)
         };
         return { ...t, regions: [...t.regions.filter(r => r.id !== regionId), newRegion1, newRegion2] };
       });
