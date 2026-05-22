@@ -33,6 +33,7 @@ const api = {
 
   // Recording
   saveRecording: (outputPath: string, arrayBuffer: ArrayBuffer) => ipcRenderer.invoke('save-recording', outputPath, arrayBuffer),
+  getDiskSpace: (dirPath: string) => ipcRenderer.invoke('get-disk-space', dirPath),
 
   // Software Update
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
