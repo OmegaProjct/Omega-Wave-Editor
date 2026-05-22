@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react'
 
 type Tab = 'Wiedergabe' | 'Ordner' | 'Import/Audio' | 'System' | 'Tastaturkürzel' | 'Projekteinstellungen'
 
-export function SettingsModal({ onClose }: { onClose: () => void }) {
-  const [activeTab, setActiveTab] = useState<Tab>('Ordner')
+export function SettingsModal({ onClose, initialTab = 'Ordner' }: { onClose: () => void; initialTab?: Tab }) {
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab)
   const [settings, setSettings] = useState<any>({
     defaultExplorerPath: '',
     audioDriver: 'Wave-Treiber',
