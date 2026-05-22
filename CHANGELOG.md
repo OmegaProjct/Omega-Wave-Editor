@@ -2,6 +2,14 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`) als explizite Ausnahme vom Omega Codex Standard.
 
+## [0.2.2] - 2026-05-22
+### Added
+- Vollständig zweisprachige Dokumentation (Deutsch & Englisch) in der README.md mit hochauflösender Screenshot-Galerie und dem offiziellen Logo.
+
+### Fixed
+- Robustere Fehlerbehandlung im Software-Updater: HTTP 404-Meldungen von der GitHub API (z.B. bei privaten Repositories oder noch nicht erstellten Releases) werden nun abgefangen. Anstelle eines unschönen Fehlerdialogs wird dem Benutzer nun wie gewohnt gemeldet, dass die Software auf dem neuesten Stand ist.
+- Veraltete, durchgestrichene Logo-Entwürfe aus dem Repository gelöscht.
+
 ## [0.2.1] - 2026-05-22
 ### Fixed
 - Fehlerhafter mock-updater im Hauptmenü (MenuBar) durch echten dynamischen Update-Check über GitHub-Releases-API ersetzt.
