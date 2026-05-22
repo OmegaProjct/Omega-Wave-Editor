@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useEffect, useCallback } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, useMotionValue, useAnimationFrame } from 'framer-motion'
 import { WaveformRenderer } from './WaveformRenderer'
 import { HistoryManager } from '../lib/HistoryManager'
@@ -1064,6 +1064,9 @@ export function Timeline({
         ...t,
         regions: t.regions.map(r => r.id === draggingGain.regionId ? { ...r, gain: newGain } : r)
       })));
+
+      // Echtzeit-Lautstärkenänderung an die Web-Audio-Engine übertragen
+      engine.updateActiveRegionVolume(draggingGain.regionId, newGain);
     };
     const onUp = () => {
       setDraggingGain(null);
@@ -1823,6 +1826,8 @@ export function Timeline({
                                      const bodyEl = e.currentTarget.parentElement;
                                      if (bodyEl) {
                                        const rect = bodyEl.getBoundingClientRect();
+                                       // Aktuellen Zustand im Verlauf speichern vor der Änderung
+                                       HistoryManager.pushState(tracks);
                                        setDraggingGain({
                                          regionId: region.id,
                                          startY: e.clientY,
