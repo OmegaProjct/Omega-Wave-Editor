@@ -1,6 +1,6 @@
 {
   "name": "omega-wave-editor",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Omega Wave Editor",
   "main": "./out/main/index.js",
   "author": "Omega Projects",
@@ -51,6 +51,11 @@
     "directories": {
       "output": "dist-bin"
     },
+    "asar": true,
+    "asarUnpack": [
+      "**/node_modules/ffmpeg-static/**/*",
+      "**/node_modules/ffprobe-static/**/*"
+    ],
     "publish": [
       {
         "provider": "github",
@@ -62,6 +67,23 @@
       "target": [
         "nsis",
         "portable"
+      ],
+      "icon": "assets/app_icon.png"
+    },
+    "portable": {
+      "artifactName": "${productName}-Portable-${version}.${ext}"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "assets/app_icon.png"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
       ],
       "icon": "assets/app_icon.png"
     },

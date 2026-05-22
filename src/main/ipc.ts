@@ -6,12 +6,24 @@ import ffmpeg from 'fluent-ffmpeg'
 import ffmpegStatic from 'ffmpeg-static'
 import ffprobeStatic from 'ffprobe-static'
 
-// Set ffmpeg and ffprobe paths
-if (ffmpegStatic) {
-  ffmpeg.setFfmpegPath(ffmpegStatic)
+// Set ffmpeg and ffprobe paths with app.asar.unpacked handling for packaged production builds
+let ffmpegPath = ffmpegStatic
+let ffprobePath = ffprobeStatic && ffprobeStatic.path ? ffprobeStatic.path : ''
+
+if (app.isPackaged) {
+  if (ffmpegPath) {
+    ffmpegPath = ffmpegPath.replace('app.asar', 'app.asar.unpacked')
+  }
+  if (ffprobePath) {
+    ffprobePath = ffprobePath.replace('app.asar', 'app.asar.unpacked')
+  }
 }
-if (ffprobeStatic && ffprobeStatic.path) {
-  ffmpeg.setFfprobePath(ffprobeStatic.path)
+
+if (ffmpegPath) {
+  ffmpeg.setFfmpegPath(ffmpegPath)
+}
+if (ffprobePath) {
+  ffmpeg.setFfprobePath(ffprobePath)
 }
 
 function isNewerVersion(current: string, latest: string): boolean {
