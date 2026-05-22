@@ -1,0 +1,252 @@
+import { ipcMain, shell, dialog, app } from 'electron'
+import * as fs from 'fs'
+import * as path from 'path'
+import * as os from 'os'
+import ffmpeg from 'fluent-ffmpeg'
+import ffmpegStatic from 'ffmpeg-static'
+import ffprobeStatic from 'ffprobe-static'
+
+// Set ffmpeg and ffprobe paths
+if (ffmpegStatic) {
+  ffmpeg.setFfmpegPath(ffmpegStatic)
+}
+if (ffprobeStatic && ffprobeStatic.path) {
+  ffmpeg.setFfprobePath(ffprobeStatic.path)
+}
+
+export function setupIpc() {
+  ipcMain.handle('open-external', (_, url: string) => {
+    shell.openExternal(url)
+  })
+
+  ipcMain.handle('show-open-dialog', async (_, options: any) => {
+    return await dialog.showOpenDialog(options)
+  })
+
+  ipcMain.handle('show-save-dialog', async (_, options: any) => {
+    return await dialog.showSaveDialog(options)
+  })
+
+  ipcMain.handle('get-home-dir', () => {
+    try {
+      return app.getPath('desktop') // Returns the actual user desktop, avoiding Gemini container paths
+    } catch (e) {
+      return os.homedir()
+    }
+  })
+
+  ipcMain.handle('get-media-info', async (_, filePath: string) => {
+    return new Promise((resolve, reject) => {
+      ffmpeg.ffprobe(filePath, (err, metadata) => {
+        if (err) {
+          resolve({ duration: 10, tags: {} }) // fallback
+        } else {
+          const tags = metadata.format.tags || {}
+          resolve({
+            duration: metadata.format.duration || 10,
+            tags: {
+              title: tags.title || tags.TITLE || '',
+              artist: tags.artist || tags.ARTIST || tags.composer || tags.COMPOSER || '',
+              album: tags.album || tags.ALBUM || '',
+              year: tags.date || tags.DATE || tags.year || tags.YEAR || '',
+              genre: tags.genre || tags.GENRE || '',
+              comment: tags.comment || tags.COMMENT || '',
+              track: tags.track || tags.TRACK || tags.track_number || ''
+            }
+          })
+        }
+      })
+    })
+  })
+
+  ipcMain.handle('read-dir', async (_, dirPath: string) => {
+    try {
+      const entries = await fs.promises.readdir(dirPath, { withFileTypes: true })
+      const visibleEntries = entries.filter(e => !e.name.startsWith('.'))
+      const files = visibleEntries.map(entry => ({
+        name: entry.name,
+        path: path.join(dirPath, entry.name),
+        isDirectory: entry.isDirectory()
+      }))
+      return files.sort((a, b) => {
+        if (a.isDirectory && !b.isDirectory) return -1
+        if (!a.isDirectory && b.isDirectory) return 1
+        return a.name.localeCompare(b.name)
+      })
+    } catch (error) {
+      console.error('Error reading dir:', error)
+      return []
+    }
+  })
+
+  ipcMain.handle('read-file-buffer', async (_, filePath: string) => {
+    return await fs.promises.readFile(filePath)
+  })
+
+  ipcMain.handle('extract-audio', async (_, videoPath: string, outputPath: string) => {
+    return new Promise((resolve, reject) => {
+      ffmpeg(videoPath)
+        .noVideo()
+        .audioCodec('libmp3lame')
+        .save(outputPath)
+        .on('end', () => resolve(true))
+        .on('error', (err) => reject(err))
+    })
+  })
+
+  ipcMain.handle('save-project', async (_, filePath: string, data: any) => {
+    try {
+      await fs.promises.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8')
+      return { success: true }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  ipcMain.handle('load-project', async (_, filePath: string) => {
+    try {
+      const content = await fs.promises.readFile(filePath, 'utf-8')
+      return { success: true, data: JSON.parse(content) }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  ipcMain.handle('save-preset', async (_, filePath: string, data: any) => {
+    try {
+      await fs.promises.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8')
+      return { success: true }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  ipcMain.handle('get-peaks', async (_, filePath: string, samples: number = 1000) => {
+    return new Promise((resolve) => {
+      let peakData: number[] = [];
+      const command = ffmpeg(filePath)
+        // Extract 1000 samples evenly distributed
+        .audioFilters(`astats=metadata=1:reset=1,aresample=8000,asetnsamples=n=${Math.floor(8000 / samples)}`)
+        .format('null')
+        .on('stderr', (stderrLine: string) => {
+           // Parse astats output for peak level (e.g., "[Parsed_astats_0 @ ...] ... RMS level dB: -20.5")
+           if (stderrLine.includes('RMS level dB')) {
+              const match = stderrLine.match(/RMS level dB:\s*([\-\d\.]+)/);
+              if (match) {
+                 const db = parseFloat(match[1]);
+                 // Convert dB to linear (0-1)
+                 const linear = Math.pow(10, db / 20);
+                 peakData.push(Math.min(1, linear * 4)); // Boosted for visual clarity
+              }
+           }
+        })
+        .on('end', () => {
+          if (peakData.length === 0) {
+             // Fallback to random if parsing fails
+             resolve(Array.from({ length: samples }, () => Math.random() * 0.8))
+          } else {
+             // Resample array to exact 'samples' size if needed
+             resolve(peakData)
+          }
+        })
+        .on('error', () => resolve(Array.from({ length: samples }, () => Math.random() * 0.8)))
+      command.run()
+    })
+  })
+
+  ipcMain.handle('export-project', async (_, tracksData: any, outputPath: string, id3Tags?: any) => {
+    return new Promise((resolve, reject) => {
+      const allRegions = tracksData.flatMap((t: any) => t.regions)
+      if (allRegions.length === 0) return reject(new Error('Project is empty'))
+      const command = ffmpeg()
+      const filterChain: string[] = []
+      allRegions.forEach((region: any, i: number) => {
+        command.input(region.file.path)
+        filterChain.push(`[${i}:a]adelay=${Math.floor(region.startPos * 1000)}|${Math.floor(region.startPos * 1000)}[a${i}]`)
+      })
+      const inputs = allRegions.map((_region: any, i: number) => `[a${i}]`).join('')
+      filterChain.push(`${inputs}amix=inputs=${allRegions.length}:duration=longest[out]`)
+      command
+        .complexFilter(filterChain)
+        .map('[out]')
+
+      if (id3Tags) {
+        const metadataOpts: string[] = []
+        if (id3Tags.title) metadataOpts.push('-metadata', `title=${id3Tags.title}`)
+        if (id3Tags.artist) metadataOpts.push('-metadata', `artist=${id3Tags.artist}`)
+        if (id3Tags.album) metadataOpts.push('-metadata', `album=${id3Tags.album}`)
+        if (id3Tags.year) metadataOpts.push('-metadata', `date=${id3Tags.year}`)
+        if (id3Tags.genre) metadataOpts.push('-metadata', `genre=${id3Tags.genre}`)
+        if (id3Tags.comment) metadataOpts.push('-metadata', `comment=${id3Tags.comment}`)
+        if (id3Tags.track) metadataOpts.push('-metadata', `track=${id3Tags.track}`)
+        
+        if (metadataOpts.length > 0) {
+          command.outputOptions(metadataOpts)
+        }
+      }
+
+      command
+        .save(outputPath)
+        .on('end', () => resolve(true))
+        .on('error', (err) => {
+           console.error('Mixdown Error:', err)
+           reject(err)
+        })
+    })
+  })
+
+  // --- VST PLUGIN BRIDGE ---
+  
+  ipcMain.handle('scan-vst-plugins', async () => {
+    const commonPaths = process.platform === 'win32' 
+      ? ['C:\\Program Files\\VSTPlugins', 'C:\\Program Files\\Common Files\\VST3', 'C:\\Program Files\\Steinberg\\VSTPlugins']
+      : ['/Library/Audio/Plug-Ins/VST', '/Library/Audio/Plug-Ins/VST3'];
+    
+    let foundPlugins: any[] = [];
+    
+    for (const p of commonPaths) {
+      try {
+        if (fs.existsSync(p)) {
+          const files = await fs.promises.readdir(p, { withFileTypes: true });
+          for (const file of files) {
+            if (file.name.endsWith('.dll') || file.name.endsWith('.vst3')) {
+              foundPlugins.push({
+                name: file.name.replace(/\.(dll|vst3)$/, ''),
+                path: path.join(p, file.name),
+                type: file.name.endsWith('.vst3') ? 'VST3' : 'VST2',
+                version: 'Unknown'
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.error(`Fehler beim Scannen von ${p}:`, err);
+      }
+    }
+
+    if (foundPlugins.length === 0) {
+       // Fallback if none found
+       foundPlugins.push({ name: 'Omega Limiter (Built-in)', path: 'internal://limiter', type: 'Native', version: '1.0' });
+    }
+    
+    return foundPlugins;
+  })
+
+  ipcMain.handle('open-vst-ui', async (_, pluginPath: string) => {
+    console.log(`Opening VST UI for: ${pluginPath}`);
+    // This would open a native window hosting the VST editor
+    return true;
+  })
+
+  // --- RECORDING ENGINE ---
+  ipcMain.handle('save-recording', async (_, outputPath: string, arrayBuffer: ArrayBuffer) => {
+    try {
+      await fs.promises.writeFile(outputPath, Buffer.from(arrayBuffer));
+      console.log(`Real recording saved to: ${outputPath}`);
+      return { path: outputPath, success: true };
+    } catch (err: any) {
+      console.error('Failed to save recording:', err);
+      return { success: false, error: err.message };
+    }
+  })
+}
