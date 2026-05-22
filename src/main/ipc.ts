@@ -541,6 +541,13 @@ export function setupIpc() {
     return new Promise((resolve, reject) => {
       const command = ffmpeg(tempWavPath)
       
+      if (options && options.sampleRate) {
+        const parsedRate = parseInt(options.sampleRate, 10)
+        if (!isNaN(parsedRate)) {
+          command.audioFrequency(parsedRate) // Hochwertiges FFmpeg-Resampling auf die Ziel-Samplerate
+        }
+      }
+      
       const format = (options && typeof options.format === 'string') ? options.format.toLowerCase() : 'wav'
       
       if (format === 'mp3') {

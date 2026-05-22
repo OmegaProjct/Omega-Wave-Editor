@@ -930,7 +930,8 @@ export class AudioEngine {
   }
 
   // --- Complete Offline Mastering Multi-track Audio Renderer ---
-  public async renderOffline(project: { tracks: any[] }, sampleRate: number = 44100): Promise<AudioBuffer> {
+  public async renderOffline(project: { tracks: any[] }, _targetSampleRate: number = 44100): Promise<AudioBuffer> {
+    const sampleRate = this.ctx.sampleRate; // Native Echtzeit-Samplerate zur Vermeidung von Resampling-Fehlern
     // 1. Calculate project duration
     let maxDuration = 1.0;
     project.tracks.forEach(t => {

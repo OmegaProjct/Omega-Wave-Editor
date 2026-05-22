@@ -198,7 +198,7 @@ export function ExportModal({ onClose, tracks }: { onClose: () => void, tracks: 
       setExportPhase(3)
       setExportProgress(85)
       const ext = getExt(format)
-      await window.api.transcodeExport(tempWavPath, path, { format: ext, bitrate }, id3Tags)
+      await window.api.transcodeExport(tempWavPath, path, { format: ext, bitrate, sampleRate: parsedSampleRate }, id3Tags)
 
       // Phase 4: Fertigstellen
       setExportPhase(4)
@@ -259,7 +259,7 @@ export function ExportModal({ onClose, tracks }: { onClose: () => void, tracks: 
       <div className="bg-[#282b30] border border-gray-600 w-[700px] rounded shadow-2xl flex flex-col overflow-hidden max-h-[90vh] relative">
         
         {/* Interactive Double-Click Guard Mask */}
-        {isBrowsing && (
+        {isBrowsing && !isExporting && (
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[2100] cursor-wait">
             <div className="bg-[#1e2124]/90 border border-gray-700 p-5 rounded-lg shadow-xl flex flex-col items-center gap-3">
               <svg className="animate-spin w-8 h-8 text-omega-accent" viewBox="0 0 24 24" fill="none">
