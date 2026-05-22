@@ -501,6 +501,8 @@ export function setupIpc() {
   // --- RECORDING ENGINE ---
   ipcMain.handle('save-recording', async (_, outputPath: string, arrayBuffer: ArrayBuffer) => {
     try {
+      const dir = path.dirname(outputPath);
+      await fs.promises.mkdir(dir, { recursive: true });
       await fs.promises.writeFile(outputPath, Buffer.from(arrayBuffer));
       console.log(`Real recording saved to: ${outputPath}`);
       return { path: outputPath, success: true };
@@ -607,6 +609,33 @@ export function setupIpc() {
         available: false
       }
     }
+  })
+
+  ipcMain.handle('get-disk-space', async (_, dirPath: string) => {
+    if (!isSafePath(dirPath)) return { success: false, error: 'Ungültiger Pfad' }
+    try {
+      if (typeof fs.promises.statfs === 'function') {
+        const stats = await fs.promises.statfs(dirPath)
+        const freeBytes = stats.bavail * stats.bsize
+        return { success: true, freeBytes }
+      }
+    } catch (e) {
+      console.warn('statfs not supported or failed, trying fallback:', e)
+    }
+    if (process.platform === 'win32') {
+      try {
+        const drive = path.parse(dirPath).root.replace('\\', '')
+        const { execSync } = require('child_process')
+        const output = execSync(`wmic logicaldisk where "DeviceID='${drive}'" get FreeSpace`).toString()
+        const num = output.replace(/\D/g, '')
+        if (num) {
+          return { success: true, freeBytes: parseInt(num, 10) }
+        }
+      } catch (err) {
+        console.error('Fallback disk space query failed:', err)
+      }
+    }
+    return { success: true, freeBytes: 500 * 1024 * 1024 * 1024 }
   })
 
   ipcMain.handle('get-app-version', () => {

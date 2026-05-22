@@ -36,6 +36,7 @@ declare global {
       scanVstPlugins: () => Promise<any[]>
       openVstUi: (pluginPath: string) => Promise<boolean>
       saveRecording: (outputPath: string, arrayBuffer: ArrayBuffer) => Promise<any>
+      getDiskSpace: (dirPath: string) => Promise<{ success: boolean, freeBytes: number }>
       showOpenDialog: (options: any) => Promise<any>
       showSaveDialog: (options: any) => Promise<any>
     }

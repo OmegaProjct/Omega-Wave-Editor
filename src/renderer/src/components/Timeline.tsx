@@ -5,6 +5,7 @@ import { HistoryManager } from '../lib/HistoryManager'
 import { Play, Square, SkipBack, SkipForward, Plus, Minus, MousePointer2, Scissors, Music, ChevronDown, MoveHorizontal, Maximize2, Unlock, Eye, Volume2, Lock, Zap, Mic, Magnet, Link, Unlink, RotateCcw, RotateCw } from 'lucide-react'
 import { AudioCleaningModal } from './AudioCleaningModal'
 import { ObjectPropertiesModal } from './ObjectPropertiesModal'
+import { AudioRecordingModal } from './AudioRecordingModal'
 import { AudioEngine } from '../lib/AudioEngine'
 import { ProjectManager } from '../lib/ProjectManager'
 
@@ -111,6 +112,7 @@ export function Timeline({
   const [scrollTop, setScrollTop] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
+  const [showAudioRecording, setShowAudioRecording] = useState(false)
   const selectedRegionId = selectedRegionIds.size > 0 ? [...selectedRegionIds][0] : null
   const setSelectedRegionIds = useCallback((ids: Set<string>) => {
     if (onSelectedRegionIdsChange) {
@@ -505,66 +507,19 @@ export function Timeline({
     }
   }, [isPlaying, engine, tracks, playheadPos, spacebarStops])
 
-  const toggleRecording = async () => {
-    if (isRecording) {
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        mediaRecorderRef.current.stop();
-        mediaRecorderRef.current.stream.getTracks().forEach(t => t.stop());
-      }
-      setIsRecording(false);
-    } else {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const mediaRecorder = new MediaRecorder(stream);
-        mediaRecorderRef.current = mediaRecorder;
-        audioChunksRef.current = [];
-
-        mediaRecorder.ondataavailable = (event) => {
-          if (event.data.size > 0) {
-            audioChunksRef.current.push(event.data);
-          }
-        };
-
-        mediaRecorder.onstop = async () => {
-          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' }); // Use webm for browser recording
-          const arrayBuffer = await audioBlob.arrayBuffer();
-          
-          const home = await window.api.getHomeDir();
-          const path = `${home}\\recording_${Date.now()}.webm`;
-          
-          const result = await window.api.saveRecording(path, arrayBuffer);
-          if (result.success) {
-            // Get actual duration
-            const info = await window.api.getMediaInfo(path);
-            const duration = info.duration || 5;
-
-            const newRegion: Region = {
-              id: Math.random().toString(36).substr(2, 9),
-              file: { name: `Aufnahme ${new Date().toLocaleTimeString()}`, path, isDirectory: false },
-              startPos: playheadPos,
-              duration: duration, 
-              fileDuration: duration,
-              sourceOffset: 0,
-              color: 'bg-red-600'
-            };
-            updateTracksWithHistory(tracks.map((t, i) => i === 0 ? { ...t, regions: [...t.regions, newRegion] } : t));
-          } else {
-            console.error('Failed to save recording:', result.error);
-            if (externalAction?.type === 'SHOW_MODAL' || true) {
-              window.dispatchEvent(new CustomEvent('SHOW_GLOBAL_MODAL', { detail: { type: 'error', title: 'Aufnahme fehlgeschlagen', message: 'Fehler beim Speichern der Aufnahme: ' + result.error } }));
-            }
-          }
-        };
-
-        mediaRecorder.start();
-        setIsRecording(true);
-        if (!isPlaying) togglePlayback();
-      } catch (err) {
-        console.error('Error accessing microphone:', err);
-        window.dispatchEvent(new CustomEvent('SHOW_GLOBAL_MODAL', { detail: { type: 'error', title: 'Mikrofonfehler', message: 'Mikrofonzugriff verweigert oder nicht verfügbar.' } }));
-      }
-    }
-  }
+  const handleSaveRecord = async (filePath: string, durationSec: number) => {
+    const filename = filePath.split(/[\\/]/).pop() || 'Aufnahme.wav';
+    const newRegion: Region = {
+      id: Math.random().toString(36).substr(2, 9),
+      file: { name: filename, path: filePath, isDirectory: false },
+      startPos: playheadPos,
+      duration: durationSec,
+      fileDuration: durationSec,
+      sourceOffset: 0,
+      color: 'bg-red-600'
+    };
+    updateTracksWithHistory(tracks.map((t, i) => i === 0 ? { ...t, regions: [...t.regions, newRegion] } : t));
+  };
 
   const handleCopy = useCallback(() => {
     const region = tracks.flatMap(t => t.regions).find(r => r.id === selectedRegionId);
@@ -1540,6 +1495,13 @@ export function Timeline({
     <div className="flex flex-col h-full bg-[#1e2124] text-omega-text select-none overflow-hidden relative font-sans text-[13px]" onClick={handleTimelineClick}>
       {showCleaning && <AudioCleaningModal onClose={() => setShowCleaning(false)} trackId={selectedTrack?.id} />}
       {showProperties && <ObjectPropertiesModal onClose={() => setShowProperties(false)} region={selectedRegion} />}
+      {showAudioRecording && (
+        <AudioRecordingModal
+          onClose={() => setShowAudioRecording(false)}
+          onSaveRecord={handleSaveRecord}
+          playheadPos={playheadPos}
+        />
+      )}
 
       {contextMenu && (
         <div className="fixed bg-[#e5e5e5] text-black border border-gray-400 shadow-lg py-1 z-[9999] text-xs w-56 flex flex-col" style={{ top: contextMenu.y, left: contextMenu.x }} onClick={(e) => e.stopPropagation()}>
@@ -1743,7 +1705,7 @@ export function Timeline({
         </div>
         {/* Transport */}
         <div className="flex gap-1 text-gray-400 border-r border-gray-700 pr-2">
-           <button title="Aufnahme" className={`p-1.5 rounded ${isRecording ? 'text-red-500 animate-pulse bg-red-500/20' : 'hover:bg-gray-700 text-gray-400'}`} onClick={toggleRecording}><Mic size={16} /></button>
+           <button title="Aufnahme" className={`p-1.5 rounded ${showAudioRecording ? 'text-red-500 animate-pulse bg-red-500/20' : 'hover:bg-gray-700 text-gray-400'}`} onClick={() => setShowAudioRecording(true)}><Mic size={16} /></button>
         </div>
         {/* Edit buttons */}
         <div className="flex gap-1 text-gray-400 border-r border-gray-700 pr-2">

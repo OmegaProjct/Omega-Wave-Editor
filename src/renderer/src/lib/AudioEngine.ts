@@ -163,7 +163,9 @@ export class AudioEngine {
   
   // Track parameters state to apply on play
   private trackParams: Map<string, any> = new Map();
-
+  private originalMasterVolume: number = 1.0;
+  private isDucked: boolean = false;
+  
   private constructor() {
     this.ctx = new AudioContext();
     this.masterGain = this.ctx.createGain();
@@ -675,6 +677,8 @@ export class AudioEngine {
       }
     }
 
+    this.isDucked = false;
+    this.originalMasterVolume = 1.0;
     this.tracks.clear();
     this.activeRegions.clear();
   }
@@ -871,6 +875,36 @@ export class AudioEngine {
 
   public setMasterVolume(linearValue: number) {
     this.rampParam(this.masterGain.gain, linearValue);
+  }
+
+  // --- Master Ducking Support for Recording ---
+  public enableDucking(attenuationDb: number, fadeTimeSec: number) {
+    if (this.isDucked) return;
+    this.isDucked = true;
+    this.originalMasterVolume = this.masterGain.gain.value;
+    const attenuationLinear = Math.pow(10, -Math.abs(attenuationDb) / 20);
+    const targetVolume = this.originalMasterVolume * attenuationLinear;
+    const now = this.ctx.currentTime;
+    try {
+      this.masterGain.gain.cancelScheduledValues(now);
+      this.masterGain.gain.setValueAtTime(this.masterGain.gain.value, now);
+      this.masterGain.gain.linearRampToValueAtTime(targetVolume, now + Math.max(0.01, fadeTimeSec));
+    } catch {
+      this.masterGain.gain.value = targetVolume;
+    }
+  }
+
+  public disableDucking(fadeTimeSec: number) {
+    if (!this.isDucked) return;
+    this.isDucked = false;
+    const now = this.ctx.currentTime;
+    try {
+      this.masterGain.gain.cancelScheduledValues(now);
+      this.masterGain.gain.setValueAtTime(this.masterGain.gain.value, now);
+      this.masterGain.gain.linearRampToValueAtTime(this.originalMasterVolume, now + Math.max(0.01, fadeTimeSec));
+    } catch {
+      this.masterGain.gain.value = this.originalMasterVolume;
+    }
   }
 
   public getMasterGain() {
