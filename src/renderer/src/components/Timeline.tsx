@@ -132,6 +132,8 @@ export function Timeline({
   const [draggingFade, setDraggingFade] = useState<{ regionId: string; edge: 'in' | 'out'; startX: number; startValue: number } | null>(null)
   // Hover state for gain line
   const [hoveredRegionId, setHoveredRegionId] = useState<string | null>(null)
+  // Dragging state tracking to prevent click propagation
+  const justDraggedRef = useRef(false)
   // Color submenu
   const [colorSubmenuOpen, setColorSubmenuOpen] = useState(false)
   const [dbSubmenuOpen, setDbSubmenuOpen] = useState(false)
@@ -850,6 +852,7 @@ export function Timeline({
   }
 
   const handleTimelineClick = (e: React.MouseEvent) => {
+    if (justDraggedRef.current) return;
     setContextMenu(null)
     setEditorContextMenu(null)
     setZoomMenuOpen(false)
@@ -1071,6 +1074,9 @@ export function Timeline({
     const onUp = () => {
       setDraggingGain(null);
       setTracks(cur => { if (onTracksChange) onTracksChange(cur); return cur; });
+      // Verhindere, dass nach dem Draggen ein Klick-Event auf der Timeline ausgelöst wird
+      justDraggedRef.current = true;
+      setTimeout(() => { justDraggedRef.current = false; }, 50);
     };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
@@ -1098,6 +1104,9 @@ export function Timeline({
     const onUp = () => {
       setDraggingFade(null);
       setTracks(cur => { if (onTracksChange) onTracksChange(cur); return cur; });
+      // Verhindere, dass nach dem Draggen ein Klick-Event auf der Timeline ausgelöst wird
+      justDraggedRef.current = true;
+      setTimeout(() => { justDraggedRef.current = false; }, 50);
     };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
@@ -1195,6 +1204,9 @@ export function Timeline({
          if (onTracksChange) onTracksChange(current);
          return current;
       });
+      // Verhindere, dass nach dem Draggen ein Klick-Event auf der Timeline ausgelöst wird
+      justDraggedRef.current = true;
+      setTimeout(() => { justDraggedRef.current = false; }, 50);
     }
     
     window.addEventListener('mousemove', handleMouseMove);
