@@ -19,6 +19,7 @@ declare global {
         body?: string
         error?: string
       }>
+      getAppVersion: () => Promise<string>
     }
   }
 }

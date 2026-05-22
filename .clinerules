@@ -6,15 +6,18 @@ Dieses Projekt unterliegt den strengen Richtlinien des **Omega Codex Home**. Jed
 * **Sprachpräferenz:** Die gesamte Kommunikation mit David erfolgt konsequent auf **Deutsch** (direkt, sachlich, locker, auf Augenhöhe).
 * **Code-Kommentare:** Neuer oder geänderter Quellcode muss mit prägnanten, **deutschen Kommentaren** versehen werden, um spätere Wartung zu erleichtern.
 
-## 2. Versionierung & Changelog
-* **Versionsschema (`0.XX.YYY`):**
-  * `0` bleibt als Major-Version stehen, bis David eine echte Vollversion freigibt.
-  * `XX` wird bei neuen sichtbaren Features, UI-Elementen oder größeren Erweiterungen erhöht.
-  * `YYY` wird bei Bugfixes, Textkorrekturen und Refactorings ohne neue Funktionen erhöht.
-* **Format-Abgleich:**
-  * In `package.json` und im Code gilt die normale semantische Form: `0.1.0`.
-  * Im `CHANGELOG.md` wird die gepolsterte Form in eckigen Klammern verwendet: `## [00.001.000] - YYYY-MM-DD`.
-* **Changelog-Pflege:** Nach jeder Änderung das Changelog im Keep-a-Changelog-Stil (Added, Changed, Fixed, Removed) pflegen.
+## 2. Versionierung & Changelog (Spezial-Ausnahme)
+* **Versionsschema (Klassisches SemVer):**
+  * In diesem Projekt wird die gepolsterte Form (`[00.001.000]`) **nicht** verwendet!
+  * Stattdessen wird sowohl in `package.json` als auch in `CHANGELOG.md` das klassische Semantic Versioning (z. B. `0.1.0`) genutzt.
+  * Dies ist eine explizit von David genehmigte Ausnahme.
+* **Bedeutung der Versionszahlen (`X.Y.Z`):**
+  * **Linke Zahl (`X` - Major):** Wird **nur auf ausdrückliche Anweisung** von David erhöht.
+  * **Mittlere Zahl (`Y` - Minor/Feature):** Wird bei neuen sichtbaren Features, neuen Buttons, Menüpunkten oder UI-Komponenten erhöht.
+  * **Rechte Zahl (`Z` - Patch/Bugfix):** Wird bei Fehlerbehebungen, Bugfixes, Textkorrekturen und kleineren Feinschliffen erhöht.
+* **Changelog-Format:**
+  * Das Changelog nutzt Keep-a-Changelog-Überschriften in eckigen Klammern (z. B. `## [0.1.0] - YYYY-MM-DD`).
+  * Nach jeder abgeschlossenen Phase oder Funktion wird das Changelog sofort aktualisiert.
 
 ## 3. Git-Commit-Richtlinien
 * **Kleinteilige Commits:** Zusammenhängende Änderungen müssen in kleinen, thematischen Commits festgehalten werden, statt am Ende alles in einem großen Sammel-Commit zu speichern.
