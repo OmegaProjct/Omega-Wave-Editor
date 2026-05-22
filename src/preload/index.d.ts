@@ -4,6 +4,7 @@ declare global {
   interface Window {
     api: {
       getHomeDir: () => Promise<string>
+      getSystemPath: (name: string) => Promise<string>
       readDir: (dirPath: string) => Promise<FileEntry[]>
       extractAudio: (videoPath: string, outputPath: string) => Promise<boolean>
       getMediaInfo: (filePath: string) => Promise<{ duration: number, tags?: any }>

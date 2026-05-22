@@ -8,6 +8,7 @@ export type FileEntry = {
 
 const api = {
   getHomeDir: () => ipcRenderer.invoke('get-home-dir'),
+  getSystemPath: (name: string) => ipcRenderer.invoke('get-system-path', name),
   readDir: (dirPath: string) => ipcRenderer.invoke('read-dir', dirPath),
   extractAudio: (videoPath: string, outputPath: string) => ipcRenderer.invoke('extract-audio', videoPath, outputPath),
   getMediaInfo: (filePath: string) => ipcRenderer.invoke('get-media-info', filePath),
