@@ -328,6 +328,16 @@ export function setupIpc() {
         }
       })
 
+      if (response.status === 404) {
+        return {
+          available: false,
+          currentVersion,
+          latestVersion: currentVersion,
+          url: 'https://github.com/OmegaProjct/Omega-Wave-Editor/releases',
+          body: ''
+        }
+      }
+
       if (!response.ok) {
         throw new Error(`GitHub API meldet Status ${response.status}`)
       }
