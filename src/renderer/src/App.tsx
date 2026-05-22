@@ -1,4 +1,4 @@
-﻿import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import { FileExplorer } from './components/FileExplorer'
 import { Timeline } from './components/Timeline'
@@ -13,11 +13,33 @@ import appIcon from './assets/app_icon.png'
 
 function App(): JSX.Element {
   const [showSettings, setShowSettings] = useState(false)
+  const [settingsTab, setSettingsTab] = useState<'Wiedergabe' | 'Ordner' | 'Import/Audio' | 'System' | 'Tastaturkürzel' | 'Projekteinstellungen'>('Ordner')
   const [showExport, setShowExport] = useState(false)
   const [showManual, setShowManual] = useState(false)
+  const [updateAvailable, setUpdateAvailable] = useState<any | null>(null)
   
   // Global Modal State
   const [modalConfig, setModalConfig] = useState<{ type: ModalType, title: string, message: string, onConfirm?: () => void } | null>(null)
+
+  const openSettings = (tab: 'Wiedergabe' | 'Ordner' | 'Import/Audio' | 'System' | 'Tastaturkürzel' | 'Projekteinstellungen' = 'Ordner') => {
+    setSettingsTab(tab)
+    setShowSettings(true)
+  }
+
+  // Automatischer Update-Check beim Programmstart
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      try {
+        const result = await window.api.checkForUpdates()
+        if (result && result.available) {
+          setUpdateAvailable(result)
+        }
+      } catch (e) {
+        console.error('Automatischer Update-Check fehlgeschlagen:', e)
+      }
+    }, 2500) // 2.5 Sekunden Verzögerung nach Start für eine flüssige UX
+    return () => clearTimeout(timer)
+  }, [])
 
   const showModal = (type: ModalType, title: string, message: string, onConfirm?: () => void) => {
     setModalConfig({ type, title, message, onConfirm })
@@ -113,10 +135,43 @@ function App(): JSX.Element {
 
   return (
     <div className="h-full w-full flex flex-col bg-omega-dark text-omega-text relative">
-      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} initialTab={settingsTab} />}
       {showExport && <ExportModal onClose={() => setShowExport(false)} tracks={tracks} />}
       {showManual && <ManualModal onClose={() => setShowManual(false)} />}
       {modalConfig && <MessageModal type={modalConfig.type} title={modalConfig.title} message={modalConfig.message} onClose={handleModalClose} />}
+
+      {/* Premium Update Toast */}
+      {updateAvailable && (
+        <div className="absolute bottom-6 right-6 z-[9999] bg-[#1a1d21]/95 backdrop-blur-md border border-green-500/30 rounded-lg p-4 shadow-2xl max-w-sm flex flex-col gap-2.5 animate-in fade-in slide-in-from-bottom-5 duration-300 text-sm">
+          <div className="flex items-center gap-2">
+            <span className="flex h-2 w-2 relative">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+            </span>
+            <span className="font-semibold text-green-400">Software-Update verfügbar</span>
+          </div>
+          <p className="text-gray-300 text-xs leading-relaxed">
+            Eine neuere Version <span className="font-mono text-white font-semibold">v{updateAvailable.latestVersion}</span> ist verfügbar. Möchtest du die Details ansehen und das Update installieren?
+          </p>
+          <div className="flex gap-3 justify-end mt-1">
+            <button 
+              onClick={() => setUpdateAvailable(null)}
+              className="px-2.5 py-1 text-xs text-gray-400 hover:text-white transition-colors"
+            >
+              Später
+            </button>
+            <button 
+              onClick={() => {
+                setUpdateAvailable(null)
+                openSettings('System')
+              }}
+              className="px-3 py-1 text-xs bg-omega-accent hover:bg-blue-500 text-white font-semibold rounded shadow transition-colors"
+            >
+              Details anzeigen
+            </button>
+          </div>
+        </div>
+      )}
       
       {/* Top Bar / Menu */}
       <div className="h-10 bg-omega-panel border-b border-omega-border flex items-center px-4 text-sm z-[999] flex-shrink-0">
@@ -125,7 +180,7 @@ function App(): JSX.Element {
             <span className="font-semibold text-omega-accent">Omega Wave Editor</span>
         </div>
         <MenuBar 
-          onOpenSettings={() => setShowSettings(true)} 
+          onOpenSettings={() => openSettings('Ordner')} 
           onOpenExport={() => setShowExport(true)} 
           onFileAction={triggerTimelineAction}
         />
