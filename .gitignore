@@ -1,6 +1,8 @@
 # Dependency directories
 node_modules/
 reference_repos/
+concepts/
+
 
 # Build outputs
 out/
