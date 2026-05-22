@@ -2,6 +2,15 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`) als explizite Ausnahme vom Omega Codex Standard.
 
+## [0.2.0] - 2026-05-22
+### Added
+- Cross-Platform-Releases: Automatische Builds für Windows, macOS (DMG/ZIP) und Linux (AppImage/DEB) via GitHub Actions.
+- Portable-Versionsname standardisiert auf `Omega-Wave-Editor-Portable-X.Y.Z.exe`.
+### Fixed
+- DevTools öffnen sich in der fertigen (verpackten) Installation nicht mehr automatisch.
+- Portable-Version startet jetzt korrekt: ffmpeg und ffprobe werden aus `app.asar.unpacked` geladen.
+- Klick-Event nach Gain/Fade/Regions-Dragging unterdrückt, um ungewollte Wiedergabesprünge zu verhindern.
+
 ## [0.1.0] - 2026-05-22
 ### Added
 - Etablierung der Omega Codex Standards via `.clinerules` im Projekt-Root.

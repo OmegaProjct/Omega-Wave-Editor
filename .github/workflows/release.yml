@@ -7,8 +7,12 @@ on:
 
 jobs:
   publish:
-    name: Build & Publish Release
-    runs-on: windows-latest
+    name: Build & Publish Release on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
 
     permissions:
       contents: write
@@ -32,4 +36,12 @@ jobs:
       - name: Anwendung kompilieren & Veröffentlichen
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --win --publish always
+        run: |
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            npx electron-builder --win --publish always
+          elif [ "$RUNNER_OS" == "macOS" ]; then
+            npx electron-builder --mac --publish always
+          else
+            npx electron-builder --linux --publish always
+          fi
+        shell: bash

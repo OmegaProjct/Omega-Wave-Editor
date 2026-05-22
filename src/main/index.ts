@@ -35,7 +35,9 @@ function createWindow(): void {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
-    mainWindow.webContents.openDevTools()
+    if (!app.isPackaged) {
+      mainWindow.webContents.openDevTools()
+    }
   })
 
   mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
