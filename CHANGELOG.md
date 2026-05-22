@@ -2,6 +2,11 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`) als explizite Ausnahme vom Omega Codex Standard.
 
+## [0.2.1] - 2026-05-22
+### Fixed
+- Fehlerhafter mock-updater im Hauptmenü (MenuBar) durch echten dynamischen Update-Check über GitHub-Releases-API ersetzt.
+- "Über"-Menü zeigt jetzt dynamisch die tatsächliche installierte Version der Anwendung an statt statisch Version 1.0.0.
+
 ## [0.2.0] - 2026-05-22
 ### Added
 - Cross-Platform-Releases: Automatische Builds für Windows, macOS (DMG/ZIP) und Linux (AppImage/DEB) via GitHub Actions.

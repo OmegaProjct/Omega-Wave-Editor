@@ -89,7 +89,7 @@ function App(): JSX.Element {
       return;
     }
     if (type === 'SHOW_MODAL' && payload) {
-       showModal(payload.type, payload.title, payload.message)
+       showModal(payload.type, payload.title, payload.message, payload.onConfirm)
        return;
     }
     if (type === 'SHOW_MANUAL') {
