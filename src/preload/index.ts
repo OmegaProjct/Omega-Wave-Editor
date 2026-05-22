@@ -28,7 +28,10 @@ const api = {
   openVstUi: (pluginPath: string) => ipcRenderer.invoke('open-vst-ui', pluginPath),
 
   // Recording
-  saveRecording: (outputPath: string, arrayBuffer: ArrayBuffer) => ipcRenderer.invoke('save-recording', outputPath, arrayBuffer)
+  saveRecording: (outputPath: string, arrayBuffer: ArrayBuffer) => ipcRenderer.invoke('save-recording', outputPath, arrayBuffer),
+
+  // Software Update
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates')
 }
 
 if (process.contextIsolated) {

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 
 type Tab = 'Wiedergabe' | 'Ordner' | 'Import/Audio' | 'System' | 'Tastaturkürzel' | 'Projekteinstellungen'
 
@@ -14,6 +14,31 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
     sampleRate: 48000,
     tracksCount: 32
   })
+
+  const [checkingUpdates, setCheckingUpdates] = useState(false)
+  const [updateStatus, setUpdateStatus] = useState<string | null>(null)
+  const [updateInfo, setUpdateInfo] = useState<any | null>(null)
+
+  const handleCheckForUpdates = async () => {
+    setCheckingUpdates(true)
+    setUpdateStatus('Prüfe auf Updates...')
+    setUpdateInfo(null)
+    try {
+      const result = await window.api.checkForUpdates()
+      if (result.error) {
+        setUpdateStatus(`Fehler: ${result.error}`)
+      } else if (result.available) {
+        setUpdateStatus(`Update verfügbar: v${result.latestVersion}`)
+        setUpdateInfo(result)
+      } else {
+        setUpdateStatus(`App ist auf dem neuesten Stand (v${result.currentVersion}).`)
+      }
+    } catch (e: any) {
+      setUpdateStatus(`Fehler beim Update-Check: ${e.message}`)
+    } finally {
+      setCheckingUpdates(false)
+    }
+  }
 
   useEffect(() => {
     window.api.getSettings().then(s => {
@@ -129,11 +154,53 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
 
   const renderSystem = () => (
     <div className="flex gap-4 h-full">
-      <div className="flex-1 border border-gray-700 p-4 rounded bg-[#1e2124]">
-        <h3 className="text-center font-semibold mb-4 text-sm">Programmoberfläche</h3>
-        <button className="w-full py-1.5 bg-gray-700 hover:bg-gray-600 rounded mb-4 text-sm" onClick={() => alert('Alle ausgeblendeten Warn- und Hinweisdialoge wurden wiederhergestellt.')}>Hinweisdialoge reaktivieren</button>
+      <div className="flex-1 flex flex-col gap-4">
+        <div className="border border-gray-700 p-4 rounded bg-[#1e2124]">
+          <h3 className="text-center font-semibold mb-3 text-sm">Programmoberfläche</h3>
+          <button className="w-full py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors text-white" onClick={() => alert('Alle ausgeblendeten Warn- und Hinweisdialoge wurden wiederhergestellt.')}>Hinweisdialoge reaktivieren</button>
+        </div>
+        
+        <div className="border border-gray-700 p-4 rounded bg-[#1e2124] flex-1 flex flex-col justify-between">
+          <div>
+            <h3 className="text-center font-semibold mb-3 text-sm">Software-Updates</h3>
+            <div className="flex flex-col gap-2.5 items-center text-xs mt-1">
+              <div className="text-gray-400">
+                Aktuelle Version: <span className="text-white font-mono bg-[#1a1d21] px-2 py-0.5 rounded border border-gray-700 ml-1">v0.1.0</span>
+              </div>
+              
+              <button 
+                onClick={handleCheckForUpdates}
+                disabled={checkingUpdates}
+                className={`w-full py-2 rounded text-xs font-semibold shadow transition-all duration-200 text-white ${
+                  checkingUpdates 
+                    ? 'bg-gray-700 text-gray-500 cursor-not-allowed' 
+                    : 'bg-omega-accent hover:bg-blue-500 active:scale-[0.98]'
+                }`}
+              >
+                {checkingUpdates ? 'Suche läuft...' : 'Auf Updates prüfen'}
+              </button>
+            </div>
+          </div>
+
+          {updateStatus && (
+            <div className="mt-3 p-2 bg-[#1a1d21] border border-gray-700 rounded text-center">
+              <div className={`text-xs font-semibold ${updateInfo ? 'text-green-400' : 'text-gray-300'}`}>
+                {updateStatus}
+              </div>
+              {updateInfo && (
+                <button 
+                  onClick={() => window.api.openExternal(updateInfo.url)}
+                  className="mt-2 w-full py-1 bg-green-600 hover:bg-green-500 text-white font-semibold text-[11px] rounded shadow animate-bounce transition-colors"
+                >
+                  Jetzt herunterladen
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
-      <div className="flex-1 border border-gray-700 p-4 rounded bg-[#1e2124]">
+
+      <div className="flex-1 border border-gray-700 p-4 rounded bg-[#1e2124] h-full">
         <h3 className="text-center font-semibold mb-4 text-sm">Automatisches Speichern</h3>
         <div className="flex flex-col gap-3 text-sm">
           <label className="flex items-center gap-2 cursor-pointer">

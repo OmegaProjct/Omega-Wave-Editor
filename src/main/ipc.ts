@@ -14,6 +14,20 @@ if (ffprobeStatic && ffprobeStatic.path) {
   ffmpeg.setFfprobePath(ffprobeStatic.path)
 }
 
+function isNewerVersion(current: string, latest: string): boolean {
+  const parse = (v: string) => v.replace(/^v/, '').split('.').map(Number)
+  const [currMajor, currMinor, currPatch] = parse(current)
+  const [lateMajor, lateMinor, latePatch] = parse(latest)
+
+  if (lateMajor > currMajor) return true
+  if (lateMajor < currMajor) return false
+
+  if (lateMinor > currMinor) return true
+  if (lateMinor < currMinor) return false
+
+  return latePatch > currPatch
+}
+
 export function setupIpc() {
   ipcMain.handle('open-external', (_, url: string) => {
     shell.openExternal(url)
@@ -285,6 +299,41 @@ export function setupIpc() {
     } catch (err: any) {
       console.error('Failed to save recording:', err);
       return { success: false, error: err.message };
+    }
+  })
+
+  // --- SOFTWARE UPDATER ---
+  ipcMain.handle('check-for-updates', async () => {
+    const currentVersion = app.getVersion()
+    try {
+      const response = await fetch('https://api.github.com/repos/OmegaProjct/Omega-Wave-Editor/releases/latest', {
+        headers: {
+          'User-Agent': 'Omega-Wave-Editor-Updater'
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error(`GitHub API meldet Status ${response.status}`)
+      }
+
+      const data: any = await response.json()
+      const latestVersion = data.tag_name || ''
+      const updateAvailable = isNewerVersion(currentVersion, latestVersion)
+
+      return {
+        available: updateAvailable,
+        currentVersion,
+        latestVersion,
+        url: data.html_url || 'https://github.com/OmegaProjct/Omega-Wave-Editor/releases',
+        body: data.body || ''
+      }
+    } catch (err: any) {
+      console.error('Update-Prüfung fehlgeschlagen:', err)
+      return {
+        error: err.message,
+        currentVersion,
+        available: false
+      }
     }
   })
 }

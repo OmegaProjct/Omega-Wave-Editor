@@ -11,6 +11,14 @@ declare global {
       getSettings: () => Promise<{ defaultExplorerPath: string }>
       saveSettings: (settings: { defaultExplorerPath: string }) => Promise<boolean>
       openExternal: (url: string) => Promise<void>
+      checkForUpdates: () => Promise<{
+        available: boolean
+        currentVersion: string
+        latestVersion?: string
+        url?: string
+        body?: string
+        error?: string
+      }>
     }
   }
 }
