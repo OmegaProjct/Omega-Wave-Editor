@@ -26,6 +26,9 @@ jobs:
       - name: Abhängigkeiten installieren
         run: npm ci
 
+      - name: Code kompilieren
+        run: npm run build
+
       - name: Anwendung kompilieren & Veröffentlichen
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
