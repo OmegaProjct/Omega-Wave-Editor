@@ -40,7 +40,7 @@ export function ExportModal({ onClose, tracks }: { onClose: () => void, tracks: 
   const [errorMsg, setErrorMsg] = useState('')
   const [showId3, setShowId3] = useState(false)
 
-  // ID3 Tags
+  // ID3-Tags States
   const [id3Title, setId3Title] = useState('')
   const [id3Artist, setId3Artist] = useState('')
   const [id3Album, setId3Album] = useState('')
@@ -48,6 +48,26 @@ export function ExportModal({ onClose, tracks }: { onClose: () => void, tracks: 
   const [id3Genre, setId3Genre] = useState('')
   const [id3Comment, setId3Comment] = useState('')
   const [id3Track, setId3Track] = useState('')
+
+  // Synchronisiere das Export-Format, wenn sich die Quelldatei ändert
+  useEffect(() => {
+    if (singleSource) {
+      const lower = singleSource.toLowerCase()
+      if (lower.endsWith('.mp3')) {
+        setFormat('MP3 (Lame Encoder)')
+      } else if (lower.endsWith('.m4a')) {
+        setFormat('M4A (AAC Audio)')
+      } else if (lower.endsWith('.ogg')) {
+        setFormat('OGG (Vorbis)')
+      } else if (lower.endsWith('.opus')) {
+        setFormat('OPUS (Interactive)')
+      } else {
+        setFormat('WAV (Microsoft PCM)')
+      }
+    } else {
+      setFormat('WAV (Microsoft PCM)')
+    }
+  }, [singleSource])
 
   useEffect(() => {
     window.api.getHomeDir().then(home => {
@@ -75,12 +95,20 @@ export function ExportModal({ onClose, tracks }: { onClose: () => void, tracks: 
   const isCompressed = format.match(/(MP3|OGG|M4A|M4R|WMA|OPUS)/i)
   const supportsId3 = ID3_FORMATS.includes(format)
 
+  // Wenn das gewählte Format ID3-Tags unterstützt, klappe das ID3-Panel automatisch auf
+  useEffect(() => {
+    if (supportsId3) {
+      setShowId3(true)
+    }
+  }, [supportsId3])
+
+  // Lade Medieninformationen/Tags aus der Quelldatei, wenn vorhanden
   useEffect(() => {
     if (singleSource) {
       window.api.getMediaInfo(singleSource).then((info: any) => {
         const tags = (info && info.tags) ? info.tags : {}
         
-        // Extract tags or use default empty string
+        // Tags extrahieren oder leeren String als Fallback nutzen
         const artist = tags.artist || ''
         const album = tags.album || ''
         const year = tags.year || ''
@@ -88,7 +116,7 @@ export function ExportModal({ onClose, tracks }: { onClose: () => void, tracks: 
         const comment = tags.comment || ''
         const track = tags.track || ''
         
-        // Title fallback to filename (without extension)
+        // Titel-Fallback auf den Dateinamen (ohne Endung)
         const fallbackTitle = singleSource.replace(/.*[\\\/]/, '').replace(/\.[^.]+$/, '')
         const title = tags.title || fallbackTitle
 
@@ -100,15 +128,25 @@ export function ExportModal({ onClose, tracks }: { onClose: () => void, tracks: 
         setId3Comment(comment)
         setId3Track(track)
 
-        // Always show the ID3 section since we now have at least a Title (either tag or filename)
+        // Panel aufklappen, da wir jetzt Metadaten geladen haben
         setShowId3(true)
       }).catch(err => {
-        console.error('Error loading media info tags for ID3 pre-population:', err)
-        // Robust fallback on error
+        console.error('Fehler beim Laden der Medieninformationen für ID3-Prepopulation:', err)
+        // Robuster Fallback bei Fehlern
         const fallbackTitle = singleSource.replace(/.*[\\\/]/, '').replace(/\.[^.]+$/, '')
         setId3Title(fallbackTitle)
         setShowId3(true)
       })
+    } else {
+      // Wenn keine Quelle geladen ist, alle ID3-States zurücksetzen
+      setId3Title('')
+      setId3Artist('')
+      setId3Album('')
+      setId3Year('')
+      setId3Genre('')
+      setId3Comment('')
+      setId3Track('')
+      setShowId3(false)
     }
   }, [singleSource])
 

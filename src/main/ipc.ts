@@ -39,19 +39,24 @@ export function setupIpc() {
     return new Promise((resolve, reject) => {
       ffmpeg.ffprobe(filePath, (err, metadata) => {
         if (err) {
-          resolve({ duration: 10, tags: {} }) // fallback
+          resolve({ duration: 10, tags: {} }) // Fallback bei Fehler
         } else {
-          const tags = metadata.format.tags || {}
+          const rawTags = metadata.format.tags || {}
+          const tags: Record<string, string> = {}
+          // Normalisiere alle Metadaten-Schlüssel in Kleinschreibung
+          for (const key of Object.keys(rawTags)) {
+            tags[key.toLowerCase()] = String(rawTags[key])
+          }
           resolve({
             duration: metadata.format.duration || 10,
             tags: {
-              title: tags.title || tags.TITLE || '',
-              artist: tags.artist || tags.ARTIST || tags.composer || tags.COMPOSER || '',
-              album: tags.album || tags.ALBUM || '',
-              year: tags.date || tags.DATE || tags.year || tags.YEAR || '',
-              genre: tags.genre || tags.GENRE || '',
-              comment: tags.comment || tags.COMMENT || '',
-              track: tags.track || tags.TRACK || tags.track_number || ''
+              title: tags.title || tags.nam || '',
+              artist: tags.artist || tags.composer || tags.performer || '',
+              album: tags.album || '',
+              year: tags.date || tags.year || tags.creation_time || '',
+              genre: tags.genre || '',
+              comment: tags.comment || tags.description || '',
+              track: tags.track || tags.track_number || ''
             }
           })
         }
@@ -156,22 +161,54 @@ export function setupIpc() {
 
   ipcMain.handle('export-project', async (_, tracksData: any, outputPath: string, id3Tags?: any) => {
     return new Promise((resolve, reject) => {
-      const allRegions = tracksData.flatMap((t: any) => t.regions)
-      if (allRegions.length === 0) return reject(new Error('Project is empty'))
+      if (!Array.isArray(tracksData)) {
+        return reject(new Error('Ungültige Spurdaten übergeben'))
+      }
+
+      // 1. Spuren nach Mute und Solo filtern (Solo hat Priorität)
+      const hasSolo = tracksData.some((t: any) => t.solo)
+      const activeTracks = tracksData.filter((t: any) => {
+        if (hasSolo) {
+          return t.solo && !t.muted
+        }
+        return !t.muted
+      })
+
+      const allRegions = activeTracks.flatMap((t: any) => t.regions)
+      if (allRegions.length === 0) {
+        return reject(new Error('Keine aktiven Spuren oder Regionen zum Exportieren vorhanden'))
+      }
+
       const command = ffmpeg()
       const filterChain: string[] = []
-      allRegions.forEach((region: any, i: number) => {
+
+      // 2. Eingangsdateien hinzufügen
+      allRegions.forEach((region: any) => {
         command.input(region.file.path)
-        filterChain.push(`[${i}:a]adelay=${Math.floor(region.startPos * 1000)}|${Math.floor(region.startPos * 1000)}[a${i}]`)
       })
-      const inputs = allRegions.map((_region: any, i: number) => `[a${i}]`).join('')
-      filterChain.push(`${inputs}amix=inputs=${allRegions.length}:duration=longest[out]`)
+
+      // 3. Audio-Mixdown Filterkette aufbauen
+      if (allRegions.length === 1) {
+        const region = allRegions[0]
+        // Einzelne Region: amix umgehen, um Verzerrungen/Doppelungen zu vermeiden
+        filterChain.push(`[0:a]adelay=${Math.floor(region.startPos * 1000)}|${Math.floor(region.startPos * 1000)}[out]`)
+      } else {
+        // Mehrere Regionen: Verzögern und danach mit amix mischen
+        allRegions.forEach((region: any, i: number) => {
+          filterChain.push(`[${i}:a]adelay=${Math.floor(region.startPos * 1000)}|${Math.floor(region.startPos * 1000)}[a${i}]`)
+        })
+        const inputs = allRegions.map((_, i: number) => `[a${i}]`).join('')
+        filterChain.push(`${inputs}amix=inputs=${allRegions.length}:duration=longest[out]`)
+      }
+
       command
         .complexFilter(filterChain)
         .map('[out]')
 
+      // 4. Metadaten (ID3-Tags) schreiben
       if (id3Tags) {
-        const metadataOpts: string[] = []
+        const metadataOpts: string[] = ['-map_metadata', '-1'] // Vorhandene Tags verwerfen
+        
         if (id3Tags.title) metadataOpts.push('-metadata', `title=${id3Tags.title}`)
         if (id3Tags.artist) metadataOpts.push('-metadata', `artist=${id3Tags.artist}`)
         if (id3Tags.album) metadataOpts.push('-metadata', `album=${id3Tags.album}`)
@@ -180,9 +217,10 @@ export function setupIpc() {
         if (id3Tags.comment) metadataOpts.push('-metadata', `comment=${id3Tags.comment}`)
         if (id3Tags.track) metadataOpts.push('-metadata', `track=${id3Tags.track}`)
         
-        if (metadataOpts.length > 0) {
-          command.outputOptions(metadataOpts)
-        }
+        // ID3v2.3 erzwingen, damit Windows Explorer die Tags lesen kann
+        metadataOpts.push('-id3v2_version', '3')
+        
+        command.outputOptions(metadataOpts)
       }
 
       command
