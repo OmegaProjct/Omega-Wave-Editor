@@ -137,9 +137,31 @@ export function setupIpc() {
 
   ipcMain.handle('get-home-dir', () => {
     try {
-      return app.getPath('desktop') // Returns the actual user desktop, avoiding Gemini container paths
-    } catch (e) {
       return os.homedir()
+    } catch (e) {
+      try {
+        return app.getPath('home')
+      } catch (err) {
+        return app.getPath('desktop')
+      }
+    }
+  })
+
+  ipcMain.handle('get-system-path', (_, name: string) => {
+    if (typeof name !== 'string') return ''
+    try {
+      if (name === 'computer') {
+        return process.platform === 'win32' ? 'C:\\' : '/'
+      }
+      return app.getPath(name as any)
+    } catch (e) {
+      console.error(`Failed to get-system-path for ${name}:`, e)
+      const home = os.homedir()
+      if (name === 'desktop') return path.join(home, 'Desktop')
+      if (name === 'documents') return path.join(home, 'Documents')
+      if (name === 'downloads') return path.join(home, 'Downloads')
+      if (name === 'music') return path.join(home, 'Music')
+      return home
     }
   })
 

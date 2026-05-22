@@ -4,6 +4,7 @@ interface Window {
     openVstUi: (path: string) => Promise<boolean>;
     readFileBuffer: (path: string) => Promise<any>;
     getHomeDir: () => Promise<string>;
+    getSystemPath: (name: string) => Promise<string>;
     saveRecording: (path: string, buffer: ArrayBuffer) => Promise<{ success: boolean; error?: string }>;
     getDiskSpace: (dirPath: string) => Promise<{ success: boolean; freeBytes: number }>;
     getMediaInfo: (path: string) => Promise<{ duration: number; tags?: any }>;

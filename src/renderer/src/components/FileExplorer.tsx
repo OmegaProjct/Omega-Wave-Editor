@@ -335,14 +335,14 @@ export function FileExplorer() {
     <div className="flex flex-1 overflow-hidden relative">
       <div className="w-[180px] border-r border-omega-border bg-[#1e2124] flex flex-col text-[11px] overflow-y-auto flex-shrink-0 select-none">
         <div className="px-3 py-1.5 text-gray-400 font-bold mb-1 border-b border-gray-700 bg-[#1a1d21] uppercase tracking-wider">Verknüpfungen</div>
-        <div className="px-3 py-1.5 hover:bg-omega-accent hover:text-white cursor-pointer flex items-center gap-2 transition-colors text-gray-300" onClick={() => window.api.getHomeDir().then(d => loadDirectory(d.split('\\').slice(0, 2).join('\\')))}><HardDrive size={12} /> Computer</div>
-        <div className="px-3 py-1.5 hover:bg-omega-accent hover:text-white cursor-pointer flex items-center gap-2 transition-colors text-gray-300" onClick={() => window.api.getHomeDir().then(d => loadDirectory(d))}><User size={12} /> Benutzer</div>
+        <div className="px-3 py-1.5 hover:bg-omega-accent hover:text-white cursor-pointer flex items-center gap-2 transition-colors text-gray-300" onClick={() => window.api.getSystemPath('computer').then(d => loadDirectory(d))}><HardDrive size={12} /> Computer</div>
+        <div className="px-3 py-1.5 hover:bg-omega-accent hover:text-white cursor-pointer flex items-center gap-2 transition-colors text-gray-300" onClick={() => window.api.getSystemPath('home').then(d => loadDirectory(d))}><User size={12} /> Benutzer</div>
         
         <div className="px-3 py-1.5 text-gray-400 font-bold mt-2 mb-1 border-b border-gray-700 bg-[#1a1d21] uppercase tracking-wider">Eigene Medien</div>
-        <div className="px-3 py-1.5 hover:bg-omega-accent hover:text-white cursor-pointer flex items-center gap-2 transition-colors text-gray-300" onClick={() => window.api.getHomeDir().then(d => loadDirectory(d + '\\Documents'))}><Folder size={12} className="text-yellow-500" /> Dokumente</div>
-        <div className="px-3 py-1.5 hover:bg-omega-accent hover:text-white cursor-pointer flex items-center gap-2 transition-colors text-gray-300" onClick={() => window.api.getHomeDir().then(d => loadDirectory(d + '\\Music'))}><Music size={12} className="text-blue-400" /> Musik</div>
-        <div className="px-3 py-1.5 hover:bg-omega-accent hover:text-white cursor-pointer flex items-center gap-2 transition-colors text-gray-300" onClick={() => window.api.getHomeDir().then(d => loadDirectory(d + '\\Desktop'))}><Folder size={12} className="text-red-400" /> Desktop</div>
-        <div className="px-3 py-1.5 hover:bg-omega-accent hover:text-white cursor-pointer flex items-center gap-2 transition-colors text-gray-300" onClick={() => window.api.getHomeDir().then(d => loadDirectory(d + '\\Downloads'))}><Download size={12} className="text-green-500" /> Downloads</div>
+        <div className="px-3 py-1.5 hover:bg-omega-accent hover:text-white cursor-pointer flex items-center gap-2 transition-colors text-gray-300" onClick={() => window.api.getSystemPath('documents').then(d => loadDirectory(d))}><Folder size={12} className="text-yellow-500" /> Dokumente</div>
+        <div className="px-3 py-1.5 hover:bg-omega-accent hover:text-white cursor-pointer flex items-center gap-2 transition-colors text-gray-300" onClick={() => window.api.getSystemPath('music').then(d => loadDirectory(d))}><Music size={12} className="text-blue-400" /> Musik</div>
+        <div className="px-3 py-1.5 hover:bg-omega-accent hover:text-white cursor-pointer flex items-center gap-2 transition-colors text-gray-300" onClick={() => window.api.getSystemPath('desktop').then(d => loadDirectory(d))}><Folder size={12} className="text-red-400" /> Desktop</div>
+        <div className="px-3 py-1.5 hover:bg-omega-accent hover:text-white cursor-pointer flex items-center gap-2 transition-colors text-gray-300" onClick={() => window.api.getSystemPath('downloads').then(d => loadDirectory(d))}><Download size={12} className="text-green-500" /> Downloads</div>
       </div>
 
       <div className="flex-1 flex flex-col h-full bg-[#25282c] overflow-hidden">
