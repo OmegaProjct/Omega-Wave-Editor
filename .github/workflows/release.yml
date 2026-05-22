@@ -45,3 +45,24 @@ jobs:
             npx electron-builder --linux --publish always
           fi
         shell: bash
+
+  publish-release:
+    name: Release veröffentlichen
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Release editieren und veröffentlichen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${{ github.ref_name }}"
+          version="${tag#v}"
+          title="Omega Wave Editor v$version"
+          notes="Omega Wave Editor v$version Release"
+          echo "Publishing release $tag with title '$title'..."
+          gh release edit "$tag" --draft=false --title "$title" --notes "$notes" --latest
