@@ -1,4 +1,4 @@
-import React from 'react'
+﻿import React from 'react'
 
 export function ManualModal({ onClose }: { onClose: () => void }) {
   return (
@@ -92,3 +92,4 @@ export function ManualModal({ onClose }: { onClose: () => void }) {
     </div>
   )
 }
+

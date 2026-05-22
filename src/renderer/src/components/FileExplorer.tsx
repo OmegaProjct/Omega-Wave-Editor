@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+﻿import React, { useState, useEffect, useRef } from 'react'
 import { Folder, FileAudio, FileVideo, ArrowLeft, Play, Pause, Square, HardDrive, User, Download, Music, Search, Volume2, VolumeX, X } from 'lucide-react'
 import { AudioEngine } from '../lib/AudioEngine'
 
@@ -595,3 +595,4 @@ export function FileExplorer() {
     </div>
   )
 }
+

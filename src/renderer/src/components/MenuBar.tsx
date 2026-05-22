@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+﻿import React, { useState, useRef, useEffect } from 'react'
 
 export function MenuBar({ 
   onOpenSettings, 
@@ -145,3 +145,4 @@ export function MenuBar({
     </div>
   )
 }
+

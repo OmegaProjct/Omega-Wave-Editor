@@ -1,4 +1,4 @@
-import React from 'react'
+﻿import React from 'react'
 import { Info, AlertTriangle, CheckCircle, XCircle } from 'lucide-react'
 
 export type ModalType = 'info' | 'warn' | 'success' | 'error' | 'confirm'
@@ -69,3 +69,4 @@ export function MessageModal({ type, title, message, onClose }: MessageModalProp
     </div>
   )
 }
+
