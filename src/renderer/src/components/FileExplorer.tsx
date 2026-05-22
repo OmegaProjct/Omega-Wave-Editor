@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Folder, FileAudio, FileVideo, ArrowLeft, Play, Pause, Square, HardDrive, User, Download, Music, Search, Volume2, VolumeX, X } from 'lucide-react'
 import { AudioEngine } from '../lib/AudioEngine'
 
@@ -166,7 +166,6 @@ export function FileExplorer() {
     audio.play()
     setIsPlaying(true)
     setAudioObj(audio)
-    setActiveTab('Player') // Auto-switch to Player tab on preview start
 
     audio.onloadedmetadata = () => {
       setDuration(audio.duration || 0)
@@ -363,7 +362,7 @@ export function FileExplorer() {
               key={idx} 
               draggable={!file.isDirectory} 
               onDragStart={(e) => onDragStart(e, file)} 
-              onDoubleClick={() => navigateTo(file)} 
+              onClick={() => navigateTo(file)} 
               className={`flex items-center gap-2 p-1.5 px-3 hover:bg-omega-accent/25 cursor-pointer rounded-md group transition-colors ${
                 playingAudio === file.path ? 'bg-omega-accent/20 border-l-2 border-omega-accent' : ''
               }`}

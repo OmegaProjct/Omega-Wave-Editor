@@ -149,10 +149,19 @@ export function Timeline({
   const [showAutomation, setShowAutomation] = useState(false)
   const [effectsClipboard, setEffectsClipboard] = useState<RegionEffects | null>(null)
 
+  // Ref to prevent feedback loop: when we call onTracksChange ourselves,
+  // the parent reflects it back via initialTracks – we must not re-apply it.
+  const isInternalUpdateRef = useRef(false);
+
   const updateTracksWithHistory = (newTracks: Track[]) => {
     HistoryManager.pushState(tracks);
     setTracks(newTracks);
-    if (onTracksChange) onTracksChange(newTracks);
+    if (onTracksChange) {
+      isInternalUpdateRef.current = true;
+      onTracksChange(newTracks);
+      // Reset on the next microtask, after the state propagation settles
+      Promise.resolve().then(() => { isInternalUpdateRef.current = false; });
+    }
   }
 
   const dbOptions = [
@@ -924,6 +933,13 @@ export function Timeline({
   }, [initialTracks]);
 
   useEffect(() => {
+    if (!initialTracks) return;
+    // Skip if this update was triggered by our own onTracksChange call
+    if (isInternalUpdateRef.current) return;
+    setTracks(initialTracks);
+  }, [initialTracks]);
+
+  useEffect(() => {
     const handleSettingsUpdated = (e: Event) => {
       const customEvent = e as CustomEvent<any>;
       const newSettings = customEvent.detail;
@@ -1036,6 +1052,43 @@ export function Timeline({
     setScrollTop(e.currentTarget.scrollTop)
   }
 
+  const handleRulerMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0) return; // Only primary mouse click
+    e.preventDefault();
+    setContextMenu(null);
+    setEditorContextMenu(null);
+    setZoomMenuOpen(false);
+
+    const updatePlayheadFromEvent = (clientX: number) => {
+      if (!tracksRef.current) return;
+      const rect = tracksRef.current.getBoundingClientRect();
+      const clickX = clientX - rect.left;
+      const newPos = Math.max(0, (clickX + scrollLeft) / pixelsPerSecond);
+      setPlayheadPos(newPos);
+      playheadPosRef.current = newPos;
+    };
+
+    updatePlayheadFromEvent(e.clientX);
+
+    const handleMouseMove = (me: MouseEvent) => {
+      updatePlayheadFromEvent(me.clientX);
+    };
+
+    const handleMouseUp = () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      
+      // If we are playing, restart the playback from the new position
+      if (engine.isPlaying) {
+        engine.stop();
+        engine.play({ tracks }, playheadPosRef.current);
+      }
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
+
   const handleTimelineClick = (e: React.MouseEvent) => {
     if (justDraggedRef.current) return;
     setContextMenu(null)
@@ -1127,9 +1180,7 @@ export function Timeline({
       }
 
       if (fileInfo && tracksRef.current) {
-        const rect = tracksRef.current.getBoundingClientRect()
-        const dropX = e.clientX - rect.left
-        const startPos = Math.max(0, (dropX + scrollLeft) / pixelsPerSecond)
+        const startPos = playheadPosRef.current
         
         try {
           await engine.loadFile(fileInfo.path);
@@ -1694,10 +1745,10 @@ export function Timeline({
         </div>
         {/* Edit buttons */}
         <div className="flex gap-1 text-gray-400 border-r border-gray-700 pr-2">
-          <button title="Rückgängig (Strg+Z)" className="p-1.5 hover:bg-gray-700 rounded" onClick={() => { const prev = HistoryManager.undo(tracks); if (prev) { setTracks(prev); if (onTracksChange) onTracksChange(prev); } }}>
+          <button title="Rückgängig (Strg+Z)" className="p-1.5 hover:bg-gray-700 rounded" onClick={() => { const prev = HistoryManager.undo(tracks); if (prev) { setTracks(prev); if (onTracksChange) { isInternalUpdateRef.current = true; onTracksChange(prev); Promise.resolve().then(() => { isInternalUpdateRef.current = false; }); } } }}>
             <RotateCcw size={16} />
           </button>
-          <button title="Wiederholen (Strg+Y)" className="p-1.5 hover:bg-gray-700 rounded" onClick={() => { const next = HistoryManager.redo(tracks); if (next) { setTracks(next); if (onTracksChange) onTracksChange(next); } }}>
+          <button title="Wiederholen (Strg+Y)" className="p-1.5 hover:bg-gray-700 rounded" onClick={() => { const next = HistoryManager.redo(tracks); if (next) { setTracks(next); if (onTracksChange) { isInternalUpdateRef.current = true; onTracksChange(next); Promise.resolve().then(() => { isInternalUpdateRef.current = false; }); } } }}>
             <RotateCw size={16} />
           </button>
         </div>
@@ -1743,7 +1794,7 @@ export function Timeline({
               <Zap size={12} className="text-gray-500" />
               <ChevronDown size={12} className="text-gray-500" />
            </div>
-           <div className="flex-1 h-full relative overflow-hidden" onClick={handleTimelineClick}>
+           <div ref={rulerRef} className="flex-1 h-full relative overflow-hidden cursor-ew-resize select-none" onMouseDown={handleRulerMouseDown}>
               <div className="absolute inset-0 flex items-center" style={{ transform: `translateX(-${scrollLeft}px)` }}>
                  <motion.div className="absolute top-0 h-1 bg-blue-500/80 rounded-b shadow-[0_0_5px_rgba(59,130,246,0.5)]" style={{ width: playheadRulerMotionWidth, left: 0 }}></motion.div>
                  {[...Array(300)].map((_, i) => (
@@ -1756,32 +1807,35 @@ export function Timeline({
 
         <div className="flex-1 flex overflow-hidden relative">
            <div className="w-32 bg-omega-panel border-r border-omega-border z-[110] shadow-[2px_0_5px_rgba(0,0,0,0.3)] flex flex-col overflow-hidden relative">
-              <div className="flex flex-col" style={{ transform: `translateY(-${scrollTop}px)` }}>
-                {tracks.map(track => (
-                    <div key={track.id} className="border-b border-[#282b30] bg-omega-panel flex flex-col justify-center px-1 overflow-hidden" style={{ height: trackHeight }}>
-                        {trackHeight >= 55 && (
-                          <div className="flex items-center gap-1 mb-1 px-1">
-                             <input value={track.name} placeholder="kein Name" onChange={(e) => updateTracksWithHistory(tracks.map(t => t.id === track.id ? { ...t, name: e.target.value } : t))} className="flex-1 h-4 bg-[#1a1d21] border border-gray-600 rounded-sm px-1 text-[9px] text-gray-300 outline-none focus:border-omega-accent" />
-                             <ChevronDown size={8} className="text-gray-500" />
-                             <Plus size={10} className="text-gray-400 hover:text-white cursor-pointer" />
-                          </div>
-                        )}
-                        <div className="flex items-center gap-0.5 px-1 py-1 text-gray-400">
-                           {track.locked ? <Lock size={10} className="cursor-pointer hover:text-white" onClick={() => updateTracksWithHistory(tracks.map(t => t.id === track.id ? { ...t, locked: false } : t))} /> : <Unlock size={10} className="cursor-pointer hover:text-white" onClick={() => updateTracksWithHistory(tracks.map(t => t.id === track.id ? { ...t, locked: true } : t))} />}
-                           <span className={`text-[10px] font-bold px-0.5 cursor-pointer hover:text-white ${track.solo ? 'text-yellow-400' : ''}`} onClick={() => toggleSolo(track.id)}>S</span>
-                           <span className={`text-[10px] font-bold px-0.5 cursor-pointer hover:text-white ${track.muted ? 'text-red-400' : ''}`} onClick={() => toggleMute(track.id)}>M</span>
-                           <div className="relative group flex items-center">
-                             <Volume2 size={10} className="ml-1 cursor-pointer hover:text-white" />
-                             <input type="range" min="0" max="2" step="0.05" value={track.volume} onChange={(e) => updateTrackVolume(track.id, parseFloat(e.target.value))} className="absolute hidden group-hover:block w-16 h-1 top-0 left-4 z-50 accent-omega-accent" />
+              <div className="flex-1 overflow-hidden relative">
+                 <div className="flex flex-col" style={{ transform: `translateY(-${scrollTop}px)` }}>
+                   {tracks.map(track => (
+                       <div key={track.id} className="border-b border-[#282b30] bg-omega-panel flex flex-col justify-center px-1 overflow-hidden" style={{ height: trackHeight }}>
+                           {trackHeight >= 55 && (
+                             <div className="flex items-center gap-1 mb-1 px-1">
+                                <input value={track.name} placeholder="kein Name" onChange={(e) => updateTracksWithHistory(tracks.map(t => t.id === track.id ? { ...t, name: e.target.value } : t))} className="flex-1 h-4 bg-[#1a1d21] border border-gray-600 rounded-sm px-1 text-[9px] text-gray-300 outline-none focus:border-omega-accent" />
+                                <ChevronDown size={8} className="text-gray-500" />
+                                <Plus size={10} className="text-gray-400 hover:text-white cursor-pointer" />
+                             </div>
+                           )}
+                           <div className="flex items-center gap-0.5 px-1 py-1 text-gray-400">
+                              {track.locked ? <Lock size={10} className="cursor-pointer hover:text-white" onClick={() => updateTracksWithHistory(tracks.map(t => t.id === track.id ? { ...t, locked: false } : t))} /> : <Unlock size={10} className="cursor-pointer hover:text-white" onClick={() => updateTracksWithHistory(tracks.map(t => t.id === track.id ? { ...t, locked: true } : t))} />}
+                              <span className={`text-[10px] font-bold px-0.5 cursor-pointer hover:text-white ${track.solo ? 'text-yellow-400' : ''}`} onClick={() => toggleSolo(track.id)}>S</span>
+                              <span className={`text-[10px] font-bold px-0.5 cursor-pointer hover:text-white ${track.muted ? 'text-red-400' : ''}`} onClick={() => toggleMute(track.id)}>M</span>
+                              <div className="relative group flex items-center">
+                                <Volume2 size={10} className="ml-1 cursor-pointer hover:text-white" />
+                                <input type="range" min="0" max="2" step="0.05" value={track.volume} onChange={(e) => updateTrackVolume(track.id, parseFloat(e.target.value))} className="absolute hidden group-hover:block w-16 h-1 top-0 left-4 z-50 accent-omega-accent" />
+                              </div>
+                              <div className="flex-1"></div>
+                              <span className="text-[10px] font-mono">{track.index}</span>
                            </div>
-                           <div className="flex-1"></div>
-                           <span className="text-[10px] font-mono">{track.index}</span>
                         </div>
-                     </div>
-                  ))}
+                     ))}
+                     <div style={{ height: 48 }} className="flex-shrink-0" />
+                  </div>
                </div>
-               <div className="p-1 border-b border-[#282b30]">
-                  <button onClick={addTrack} className="w-full h-8 flex items-center justify-center hover:bg-gray-700 text-gray-500 hover:text-omega-accent transition-colors"><Plus size={14} /></button>
+               <div className="p-1 border-t border-[#282b30] bg-[#1a1d21] flex-shrink-0 z-[120]">
+                  <button onClick={addTrack} className="w-full h-8 flex items-center justify-center hover:bg-gray-750 text-gray-500 hover:text-omega-accent transition-colors bg-[#202225] rounded border border-gray-700"><Plus size={14} /></button>
                </div>
             </div>
 

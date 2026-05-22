@@ -273,9 +273,13 @@ function App(): JSX.Element {
       return;
     }
     if (type === 'NEW_PROJECT') {
-      showModal('confirm', 'Neues Projekt', 'Möchten Sie ein neues Projekt erstellen?\nAlle ungespeicherten Änderungen gehen verloren.', () => {
-        setTimelineAction({ type: 'RESET_PROJECT' });
-      })
+      if (isDirty) {
+        showModal('confirm', 'Neues Projekt', 'Möchten Sie ein neues Projekt erstellen?\nAlle ungespeicherten Änderungen gehen verloren.', () => {
+          setShowStartDashboard(true);
+        })
+      } else {
+        setShowStartDashboard(true);
+      }
       return;
     }
     if (type === 'SHOW_MODAL' && payload) {
@@ -307,6 +311,10 @@ function App(): JSX.Element {
       } else if (e.ctrlKey && e.key === 'y') {
         e.preventDefault();
         triggerTimelineAction('REDO');
+      } else if (e.ctrlKey && (e.key === 'p' || e.key === 'P')) {
+        e.preventDefault();
+        setSettingsTab('Ordner');
+        setShowSettings(true);
       }
     };
 
