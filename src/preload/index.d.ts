@@ -28,6 +28,11 @@ declare global {
       getPeaks: (filePath: string, samples?: number) => Promise<number[]>
       readFileBuffer: (filePath: string) => Promise<any>
       savePreset: (filePath: string, data: any) => Promise<any>
+      saveProjectBackup: (filePath: string, data: any) => Promise<any>
+      openPath: (dirPath: string) => Promise<{ success: boolean, error?: string }>
+      transcodeExport: (tempWavPath: string, outputPath: string, options: any, id3Tags?: any) => Promise<boolean>
+      getStartupFile: () => Promise<string | null>
+      onOpenProjectFromAssociation: (callback: (filePath: string) => void) => () => void
       scanVstPlugins: () => Promise<any[]>
       openVstUi: (pluginPath: string) => Promise<boolean>
       saveRecording: (outputPath: string, arrayBuffer: ArrayBuffer) => Promise<any>

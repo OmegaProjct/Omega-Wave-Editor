@@ -42,13 +42,30 @@ export function SettingsModal({ onClose, initialTab = 'Ordner', onTriggerUpdate 
     }
   }
 
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([])
+
   useEffect(() => {
     window.api.getSettings().then(s => {
-      setSettings((prev: any) => ({ ...prev, ...s }))
+      setSettings((prev: any) => {
+        const merged = { ...prev, ...s }
+        if (merged.activeDeviceId && merged.activeDeviceId !== 'default') {
+          import('../lib/AudioEngine').then(({ AudioEngine }) => {
+            AudioEngine.getInstance().setOutputDevice(merged.activeDeviceId)
+          })
+        }
+        return merged
+      })
     })
-    window.api.getAppVersion().then(v => {
+    window.api.getAppVersion().then((v: string) => {
       setCurrentVersion(v)
-    }).catch(e => console.error('Fehler beim Abrufen der App-Version:', e))
+    }).catch((e: any) => console.error('Fehler beim Abrufen der App-Version:', e))
+
+    navigator.mediaDevices.enumerateDevices().then(devs => {
+      const outputs = devs.filter(d => d.kind === 'audiooutput')
+      setDevices(outputs)
+    }).catch(err => {
+      console.error('Error enumerating audio output devices:', err)
+    })
   }, [])
 
   const handleSave = async () => {
@@ -71,8 +88,22 @@ export function SettingsModal({ onClose, initialTab = 'Ordner', onTriggerUpdate 
           </div>
           <div className="flex justify-between items-center">
             <span className="text-gray-400">Ausgabegerät:</span>
-            <select className="bg-[#1a1d21] border border-gray-600 rounded px-2 py-1 w-48 outline-none">
-              <option>System (Standard)</option>
+            <select 
+              value={settings.activeDeviceId || 'default'} 
+              onChange={async (e) => {
+                const deviceId = e.target.value
+                setSettings({ ...settings, activeDeviceId: deviceId })
+                const { AudioEngine } = await import('../lib/AudioEngine')
+                await AudioEngine.getInstance().setOutputDevice(deviceId)
+              }}
+              className="bg-[#1a1d21] border border-gray-600 rounded px-2 py-1 w-48 outline-none text-xs text-white"
+            >
+              <option value="default">System (Standard)</option>
+              {devices.map(d => (
+                <option key={d.deviceId} value={d.deviceId}>
+                  {d.label || `Ausgabegerät (${d.deviceId.slice(0, 8)})`}
+                </option>
+              ))}
             </select>
           </div>
           <div className="flex justify-between items-center mt-2">
@@ -247,42 +278,53 @@ export function SettingsModal({ onClose, initialTab = 'Ordner', onTriggerUpdate 
     </div>
   )
 
-  const renderTastaturkuerzel = () => (
-    <div className="flex gap-4 h-full">
-      <div className="flex-1 flex flex-col gap-2">
-         <div className="border border-gray-700 rounded bg-[#1e2124] flex-1 overflow-y-auto p-2 text-sm">
-           <div className="font-semibold text-gray-300 mb-2">Datei</div>
-           <div className="pl-4 py-0.5 hover:bg-omega-accent cursor-pointer">Neues Projekt...</div>
-           <div className="pl-4 py-0.5 hover:bg-omega-accent cursor-pointer">Projekt Öffnen...</div>
-           <div className="pl-4 py-0.5 hover:bg-omega-accent cursor-pointer">Medien Öffnen...</div>
-           <div className="pl-4 py-0.5 hover:bg-omega-accent cursor-pointer text-gray-400">Zuletzt geöffnete Projekte</div>
-           <div className="pl-4 py-0.5 hover:bg-omega-accent cursor-pointer">Projekt speichern</div>
-           <div className="pl-4 py-0.5 hover:bg-omega-accent cursor-pointer">Projekt speichern unter...</div>
-           <div className="font-semibold text-gray-300 mt-2 mb-2">Projekt verwalten</div>
-           <div className="pl-4 py-0.5 hover:bg-omega-accent cursor-pointer">Neuen leeren Arranger hinzufügen</div>
-         </div>
-         <div className="border border-gray-700 p-2 rounded bg-[#1e2124]">
-           <span className="block text-center font-semibold text-xs text-gray-400 mb-2">Aktueller Menüpunkt</span>
-           <div className="h-6 bg-[#1a1d21] border border-gray-600 rounded"></div>
-           <div className="mt-2 text-[10px] text-gray-500 leading-tight mb-2">Klicken Sie in die Box und drücken Sie die gewünschte Tastenkombination...</div>
-           <div className="flex gap-2">
-             <input type="text" value="Keine" readOnly className="w-1/2 bg-[#1a1d21] border border-gray-600 rounded px-2 py-1 text-xs" />
-             <button className="flex-1 bg-gray-700 hover:bg-gray-600 text-xs rounded" onClick={() => alert('Bitte drücken Sie nun die neue Tastenkombination auf Ihrer Tastatur.')}>Tastaturkürzel zuweisen</button>
-           </div>
-         </div>
+  const renderTastaturkuerzel = () => {
+    const shortcuts = [
+      { key: 'Leertaste (Space)', action: 'Wiedergabe Starten / Stoppen' },
+      { key: 'Strg + Z', action: 'Aktion rückgängig machen (Undo)' },
+      { key: 'Strg + Y', action: 'Aktion wiederholen (Redo)' },
+      { key: 'Entf / Backspace', action: 'Ausgewählte(n) Clip/Region löschen' },
+      { key: 'Strg + C', action: 'Ausgewählte(n) Clip/Region kopieren' },
+      { key: 'Strg + V', action: 'Kopierte(n) Clip/Region an Playhead einfügen' },
+      { key: 'Strg + X', action: 'Ausgewählte(n) Clip/Region ausschneiden' },
+      { key: 'S', action: 'Solo für die ausgewählte Spur an/aus' },
+      { key: 'M', action: 'Stummschalten (Mute) für ausgewählte Spur' },
+      { key: 'L', action: 'Loop-Wiedergabe ein-/ausschalten' },
+      { key: '+', action: 'Horizontalen Zoom vergrößern' },
+      { key: '-', action: 'Horizontalen Zoom verkleinern' }
+    ]
+
+    return (
+      <div className="border border-gray-700 p-4 rounded bg-[#1e2124] h-full flex flex-col overflow-hidden">
+        <h3 className="text-center font-semibold mb-4 text-sm text-gray-300">Tastaturkürzel-Referenz</h3>
+        <div className="flex-1 overflow-y-auto pr-1">
+          <table className="w-full text-xs text-left border-collapse">
+            <thead>
+              <tr className="border-b border-gray-750 text-gray-400 font-bold uppercase tracking-wider">
+                <th className="py-2 w-1/3">Tastenkombination</th>
+                <th className="py-2">Funktion / Aktion</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-800 text-gray-200">
+              {shortcuts.map((s, idx) => (
+                <tr key={idx} className="hover:bg-black/10 transition-colors">
+                  <td className="py-2.5 pr-4 font-mono font-bold text-omega-accent">
+                    <span className="bg-[#1a1d21] px-2 py-0.5 border border-gray-700 rounded-sm">
+                      {s.key}
+                    </span>
+                  </td>
+                  <td className="py-2.5 text-gray-300">{s.action}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="mt-3 text-[10px] text-gray-500 text-center leading-relaxed">
+          Diese Tastaturkürzel sind standardmäßig aktiv und erleichtern das Arbeiten im Editor.
+        </div>
       </div>
-      <div className="w-48 flex flex-col gap-2">
-         <div className="border border-gray-700 p-2 rounded bg-[#1e2124] text-center text-sm font-semibold text-gray-400">Tastaturkürzelliste</div>
-         <button className="bg-gray-700 hover:bg-gray-600 py-1 rounded text-sm" onClick={() => alert('Alle Kürzel auf Standard zurückgesetzt.')}>Zurücksetzen</button>
-         <button className="bg-gray-700 hover:bg-gray-600 py-1 rounded text-sm" onClick={() => alert('Lade Kürzel aus Datei...')}>Laden</button>
-         <button className="bg-gray-700 hover:bg-gray-600 py-1 rounded text-sm" onClick={() => alert('Kürzel gespeichert.')}>Speichern</button>
-         <button className="bg-gray-700 hover:bg-gray-600 py-1 rounded text-sm" onClick={() => alert('Liste aller Kürzel als PDF exportiert.')}>Auflisten</button>
-         <div className="border border-gray-700 rounded bg-[#1e2124] flex-1 mt-2 p-2 text-center text-xs text-gray-500 flex flex-col justify-end pb-4">
-           <button className="w-full bg-gray-700 hover:bg-gray-600 py-1 rounded text-sm text-white" onClick={() => alert('Kürzel gelöscht.')}>Löschen</button>
-         </div>
-      </div>
-    </div>
-  )
+    )
+  }
 
   const renderFilmeinstellungen = () => (
     <div className="flex gap-4 h-full">

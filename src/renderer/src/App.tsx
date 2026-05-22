@@ -339,6 +339,32 @@ function App(): JSX.Element {
     };
   }, [undo, redo]);
 
+  const triggerTimelineActionRef = useRef<any>(null);
+  useEffect(() => {
+    triggerTimelineActionRef.current = triggerTimelineAction;
+  }, [triggerTimelineAction]);
+
+  // Handle Startup File and Live File Associations
+  useEffect(() => {
+    // Check for startup file on boot
+    window.api.getStartupFile().then((filePath: string | null) => {
+      if (filePath) {
+        setShowStartDashboard(false);
+        triggerTimelineActionRef.current?.('LOAD_PROJECT_DIRECT', filePath);
+      }
+    }).catch((e: any) => console.error('Fehler beim Laden der Boot-Projektdatei:', e));
+
+    // Listen to live associations when double-clicked while app is running
+    const unsubscribe = window.api.onOpenProjectFromAssociation((filePath: string) => {
+      if (filePath) {
+        setShowStartDashboard(false);
+        triggerTimelineActionRef.current?.('LOAD_PROJECT_DIRECT', filePath);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
   return (
     <div className="h-full w-full flex flex-col bg-omega-dark text-omega-text relative">
       {showSettings && (
