@@ -2,6 +2,17 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`) als explizite Ausnahme vom Omega Codex Standard.
 
+## [0.2.3] - 2026-05-22
+### Added
+- **Start-Dashboard**: Eleganter Dialog zum schnellen Öffnen bestehender und Neuerstellen neuer Projekte mit Pfadauswahl beim Programmstart.
+- **Präzisions-Cuts (TCU)**: Tastaturkurzschnitte `T`, `C`/`Z`, `U` auf frame-genaue Abspielposition umgestellt. Funktioniert auf allen Spuren (wenn nichts selektiert ist) oder exakt auf der/den ausgewählten Region(en).
+
+### Fixed
+- **Audio-Trimming-Begrenzung**: Physische Begrenzung der Verschiebung von Audio-Regionen nach rechts, sodass sie nicht über die eigentliche Länge der Mediendatei hinaus verlängert werden können.
+- **Scheren-Split Audio-Sync**: Korrekte Berechnung des `sourceOffset` beim Zerteilen mit der Schere, damit geschnittene Audio-Objekte synchron weiterspielen.
+- **Wellenform-Visualisierung**: 150ms-Timeout-Fallback zur garantierten und sofortigen Anzeige der Wellenformen unter allen Bedingungen (z.B. bei blockiertem FFmpeg).
+- **Installer-Ordnerbereinigung**: Altes Installationsverzeichnis wird im Setup automatisch deinstalliert/verschoben, um Altlasten sauber zu bereinigen.
+
 ## [0.2.2] - 2026-05-22
 ### Added
 - Vollständig zweisprachige Dokumentation (Deutsch & Englisch) in der README.md mit hochauflösender Screenshot-Galerie und dem offiziellen Logo.
