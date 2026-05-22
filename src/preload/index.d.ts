@@ -20,6 +20,19 @@ declare global {
         error?: string
       }>
       getAppVersion: () => Promise<string>
+      startUpdateDownload: (payload: { url: string, latestVersion: string }) => Promise<{ success: boolean, error?: string, filePath?: string }>
+      installUpdate: (payload: { installNow: boolean }) => Promise<{ success: boolean, error?: string, deferred?: boolean }>
+      confirmClose: () => void
+      onDownloadProgress: (callback: (data: any) => void) => () => void
+      onCloseRequest: (callback: () => void) => () => void
+      getPeaks: (filePath: string, samples?: number) => Promise<number[]>
+      readFileBuffer: (filePath: string) => Promise<any>
+      savePreset: (filePath: string, data: any) => Promise<any>
+      scanVstPlugins: () => Promise<any[]>
+      openVstUi: (pluginPath: string) => Promise<boolean>
+      saveRecording: (outputPath: string, arrayBuffer: ArrayBuffer) => Promise<any>
+      showOpenDialog: (options: any) => Promise<any>
+      showSaveDialog: (options: any) => Promise<any>
     }
   }
-}
+}

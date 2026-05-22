@@ -60,6 +60,7 @@ export function MenuBar({
       })
       try {
         const updateInfo = await window.api.checkForUpdates()
+        onFileAction('CLOSE_MODAL')
         if (updateInfo.error) {
           onFileAction('SHOW_MODAL', {
             type: 'error',
@@ -69,16 +70,7 @@ export function MenuBar({
           return
         }
         if (updateInfo.available) {
-          onFileAction('SHOW_MODAL', {
-            type: 'confirm',
-            title: 'Updates',
-            message: `Ein neues Update ist verfügbar!\n\nInstallierte Version: v${updateInfo.currentVersion}\nNeueste Version: v${updateInfo.latestVersion}\n\nMöchtest du die Release-Seite öffnen, um das Update herunterzuladen?`,
-            onConfirm: () => {
-              if (updateInfo.url) {
-                window.api.openExternal(updateInfo.url)
-              }
-            }
-          })
+          onFileAction('TRIGGER_UPDATE', updateInfo)
         } else {
           onFileAction('SHOW_MODAL', {
             type: 'info',
@@ -87,6 +79,7 @@ export function MenuBar({
           })
         }
       } catch (err: any) {
+        onFileAction('CLOSE_MODAL')
         onFileAction('SHOW_MODAL', {
           type: 'error',
           title: 'Updates',

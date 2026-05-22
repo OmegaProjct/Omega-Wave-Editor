@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 
 type Tab = 'Wiedergabe' | 'Ordner' | 'Import/Audio' | 'System' | 'Tastaturkürzel' | 'Projekteinstellungen'
 
-export function SettingsModal({ onClose, initialTab = 'Ordner' }: { onClose: () => void; initialTab?: Tab }) {
+export function SettingsModal({ onClose, initialTab = 'Ordner', onTriggerUpdate }: { onClose: () => void; initialTab?: Tab; onTriggerUpdate?: (info: any) => void }) {
   const [activeTab, setActiveTab] = useState<Tab>(initialTab)
   const [settings, setSettings] = useState<any>({
     defaultExplorerPath: '',
@@ -12,7 +12,8 @@ export function SettingsModal({ onClose, initialTab = 'Ordner' }: { onClose: () 
     autoSave: true,
     autoSaveInterval: 10,
     sampleRate: 48000,
-    tracksCount: 32
+    tracksCount: 32,
+    maxUndoSteps: 50
   })
 
   const [checkingUpdates, setCheckingUpdates] = useState(false)
@@ -52,7 +53,7 @@ export function SettingsModal({ onClose, initialTab = 'Ordner' }: { onClose: () 
 
   const handleSave = async () => {
     await window.api.saveSettings(settings)
-    alert('Einstellungen gespeichert!')
+    window.dispatchEvent(new CustomEvent('SETTINGS_UPDATED', { detail: settings }))
     onClose()
   }
 
@@ -193,7 +194,13 @@ export function SettingsModal({ onClose, initialTab = 'Ordner' }: { onClose: () 
               </div>
               {updateInfo && (
                 <button 
-                  onClick={() => window.api.openExternal(updateInfo.url)}
+                  onClick={() => {
+                    if (onTriggerUpdate) {
+                      onTriggerUpdate(updateInfo)
+                    } else {
+                      window.api.openExternal(updateInfo.url)
+                    }
+                  }}
                   className="mt-2 w-full py-1 bg-green-600 hover:bg-green-500 text-white font-semibold text-[11px] rounded shadow animate-bounce transition-colors"
                 >
                   Jetzt herunterladen
@@ -204,16 +211,36 @@ export function SettingsModal({ onClose, initialTab = 'Ordner' }: { onClose: () 
         </div>
       </div>
 
-      <div className="flex-1 border border-gray-700 p-4 rounded bg-[#1e2124] h-full">
-        <h3 className="text-center font-semibold mb-4 text-sm">Automatisches Speichern</h3>
-        <div className="flex flex-col gap-3 text-sm">
-          <label className="flex items-center gap-2 cursor-pointer">
-             <input type="checkbox" checked={settings.autoSave} onChange={(e) => setSettings({...settings, autoSave: e.target.checked})} /> Projekt wird automatisch gespeichert
-          </label>
-          <div className="flex items-center gap-2 ml-6 text-gray-400">
-            <span>Speichern alle</span>
-            <input type="number" value={settings.autoSaveInterval} onChange={(e) => setSettings({...settings, autoSaveInterval: parseInt(e.target.value)})} className="w-12 bg-[#1a1d21] border border-gray-600 rounded px-1 text-center text-white" />
-            <span>Minuten</span>
+      <div className="flex-1 border border-gray-700 p-4 rounded bg-[#1e2124] h-full flex flex-col justify-between">
+        <div>
+          <h3 className="text-center font-semibold mb-4 text-sm">Automatisches Speichern</h3>
+          <div className="flex flex-col gap-3 text-sm">
+            <label className="flex items-center gap-2 cursor-pointer">
+               <input type="checkbox" checked={settings.autoSave} onChange={(e) => setSettings({...settings, autoSave: e.target.checked})} /> Projekt wird automatisch gespeichert
+            </label>
+            <div className="flex items-center gap-2 ml-6 text-gray-400">
+              <span>Speichern alle</span>
+              <input type="number" value={settings.autoSaveInterval} onChange={(e) => setSettings({...settings, autoSaveInterval: parseInt(e.target.value) || 10})} className="w-12 bg-[#1a1d21] border border-gray-600 rounded px-1 text-center text-white outline-none" />
+              <span>Minuten</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="border-t border-gray-750 pt-4 mt-2">
+          <h3 className="text-center font-semibold mb-3 text-sm">Undo-Verlauf</h3>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-400">Maximale Undo-Schritte:</span>
+            <div className="flex items-center gap-2">
+              <input 
+                type="number" 
+                min={5} 
+                max={500} 
+                value={settings.maxUndoSteps || 50} 
+                onChange={(e) => setSettings({...settings, maxUndoSteps: parseInt(e.target.value) || 50})} 
+                className="w-16 bg-[#1a1d21] border border-gray-600 rounded px-2 py-0.5 text-center text-white outline-none focus:border-omega-accent" 
+              />
+              <span className="text-xs text-gray-500">Schritte</span>
+            </div>
           </div>
         </div>
       </div>

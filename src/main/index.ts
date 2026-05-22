@@ -1,12 +1,21 @@
-import { app, BrowserWindow, protocol } from 'electron'
+import { app, BrowserWindow, protocol, ipcMain } from 'electron'
 import { join } from 'path'
 import { setupIpc } from './ipc'
 import { setupSettingsIpc } from './settingsIpc'
+import { setupUpdateDownloader } from './updateDownloader'
+
+// Set custom AppData folder structure: AppData/Roaming/OmegaProjects/Omega Wave Editor
+const appDataPath = app.getPath('appData')
+const customUserDataPath = join(appDataPath, 'OmegaProjects', 'Omega Wave Editor')
+app.setPath('userData', customUserDataPath)
 
 // Register custom protocol for local files
 protocol.registerSchemesAsPrivileged([
   { scheme: 'atom', privileges: { standard: true, secure: true, supportFetchAPI: true, bypassCSP: true } }
 ])
+
+let mainWindow: BrowserWindow | null = null
+let forceQuit = false
 
 async function installDevTools(): Promise<void> {
   if (!app.isPackaged) {
@@ -21,7 +30,7 @@ async function installDevTools(): Promise<void> {
 }
 
 function createWindow(): void {
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1280,
     height: 720,
     show: false,
@@ -34,9 +43,17 @@ function createWindow(): void {
   })
 
   mainWindow.on('ready-to-show', () => {
-    mainWindow.show()
+    mainWindow?.show()
     if (!app.isPackaged) {
-      mainWindow.webContents.openDevTools()
+      mainWindow?.webContents.openDevTools()
+    }
+  })
+
+  // Intercept window close to check for unsaved changes in frontend
+  mainWindow.on('close', (e) => {
+    if (!forceQuit) {
+      e.preventDefault()
+      mainWindow?.webContents.send('window-close-request')
     }
   })
 
@@ -80,6 +97,17 @@ app.whenReady().then(async () => {
   setupSettingsIpc()
   createWindow()
 
+  // Initialize the auto updater downloader with our main window reference
+  if (mainWindow) {
+    setupUpdateDownloader(mainWindow)
+  }
+
+  // Handle confirmed force exit from renderer
+  ipcMain.on('window-close-confirmed', () => {
+    forceQuit = true
+    app.quit()
+  })
+
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
@@ -90,3 +118,4 @@ app.on('window-all-closed', () => {
     app.quit()
   }
 })
+

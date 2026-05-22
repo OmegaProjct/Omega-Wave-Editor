@@ -90,6 +90,10 @@ export class ProjectManager {
     return this.currentPath;
   }
 
+  public static setCurrentPath(path: string | null) {
+    this.currentPath = path;
+  }
+
   public static reset() {
     this.currentPath = null;
   }
