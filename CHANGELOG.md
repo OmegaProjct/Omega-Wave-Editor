@@ -24,6 +24,32 @@ The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Sem
 - **Dip- und knackfreie Audioschnitte (Seamless Cuts)**: Die Echtzeit-Audio-Engine und der Offline-Renderer prüfen benachbarte Regionen auf Originaldatei-Identität und Kontinuität. Nahtlose Schnitte erhalten automatisch einen 1ms Mikro-Fade anstelle des 5ms-Standardfades.
 - **Playhead-Präzision & Klickschutz**: Der Abspielkopf wurde auf eine breitere interaktive Zone (`w-[17px] cursor-ew-resize`) vergrößert. Versehentliches Versetzen des Playheads durch Klicks in leere Spurbahnbereiche wurde blockiert.
 
+## [0.3.4] - 2026-05-22
+### Added
+- **Installer-Verbesserung (customUnInit)**: Integration eines `customUnInit`-Makros in `installer.nsh`, um Benutzerdaten-Reste beim Deinstallieren sauber und restlos zu entfernen.
+
+## [0.3.3] - 2026-05-22
+### Added
+- **Standard-Exportpfad**: Der Export-Dialog priorisiert nun den in den Einstellungen konfigurierten Standard-Exportpfad (`defaultExplorerPath`), um redundante Klicks zu reduzieren.
+
+## [0.3.2] - 2026-05-22
+### Added
+- **UI-Bereinigung**: Entfernung überflüssiger MAGIX-Werbebanner/Buttons für eine ablenkungsfreie Arbeitsumgebung.
+- **Icon-Transparenz**: Konvertierung der Anwendungs-Icons zu echten transparenten Kreisen für ein edles visuelles Gesamtbild auf allen Betriebssystemen.
+
+## [0.3.1] - 2026-05-22
+### Added
+- **Pfadauflösung im Explorer**: Transparente Kreis-Icon-Konvertierungen und robuste dynamische Pfadauflösung für Systemordner (Home, Desktop etc.) im Datei-Explorer.
+
+### Fixed
+- **Export-Resampling**: Behebung eines Fehlers bei der Fortschritts-Export-Animation sowie Resampling-Artefakten bei hoher Audioqualität.
+
+## [0.3.0] - 2026-05-22
+### Added
+- **High-Fidelity Audioaufnahme**: Native Integration eines robusten Aufnahmemoduls (Audioaufnahme) direkt im Editor.
+- **Time-Stretching**: Implementierung von hochwertigem Time-Stretching (Wiedergabe-Beschleunigung/-Verlangsamung) ohne Pitch-Shifting (Tonhöhenänderung).
+- **Dateizuordnung & Doppelklick**: Vollständige Stabilisierung und Integration einer nativen Betriebssystem-Dateizuordnung. Doppelklick auf `.owp` (Omega Wave Project) Dateien öffnet diese direkt im Editor.
+
 ## [0.2.5] - 2026-05-22
 ### Fixed
 - **Endlos-Renderschleife (Maximum update depth exceeded)**: Kritischer React-Fehler in `Timeline.tsx` behoben, bei dem `updateTracksWithHistory` → `onTracksChange` → `initialTracks`-Prop-Update → `useEffect` → `setTracks` eine Endlosschleife auslöste. Gelöst mit dem `isInternalUpdateRef`-Flag, das interne von externen Track-Updates unterscheidet.

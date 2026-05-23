@@ -1,5 +1,8 @@
 # Mitwirken am Omega Wave Editor
 
+> [!TIP]
+> Unseren vollständigen und detaillierten Versionsverlauf findest du in der [CHANGELOG.md](CHANGELOG.md).
+
 ## 0. Strategischer Sanierungsplan
 
 Vor groesseren Aenderungen an Architektur, Timeline, AudioEngine, Export, MCP, Headless-Betrieb oder Plugin-Support muss der strategische Plan gelesen werden:
