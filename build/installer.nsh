@@ -27,3 +27,8 @@
     ExecWait '"$LOCALAPPDATA\Programs\Omega Wave Editor\Uninstall Omega Wave Editor.exe" /S _?=$LOCALAPPDATA\Programs\Omega Wave Editor'
     RMDir /r "$LOCALAPPDATA\Programs\Omega Wave Editor"
 !macroend
+
+!macro customUnInit
+  MessageBox MB_YESNO|MB_ICONQUESTION "Möchten Sie auch alle Ihre persönlichen Programmeinstellungen, Ordnerpfade und Benutzerdaten restlos löschen?" IDNO +2
+  RMDir /r "$APPDATA\omega-wave-editor"
+!macroend
