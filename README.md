@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="#english">English Documentation</a> • <a href="#deutsch">Deutsche Dokumentation</a>
+  <a href="#english">English Documentation</a> • <a href="#deutsch">Deutsche Dokumentation</a> • <a href="CHANGELOG.md">Changelog</a>
 </p>
 
 <p align="center">
