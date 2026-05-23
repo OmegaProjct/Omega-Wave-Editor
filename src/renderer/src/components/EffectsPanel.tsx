@@ -139,8 +139,20 @@ export function EffectsPanel({
   
   const engine = AudioEngine.getInstance()
 
-  // Find selected region
-  const selectedRegion = tracks.flatMap((t: any) => t.regions).find((r: any) => r.id === selectedRegionId);
+  // Speichere die ID des zuletzt ausgewählten Clips, um den Fokus zu sperren (Lock Focus)
+  const [lastSelectedRegionId, setLastSelectedRegionId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (selectedRegionId) {
+      setLastSelectedRegionId(selectedRegionId)
+    }
+  }, [selectedRegionId])
+
+  // Nutze die letzte ID, wenn die aktuelle Auswahl leer (null) ist
+  const activeId = selectedRegionId || lastSelectedRegionId
+
+  // Suche das ausgewählte Objekt in allen Spuren
+  const selectedRegion = tracks.flatMap((t: any) => t.regions).find((r: any) => r.id === activeId);
 
   // Default effect parameters
   const defaultEffects: Required<RegionEffects> = {
@@ -169,7 +181,7 @@ export function EffectsPanel({
     return undefined;
   }, [statusMessage]);
 
-  if (!selectedRegionId || !selectedRegion) {
+  if (!activeId || !selectedRegion) {
     return (
       <div className="flex flex-col items-center justify-center h-full w-full bg-[#1e2124] text-omega-text font-sans p-6 text-center select-none">
         <div className="bg-[#282b30] border border-gray-700/80 rounded-xl p-8 max-w-md shadow-2xl backdrop-blur-md">

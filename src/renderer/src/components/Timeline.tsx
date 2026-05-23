@@ -152,6 +152,42 @@ export function Timeline({
   const [showAutomation, setShowAutomation] = useState(false)
   const [effectsClipboard, setEffectsClipboard] = useState<RegionEffects | null>(null)
 
+  const [perfStats, setPerfStats] = useState<{ cpuUsage: number; processRamBytes: number; systemRamPct: number }>({ cpuUsage: 0, processRamBytes: 0, systemRamPct: 0 });
+  const [globalProgress, setGlobalProgress] = useState<number | null>(null);
+  const [globalProgressLabel, setGlobalProgressLabel] = useState<string>('');
+
+  useEffect(() => {
+    let active = true;
+    const interval = setInterval(async () => {
+      try {
+        const stats = await window.api.getPerformanceStats();
+        if (active && stats) {
+          setPerfStats(stats);
+        }
+      } catch (err) {
+        console.error('Error polling performance stats:', err);
+      }
+    }, 2000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleProgress = (e: Event) => {
+      const customEvent = e as CustomEvent<{ progress: number | null; label?: string }>;
+      if (customEvent.detail) {
+        setGlobalProgress(customEvent.detail.progress);
+        setGlobalProgressLabel(customEvent.detail.label || '');
+      }
+    };
+    window.addEventListener('SET_GLOBAL_PROGRESS', handleProgress);
+    return () => {
+      window.removeEventListener('SET_GLOBAL_PROGRESS', handleProgress);
+    };
+  }, []);
+
   // Ref to prevent feedback loop: when we call onTracksChange ourselves,
   // the parent reflects it back via initialTracks – we must not re-apply it.
   const isInternalUpdateRef = useRef(false);
@@ -691,9 +727,6 @@ export function Timeline({
       } else if (e.ctrlKey && e.key === '-') {
         e.preventDefault();
         setZoomLevel(z => Math.max(z - 0.2, 0.05));
-      } else if (e.code === 'Space') {
-        e.preventDefault()
-        togglePlayback()
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
         if (selectedRegionIds.size > 0) {
           deleteSelectedRegions();
@@ -1045,6 +1078,45 @@ export function Timeline({
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
   };
+  
+  // Stufenloses Greifen und Verschieben des Abspielkopfs (Playhead-Dragging)
+  const handlePlayheadDragMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0) return; // Nur primärer Linksklick
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu(null);
+    setEditorContextMenu(null);
+    setZoomMenuOpen(false);
+
+    const updatePlayheadFromEvent = (clientX: number) => {
+      if (!tracksRef.current) return;
+      const rect = tracksRef.current.getBoundingClientRect();
+      const clickX = clientX - rect.left;
+      const newPos = Math.max(0, (clickX + scrollLeft) / pixelsPerSecond);
+      setPlayheadPos(newPos);
+      playheadPosRef.current = newPos;
+    };
+
+    updatePlayheadFromEvent(e.clientX);
+
+    const handleMouseMove = (me: MouseEvent) => {
+      updatePlayheadFromEvent(me.clientX);
+    };
+
+    const handleMouseUp = () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      
+      // Wenn Wiedergabe aktiv ist, an neuer Position nahtlos fortsetzen
+      if (engine.isPlaying) {
+        engine.stop();
+        engine.play({ tracks }, playheadPosRef.current);
+      }
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
 
   const handleTimelineClick = (e: React.MouseEvent) => {
     if (justDraggedRef.current) return;
@@ -1056,25 +1128,16 @@ export function Timeline({
     if (!target.closest('[data-region-id]') && !target.closest('button') && !target.closest('input')) {
       setSelectedRegionIds(new Set());
     }
-
-    if (!tracksRef.current) return
-    const rect = tracksRef.current.getBoundingClientRect()
-    const clickX = e.clientX - rect.left
-    if (clickX >= 0) {
-      const newPos = (clickX + scrollLeft) / pixelsPerSecond
-      setPlayheadPos(newPos)
-      playheadPosRef.current = newPos
-      if (isPlaying) {
-        engine.stop()
-        engine.play({ tracks }, newPos)
-      }
-    }
   }
 
   const handleRegionContextMenu = (e: React.MouseEvent, regionId: string) => {
     e.preventDefault(); e.stopPropagation()
     setSelectedRegionId(regionId)
-    setContextMenu({ x: e.clientX, y: e.clientY, regionId, submenu: null })
+    const menuWidth = 224; // w-56
+    const menuHeight = 380; // geschätzte Höhe
+    const constrainedX = Math.max(0, Math.min(e.clientX, window.innerWidth - menuWidth));
+    const constrainedY = Math.max(0, Math.min(e.clientY, window.innerHeight - menuHeight));
+    setContextMenu({ x: constrainedX, y: constrainedY, regionId, submenu: null })
   }
 
   const addTrack = () => {
@@ -1491,6 +1554,9 @@ export function Timeline({
   const vThumbTop = tracksRef.current ? (scrollTop / tracksRef.current.scrollHeight) * 100 : 0
   const selectedTrack = tracks.find(t => t.regions.some(r => r.id === selectedRegionId))
 
+  const isBottomHalf = contextMenu && contextMenu.y > window.innerHeight / 2;
+  const isEditorBottomHalf = editorContextMenu && editorContextMenu.y > window.innerHeight / 2;
+
   return (
     <div className="flex flex-col h-full bg-[#1e2124] text-omega-text select-none overflow-hidden relative font-sans text-[13px]" onClick={handleTimelineClick}>
       {showCleaning && <AudioCleaningModal onClose={() => setShowCleaning(false)} trackId={selectedTrack?.id} />}
@@ -1518,7 +1584,7 @@ export function Timeline({
               Normalisieren <span className="text-gray-400">▶</span>
             </button>
             {normalizeSubmenuOpen && (
-              <div className="absolute left-full top-0 bg-[#e5e5e5] border border-gray-400 shadow-lg py-1 w-56">
+              <div className={`absolute left-full bg-[#e5e5e5] border border-gray-400 shadow-lg py-1 w-56 ${isBottomHalf ? 'bottom-0' : 'top-0'}`}>
                 <button className="w-full text-left px-4 py-1 hover:bg-blue-500 hover:text-white flex items-center justify-between" onClick={() => { normalizePeak(contextMenu.regionId); setContextMenu(null); }}>
                   Maximalpegel <span className="text-[9px] text-gray-500">Alt+N</span>
                 </button>
@@ -1535,7 +1601,7 @@ export function Timeline({
               Lautstärke setzen <span className="text-gray-400">▶</span>
             </button>
             {dbSubmenuOpen && (
-              <div className="absolute left-full top-0 bg-[#e5e5e5] border border-gray-400 shadow-lg py-1 w-32 max-h-60 overflow-y-auto z-[10000]">
+              <div className={`absolute left-full bg-[#e5e5e5] border border-gray-400 shadow-lg py-1 w-32 max-h-60 overflow-y-auto z-[10000] ${isBottomHalf ? 'bottom-0' : 'top-0'}`}>
                 {dbOptions.map(opt => (
                   <button key={opt.label} className="w-full text-left px-4 py-1 hover:bg-blue-500 hover:text-white" onClick={() => { updateRegionGain(contextMenu.regionId, opt.value); setContextMenu(null); }}>
                     {opt.label}
@@ -1551,7 +1617,7 @@ export function Timeline({
               Stereo-Objekt <span className="text-gray-400">▶</span>
             </button>
             {stereoSubmenuOpen && (
-              <div className="absolute left-full top-0 bg-[#e5e5e5] border border-gray-400 shadow-lg py-1 w-56">
+              <div className={`absolute left-full bg-[#e5e5e5] border border-gray-400 shadow-lg py-1 w-56 ${isBottomHalf ? 'bottom-0' : 'top-0'}`}>
                 <button className="w-full text-left px-4 py-1 hover:bg-blue-500 hover:text-white" onClick={() => { splitStereoRegion(contextMenu.regionId); setContextMenu(null); }}>
                   In Mono-Objekte aufteilen
                 </button>
@@ -1571,7 +1637,7 @@ export function Timeline({
               Spurkurven <span className="text-gray-400">▶</span>
             </button>
             {resetSubmenuOpen && (
-              <div className="absolute left-full top-0 bg-[#e5e5e5] border border-gray-400 shadow-lg py-1 w-52">
+              <div className={`absolute left-full bg-[#e5e5e5] border border-gray-400 shadow-lg py-1 w-52 ${isBottomHalf ? 'bottom-0' : 'top-0'}`}>
                 <button className="w-full text-left px-4 py-1 hover:bg-blue-500 hover:text-white flex items-center justify-between" onClick={() => { setShowAutomation(s => !s); setContextMenu(null); }}>
                   Spurkurven anzeigen <span className="text-[9px] text-gray-500">Alt+K</span>
                 </button>
@@ -1593,7 +1659,7 @@ export function Timeline({
               Audioeffekte <span className="text-gray-400">▶</span>
             </button>
             {effectsSubmenuOpen && (
-              <div className="absolute left-full top-0 bg-[#e5e5e5] border border-gray-400 shadow-lg py-1 w-64 z-[10000]">
+              <div className={`absolute left-full bg-[#e5e5e5] border border-gray-400 shadow-lg py-1 w-64 z-[10000] ${isBottomHalf ? 'bottom-0' : 'top-0'}`}>
                 <button className="w-full text-left px-4 py-1 hover:bg-blue-500 hover:text-white flex items-center justify-between" onClick={() => { loadEffectsPreset(contextMenu.regionId); setContextMenu(null); }}>
                   Audioeffekt laden... <span className="text-[9px] text-gray-500">Strg++</span>
                 </button>
@@ -1640,7 +1706,7 @@ export function Timeline({
               Objektfarbe <span className="text-gray-400">▶</span>
             </button>
             {colorSubmenuOpen && (
-              <div className="absolute left-full top-0 bg-[#e5e5e5] border border-gray-400 shadow-lg py-1 w-36">
+              <div className={`absolute left-full bg-[#e5e5e5] border border-gray-400 shadow-lg py-1 w-36 ${isBottomHalf ? 'bottom-0' : 'top-0'}`}>
                 {REGION_COLORS.map(c => (
                   <button
                     key={c.value}
@@ -1680,7 +1746,7 @@ export function Timeline({
             <button className="w-full text-left px-4 py-1 hover:bg-blue-500 hover:text-white flex items-center justify-between">
               Spurkurven zurücksetzen <span className="text-gray-400">▶</span>
             </button>
-            <div className="absolute left-full top-0 bg-[#e5e5e5] border border-gray-400 shadow-lg py-1 w-36 hidden group-hover:block">
+            <div className={`absolute left-full bg-[#e5e5e5] border border-gray-400 shadow-lg py-1 w-36 hidden group-hover:block ${isEditorBottomHalf ? 'bottom-0' : 'top-0'}`}>
               <button className="w-full text-left px-3 py-1 hover:bg-blue-500 hover:text-white" onClick={() => { resetTrackCurves('volume'); setEditorContextMenu(null); }}>Lautstärke</button>
               <button className="w-full text-left px-3 py-1 hover:bg-blue-500 hover:text-white" onClick={() => { resetTrackCurves('pan'); setEditorContextMenu(null); }}>Balance</button>
             </div>
@@ -1748,8 +1814,13 @@ export function Timeline({
       </div>
 
       <div className="flex-1 flex flex-col overflow-hidden relative">
-        <motion.div className="absolute top-0 bottom-0 w-px bg-red-600 z-[150] pointer-events-none shadow-[0_0_8px_rgba(255,0,0,0.5)]" style={{ left: playheadMotionX }}>
-           <div className="absolute top-[8px] -translate-x-1/2 w-3.5 h-3.5 bg-red-600 rotate-45 border border-red-400 z-[160]"></div>
+        <motion.div 
+          className="absolute top-0 bottom-0 w-[17px] z-[150] cursor-ew-resize flex justify-center pointer-events-auto transform -translate-x-1/2" 
+          style={{ left: playheadMotionX }}
+          onMouseDown={handlePlayheadDragMouseDown}
+        >
+           <div className="w-px bg-red-600 h-full shadow-[0_0_8px_rgba(255,0,0,0.5)] pointer-events-none"></div>
+           <div className="absolute top-[8px] w-3.5 h-3.5 bg-red-600 rotate-45 border border-red-400 z-[160] shadow pointer-events-none"></div>
         </motion.div>
 
         <div className="h-8 border-b border-omega-border flex items-center bg-[#1a1d21] z-[130] relative">
@@ -1798,12 +1869,8 @@ export function Timeline({
                      <div style={{ height: 48 }} className="flex-shrink-0" />
                   </div>
                </div>
-               <div className="p-1 border-t border-[#282b30] bg-[#1a1d21] flex-shrink-0 z-[120]">
-                  <button onClick={addTrack} className="w-full h-8 flex items-center justify-center hover:bg-gray-750 text-gray-500 hover:text-omega-accent transition-colors bg-[#202225] rounded border border-gray-700"><Plus size={14} /></button>
-               </div>
             </div>
-
-           <div 
+            <div 
              className="flex-1 overflow-auto relative bg-[#1e2124] z-[60] scrollbar-hide" 
              onScroll={handleScroll} 
              onClick={handleTimelineClick} 
@@ -1812,7 +1879,11 @@ export function Timeline({
                 if (target.closest('[data-region-id]') || target.tagName === 'INPUT' || target.tagName === 'BUTTON') return;
                 e.preventDefault();
                 e.stopPropagation();
-                setEditorContextMenu({ x: e.clientX, y: e.clientY });
+                const menuWidth = 224; // w-56
+                const menuHeight = 180; // geschätzte Höhe
+                const constrainedX = Math.max(0, Math.min(e.clientX, window.innerWidth - menuWidth));
+                const constrainedY = Math.max(0, Math.min(e.clientY, window.innerHeight - menuHeight));
+                setEditorContextMenu({ x: constrainedX, y: constrainedY });
                 setContextMenu(null);
               }}
              onWheel={(e) => {
@@ -2073,27 +2144,61 @@ export function Timeline({
                                    <div className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/60 shadow pointer-events-none transition-all ${(isHovered || draggingGain?.regionId === region.id) ? 'w-3 h-3 bg-white' : 'w-2.5 h-2.5 bg-white/75'}`} />
                                  </div>
 
-                                 {/* z-[5]: Fade-In handle — white triangle at bottom-left corner */}
-                                 <div
-                                   className="absolute left-0 bottom-0 z-[5] cursor-ew-resize"
-                                   style={{ width: 18, height: 18 }}
-                                   onMouseDown={(e) => { e.stopPropagation(); setDraggingFade({ regionId: region.id, edge: 'in', startX: e.clientX, startValue: region.fadeIn || 0 }); }}
-                                 >
-                                   <svg viewBox="0 0 18 18" width="18" height="18" style={{ display: 'block' }}>
-                                     <polygon points="0,18 18,18 0,0" fill="rgba(255,255,255,0.82)" />
-                                   </svg>
-                                 </div>
+                                 {/* z-[10]: Fade-In circular handle (Kugel - only shown on hover or drag) */}
+                                 {(isHovered || (draggingFade?.regionId === region.id && draggingFade?.edge === 'in')) && (
+                                   <div
+                                     className="absolute z-[10] cursor-ew-resize flex items-center justify-center -translate-x-1/2 -translate-y-1/2 group/fadein"
+                                     style={{
+                                       left: `${fadeInPx}px`,
+                                       top: `${gainYPercent}%`,
+                                       width: '18px',
+                                       height: '18px',
+                                     }}
+                                     onMouseDown={(e) => {
+                                       e.stopPropagation();
+                                       e.preventDefault();
+                                       HistoryManager.pushState(tracks);
+                                       setDraggingFade({ regionId: region.id, edge: 'in', startX: e.clientX, startValue: region.fadeIn || 0 });
+                                     }}
+                                   >
+                                     <div className={`rounded-full border border-white/60 shadow transition-all ${
+                                       (draggingFade?.regionId === region.id && draggingFade?.edge === 'in')
+                                         ? 'w-3.5 h-3.5 bg-omega-accent'
+                                         : 'w-2.5 h-2.5 bg-white hover:bg-omega-accent group-hover/fadein:w-3.5 group-hover/fadein:h-3.5'
+                                     }`} />
+                                     <div className="absolute -top-7 bg-black/90 text-white text-[9px] px-2 py-0.5 rounded pointer-events-none whitespace-nowrap z-[50] shadow border border-gray-700/50">
+                                       Einblenden: {(region.fadeIn || 0).toFixed(2)}s
+                                     </div>
+                                   </div>
+                                 )}
 
-                                 {/* z-[5]: Fade-Out handle — white triangle at bottom-right corner */}
-                                 <div
-                                   className="absolute right-0 bottom-0 z-[5] cursor-ew-resize"
-                                   style={{ width: 18, height: 18 }}
-                                   onMouseDown={(e) => { e.stopPropagation(); setDraggingFade({ regionId: region.id, edge: 'out', startX: e.clientX, startValue: region.fadeOut || 0 }); }}
-                                 >
-                                   <svg viewBox="0 0 18 18" width="18" height="18" style={{ display: 'block' }}>
-                                     <polygon points="18,18 0,18 18,0" fill="rgba(255,255,255,0.82)" />
-                                   </svg>
-                                 </div>
+                                 {/* z-[10]: Fade-Out circular handle (Kugel - only shown on hover or drag) */}
+                                 {(isHovered || (draggingFade?.regionId === region.id && draggingFade?.edge === 'out')) && (
+                                   <div
+                                     className="absolute z-[10] cursor-ew-resize flex items-center justify-center -translate-x-1/2 -translate-y-1/2 group/fadeout"
+                                     style={{
+                                       left: `${regionWidthPx - fadeOutPx}px`,
+                                       top: `${gainYPercent}%`,
+                                       width: '18px',
+                                       height: '18px',
+                                     }}
+                                     onMouseDown={(e) => {
+                                       e.stopPropagation();
+                                       e.preventDefault();
+                                       HistoryManager.pushState(tracks);
+                                       setDraggingFade({ regionId: region.id, edge: 'out', startX: e.clientX, startValue: region.fadeOut || 0 });
+                                     }}
+                                   >
+                                     <div className={`rounded-full border border-white/60 shadow transition-all ${
+                                       (draggingFade?.regionId === region.id && draggingFade?.edge === 'out')
+                                         ? 'w-3.5 h-3.5 bg-omega-accent'
+                                         : 'w-2.5 h-2.5 bg-white hover:bg-omega-accent group-hover/fadeout:w-3.5 group-hover/fadeout:h-3.5'
+                                     }`} />
+                                     <div className="absolute -top-7 bg-black/90 text-white text-[9px] px-2 py-0.5 rounded pointer-events-none whitespace-nowrap z-[50] shadow border border-gray-700/50">
+                                       Ausblenden: {(region.fadeOut || 0).toFixed(2)}s
+                                     </div>
+                                   </div>
+                                 )}
 
                                  {/* z-[6]: Trim handles (left/right resize) */}
                                  <div className="absolute left-0 top-0 bottom-0 w-2 z-[6] cursor-w-resize hover:bg-white/20" onMouseDown={(e) => handleRegionMouseDown(e, track.id, region.id, 'trimStart')} />
@@ -2119,7 +2224,9 @@ export function Timeline({
         </div>
 
         <div className="h-8 bg-omega-panel border-t border-omega-border flex items-center px-0 z-[140]">
-           <div className="w-32 h-full border-r border-omega-border flex-shrink-0 bg-omega-panel shadow-[2px_0_5px_rgba(0,0,0,0.3)] z-[150]"></div>
+            <div className="w-32 h-full border-r border-omega-border flex-shrink-0 bg-omega-panel shadow-[2px_0_5px_rgba(0,0,0,0.3)] z-[150] flex items-center justify-center p-1">
+               <button onClick={addTrack} className="w-full h-full flex items-center justify-center hover:bg-gray-750 text-gray-500 hover:text-omega-accent transition-colors bg-[#202225] rounded border border-gray-700/80" title="Neue Audiospur hinzufügen"><Plus size={14} /></button>
+            </div>
            <div className="flex-1 h-full flex items-center px-1 bg-omega-dark relative overflow-hidden">
               <div className="flex-1 h-3.5 bg-[#1a1d21] rounded relative overflow-hidden border border-gray-800 flex items-center shadow-inner cursor-pointer" onMouseDown={onMouseDownH} ref={hScrollTrackRef}>
                   <button className="w-4 h-full bg-[#2b2d31] border-r border-gray-700 flex items-center justify-center text-[8px] text-gray-400 hover:text-white">◀</button>
@@ -2151,12 +2258,45 @@ export function Timeline({
         </div>
       </div>
 
-      <div className="h-5 bg-[#141619] border-t border-black flex items-center px-3 text-[10px] text-gray-600 gap-4 z-[160]">
-         <span>CPU: --</span>
+      <div className="h-5 bg-[#141619] border-t border-black flex items-center px-3 text-[10px] text-gray-500 gap-4 z-[160] select-none font-medium">
+         <span className="flex items-center gap-1.5">
+           <span className={`w-1.5 h-1.5 rounded-full ${
+             perfStats.cpuUsage > 80 ? 'bg-red-500 shadow-[0_0_4px_#ef4444]' :
+             perfStats.cpuUsage > 50 ? 'bg-yellow-500 shadow-[0_0_4px_#eab308]' :
+             'bg-green-500 shadow-[0_0_4px_#22c55e]'
+           }`} />
+           CPU: {perfStats.cpuUsage}%
+         </span>
          <div className="h-2 w-px bg-gray-800"></div>
-         <span>Disk: --</span>
+         <span className="flex items-center gap-1.5">
+           <span className={`w-1.5 h-1.5 rounded-full ${
+             perfStats.systemRamPct > 90 ? 'bg-red-500 shadow-[0_0_4px_#ef4444]' :
+             perfStats.systemRamPct > 70 ? 'bg-yellow-500 shadow-[0_0_4px_#eab308]' :
+             'bg-green-500 shadow-[0_0_4px_#22c55e]'
+           }`} />
+           RAM: {(perfStats.processRamBytes / (1024 * 1024)).toFixed(1)} MB (System: {perfStats.systemRamPct}%)
+         </span>
+         <div className="h-2 w-px bg-gray-800"></div>
+         <span>Disk: Bereit</span>
+
+         {globalProgress !== null && (
+           <>
+             <div className="h-2 w-px bg-gray-800"></div>
+             <div className="flex items-center gap-2 flex-1 max-w-[240px] text-omega-text bg-black/35 px-2 py-0.5 rounded border border-gray-800/40">
+               <span className="truncate text-[9px] font-semibold text-gray-400">{globalProgressLabel || 'Verarbeite...'}</span>
+               <div className="h-1 flex-1 bg-gray-800 rounded-full overflow-hidden relative border border-gray-700/30">
+                 <div 
+                   className="h-full bg-omega-accent shadow-[0_0_6px_rgba(59,130,246,0.8)] transition-all duration-300" 
+                   style={{ width: `${globalProgress}%` }}
+                 />
+               </div>
+               <span className="font-mono text-[9px] text-omega-accent font-semibold">{Math.round(globalProgress)}%</span>
+             </div>
+           </>
+         )}
+
          <div className="flex-1"></div>
-         <span className="font-mono text-omega-accent">{playheadPos.toFixed(2)}s</span>
+         <span className="font-mono text-omega-accent font-semibold">{playheadPos.toFixed(2)}s</span>
       </div>
     </div>
   )

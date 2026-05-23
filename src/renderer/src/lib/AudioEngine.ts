@@ -536,12 +536,24 @@ export class AudioEngine {
               other.startPos < r.startPos
             );
 
-            const fadeInDuration = r.fadeIn !== undefined ? r.fadeIn : 0.005;
-            const fadeOutDuration = r.fadeOut !== undefined ? r.fadeOut : 0.005;
+            // Knackfreie und dip-freie Schnitte:
+            // Überprüfe, ob benachbarte Regionen nahtlose Schnitte derselben Originaldatei sind
+            const isContinuousPrev = prevRegion &&
+              prevRegion.file.path === r.file.path &&
+              Math.abs((prevRegion.startPos + prevRegion.duration) - r.startPos) < 0.02 &&
+              Math.abs(((prevRegion.sourceOffset || 0) + prevRegion.duration) - (r.sourceOffset || 0)) < 0.02;
+
+            const isContinuousNext = nextRegion &&
+              nextRegion.file.path === r.file.path &&
+              Math.abs(regionEnd - nextRegion.startPos) < 0.02 &&
+              Math.abs(((r.sourceOffset || 0) + r.duration) - (nextRegion.sourceOffset || 0)) < 0.02;
+
+            const fadeInDuration = r.fadeIn !== undefined ? r.fadeIn : (isContinuousPrev ? 0.001 : 0.005);
+            const fadeOutDuration = r.fadeOut !== undefined ? r.fadeOut : (isContinuousNext ? 0.001 : 0.005);
 
             // Crossfade: if next region starts before this one ends, apply crossfade
             let effectiveFadeOut = fadeOutDuration;
-            if (nextRegion) {
+            if (nextRegion && !isContinuousNext) {
               const overlapStart = nextRegion.startPos;
               const overlapDuration = regionEnd - overlapStart;
               if (overlapDuration > 0) {
@@ -550,7 +562,7 @@ export class AudioEngine {
             }
 
             let effectiveFadeIn = fadeInDuration;
-            if (prevRegion) {
+            if (prevRegion && !isContinuousPrev) {
               const overlapDuration = (prevRegion.startPos + prevRegion.duration) - r.startPos;
               if (overlapDuration > 0) {
                 effectiveFadeIn = Math.max(overlapDuration, fadeInDuration);
@@ -1203,17 +1215,35 @@ export class AudioEngine {
         const absStart = r.startPos;
         const absEnd = absStart + playDuration;
         
-        const fadeInDuration = r.fadeIn !== undefined ? r.fadeIn : 0.005;
-        const fadeOutDuration = r.fadeOut !== undefined ? r.fadeOut : 0.005;
-        
-        // Crossfade detection
-        let effectiveFadeOut = fadeOutDuration;
         const nextRegion = sortedRegions.find((other: any) =>
           other.id !== r.id &&
           other.startPos < absEnd &&
           other.startPos > r.startPos
         );
-        if (nextRegion) {
+        const prevRegion = sortedRegions.find((other: any) =>
+          other.id !== r.id &&
+          other.startPos + other.duration > r.startPos &&
+          other.startPos < r.startPos
+        );
+
+        // Knackfreie und dip-freie Schnitte bei Export:
+        // Überprüfe, ob benachbarte Regionen nahtlose Schnitte derselben Originaldatei sind
+        const isContinuousPrev = prevRegion &&
+          prevRegion.file.path === r.file.path &&
+          Math.abs((prevRegion.startPos + prevRegion.duration) - r.startPos) < 0.02 &&
+          Math.abs(((prevRegion.sourceOffset || 0) + prevRegion.duration) - (r.sourceOffset || 0)) < 0.02;
+
+        const isContinuousNext = nextRegion &&
+          nextRegion.file.path === r.file.path &&
+          Math.abs(absEnd - nextRegion.startPos) < 0.02 &&
+          Math.abs(((r.sourceOffset || 0) + r.duration) - (nextRegion.sourceOffset || 0)) < 0.02;
+
+        const fadeInDuration = r.fadeIn !== undefined ? r.fadeIn : (isContinuousPrev ? 0.001 : 0.005);
+        const fadeOutDuration = r.fadeOut !== undefined ? r.fadeOut : (isContinuousNext ? 0.001 : 0.005);
+        
+        // Crossfade detection
+        let effectiveFadeOut = fadeOutDuration;
+        if (nextRegion && !isContinuousNext) {
           const overlapStart = nextRegion.startPos;
           const overlapDuration = absEnd - overlapStart;
           if (overlapDuration > 0) {
@@ -1222,12 +1252,7 @@ export class AudioEngine {
         }
         
         let effectiveFadeIn = fadeInDuration;
-        const prevRegion = sortedRegions.find((other: any) =>
-          other.id !== r.id &&
-          other.startPos + other.duration > r.startPos &&
-          other.startPos < r.startPos
-        );
-        if (prevRegion) {
+        if (prevRegion && !isContinuousPrev) {
           const overlapDuration = (prevRegion.startPos + prevRegion.duration) - r.startPos;
           if (overlapDuration > 0) {
             effectiveFadeIn = Math.max(overlapDuration, fadeInDuration);

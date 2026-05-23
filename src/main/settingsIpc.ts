@@ -112,4 +112,34 @@ export function setupSettingsIpc() {
       return false
     }
   })
+
+  let startCpuUsage = process.cpuUsage();
+  let startTime = process.hrtime();
+
+  ipcMain.handle('get-performance-stats', () => {
+    try {
+      const totalMem = os.totalmem();
+      const freeMem = os.freemem();
+      const systemRamPct = Math.round(((totalMem - freeMem) / totalMem) * 100);
+      const processRamBytes = process.memoryUsage().heapUsed;
+
+      const elapCpu = process.cpuUsage(startCpuUsage);
+      const elapTime = process.hrtime(startTime);
+      startCpuUsage = process.cpuUsage();
+      startTime = process.hrtime();
+
+      const elapTimeMs = elapTime[0] * 1000 + elapTime[1] / 1000000;
+      const elapCpuMs = (elapCpu.user + elapCpu.system) / 1000;
+      const cpuPercent = elapTimeMs > 0 ? Math.min(100, Math.round((elapCpuMs / elapTimeMs) * 100)) : 0;
+
+      return {
+        cpuUsage: cpuPercent,
+        processRamBytes,
+        systemRamPct
+      };
+    } catch (err) {
+      console.error('Error fetching performance stats:', err);
+      return { cpuUsage: 0, processRamBytes: 0, systemRamPct: 0 };
+    }
+  });
 }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Folder, FileAudio, FileVideo, ArrowLeft, Play, Pause, Square, HardDrive, User, Download, Music, Search, Volume2, VolumeX, X } from 'lucide-react'
+import { Folder, FileAudio, FileVideo, ArrowLeft, Play, Pause, Square, HardDrive, User, Download, Music, Search, Volume2, VolumeX, X, FolderUp } from 'lucide-react'
 import { AudioEngine } from '../lib/AudioEngine'
 
 type FileEntry = {
@@ -35,6 +35,18 @@ export function FileExplorer() {
   // Keep track of audio reference to update time
   const timeUpdateRef = useRef<number | null>(null)
 
+  // Refs to prevent stale closures in event listeners
+  const audioObjRef = useRef<HTMLAudioElement | null>(null)
+  const audioCtxRef = useRef<AudioContext | null>(null)
+
+  useEffect(() => {
+    audioObjRef.current = audioObj
+  }, [audioObj])
+
+  useEffect(() => {
+    audioCtxRef.current = audioCtx
+  }, [audioCtx])
+
   // Listen for timeline playback status events
   useEffect(() => {
     const handleStatus = (e: Event) => {
@@ -42,6 +54,11 @@ export function FileExplorer() {
       setProjectIsPlaying(customEvent.detail.isPlaying)
       setProjectTime(customEvent.detail.playheadPos)
       setProjectDuration(customEvent.detail.duration)
+
+      // Stop file explorer preview immediately when timeline playback starts
+      if (customEvent.detail.isPlaying) {
+        stopPreview()
+      }
     }
     window.addEventListener('TIMELINE_PLAYBACK_STATUS', handleStatus as EventListener)
     return () => {
@@ -125,6 +142,42 @@ export function FileExplorer() {
     }
   }
 
+  const goUp = () => {
+    if (!currentPath || currentPath === 'computer') return;
+    
+    // Check if we are at a drive root like "C:\" or "D:\"
+    const isDriveRoot = /^[a-zA-Z]:\\?$/.test(currentPath);
+    if (isDriveRoot) {
+      setHistory([...history, currentPath]);
+      loadDirectory('computer');
+      return;
+    }
+
+    // Otherwise go to parent directory
+    const parentPath = currentPath.replace(/[\\\/][^\\\/]+[\\\/]?$/, '');
+    if (parentPath && parentPath !== currentPath) {
+      setHistory([...history, currentPath]);
+      loadDirectory(parentPath);
+    } else {
+      setHistory([...history, currentPath]);
+      loadDirectory('computer');
+    }
+  }
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
+      if (e.key === 'Backspace' || (e.key === 'ArrowUp' && e.altKey)) {
+        e.preventDefault();
+        goUp();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [currentPath, history]);
+
   const playPreview = (filePath: string) => {
     // 1. Stop existing preview
     if (audioObj) {
@@ -182,21 +235,21 @@ export function FileExplorer() {
   }
 
   const stopPreview = () => {
-    if (audioObj) {
-      audioObj.pause()
-      audioObj.src = ''
-      setAudioObj(null)
+    if (audioObjRef.current) {
+      audioObjRef.current.pause()
+      audioObjRef.current.src = ''
     }
+    setAudioObj(null)
     setPlayingAudio(null)
     setPlayingName('')
     setIsPlaying(false)
     setCurrentTime(0)
     setDuration(0)
     setAnalyser(null)
-    if (audioCtx) {
-      audioCtx.close()
-      setAudioCtx(null)
+    if (audioCtxRef.current) {
+      audioCtxRef.current.close()
     }
+    setAudioCtx(null)
   }
 
   const handlePlayPause = () => {
@@ -335,7 +388,7 @@ export function FileExplorer() {
     <div className="flex flex-1 overflow-hidden relative">
       <div className="w-[180px] border-r border-omega-border bg-[#1e2124] flex flex-col text-[11px] overflow-y-auto flex-shrink-0 select-none">
         <div className="px-3 py-1.5 text-gray-400 font-bold mb-1 border-b border-gray-700 bg-[#1a1d21] uppercase tracking-wider">Verknüpfungen</div>
-        <div className="px-3 py-1.5 hover:bg-omega-accent hover:text-white cursor-pointer flex items-center gap-2 transition-colors text-gray-300" onClick={() => window.api.getSystemPath('computer').then(d => loadDirectory(d))}><HardDrive size={12} /> Computer</div>
+        <div className="px-3 py-1.5 hover:bg-omega-accent hover:text-white cursor-pointer flex items-center gap-2 transition-colors text-gray-300" onClick={() => loadDirectory('computer')}><HardDrive size={12} /> Computer</div>
         <div className="px-3 py-1.5 hover:bg-omega-accent hover:text-white cursor-pointer flex items-center gap-2 transition-colors text-gray-300" onClick={() => window.api.getSystemPath('home').then(d => loadDirectory(d))}><User size={12} /> Benutzer</div>
         
         <div className="px-3 py-1.5 text-gray-400 font-bold mt-2 mb-1 border-b border-gray-700 bg-[#1a1d21] uppercase tracking-wider">Eigene Medien</div>
@@ -347,8 +400,11 @@ export function FileExplorer() {
 
       <div className="flex-1 flex flex-col h-full bg-[#25282c] overflow-hidden">
         <div className="p-2 border-b border-omega-border flex items-center gap-2 bg-[#1e2124]">
-          <button onClick={goBack} disabled={history.length === 0} className="p-1 hover:bg-omega-border rounded disabled:opacity-50 text-gray-300"><ArrowLeft size={16} /></button>
-          <div className="flex-1 truncate text-xs bg-[#1a1d21] p-1 px-2 rounded border border-gray-600 shadow-inner text-gray-300" title={currentPath}>{currentPath || 'Laden...'}</div>
+          <button onClick={goBack} disabled={history.length === 0} className="p-1 hover:bg-omega-border rounded disabled:opacity-50 text-gray-300" title="Zurück"><ArrowLeft size={16} /></button>
+          <button onClick={goUp} disabled={!currentPath || currentPath === 'computer'} className="p-1 hover:bg-omega-border rounded disabled:opacity-50 text-gray-300" title="Ordner nach oben"><FolderUp size={16} /></button>
+          <div className="flex-1 truncate text-xs bg-[#1a1d21] p-1 px-2 rounded border border-gray-600 shadow-inner text-gray-300" title={currentPath === 'computer' ? 'Arbeitsplatz' : currentPath}>
+            {currentPath === 'computer' ? 'Arbeitsplatz' : (currentPath || 'Laden...')}
+          </div>
           <div className="relative">
             <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500" />
             <input type="text" placeholder="Suchen..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-[#141619] border border-gray-700 rounded pl-7 pr-2 py-0.5 text-xs text-white focus:border-omega-accent outline-none w-36" />

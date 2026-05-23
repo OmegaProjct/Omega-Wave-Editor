@@ -12,7 +12,17 @@ const EXPORT_PHASES = [
   'Fertigstellen...',
 ]
 
-export function ExportModal({ onClose, tracks }: { onClose: () => void, tracks: any[] }) {
+export function ExportModal({ onClose, tracks = [] }: { onClose?: () => void; tracks?: any[] }) {
+  const isPopout = new URLSearchParams(window.location.search).get('window') === 'export';
+
+  const handleClose = () => {
+    if (isPopout) {
+      window.close();
+    } else if (onClose) {
+      onClose();
+    }
+  };
+
   // Derive source path: if all regions come from one file
   const allRegions = useMemo(() => tracks.flatMap(t => t.regions), [tracks])
   const uniqueSources = useMemo(() => [...new Set(allRegions.map(r => r.file?.path).filter(Boolean))], [allRegions])
@@ -171,6 +181,26 @@ export function ExportModal({ onClose, tracks }: { onClose: () => void, tracks: 
 
   const handleExport = async () => {
     if (isExporting || isBrowsing) return
+
+    if (isPopout) {
+      const id3Tags = supportsId3 ? {
+        title: id3Title, artist: id3Artist, album: id3Album,
+        year: id3Year, genre: id3Genre, comment: id3Comment, track: id3Track
+      } : undefined
+
+      window.api.startOfflineExport({
+        format,
+        path,
+        sampleRate,
+        bitDepth,
+        bitrate,
+        channels,
+        playAfterExport,
+        id3Tags
+      })
+      return
+    }
+
     setIsExporting(true)
     setIsBrowsing(true) // lock UI during export
     setStatus('running')
@@ -219,7 +249,7 @@ export function ExportModal({ onClose, tracks }: { onClose: () => void, tracks: 
         await window.api.openPath(path)
       }
 
-      setTimeout(() => onClose(), 2000)
+      setTimeout(() => handleClose(), 2000)
     } catch (err: any) {
       console.error('Export error:', err)
       setStatus('error')
@@ -264,8 +294,8 @@ export function ExportModal({ onClose, tracks }: { onClose: () => void, tracks: 
   }
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[2000] font-sans text-omega-text select-none">
-      <div className="bg-[#282b30] border border-gray-600 w-[700px] rounded shadow-2xl flex flex-col overflow-hidden max-h-[90vh] relative">
+    <div className={isPopout ? "w-screen h-screen bg-[#282b30] flex flex-col overflow-hidden relative font-sans text-omega-text select-none" : "fixed inset-0 bg-black/80 flex items-center justify-center z-[2000] font-sans text-omega-text select-none"}>
+      <div className={isPopout ? "w-full h-full flex flex-col overflow-hidden relative" : "bg-[#282b30] border border-gray-600 w-[700px] rounded shadow-2xl flex flex-col overflow-hidden max-h-[90vh] relative"}>
         
         {/* Interactive Double-Click Guard Mask */}
         {isBrowsing && !isExporting && (
@@ -284,7 +314,7 @@ export function ExportModal({ onClose, tracks }: { onClose: () => void, tracks: 
         {/* Header */}
         <div className="p-2 px-3 border-b border-gray-600 flex justify-between items-center bg-[#1e2124]">
           <span className="text-xs font-semibold">{format}-Export</span>
-          <button onClick={onClose} className="hover:text-red-400 text-sm" disabled={isExporting || isBrowsing}>✖</button>
+          <button onClick={handleClose} className="hover:text-red-400 text-sm" disabled={isExporting || isBrowsing}>✖</button>
         </div>
 
         <div className="p-4 flex flex-col gap-4 overflow-y-auto scrollbar-hide">
@@ -462,7 +492,7 @@ export function ExportModal({ onClose, tracks }: { onClose: () => void, tracks: 
         <div className="p-3 border-t border-gray-600 flex justify-end gap-2 bg-[#1e2124] flex-shrink-0">
           <button
             onClick={handleExport}
-            disabled={isExporting || isBrowsing || status === 'done' || tracks.flatMap(t => t.regions).length === 0}
+            disabled={isExporting || isBrowsing || status === 'done' || (!isPopout && tracks.flatMap(t => t.regions).length === 0)}
             className="px-10 py-1.5 text-sm bg-omega-accent hover:bg-blue-500 rounded text-white shadow flex items-center gap-2 disabled:bg-gray-600 disabled:text-gray-400 transition-colors font-semibold"
           >
             {isExporting && (
@@ -472,7 +502,7 @@ export function ExportModal({ onClose, tracks }: { onClose: () => void, tracks: 
             )}
             {isExporting ? 'Exportiert...' : 'Export starten'}
           </button>
-          <button onClick={onClose} className="px-8 py-1.5 text-sm bg-gray-600 hover:bg-gray-500 rounded text-gray-300 transition-colors font-semibold" disabled={isExporting || isBrowsing}>Abbrechen</button>
+          <button onClick={handleClose} className="px-8 py-1.5 text-sm bg-gray-600 hover:bg-gray-500 rounded text-gray-300 transition-colors font-semibold" disabled={isExporting || isBrowsing}>Abbrechen</button>
         </div>
 
       </div>
