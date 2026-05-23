@@ -20,9 +20,13 @@ Dieses Projekt unterliegt den strengen Richtlinien des **Omega Codex Home**. Jed
   * **Linke Zahl (`X` - Major):** Wird **nur auf ausdrückliche Anweisung** von David erhöht.
   * **Mittlere Zahl (`Y` - Minor/Feature):** Wird bei neuen sichtbaren Features, neuen Buttons, Menüpunkten oder UI-Komponenten erhöht.
   * **Rechte Zahl (`Z` - Patch/Bugfix):** Wird bei Fehlerbehebungen, Bugfixes, Textkorrekturen und kleineren Feinschliffen erhöht.
-* **Changelog-Format:**
+* **Changelog-Format & Qualitätsregeln:**
   * Das Changelog nutzt Keep-a-Changelog-Überschriften in eckigen Klammern (z. B. `## [0.1.0] - YYYY-MM-DD`).
   * Nach jeder abgeschlossenen Phase oder Funktion wird das Changelog sofort aktualisiert.
+  * **Absolute Professionalität & Neutralität:**
+    * **Keine Fremdmarken:** Absolut keine Nennung von Drittanbieter-Software oder Mitbewerber-Markennamen (z. B. niemals "MAGIX" oder ähnliche Namen nennen). Stattdessen neutrale Formulierungen wie "unbenutzte Werbeelemente" verwenden.
+    * **Sachlicher Ton:** Keine umgangssprachlichen Ausdrücke, dramatisierenden Begriffe ("Crash", "Blank Screen", "grobe Schnitzer") oder personenbezogene/entwicklerspezifische Daten.
+    * **Fokus auf Fakten:** Einträge müssen rein sachlich und prägnant auf "Fehler behoben" (Fixed) und "Feature hinzugefügt" (Added) fokussiert sein.
 
 ## 3. Git-Commit-Richtlinien
 * **Kleinteilige Commits:** Zusammenhängende Änderungen müssen in kleinen, thematischen Commits festgehalten werden, statt am Ende alles in einem großen Sammel-Commit zu speichern.

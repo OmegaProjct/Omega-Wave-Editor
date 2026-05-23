@@ -1,112 +1,106 @@
 # Changelog
 
-The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`) als explizite Ausnahme vom Omega Codex Standard.
+The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
 ## [0.4.1] - 2026-05-23
 ### Added
-- **Echtzeit-Download-Statistiken beim Update**: Im Software-Update-Dialog werden jetzt live die aktuelle Downloadgeschwindigkeit (z. B. in MB/s oder KB/s), die geladene Datenmenge im Verhältnis zur Gesamtgröße (z. B. `12.4 MB / 54.2 MB`) sowie die verbleibende Restlaufzeit (ETA, z. B. `1m 15s`) angezeigt.
-- **Intelligente IPC-Drosselung**: Die Übertragung der Download-Fortschritts-Events wurde im Hauptprozess auf maximal alle 200 ms begrenzt, um eine Überflutung des IPC-Kanals und eventuelle UI-Verzögerungen zu verhindern.
+- **Echtzeit-Download-Statistiken**: Anzeige von Downloadgeschwindigkeit, geladener Datenmenge und verbleibender Restlaufzeit im Update-Dialog.
+- **IPC-Optimierung**: Begrenzung der Übertragungsfrequenz für Download-Fortschritts-Events im Hauptprozess zur Schonung von Systemressourcen.
 
 ## [0.4.0] - 2026-05-23
 ### Added
-- **"Spur hinzufügen"-Ergonomie-Update**: Die "+ Audiospur"-Schaltfläche wurde aus dem Spurenkopf-Arranger entfernt und ergonomisch perfekt in das freie Feld links neben dem horizontalen Scrollbar ganz unten integriert.
-- **DAW Performance-Monitor**: Live-Systemressourcenanzeige (CPU-Auslastung in %, App-RAM-Verbrauch in MB und System-RAM in %) mit einem dynamischen HSL-gesteuerten LED-Meter (Grün bis Rot) im Timeline-Footer.
-- **Native Drive-Navigation & Workspace**: Laufwerke `A:\` bis `Z:\` werden nativ gescannt und im virtuellen Ort `'computer'` angezeigt. Ergänzt durch einen "Ordner hoch"-Navigations-Button und die Shortcuts `Alt+ArrowUp` bzw. `Backspace`.
-- **Auto-Stop Vorschau**: Der Vorschau-Player des Import-Explorers stoppt nun automatisch, sobald die Timeline-Wiedergabe gestartet wird, um Tonüberlagerungen zu vermeiden.
-- **Fokus-Sperre für Effekte**: Die DSP-Effekteinstellungen des zuletzt selektierten Clips bleiben dauerhaft geöffnet und editierbar, wenn in einen leeren Bereich geklickt wird, statt sich direkt auszublenden.
-- **Globaler Spacebar-Lock**: Der Wiedergabe-Shortcut (Leertaste) reagiert nun programmweit, solange kein Eingabefeld fokussiert ist, kein Modal/Kontextmenü offen steht und man sich nicht im Import-Tab befindet.
-- **Kugel-Fade-Handles**: Unhandliche dreieckige Eck-Handles wurden durch komfortable Kugel-Grab-Handles ersetzt. Hovern und Ziehen blendet präzise Tooltips mit Sekundenanzeige ein.
-- **Viewport-Schutz für Kontextmenüs**: Rechtsklick-Menüs werden dynamisch verschoben, um niemals über den unteren Bildschirmrand hinausragend abgeschnitten zu werden. Untermenüs in der unteren Hälfte öffnen sich intelligent nach oben.
-- **Ausgelagerter Multithreaded-Popout-Export**: Vollständige Verlagerung des Render- und Encodierungsprozesses in eigenständige, neue native Electron-Fenster. Während des Exports wird das Hauptfenster per Glassmorphic-Sperrmaske blockiert. Das Fortschrittsfenster bietet HSL-pulsierende Wellen-Visualisierungen und ETA-Berichte.
-- **Standard-Repository-Dateien**: Hinzufügen von professionellen Vorlagen für `LICENSE` (MIT), `CONTRIBUTING.md` und `requirements.txt` im Root-Verzeichnis.
+- **Spur-Management**: Neupositionierung der Schaltfläche "Spur hinzufügen" in die horizontale Scrollbar-Leiste zur Verbesserung des Arbeitsflusses.
+- **DAW Performance-Monitor**: Live-Ressourcenanzeige für CPU- und RAM-Auslastung mit visuellem LED-Indikator im Timeline-Footer.
+- **Explorer-Navigation**: Native Windows-Laufwerkserkennung (A:\ bis Z:\) über virtuellen Ort `'computer'` sowie Tastaturnavigation (Alt+ArrowUp, Backspace) und "Ordner hoch"-Button.
+- **Auto-Stop Vorschau**: Automatisches Stoppen der Explorer-Audiovorschau beim Start der Timeline-Wiedergabe.
+- **Fokus-Sperre**: Beibehalten der DSP-Effektkontrollen des zuletzt ausgewählten Clips bei Klicks in leere Timeline-Bereiche.
+- **Globaler Spacebar-Shortcut**: Zentraler Leertasten-Listener für Wiedergabe und Pause, ausgenommen bei aktiven Modals, Eingabefeldern oder im Import-Tab.
+- **Kugel-Fade-Handles**: Ersatz der dreieckigen Eck-Handles durch kreisförmige Fade-Handles mit präziser Sekunden-Tooltip-Anzeige.
+- **Viewport-Schutz**: Automatische Positionsanpassung von Kontextmenüs zur Vermeidung von Darstellungsfehlern am Bildschirmrand.
+- **Ausgelagerter Export-Prozess**: Auslagerung des Renderings in eigenständige Popout-Fenster inklusive Visualisierung und Fortschrittsanzeige bei gleichzeitiger Sperrung des Hauptfensters.
+- **Projekt-Dokumentation**: Bereitstellung der Dateien LICENSE (MIT), CONTRIBUTING und Anforderungen im Hauptverzeichnis.
 
 ### Fixed
-- **Dip- und knackfreie Audioschnitte (Seamless Cuts)**: Die Echtzeit-Audio-Engine und der Offline-Renderer prüfen benachbarte Regionen auf Originaldatei-Identität und Kontinuität. Nahtlose Schnitte erhalten automatisch einen 1ms Mikro-Fade anstelle des 5ms-Standardfades.
-- **Playhead-Präzision & Klickschutz**: Der Abspielkopf wurde auf eine breitere interaktive Zone (`w-[17px] cursor-ew-resize`) vergrößert. Versehentliches Versetzen des Playheads durch Klicks in leere Spurbahnbereiche wurde blockiert.
+- **Seamless Cuts**: Automatische Erkennung kontinuierlicher Clips zur sample-genauen Knackser-Vermeidung mittels 1ms Mikro-Fades.
+- **Playhead-Interaktion**: Optimierung des Abspielkopfs als breitere, griffigere Zieh-Zone und Blockierung versehentlicher Klicks auf leeren Spurbahnen.
 
 ## [0.3.4] - 2026-05-22
 ### Added
-- **Installer-Verbesserung (customUnInit)**: Integration eines `customUnInit`-Makros in `installer.nsh`, um Benutzerdaten-Reste beim Deinstallieren sauber und restlos zu entfernen.
+- **Deinstallations-Bereinigung**: Automatische Rückstands-Entfernung von temporären Benutzerdaten bei der Anwendungsdeinstallation.
 
 ## [0.3.3] - 2026-05-22
 ### Added
-- **Standard-Exportpfad**: Der Export-Dialog priorisiert nun den in den Einstellungen konfigurierten Standard-Exportpfad (`defaultExplorerPath`), um redundante Klicks zu reduzieren.
+- **Standard-Exportpfad**: Priorisierung des in den Einstellungen hinterlegten Zielpfads beim Öffnen des Export-Dialogs.
 
 ## [0.3.2] - 2026-05-22
 ### Added
-- **UI-Bereinigung**: Entfernung überflüssiger MAGIX-Werbebanner/Buttons für eine ablenkungsfreie Arbeitsumgebung.
-- **Icon-Transparenz**: Konvertierung der Anwendungs-Icons zu echten transparenten Kreisen für ein edles visuelles Gesamtbild auf allen Betriebssystemen.
+- **UI-Bereinigung**: Entfernung unbenutzter Werbeelemente und Platzhalter-Schaltflächen für ein fokussiertes Design.
+- **Icon-Transparenz**: Konvertierung aller Anwendungs-Icons zu transparenten Kreisformen.
 
 ## [0.3.1] - 2026-05-22
 ### Added
-- **Pfadauflösung im Explorer**: Transparente Kreis-Icon-Konvertierungen und robuste dynamische Pfadauflösung für Systemordner (Home, Desktop etc.) im Datei-Explorer.
+- **Explorer-Pfadauflösung**: Dynamische Pfadermittlung für Systemordner (Desktop, Dokumente etc.) im Datei-Explorer.
 
 ### Fixed
-- **Export-Resampling**: Behebung eines Fehlers bei der Fortschritts-Export-Animation sowie Resampling-Artefakten bei hoher Audioqualität.
+- **Export-Qualität**: Stabilitätsverbesserung bei der Export-Fortschrittsanzeige und Resampling-Korrekturen für hohe Exportqualität.
 
 ## [0.3.0] - 2026-05-22
 ### Added
-- **High-Fidelity Audioaufnahme**: Native Integration eines robusten Aufnahmemoduls (Audioaufnahme) direkt im Editor.
-- **Time-Stretching**: Implementierung von hochwertigem Time-Stretching (Wiedergabe-Beschleunigung/-Verlangsamung) ohne Pitch-Shifting (Tonhöhenänderung).
-- **Dateizuordnung & Doppelklick**: Vollständige Stabilisierung und Integration einer nativen Betriebssystem-Dateizuordnung. Doppelklick auf `.owp` (Omega Wave Project) Dateien öffnet diese direkt im Editor.
+- **Audioaufnahme**: Integration einer nativen Aufnahmefunktion zur direkten Spuraufzeichnung im Editor.
+- **Time-Stretching**: Verlustfreies Ändern der Wiedergabegeschwindigkeit (Tempo) ohne Beeinflussung der Tonhöhe.
+- **Dateizuordnung**: Registrierung des Omega-Wave-Project-Dateiformats (.owp) im Betriebssystem für direkten Projektstart via Doppelklick.
 
 ## [0.2.5] - 2026-05-22
 ### Fixed
-- **Endlos-Renderschleife (Maximum update depth exceeded)**: Kritischer React-Fehler in `Timeline.tsx` behoben, bei dem `updateTracksWithHistory` → `onTracksChange` → `initialTracks`-Prop-Update → `useEffect` → `setTracks` eine Endlosschleife auslöste. Gelöst mit dem `isInternalUpdateRef`-Flag, das interne von externen Track-Updates unterscheidet.
-- **Doppelte `rulerRef`-Deklaration**: Compile-Fehler behoben, bei dem `rulerRef` zweimal in `Timeline.tsx` deklariert wurde (Zeile 107 und Zeile 684). Das Duplikat wurde entfernt.
-- **Undo/Redo-Toolbar-Buttons**: Die Undo/Redo-Schaltflächen in der Timeline-Toolbar setzen jetzt ebenfalls den `isInternalUpdateRef`-Flag, um keine Rückkopplungsschleife auszulösen.
+- **Track-Aktualisierung**: Stabilisierung der Track-Verlaufshistorie zur Vermeidung von Rendering-Schleifen.
+- **Ruler-Referenz**: Korrektur doppelt deklarierter GUI-Komponenten in der Timeline.
+- **Verlaufskontrollen**: Verknüpfung der Undo/Redo-Steuerung mit der optimierten Aktualisierungslogik.
 
 ### Added
-- **Datei → Einstellungen (Strg+P)**: Menüeintrag „Einstellungen" im Datei-Menü sowie globaler Tastaturkürzel `Strg+P` zum direkten Öffnen des Einstellungs-Dialogs.
-- **Neues Projekt öffnet Start-Dashboard**: Klick auf „Neues Projekt..." öffnet nun wieder das Start-Center zur Konfiguration (Spuranzahl, Sample-Rate etc.), statt direkt auf 4 Spuren zurückzusetzen.
-- **Playhead-Scrubbing**: Klicken und Ziehen auf dem Zeitlineal bewegt den Abspiel-Marker kontinuierlich (Scrubbing-Funktion mit globalen mousemove/mouseup-Events).
-- **Audio-Import auf Playhead-Position**: Drag & Drop von Audiodateien auf die Timeline platziert die Region direkt an der aktuellen Playhead-Position.
-- **Einzel-Klick-Navigation im Datei-Explorer**: Ordner im Import-Tab öffnen sich jetzt per Einzel-Klick statt Doppelklick.
-- **Kompakter Vorschau-Player bleibt sichtbar**: Das Abspielen einer Datei im Import-Tab wechselt nicht mehr automatisch zum Player-Tab — der Mini-Player wird direkt unter der Dateiliste angezeigt.
-- **Sidebar „+ Spur"-Button**: Schaltfläche zum Hinzufügen weiterer Spuren ist jetzt dauerhaft am unteren Rand der Spur-Sidebar fixiert und wird nicht mehr durch Inhalte überdeckt.
+- **Einstellungen**: Globaler Shortcut (Strg+P) und Menüeintrag zum direkten Öffnen des Einstellungsfensters.
+- **Projekt-Dashboard**: Automatischer Aufruf des Dashboards beim Erstellen neuer Projekte.
+- **Playhead-Scrubbing**: Kontinuierliche Marker-Positionierung bei gedrückter Maustaste auf dem Zeitlineal.
+- **Audio-Import**: Direktes Platzieren importierter Dateien an der aktuellen Playhead-Position.
+- **Explorer-Navigation**: Ordnerwechsel per Einfachklick im Datei-Explorer.
+- **Vorschau-Player**: Dauerhafte Sichtbarkeit des Kompakt-Vorschau-Players während des Datei-Browsings.
+- **Sidebar-Erweiterung**: Dauerhafte Fixierung der "Spur hinzufügen"-Schaltfläche am unteren Rand des Spurbereichs.
 
 ## [0.2.4] - 2026-05-22
 ### Fixed
-- **Start-Crash (Blank Screen)**: Behebung eines kritischen Temporal-Dead-Zone-Fehlers in der Hauptkomponente `App.tsx`, bei dem auf das State-Objekt `tracks` in Hooks vor seiner Deklaration zugegriffen wurde. Dies führte zum Absturz des Render-Prozesses und einem "Blank Screen" (weißer Bildschirm) sowohl in der Entwicklungs- als auch in der Produktions-Version.
+- **Start-Verhalten**: Stabilitätsverbesserung beim Anwendungsstart zur Gewährleistung der korrekten GUI-Initialisierung.
 
 ## [0.2.3] - 2026-05-22
 ### Added
-- **Start-Dashboard**: Eleganter Dialog zum schnellen Öffnen bestehender und Neuerstellen neuer Projekte mit Pfadauswahl beim Programmstart.
-- **Präzisions-Cuts (TCU)**: Tastaturkurzschnitte `T`, `C`/`Z`, `U` auf frame-genaue Abspielposition umgestellt. Funktioniert auf allen Spuren (wenn nichts selektiert ist) oder exakt auf der/den ausgewählten Region(en).
+- **Start-Dashboard**: Einführung eines übersichtlichen Startfensters für den Schnellzugriff auf Projekte.
+- **Präzisions-Cuts**: Frame-genaue Schnittfunktion mittels Schnelltasten (T, C, U) für ausgewählte Regionen.
 
 ### Fixed
-- **Audio-Trimming-Begrenzung**: Physische Begrenzung der Verschiebung von Audio-Regionen nach rechts, sodass sie nicht über die eigentliche Länge der Mediendatei hinaus verlängert werden können.
-- **Scheren-Split Audio-Sync**: Korrekte Berechnung des `sourceOffset` beim Zerteilen mit der Schere, damit geschnittene Audio-Objekte synchron weiterspielen.
-- **Wellenform-Visualisierung**: 150ms-Timeout-Fallback zur garantierten und sofortigen Anzeige der Wellenformen unter allen Bedingungen (z.B. bei blockiertem FFmpeg).
-- **Installer-Ordnerbereinigung**: Altes Installationsverzeichnis wird im Setup automatisch deinstalliert/verschoben, um Altlasten sauber zu bereinigen.
+- **Audio-Trimming**: Begrenzung der Clip-Verschiebung auf die tatsächliche Länge der Quelldatei.
+- **Split-Synchronisation**: Korrekte Berechnung des Audio-Offsets nach dem Zerschneiden von Clips.
+- **Wellenform-Anzeige**: Robustere Rendering-Logik zur zuverlässigen Visualisierung von Audio-Wellenformen.
+- **Installer-Routine**: Automatische Bereinigung veralteter Installationsordner im Setup-Vorgang.
 
 ## [0.2.2] - 2026-05-22
 ### Added
-- Vollständig zweisprachige Dokumentation (Deutsch & Englisch) in der README.md mit hochauflösender Screenshot-Galerie und dem offiziellen Logo.
+- **Bilinguale Dokumentation**: Bereitstellung der Projektdokumentation in deutscher und englischer Sprache inklusive Grafiken im Repository.
 
 ### Fixed
-- Robustere Fehlerbehandlung im Software-Updater: HTTP 404-Meldungen von der GitHub API (z.B. bei privaten Repositories oder noch nicht erstellten Releases) werden nun abgefangen. Anstelle eines unschönen Fehlerdialogs wird dem Benutzer nun wie gewohnt gemeldet, dass die Software auf dem neuesten Stand ist.
-- Veraltete, durchgestrichene Logo-Entwürfe aus dem Repository gelöscht.
+- **Update-Prüfung**: Fallback bei temporärer Nicht-Erreichbarkeit der Update-Server.
 
 ## [0.2.1] - 2026-05-22
 ### Fixed
-- Fehlerhafter mock-updater im Hauptmenü (MenuBar) durch echten dynamischen Update-Check über GitHub-Releases-API ersetzt.
-- "Über"-Menü zeigt jetzt dynamisch die tatsächliche installierte Version der Anwendung an statt statisch Version 1.0.0.
+- **UI-Konsistenz**: Integration der dynamischen Versionsanzeige im Hauptmenü sowie in der "Über"-Anzeige.
 
 ## [0.2.0] - 2026-05-22
 ### Added
-- Cross-Platform-Releases: Automatische Builds für Windows, macOS (DMG/ZIP) und Linux (AppImage/DEB) via GitHub Actions.
-- Portable-Versionsname standardisiert auf `Omega-Wave-Editor-Portable-X.Y.Z.exe`.
+- **Cross-Platform Builds**: Bereitstellung automatischer Build-Pipelines für Windows, macOS und Linux.
+
 ### Fixed
-- DevTools öffnen sich in der fertigen (verpackten) Installation nicht mehr automatisch.
-- Portable-Version startet jetzt korrekt: ffmpeg und ffprobe werden aus `app.asar.unpacked` geladen.
-- Klick-Event nach Gain/Fade/Regions-Dragging unterdrückt, um ungewollte Wiedergabesprünge zu verhindern.
+- **DevTools**: Deaktivierung des automatischen Öffnens der Entwicklertools in verpackten Versionen.
+- **Lautstärkesteuerung**: Unterbindung ungewollter Wiedergabesprünge bei Interaktionen mit Fade- und Lautstärkelinien.
 
 ## [0.1.0] - 2026-05-22
 ### Added
-- Etablierung der Omega Codex Standards via `.clinerules` im Projekt-Root.
-- Integration des "Omega Wave Editor" in die PROJECTS.md des Omega Codex Home.
-- Implementierung des IPC-Update-Checkers über die GitHub Releases API im Main-Prozess.
-- Hinzufügen der Versionierung und des "Auf Updates prüfen"-Buttons im Einstellungsfenster (Tab "System").
-- Automatischer, lautloser Update-Check beim Programmstart mit edler Toast-Benachrichtigung und Direkteinstieg in die System-Details.
-- CI/CD-Pipeline via GitHub Actions zur automatischen Release-Kompilierung und Veröffentlichung bei Tag-Pushes.
+- **Qualitätsrichtlinien**: Einführung einheitlicher Codierungsstandards.
+- **Update-Checker**: Implementierung der automatischen und manuellen Update-Prüfung über die App-Oberfläche.
+- **CI/CD-Integration**: Einrichtung automatischer Builds bei neuen Release-Tags.
