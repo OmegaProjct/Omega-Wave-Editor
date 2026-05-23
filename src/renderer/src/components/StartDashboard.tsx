@@ -153,23 +153,7 @@ export function StartDashboard({
                 <span className="text-xs">Projekt laden</span>
               </button>
 
-              <div className="border-t border-gray-800/80 my-2"></div>
 
-              {/* Dekorative DAW-Tabs */}
-              <div className="px-3 py-1.5 text-[9px] font-bold text-gray-600 uppercase tracking-widest">Suite</div>
-              
-              <button className="w-full py-2 px-3 rounded flex items-center gap-3 text-gray-500 cursor-not-allowed">
-                <Music size={14} />
-                <span className="text-xs">Video Pro X</span>
-              </button>
-
-              <button 
-                onClick={onClose}
-                className="w-full py-2 px-3 rounded flex items-center gap-3 text-gray-400 hover:bg-[#24272c]/50 hover:text-white transition-colors"
-              >
-                <HelpCircle size={14} className="text-gray-500" />
-                <span className="text-xs">Einführung</span>
-              </button>
 
             </div>
 
