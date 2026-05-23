@@ -73,13 +73,22 @@ export function ExportModal({ onClose, tracks }: { onClose: () => void, tracks: 
   }, [singleSource])
 
   useEffect(() => {
-    window.api.getHomeDir().then(home => {
+    Promise.all([
+      window.api.getHomeDir(),
+      window.api.getSettings().catch(() => ({}))
+    ]).then(([home, settings]) => {
       const ext = getExt(format)
       let name = 'omega_master'
       if (singleSource) {
         name = singleSource.replace(/.*[\\\/]/, '').replace(/\.[^.]+$/, '')
       }
-      setPath(`${home}\\${name}.${ext}`)
+      
+      // Nutze den Exporte-Ordner aus den Einstellungen, falls gesetzt. Ansonsten Fallback auf den Home-Ordner.
+      const baseDir = (settings && typeof settings.expPath === 'string' && settings.expPath.trim() !== '')
+        ? settings.expPath
+        : home
+        
+      setPath(`${baseDir}\\${name}.${ext}`)
     })
   }, [format, singleSource])
 
