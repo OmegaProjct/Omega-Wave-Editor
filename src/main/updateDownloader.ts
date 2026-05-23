@@ -89,14 +89,31 @@ export function setupUpdateDownloader(mainWindow: BrowserWindow) {
       }
 
       const reader = Readable.fromWeb(fileResponse.body as any)
+      const startTime = Date.now()
+      let lastProgressSentTime = 0
 
       return new Promise((resolve, reject) => {
         reader.on('data', (chunk) => {
           fileStream.write(chunk)
           downloadedBytes += chunk.length
-          if (totalBytes > 0) {
-            const percent = Math.round((downloadedBytes / totalBytes) * 100)
-            mainWindow.webContents.send('download-progress', { percent, status: 'downloading' })
+          
+          const now = Date.now()
+          if (now - lastProgressSentTime > 200 || downloadedBytes === totalBytes) {
+            lastProgressSentTime = now
+            const percent = totalBytes > 0 ? Math.round((downloadedBytes / totalBytes) * 100) : 0
+            const elapsedSeconds = (now - startTime) / 1000
+            const speedBps = elapsedSeconds > 0 ? (downloadedBytes / elapsedSeconds) : 0
+            const remainingBytes = totalBytes - downloadedBytes
+            const remainingSeconds = speedBps > 0 ? (remainingBytes / speedBps) : 0
+
+            mainWindow.webContents.send('download-progress', {
+              percent,
+              status: 'downloading',
+              downloadedBytes,
+              totalBytes,
+              speedBps,
+              remainingSeconds
+            })
           }
         })
 
@@ -104,7 +121,14 @@ export function setupUpdateDownloader(mainWindow: BrowserWindow) {
           fileStream.end()
           downloadedInstallerPath = tempFilePath
           console.log(`Download completed successfully: ${tempFilePath}`)
-          mainWindow.webContents.send('download-progress', { percent: 100, status: 'completed' })
+          mainWindow.webContents.send('download-progress', {
+            percent: 100,
+            status: 'completed',
+            downloadedBytes: totalBytes,
+            totalBytes,
+            speedBps: 0,
+            remainingSeconds: 0
+          })
           resolve({ success: true, filePath: tempFilePath })
         })
 
