@@ -1,4 +1,4 @@
-import { FileEntry } from '../../preload/index'
+import { FileEntry } from './index'
 
 declare global {
   interface Window {
@@ -38,8 +38,18 @@ declare global {
       openVstUi: (pluginPath: string) => Promise<boolean>
       saveRecording: (outputPath: string, arrayBuffer: ArrayBuffer) => Promise<any>
       getDiskSpace: (dirPath: string) => Promise<{ success: boolean, freeBytes: number }>
+      getPerformanceStats: () => Promise<{ cpuUsage: number, processRamBytes: number, systemRamPct: number }>
       showOpenDialog: (options: any) => Promise<any>
       showSaveDialog: (options: any) => Promise<any>
+      openExportSettings: (tracks: any) => void
+      startOfflineExport: (settings: any) => void
+      updateExportProgress: (progress: number, label: string) => void
+      notifyExportFinished: (status: string, filePath?: string, errorMsg?: string) => void
+      closeProgressWindow: () => void
+      onStartOfflineRender: (callback: (settings: any) => void) => () => void
+      onExportProgressUpdate: (callback: (data: { progress: number; label: string }) => void) => () => void
+      onExportFinished: (callback: (data: { status: string; filePath?: string; errorMsg?: string }) => void) => () => void
+      onLockMainWindow: (callback: (locked: boolean) => void) => () => void
     }
   }
 }

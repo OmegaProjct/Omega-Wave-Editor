@@ -14,6 +14,7 @@ import { UpdateModal } from './components/UpdateModal'
 import { useHistory } from './lib/useHistory'
 import { ProjectManager } from './lib/ProjectManager'
 import appIcon from './assets/app_icon.png'
+import { Loader2 } from 'lucide-react'
 
 function App(): JSX.Element {
   const [showSettings, setShowSettings] = useState(false)
@@ -305,6 +306,42 @@ function App(): JSX.Element {
   // Handle Keyboard Shortcuts for Undo/Redo and Global Modals
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+
+      // 1. Eingabefelder und editierbare Elemente überspringen
+      if (
+        ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+
+      // 2. Modals in App prüfen (Leertaste ignorieren)
+      if (
+        showSettings ||
+        showExport ||
+        showManual ||
+        modalConfig ||
+        showStartDashboard ||
+        showSaveConfirm ||
+        activeUpdateInfo
+      ) {
+        return;
+      }
+
+      // 3. Dropdowns oder Kontextmenüs im DOM prüfen (Leertaste ignorieren)
+      const hasOverlay = document.querySelector('.z-\\[1000\\], .z-\\[9999\\], .fixed.bg-\\[\\#e5e5e5\\]') !== null;
+      if (hasOverlay) {
+        return;
+      }
+
+      // 4. Globaler Spacebar Intercept für Wiedergabe/Pause
+      if (e.code === 'Space') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('TIMELINE_ACTION_PLAY'));
+        return;
+      }
+
       if (e.ctrlKey && e.key === 'z') {
         e.preventDefault();
         triggerTimelineAction('UNDO');
@@ -315,6 +352,9 @@ function App(): JSX.Element {
         e.preventDefault();
         setSettingsTab('Ordner');
         setShowSettings(true);
+      } else if (e.ctrlKey && (e.key === 'e' || e.key === 'E')) {
+        e.preventDefault();
+        window.api.openExportSettings(tracks);
       }
     };
 
@@ -337,7 +377,7 @@ function App(): JSX.Element {
       window.removeEventListener('dragover', preventDefault);
       window.removeEventListener('drop', preventDefault);
     };
-  }, [undo, redo]);
+  }, [undo, redo, showSettings, showExport, showManual, modalConfig, showStartDashboard, showSaveConfirm, activeUpdateInfo, tracks]);
 
   const triggerTimelineActionRef = useRef<any>(null);
   useEffect(() => {
@@ -363,6 +403,86 @@ function App(): JSX.Element {
     });
 
     return () => unsubscribe();
+  }, []);
+
+  const [isWindowLocked, setIsWindowLocked] = useState(false);
+
+  // Pop-out export listeners and controllers
+  useEffect(() => {
+    const unsubscribeLock = window.api.onLockMainWindow((locked: boolean) => {
+      setIsWindowLocked(locked);
+      if (locked) {
+        window.dispatchEvent(new CustomEvent('TIMELINE_ACTION_STOP'));
+      }
+    });
+
+    const unsubscribeRender = window.api.onStartOfflineRender(async (settings: any) => {
+      try {
+        window.dispatchEvent(new CustomEvent('TIMELINE_ACTION_STOP'));
+        const parsedSampleRate = parseInt(settings.sampleRate, 10) || 48000;
+        
+        // 1. Spuren analysieren
+        window.api.updateExportProgress(10, 'Analysiere Spuren...');
+        await new Promise(r => setTimeout(r, 400));
+
+        // 2. Mixdown berechnen
+        window.api.updateExportProgress(20, 'Mixdown wird berechnet...');
+        let mixProgress = 20;
+        const mixInterval = setInterval(() => {
+          if (mixProgress < 70) {
+            mixProgress += 2;
+            window.api.updateExportProgress(mixProgress, 'Mixdown wird berechnet...');
+          }
+        }, 120);
+
+        const { AudioEngine } = await import('./lib/AudioEngine');
+        const audioBuffer = await AudioEngine.getInstance().renderOffline(
+          { tracks: settings.tracks },
+          parsedSampleRate
+        );
+        clearInterval(mixInterval);
+
+        // 3. Encoding läuft
+        window.api.updateExportProgress(75, 'Encoding läuft...');
+        await new Promise(r => setTimeout(r, 200));
+        const wavBuffer = AudioEngine.getInstance().exportToWav(audioBuffer);
+
+        const tempWavPath = settings.path + '.temp.wav';
+        await window.api.saveRecording(tempWavPath, wavBuffer);
+
+        // 4. Metadaten schreiben
+        window.api.updateExportProgress(85, 'Metadaten werden geschrieben...');
+        const lowerFormat = settings.format.toLowerCase();
+        const ext = lowerFormat.includes('mp3') ? 'mp3' : lowerFormat.includes('flac') ? 'flac' : lowerFormat.includes('ogg') ? 'ogg'
+          : lowerFormat.includes('m4a') ? 'm4a' : lowerFormat.includes('m4r') ? 'm4r' : lowerFormat.includes('aiff') ? 'aiff'
+          : lowerFormat.includes('wma') ? 'wma' : lowerFormat.includes('opus') ? 'opus' : lowerFormat.includes('alac') ? 'alac' : 'wav';
+
+        await window.api.transcodeExport(
+          tempWavPath,
+          settings.path,
+          { format: ext, bitrate: settings.bitrate, sampleRate: parsedSampleRate },
+          settings.id3Tags
+        );
+
+        // 5. Fertigstellen
+        window.api.updateExportProgress(100, 'Fertigstellen...');
+        await new Promise(r => setTimeout(r, 300));
+        
+        window.api.notifyExportFinished('done', settings.path);
+
+        if (settings.playAfterExport) {
+          await window.api.openPath(settings.path);
+        }
+      } catch (err: any) {
+        console.error('Offline Export failed:', err);
+        window.api.notifyExportFinished('error', undefined, err.message || 'Export fehlgeschlagen.');
+      }
+    });
+
+    return () => {
+      unsubscribeLock();
+      unsubscribeRender();
+    };
   }, []);
 
   return (
@@ -498,7 +618,7 @@ function App(): JSX.Element {
         </div>
         <MenuBar 
           onOpenSettings={() => openSettings('Ordner')} 
-          onOpenExport={() => setShowExport(true)} 
+          onOpenExport={() => window.api.openExportSettings(tracks)} 
           onFileAction={triggerTimelineAction}
         />
       </div>
@@ -532,7 +652,7 @@ function App(): JSX.Element {
           <Panel defaultSize={50} minSize={20} className="bg-omega-panel">
             <Timeline 
               onTracksChange={handleTracksUpdate} 
-              onOpenExport={() => setShowExport(true)} 
+              onOpenExport={() => window.api.openExportSettings(tracks)} 
               externalAction={timelineAction}
               initialTracks={tracks}
               selectedRegionIds={selectedRegionIds}
@@ -541,6 +661,18 @@ function App(): JSX.Element {
           </Panel>
         </PanelGroup>
       </div>
+
+      {isWindowLocked && (
+        <div className="absolute inset-0 bg-black/45 backdrop-blur-[5px] flex items-center justify-center z-[5000] cursor-wait animate-fade-in">
+          <div className="bg-[#1e2124]/90 border border-gray-700 p-6 rounded-xl shadow-2xl flex flex-col items-center gap-4 max-w-sm text-center">
+            <Loader2 className="animate-spin text-omega-accent w-10 h-10" />
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-semibold text-white">Mixdown-Export aktiv</span>
+              <span className="text-xs text-gray-400">Das Hauptfenster ist vorübergehend gesperrt, während der Offline-Mixdown gerendert wird. Bitte verfolge den Fortschritt im separaten Fortschrittsfenster.</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -1,4 +1,4 @@
-﻿@tailwind base;
+@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
@@ -40,4 +40,14 @@
   option {
     @apply bg-[#1a1d21] text-white;
   }
+}
+
+@keyframes progress-bar-stripes {
+  0% { background-position: 0 0; }
+  100% { background-position: 16px 0; }
+}
+
+@keyframes pulse {
+  0% { transform: scaleY(0.4); opacity: 0.15; }
+  100% { transform: scaleY(1.2); opacity: 0.35; }
 }

@@ -35,6 +35,7 @@ const api = {
   // Recording
   saveRecording: (outputPath: string, arrayBuffer: ArrayBuffer) => ipcRenderer.invoke('save-recording', outputPath, arrayBuffer),
   getDiskSpace: (dirPath: string) => ipcRenderer.invoke('get-disk-space', dirPath),
+  getPerformanceStats: () => ipcRenderer.invoke('get-performance-stats'),
 
   // Software Update
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
@@ -66,6 +67,34 @@ const api = {
     return () => {
       ipcRenderer.removeListener('open-project-from-association', subscription)
     }
+  },
+
+  // Export popouts
+  openExportSettings: (tracks: any) => ipcRenderer.send('open-export-settings', tracks),
+  startOfflineExport: (settings: any) => ipcRenderer.send('start-offline-export', settings),
+  updateExportProgress: (progress: number, label: string) => ipcRenderer.send('update-export-progress', progress, label),
+  notifyExportFinished: (status: string, filePath?: string, errorMsg?: string) => ipcRenderer.send('notify-export-finished', status, filePath, errorMsg),
+  closeProgressWindow: () => ipcRenderer.send('close-progress-window'),
+  
+  onStartOfflineRender: (callback: (settings: any) => void) => {
+    const sub = (_e: any, settings: any) => callback(settings)
+    ipcRenderer.on('start-offline-render', sub)
+    return () => { ipcRenderer.removeListener('start-offline-render', sub) }
+  },
+  onExportProgressUpdate: (callback: (data: { progress: number; label: string }) => void) => {
+    const sub = (_e: any, data: any) => callback(data)
+    ipcRenderer.on('export-progress-update', sub)
+    return () => { ipcRenderer.removeListener('export-progress-update', sub) }
+  },
+  onExportFinished: (callback: (data: { status: string; filePath?: string; errorMsg?: string }) => void) => {
+    const sub = (_e: any, data: any) => callback(data)
+    ipcRenderer.on('export-finished-event', sub)
+    return () => { ipcRenderer.removeListener('export-finished-event', sub) }
+  },
+  onLockMainWindow: (callback: (locked: boolean) => void) => {
+    const sub = (_e: any, locked: boolean) => callback(locked)
+    ipcRenderer.on('lock-main-window', sub)
+    return () => { ipcRenderer.removeListener('lock-main-window', sub) }
   }
 }
 

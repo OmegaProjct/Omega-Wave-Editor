@@ -41,6 +41,16 @@ interface Window {
     startUpdateDownload: (payload: { url: string; latestVersion: string }) => Promise<{ success: boolean; error?: string; filePath?: string }>;
     installUpdate: (payload: { installNow: boolean }) => Promise<{ success: boolean; error?: string; deferred?: boolean }>;
     onDownloadProgress: (callback: (data: any) => void) => () => void;
+    getPerformanceStats: () => Promise<{ cpuUsage: number, processRamBytes: number, systemRamPct: number }>;
+    openExportSettings: (tracks: any) => void;
+    startOfflineExport: (settings: any) => void;
+    updateExportProgress: (progress: number, label: string) => void;
+    notifyExportFinished: (status: string, filePath?: string, errorMsg?: string) => void;
+    closeProgressWindow: () => void;
+    onStartOfflineRender: (callback: (settings: any) => void) => () => void;
+    onExportProgressUpdate: (callback: (data: { progress: number; label: string }) => void) => () => void;
+    onExportFinished: (callback: (data: { status: string; filePath?: string; errorMsg?: string }) => void) => () => void;
+    onLockMainWindow: (callback: (locked: boolean) => void) => () => void;
   };
 }
 

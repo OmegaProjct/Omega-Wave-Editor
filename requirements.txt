@@ -1,0 +1,19 @@
+# Omega Wave Editor - System- & Entwicklungs-Voraussetzungen
+# Diese Datei listet die globalen Voraussetzungen für Entwickler auf.
+
+# Laufzeitumgebungen & Paketmanager
+node>=18.0.0
+npm>=9.0.0
+
+# Kern-Technologien (über package.json verwaltet)
+electron>=30.0.0
+react>=18.2.0
+typescript>=5.0.0
+
+# Multimedia-Schnittstellen (statisch integriert via ffmpeg-static)
+ffmpeg>=6.0
+ffprobe>=6.0
+
+# VST-Bridge Build-Tools (nur für Windows C++ Entwickler erforderlich)
+c++-compiler>=17
+cmake>=3.20

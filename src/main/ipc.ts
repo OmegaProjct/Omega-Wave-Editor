@@ -196,6 +196,25 @@ export function setupIpc() {
   })
 
   ipcMain.handle('read-dir', async (_, dirPath: string) => {
+    if (dirPath === 'computer') {
+      const drives: { name: string; path: string; isDirectory: boolean }[] = [];
+      const driveLetters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      for (const char of driveLetters) {
+        const drivePath = `${char}:\\`;
+        try {
+          if (fs.existsSync(drivePath)) {
+            drives.push({
+              name: `Lokaler Datenträger (${char}:)`,
+              path: drivePath,
+              isDirectory: true
+            });
+          }
+        } catch {
+          // Ignore non-existent or unreadable drives
+        }
+      }
+      return drives;
+    }
     if (!isSafePath(dirPath)) return []
     try {
       const entries = await fs.promises.readdir(dirPath, { withFileTypes: true })
