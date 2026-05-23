@@ -2,6 +2,28 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`) als explizite Ausnahme vom Omega Codex Standard.
 
+## [0.4.1] - 2026-05-23
+### Added
+- **Echtzeit-Download-Statistiken beim Update**: Im Software-Update-Dialog werden jetzt live die aktuelle Downloadgeschwindigkeit (z. B. in MB/s oder KB/s), die geladene Datenmenge im Verhältnis zur Gesamtgröße (z. B. `12.4 MB / 54.2 MB`) sowie die verbleibende Restlaufzeit (ETA, z. B. `1m 15s`) angezeigt.
+- **Intelligente IPC-Drosselung**: Die Übertragung der Download-Fortschritts-Events wurde im Hauptprozess auf maximal alle 200 ms begrenzt, um eine Überflutung des IPC-Kanals und eventuelle UI-Verzögerungen zu verhindern.
+
+## [0.4.0] - 2026-05-23
+### Added
+- **"Spur hinzufügen"-Ergonomie-Update**: Die "+ Audiospur"-Schaltfläche wurde aus dem Spurenkopf-Arranger entfernt und ergonomisch perfekt in das freie Feld links neben dem horizontalen Scrollbar ganz unten integriert.
+- **DAW Performance-Monitor**: Live-Systemressourcenanzeige (CPU-Auslastung in %, App-RAM-Verbrauch in MB und System-RAM in %) mit einem dynamischen HSL-gesteuerten LED-Meter (Grün bis Rot) im Timeline-Footer.
+- **Native Drive-Navigation & Workspace**: Laufwerke `A:\` bis `Z:\` werden nativ gescannt und im virtuellen Ort `'computer'` angezeigt. Ergänzt durch einen "Ordner hoch"-Navigations-Button und die Shortcuts `Alt+ArrowUp` bzw. `Backspace`.
+- **Auto-Stop Vorschau**: Der Vorschau-Player des Import-Explorers stoppt nun automatisch, sobald die Timeline-Wiedergabe gestartet wird, um Tonüberlagerungen zu vermeiden.
+- **Fokus-Sperre für Effekte**: Die DSP-Effekteinstellungen des zuletzt selektierten Clips bleiben dauerhaft geöffnet und editierbar, wenn in einen leeren Bereich geklickt wird, statt sich direkt auszublenden.
+- **Globaler Spacebar-Lock**: Der Wiedergabe-Shortcut (Leertaste) reagiert nun programmweit, solange kein Eingabefeld fokussiert ist, kein Modal/Kontextmenü offen steht und man sich nicht im Import-Tab befindet.
+- **Kugel-Fade-Handles**: Unhandliche dreieckige Eck-Handles wurden durch komfortable Kugel-Grab-Handles ersetzt. Hovern und Ziehen blendet präzise Tooltips mit Sekundenanzeige ein.
+- **Viewport-Schutz für Kontextmenüs**: Rechtsklick-Menüs werden dynamisch verschoben, um niemals über den unteren Bildschirmrand hinausragend abgeschnitten zu werden. Untermenüs in der unteren Hälfte öffnen sich intelligent nach oben.
+- **Ausgelagerter Multithreaded-Popout-Export**: Vollständige Verlagerung des Render- und Encodierungsprozesses in eigenständige, neue native Electron-Fenster. Während des Exports wird das Hauptfenster per Glassmorphic-Sperrmaske blockiert. Das Fortschrittsfenster bietet HSL-pulsierende Wellen-Visualisierungen und ETA-Berichte.
+- **Standard-Repository-Dateien**: Hinzufügen von professionellen Vorlagen für `LICENSE` (MIT), `CONTRIBUTING.md` und `requirements.txt` im Root-Verzeichnis.
+
+### Fixed
+- **Dip- und knackfreie Audioschnitte (Seamless Cuts)**: Die Echtzeit-Audio-Engine und der Offline-Renderer prüfen benachbarte Regionen auf Originaldatei-Identität und Kontinuität. Nahtlose Schnitte erhalten automatisch einen 1ms Mikro-Fade anstelle des 5ms-Standardfades.
+- **Playhead-Präzision & Klickschutz**: Der Abspielkopf wurde auf eine breitere interaktive Zone (`w-[17px] cursor-ew-resize`) vergrößert. Versehentliches Versetzen des Playheads durch Klicks in leere Spurbahnbereiche wurde blockiert.
+
 ## [0.2.5] - 2026-05-22
 ### Fixed
 - **Endlos-Renderschleife (Maximum update depth exceeded)**: Kritischer React-Fehler in `Timeline.tsx` behoben, bei dem `updateTracksWithHistory` → `onTracksChange` → `initialTracks`-Prop-Update → `useEffect` → `setTracks` eine Endlosschleife auslöste. Gelöst mit dem `isInternalUpdateRef`-Flag, das interne von externen Track-Updates unterscheidet.
