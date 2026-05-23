@@ -13,6 +13,8 @@
   <img src="https://img.shields.io/badge/built%20with-Electron%20%7C%20React%20%7C%20TypeScript-blueviolet?style=flat-square" alt="Built with Electron" />
 </p>
 
+> Hinweis fuer Entwickler und KI-Agenten: Vor groesseren Architektur-, MCP-, Headless-, Timeline-, AudioEngine-, Export- oder Plugin-Aenderungen bitte zuerst [`docs/SANIERUNGSPLAN_MCP_PLUGIN_SUPPORT.md`](docs/SANIERUNGSPLAN_MCP_PLUGIN_SUPPORT.md) lesen.
+
 ---
 
 ## 📸 Screenshots

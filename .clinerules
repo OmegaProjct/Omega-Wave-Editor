@@ -1,5 +1,10 @@
 # OMEGA CODEX RULES - OMEGA WAVE EDITOR
 
+## 0. Pflichtlekture fuer KI-Agenten
+* Vor groesseren Aenderungen an Architektur, Timeline, AudioEngine, Export, MCP, Headless-Betrieb oder Plugin-Support MUSS jede KI das Dokument `docs/SANIERUNGSPLAN_MCP_PLUGIN_SUPPORT.md` lesen.
+* Das Dokument beschreibt die langfristige Sanierung, die vollstaendige MCP-Bedienbarkeit, Headless-Sessions, Jobs, Recipes, ID3-/Analysefunktionen und Cross-Plattform Plugin-Support fuer VST2/VST3/AU/LV2.
+* Neue Arbeiten duerfen diesen Zielplan nicht versehentlich unterlaufen. Wenn ein Vorschlag vom Plan abweicht, muss die Abweichung ausdruecklich begruendet werden.
+
 Dieses Projekt unterliegt den strengen Richtlinien des **Omega Codex Home**. Jede KI, die in diesem Projekt arbeitet, MUSS diese Regeln ohne Ausnahme einhalten.
 
 ## 1. Kommunikation & Sprache

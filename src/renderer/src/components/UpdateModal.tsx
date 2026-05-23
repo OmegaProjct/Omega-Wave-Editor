@@ -18,12 +18,49 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
   const [progress, setProgress] = useState(0)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
+  // Download statistics state
+  const [downloadedBytes, setDownloadedBytes] = useState<number | null>(null)
+  const [totalBytes, setTotalBytes] = useState<number | null>(null)
+  const [speedBps, setSpeedBps] = useState<number | null>(null)
+  const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null)
+
+  // Formatting helpers
+  const formatSpeed = (bps: number | null) => {
+    if (bps === null || bps <= 0) return '0 KB/s'
+    const kbps = bps / 1024
+    if (kbps < 1024) {
+      return `${kbps.toFixed(1)} KB/s`
+    }
+    const mbps = kbps / 1024
+    return `${mbps.toFixed(2)} MB/s`
+  }
+
+  const formatSize = (bytes: number | null) => {
+    if (bytes === null || bytes <= 0) return '0 MB'
+    const mb = bytes / (1024 * 1024)
+    return `${mb.toFixed(1)} MB`
+  }
+
+  const formatRemaining = (seconds: number | null) => {
+    if (seconds === null || seconds < 0) return '--:--'
+    if (seconds < 60) {
+      return `${Math.round(seconds)}s`
+    }
+    const mins = Math.floor(seconds / 60)
+    const secs = Math.round(seconds % 60)
+    return `${mins}m ${secs}s`
+  }
+
   useEffect(() => {
     // Registriere den IPC-Listener für den Downloadfortschritt
     const unsubscribe = window.api.onDownloadProgress((data: any) => {
       if (data.status === 'downloading') {
         setStep('downloading')
         setProgress(data.percent)
+        if (data.downloadedBytes !== undefined) setDownloadedBytes(data.downloadedBytes)
+        if (data.totalBytes !== undefined) setTotalBytes(data.totalBytes)
+        if (data.speedBps !== undefined) setSpeedBps(data.speedBps)
+        if (data.remainingSeconds !== undefined) setRemainingSeconds(data.remainingSeconds)
       } else if (data.status === 'completed') {
         setStep('ready')
         setProgress(100)
@@ -142,6 +179,30 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
                   <span>Fortschritt</span>
                   <span className="font-mono font-bold text-omega-accent">{progress}%</span>
                 </div>
+
+                {/* Real-time statistics block */}
+                {downloadedBytes !== null && totalBytes !== null && (
+                  <div className="mt-4 bg-[#1b1e22] border border-gray-800/80 rounded-lg p-3.5 flex flex-col gap-2 w-full text-left font-sans text-[10px] text-gray-400">
+                    <div className="flex justify-between">
+                      <span>Datenmenge:</span>
+                      <span className="font-mono text-white font-semibold">
+                        {formatSize(downloadedBytes)} / {formatSize(totalBytes)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between border-t border-gray-800/40 pt-2">
+                      <span>Geschwindigkeit:</span>
+                      <span className="font-mono text-omega-accent font-semibold">
+                        {formatSpeed(speedBps)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between border-t border-gray-800/40 pt-2">
+                      <span>Verbleibende Zeit:</span>
+                      <span className="font-mono text-green-400 font-semibold">
+                        {formatRemaining(remainingSeconds)}
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

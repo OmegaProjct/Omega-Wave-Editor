@@ -1,5 +1,13 @@
 # Mitwirken am Omega Wave Editor
 
+## 0. Strategischer Sanierungsplan
+
+Vor groesseren Aenderungen an Architektur, Timeline, AudioEngine, Export, MCP, Headless-Betrieb oder Plugin-Support muss der strategische Plan gelesen werden:
+
+- [`docs/SANIERUNGSPLAN_MCP_PLUGIN_SUPPORT.md`](docs/SANIERUNGSPLAN_MCP_PLUGIN_SUPPORT.md)
+
+Dieser Plan ist die verbindliche Orientierung fuer die geplante vollstaendige MCP-Bedienbarkeit, Headless-Sessions, Jobs, Recipes, ID3-/Analysefunktionen und Cross-Plattform Plugin-Support fuer VST2/VST3/AU/LV2.
+
 Vielen Dank, dass du dich an der Entwicklung des Omega Wave Editors beteiligen möchtest! Dieses Dokument enthält alle Richtlinien und Checklisten, die dir helfen, deinen Code sauber, stabil und im Einklang mit dem Gesamtprojekt zu halten.
 
 ## 1. Unsere Entwicklungs-Prinzipien
