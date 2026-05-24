@@ -62,9 +62,9 @@ A dedicated tool for restoring and enhancing low-quality or noisy recordings:
 * **Stereo FX**: Enhance stereo width, adjust pan balance, and create mono downmixes.
 * **Preset Export**: Save cleaning configurations as `.owepreset` files.
 
-### 4. VST Plugin Bridge (Windows)
-* **Plugin Scanner**: Automatically scans default Windows paths (`C:\Program Files\VSTPlugins`, `C:\Program Files\Common Files\VST3`, etc.) for installed VST2 and VST3 effects.
-* **Native UI Windowing**: Opens the original VST graphical interface in a separate window directly from the wave editor.
+### 4. Audio Plugin Scanner (Cross-Platform)
+* **Plugin Scanner**: Automatically scans default installation paths on Windows, macOS, and Linux for VST2, VST3, AU, and LV2 audio plugins.
+* **Bridge Prototyping**: Native GUI windowing and audio routing (hosting) are not yet implemented in this prototype.
 
 ### 5. Recording, Import & Export
 * **Built-in Recorder**: Record audio directly from your default mic or audio interface and insert it instantly into the timeline.
@@ -83,7 +83,7 @@ graph TD
     B -->|User Interaction| C[Timeline & Components]
     B -->|Web Audio API| D[Echtzeit DSP Engine]
     A -->|FFmpeg / FFprobe| E[Audio-Extraktion & Mixdown]
-    A -->|System APIs| F[VST Plugin Bridge & File I/O]
+    A -->|System APIs| F[Audio Plugin Scanner & File I/O]
     A -->|GitHub API| G[Auto-Updater]
 ```
 
@@ -186,9 +186,9 @@ Ein dediziertes Werkzeug zur Restaurierung und Verbesserung problematischer Aufn
 * **Stereo FX**: Erweiterung der Stereobreite, Balance-Regler und Mono-Downmix.
 * **Profil-Export**: Speichern von Cleaning-Profilen als `.owepreset`.
 
-### 4. VST-Plugin-Bridge (Windows)
-* **Plugin-Scanner**: Sucht automatisch in den Standardpfaden (`C:\Program Files\VSTPlugins`, `C:\Program Files\Common Files\VST3`, etc.) nach installierten VST2- und VST3-Effekten.
-* **Natives UI-Windowing**: Öffnet das Original-Bedienfeld Ihrer Lieblings-Plugins direkt aus dem Wave Editor heraus.
+### 4. Audio-Plugin-Scanner (Cross-Platform)
+* **Plugin-Scanner**: Sucht automatisch in den Standardpfaden auf Windows, macOS und Linux nach installierten VST2-, VST3-, AU- und LV2-Audio-Plugins.
+* **Bridge-Prototyp**: Natives UI-Windowing und Audio-Routing (Hosting) sind in diesem Prototyp noch nicht implementiert.
 
 ### 5. Aufnahme, Import & Export
 * **Integrierter Rekorder**: Audioaufnahmen direkt über Ihr Standard-Mikrofon oder -Interface aufnehmen und sofort in die Timeline einfügen.
