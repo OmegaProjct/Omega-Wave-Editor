@@ -1,20 +1,30 @@
 import React, { useState, useEffect } from 'react'
+import { AudioEngine } from '../lib/AudioEngine'
+import {
+  DEFAULT_KEYBOARD_SHORTCUTS,
+  SHORTCUT_DEFINITIONS,
+  ShortcutAction,
+  eventToShortcut,
+  formatShortcut,
+  normalizeKeyboardShortcuts
+} from '../lib/keyboardShortcuts'
 
 type Tab = 'Wiedergabe' | 'Ordner' | 'Import/Audio' | 'System' | 'Tastaturkürzel' | 'Projekteinstellungen'
 
-export function SettingsModal({ onClose, initialTab = 'Ordner', onTriggerUpdate }: { onClose: () => void; initialTab?: Tab; onTriggerUpdate?: (info: any) => void }) {
+export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', onTriggerUpdate }: { onClose: () => void; initialTab?: Tab; onTriggerUpdate?: (info: any) => void }) {
   const [activeTab, setActiveTab] = useState<Tab>(initialTab)
   const [settings, setSettings] = useState<any>({
     defaultExplorerPath: '',
-    audioDriver: 'Wave-Treiber',
     autoScroll: 'Schnell',
     spacebarStops: false,
     autoSave: true,
     autoSaveInterval: 10,
     sampleRate: 48000,
     tracksCount: 32,
-    maxUndoSteps: 50
+    maxUndoSteps: 50,
+    keyboardShortcuts: DEFAULT_KEYBOARD_SHORTCUTS
   })
+  const [capturingShortcut, setCapturingShortcut] = useState<ShortcutAction | null>(null)
 
   const [checkingUpdates, setCheckingUpdates] = useState(false)
   const [updateStatus, setUpdateStatus] = useState<string | null>(null)
@@ -47,11 +57,13 @@ export function SettingsModal({ onClose, initialTab = 'Ordner', onTriggerUpdate 
   useEffect(() => {
     window.api.getSettings().then(s => {
       setSettings((prev: any) => {
-        const merged = { ...prev, ...s }
+        const merged = {
+          ...prev,
+          ...s,
+          keyboardShortcuts: normalizeKeyboardShortcuts(s?.keyboardShortcuts)
+        }
         if (merged.activeDeviceId && merged.activeDeviceId !== 'default') {
-          import('../lib/AudioEngine').then(({ AudioEngine }) => {
-            AudioEngine.getInstance().setOutputDevice(merged.activeDeviceId)
-          })
+          AudioEngine.getInstance().setOutputDevice(merged.activeDeviceId)
         }
         return merged
       })
@@ -69,23 +81,20 @@ export function SettingsModal({ onClose, initialTab = 'Ordner', onTriggerUpdate 
   }, [])
 
   const handleSave = async () => {
-    await window.api.saveSettings(settings)
-    window.dispatchEvent(new CustomEvent('SETTINGS_UPDATED', { detail: settings }))
+    const settingsToSave = {
+      ...settings,
+      keyboardShortcuts: normalizeKeyboardShortcuts(settings.keyboardShortcuts)
+    }
+    await window.api.saveSettings(settingsToSave)
+    window.dispatchEvent(new CustomEvent('SETTINGS_UPDATED', { detail: settingsToSave }))
     onClose()
   }
 
   const renderWiedergabe = () => (
     <div className="flex gap-4 h-full">
       <div className="flex-1 border border-gray-700 p-4 rounded bg-[#1e2124]">
-        <h3 className="text-center font-semibold mb-4 text-sm">Audiowiedergabe</h3>
+        <h3 className="text-center font-semibold mb-4 text-sm">Audioausgabe</h3>
         <div className="flex flex-col gap-3 text-sm">
-          <div className="flex justify-between items-center">
-            <span className="text-gray-400">Treiberauswahl:</span>
-            <div className="flex gap-4">
-              <label className="flex items-center gap-1 cursor-pointer"><input type="radio" name="driver" checked={settings.audioDriver === 'Wave-Treiber'} onChange={() => setSettings({...settings, audioDriver: 'Wave-Treiber'})} /> Wave-Treiber</label>
-              <label className="flex items-center gap-1 cursor-pointer"><input type="radio" name="driver" checked={settings.audioDriver === 'Direct-Sound'} onChange={() => setSettings({...settings, audioDriver: 'Direct-Sound'})} /> Direct-Sound</label>
-            </div>
-          </div>
           <div className="flex justify-between items-center">
             <span className="text-gray-400">Ausgabegerät:</span>
             <select 
@@ -93,7 +102,6 @@ export function SettingsModal({ onClose, initialTab = 'Ordner', onTriggerUpdate 
               onChange={async (e) => {
                 const deviceId = e.target.value
                 setSettings({ ...settings, activeDeviceId: deviceId })
-                const { AudioEngine } = await import('../lib/AudioEngine')
                 await AudioEngine.getInstance().setOutputDevice(deviceId)
               }}
               className="bg-[#1a1d21] border border-gray-600 rounded px-2 py-1 w-48 outline-none text-xs text-white"
@@ -279,48 +287,81 @@ export function SettingsModal({ onClose, initialTab = 'Ordner', onTriggerUpdate 
   )
 
   const renderTastaturkuerzel = () => {
-    const shortcuts = [
-      { key: 'Leertaste (Space)', action: 'Wiedergabe Starten / Stoppen' },
-      { key: 'Strg + Z', action: 'Aktion rückgängig machen (Undo)' },
-      { key: 'Strg + Y', action: 'Aktion wiederholen (Redo)' },
-      { key: 'Entf / Backspace', action: 'Ausgewählte(n) Clip/Region löschen' },
-      { key: 'Strg + C', action: 'Ausgewählte(n) Clip/Region kopieren' },
-      { key: 'Strg + V', action: 'Kopierte(n) Clip/Region an Playhead einfügen' },
-      { key: 'Strg + X', action: 'Ausgewählte(n) Clip/Region ausschneiden' },
-      { key: 'S', action: 'Solo für die ausgewählte Spur an/aus' },
-      { key: 'M', action: 'Stummschalten (Mute) für ausgewählte Spur' },
-      { key: 'L', action: 'Loop-Wiedergabe ein-/ausschalten' },
-      { key: '+', action: 'Horizontalen Zoom vergrößern' },
-      { key: '-', action: 'Horizontalen Zoom verkleinern' }
-    ]
+    const keyboardShortcuts = normalizeKeyboardShortcuts(settings.keyboardShortcuts)
+    const groupedShortcuts = SHORTCUT_DEFINITIONS.reduce<Record<string, typeof SHORTCUT_DEFINITIONS>>((groups, item) => {
+      groups[item.group] = groups[item.group] || []
+      groups[item.group].push(item)
+      return groups
+    }, {})
+
+    const setShortcut = (id: ShortcutAction, shortcut: string) => {
+      setSettings({
+        ...settings,
+        keyboardShortcuts: {
+          ...keyboardShortcuts,
+          [id]: shortcut
+        }
+      })
+    }
+
+    const handleShortcutKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, id: ShortcutAction) => {
+      if (capturingShortcut !== id) return
+      event.preventDefault()
+      event.stopPropagation()
+
+      if (event.key === 'Escape') {
+        setCapturingShortcut(null)
+        return
+      }
+
+      const shortcut = eventToShortcut(event.nativeEvent)
+      if (!shortcut) return
+
+      setShortcut(id, shortcut)
+      setCapturingShortcut(null)
+    }
 
     return (
       <div className="border border-gray-700 p-4 rounded bg-[#1e2124] h-full flex flex-col overflow-hidden">
-        <h3 className="text-center font-semibold mb-4 text-sm text-gray-300">Tastaturkürzel-Referenz</h3>
-        <div className="flex-1 overflow-y-auto pr-1">
-          <table className="w-full text-xs text-left border-collapse">
-            <thead>
-              <tr className="border-b border-gray-750 text-gray-400 font-bold uppercase tracking-wider">
-                <th className="py-2 w-1/3">Tastenkombination</th>
-                <th className="py-2">Funktion / Aktion</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-800 text-gray-200">
-              {shortcuts.map((s, idx) => (
-                <tr key={idx} className="hover:bg-black/10 transition-colors">
-                  <td className="py-2.5 pr-4 font-mono font-bold text-omega-accent">
-                    <span className="bg-[#1a1d21] px-2 py-0.5 border border-gray-700 rounded-sm">
-                      {s.key}
-                    </span>
-                  </td>
-                  <td className="py-2.5 text-gray-300">{s.action}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="flex items-center justify-between mb-3 gap-3">
+          <h3 className="font-semibold text-sm text-gray-300">Tastaturkürzel</h3>
+          <button
+            className="px-3 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded"
+            onClick={() => setSettings({ ...settings, keyboardShortcuts: DEFAULT_KEYBOARD_SHORTCUTS })}
+          >
+            Standard wiederherstellen
+          </button>
         </div>
-        <div className="mt-3 text-[10px] text-gray-500 text-center leading-relaxed">
-          Diese Tastaturkürzel sind standardmäßig aktiv und erleichtern das Arbeiten im Editor.
+        <div className="flex-1 overflow-y-auto pr-1 space-y-4">
+          {Object.entries(groupedShortcuts).map(([group, items]) => (
+            <div key={group}>
+              <div className="text-[10px] uppercase tracking-wide text-gray-500 font-bold mb-1.5">{group}</div>
+              <div className="divide-y divide-gray-800 border border-gray-800 rounded overflow-hidden">
+                {items.map(item => (
+                  <div key={item.id} className="grid grid-cols-[1fr_190px_70px] items-center gap-2 px-3 py-2 bg-[#1a1d21]">
+                    <span className="text-xs text-gray-300 truncate">{item.label}</span>
+                    <button
+                      className={`h-8 px-2 rounded border text-xs font-mono transition-colors ${
+                        capturingShortcut === item.id
+                          ? 'border-omega-accent bg-omega-accent/15 text-white'
+                          : 'border-gray-700 bg-[#101215] text-omega-accent hover:border-gray-500'
+                      }`}
+                      onClick={() => setCapturingShortcut(item.id)}
+                      onKeyDown={(event) => handleShortcutKeyDown(event, item.id)}
+                    >
+                      {capturingShortcut === item.id ? 'Taste drücken...' : formatShortcut(keyboardShortcuts[item.id])}
+                    </button>
+                    <button
+                      className="h-8 px-2 rounded bg-gray-700 hover:bg-gray-600 text-[11px] text-gray-200"
+                      onClick={() => setShortcut(item.id, DEFAULT_KEYBOARD_SHORTCUTS[item.id])}
+                    >
+                      Reset
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     )
@@ -357,7 +398,7 @@ export function SettingsModal({ onClose, initialTab = 'Ordner', onTriggerUpdate 
   const tabs: Tab[] = ['Projekteinstellungen', 'Wiedergabe', 'Ordner', 'Import/Audio', 'System', 'Tastaturkürzel']
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[2000]">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[2000]" data-settings-modal="true">
       <div className="bg-[#282b30] border border-gray-700 w-[750px] h-[550px] rounded shadow-2xl flex flex-col">
         <div className="p-3 border-b border-gray-700 font-semibold flex justify-between items-center bg-[#1e2124] rounded-t">
           <span>Programmeinstellungen</span>

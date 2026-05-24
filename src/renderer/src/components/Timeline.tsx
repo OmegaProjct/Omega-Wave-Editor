@@ -8,6 +8,13 @@ import { ObjectPropertiesModal } from './ObjectPropertiesModal'
 import { AudioRecordingModal } from './AudioRecordingModal'
 import { AudioEngine } from '../lib/AudioEngine'
 import { ProjectManager } from '../lib/ProjectManager'
+import * as projectCore from '../../../common/projectCore'
+import {
+  DEFAULT_KEYBOARD_SHORTCUTS,
+  KeyboardShortcuts,
+  matchesShortcut,
+  normalizeKeyboardShortcuts
+} from '../lib/keyboardShortcuts'
 
 export type RegionEffects = {
   eqGains?: number[]
@@ -77,14 +84,16 @@ export function Timeline({
   externalAction,
   initialTracks,
   selectedRegionIds = new Set(),
-  onSelectedRegionIdsChange
+  onSelectedRegionIdsChange,
+  keyboardShortcuts = DEFAULT_KEYBOARD_SHORTCUTS
 }: { 
   onTracksChange?: (tracks: Track[]) => void, 
   onOpenExport?: () => void,
   externalAction?: { type: string; payload?: any },
   initialTracks?: Track[],
   selectedRegionIds?: Set<string>,
-  onSelectedRegionIdsChange?: (ids: Set<string>) => void
+  onSelectedRegionIdsChange?: (ids: Set<string>) => void,
+  keyboardShortcuts?: KeyboardShortcuts
 }) {
   const engine = AudioEngine.getInstance()
   const [zoomLevel, setZoomLevel] = useState(1)
@@ -102,6 +111,7 @@ export function Timeline({
   const [sampleRate, setSampleRate] = useState<number>(48000)
   const [autoScroll, setAutoScroll] = useState<'Aus' | 'Langsam' | 'Schnell'>('Schnell')
   const [spacebarStops, setSpacebarStops] = useState<boolean>(false)
+  const [activeShortcuts, setActiveShortcuts] = useState<KeyboardShortcuts>(normalizeKeyboardShortcuts(keyboardShortcuts))
   const playbackStartPosRef = useRef<number>(0)
 
   const [playheadPos, setPlayheadPos] = useState<number>(0)
@@ -155,6 +165,10 @@ export function Timeline({
   const [perfStats, setPerfStats] = useState<{ cpuUsage: number; processRamBytes: number; systemRamPct: number }>({ cpuUsage: 0, processRamBytes: 0, systemRamPct: 0 });
   const [globalProgress, setGlobalProgress] = useState<number | null>(null);
   const [globalProgressLabel, setGlobalProgressLabel] = useState<string>('');
+
+  useEffect(() => {
+    setActiveShortcuts(normalizeKeyboardShortcuts(keyboardShortcuts))
+  }, [keyboardShortcuts])
 
   useEffect(() => {
     let active = true;
@@ -692,94 +706,107 @@ export function Timeline({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return
+      const target = e.target as HTMLElement
+      if (document.querySelector('[data-settings-modal="true"]')) return
+      if (
+        ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(target.tagName) ||
+        target.isContentEditable
+      ) return
 
-      if (e.altKey && (e.key === 'n' || e.key === 'N')) {
+      if (matchesShortcut(e, activeShortcuts.normalizePeak)) {
         if (selectedRegionId) {
           e.preventDefault();
           normalizePeak(selectedRegionId);
         }
-      } else if (e.altKey && (e.key === 'k' || e.key === 'K')) {
+      } else if (matchesShortcut(e, activeShortcuts.toggleAutomation)) {
         e.preventDefault();
         setShowAutomation(s => !s);
-      } else if (e.ctrlKey && e.altKey && e.key === '+') {
+      } else if (matchesShortcut(e, activeShortcuts.resetEffects)) {
         if (selectedRegionId) {
           e.preventDefault();
           resetEffects(selectedRegionId);
         }
-      } else if (e.ctrlKey && (e.key === '+' || e.key === '=')) {
+      } else if (matchesShortcut(e, activeShortcuts.zoomIn)) {
         e.preventDefault();
         if (selectedRegionId) {
           loadEffectsPreset(selectedRegionId);
         } else {
           setZoomLevel(z => Math.min(z + 0.2, 20));
         }
-      } else if (e.shiftKey && e.key === '+') {
+      } else if (matchesShortcut(e, activeShortcuts.saveEffectsPreset)) {
         if (selectedRegionId) {
           e.preventDefault();
           saveEffectsPreset(selectedRegionId);
         }
-      } else if (e.shiftKey && e.key === '-') {
+      } else if (matchesShortcut(e, activeShortcuts.pasteEffects)) {
         if (selectedRegionId) {
           e.preventDefault();
           pasteEffects(selectedRegionId);
         }
-      } else if (e.ctrlKey && e.key === '-') {
+      } else if (matchesShortcut(e, activeShortcuts.zoomOut)) {
         e.preventDefault();
         setZoomLevel(z => Math.max(z - 0.2, 0.05));
-      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+      } else if (matchesShortcut(e, activeShortcuts.deleteSelection) || matchesShortcut(e, activeShortcuts.deleteSelectionAlt)) {
         if (selectedRegionIds.size > 0) {
+          e.preventDefault();
           deleteSelectedRegions();
         }
-      } else if (e.ctrlKey && e.key === 'c') {
+      } else if (matchesShortcut(e, activeShortcuts.copy)) {
+        e.preventDefault();
         handleCopy();
-      } else if (e.ctrlKey && e.key === 'v') {
+      } else if (matchesShortcut(e, activeShortcuts.paste)) {
+        e.preventDefault();
         handlePaste();
-      } else if (e.ctrlKey && e.key === 'x') {
+      } else if (matchesShortcut(e, activeShortcuts.cut)) {
+        e.preventDefault();
         handleCopy();
         if (selectedRegionIds.size > 0) {
           deleteSelectedRegions();
         }
-      } else if (e.ctrlKey && e.key === 'y') {
+      } else if (matchesShortcut(e, activeShortcuts.redo)) {
+        e.preventDefault();
         const nextState = HistoryManager.redo(tracks);
         if (nextState) {
            setTracks(nextState);
            if (onTracksChange) onTracksChange(nextState);
         }
-      } else if (e.ctrlKey && e.key === 'z') {
+      } else if (matchesShortcut(e, activeShortcuts.undo)) {
+        e.preventDefault();
         const prevState = HistoryManager.undo(tracks);
         if (prevState) {
            setTracks(prevState);
            if (onTracksChange) onTracksChange(prevState);
         }
-      } else if (e.key === 't' || e.key === 'T') {
+      } else if (matchesShortcut(e, activeShortcuts.splitAtPlayhead)) {
         e.preventDefault();
         const curPlayhead = playheadPosRef.current;
         const hasSelection = selectedRegionIds.size > 0;
-        const newTracks = tracks.map(t => {
-          let updatedRegions = [...t.regions];
-          let changed = false;
+        
+        let tempProject: any = {
+          format: 'OWEP',
+          version: '1.0.0',
+          tracks: tracks,
+          settings: { zoomLevel, sampleRate, playheadPos: curPlayhead },
+          metadata: { createdAt: Date.now(), updatedAt: Date.now(), author: '' }
+        };
+
+        let changed = false;
+        tracks.forEach(t => {
           t.regions.forEach(region => {
-            const isTarget = hasSelection ? selectedRegionIds.has(region.id) : (curPlayhead > region.startPos && curPlayhead < region.startPos + region.duration);
+            const isTarget = hasSelection
+              ? selectedRegionIds.has(region.id)
+              : (curPlayhead > region.startPos && curPlayhead < region.startPos + region.duration);
             if (isTarget && curPlayhead > region.startPos && curPlayhead < region.startPos + region.duration) {
+              tempProject = projectCore.splitClip(tempProject, t.id, region.id, curPlayhead);
               changed = true;
-              const splitPoint = curPlayhead;
-              const newRegion1 = { ...region, duration: splitPoint - region.startPos };
-              const newRegion2 = { 
-                ...region, 
-                id: Math.random().toString(36).substr(2, 9), 
-                startPos: splitPoint, 
-                duration: region.startPos + region.duration - splitPoint,
-                sourceOffset: (region.sourceOffset || 0) + (splitPoint - region.startPos)
-              };
-              updatedRegions = updatedRegions.filter(r => r.id !== region.id);
-              updatedRegions.push(newRegion1, newRegion2);
             }
           });
-          return changed ? { ...t, regions: updatedRegions } : t;
         });
-        updateTracksWithHistory(newTracks);
-      } else if ((e.key === 'z' || e.key === 'Z' || e.key === 'c' || e.key === 'C') && !e.ctrlKey && !e.metaKey) {
+
+        if (changed) {
+          updateTracksWithHistory(tempProject.tracks as any);
+        }
+      } else if (matchesShortcut(e, activeShortcuts.trimStart) || matchesShortcut(e, activeShortcuts.trimStartAlt)) {
         e.preventDefault();
         const curPlayhead = playheadPosRef.current;
         const hasSelection = selectedRegionIds.size > 0;
@@ -802,7 +829,7 @@ export function Timeline({
           return changed ? { ...t, regions: updatedRegions } : t;
         });
         updateTracksWithHistory(newTracks);
-      } else if (e.key === 'u' || e.key === 'U') {
+      } else if (matchesShortcut(e, activeShortcuts.trimEnd)) {
         e.preventDefault();
         const curPlayhead = playheadPosRef.current;
         const hasSelection = selectedRegionIds.size > 0;
@@ -827,7 +854,7 @@ export function Timeline({
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedRegionId, selectedRegionIds, deleteSelectedRegions, togglePlayback, tracks, handleCopy, handlePaste]);
+  }, [selectedRegionId, selectedRegionIds, deleteSelectedRegions, togglePlayback, tracks, handleCopy, handlePaste, activeShortcuts]);
 
   // Playhead and VU update loop
   const [vuLevel, setVuLevel] = useState(0);
@@ -893,6 +920,7 @@ export function Timeline({
         if (s.sampleRate !== undefined) setSampleRate(s.sampleRate);
         if (s.autoScroll !== undefined) setAutoScroll(s.autoScroll);
         if (s.spacebarStops !== undefined) setSpacebarStops(s.spacebarStops);
+        if (s.keyboardShortcuts !== undefined) setActiveShortcuts(normalizeKeyboardShortcuts(s.keyboardShortcuts));
         if (!initialTracks && s.tracksCount !== undefined) {
           const count = s.tracksCount;
           setTracks(prev => {
@@ -943,6 +971,9 @@ export function Timeline({
       }
       if (newSettings.spacebarStops !== undefined) {
         setSpacebarStops(newSettings.spacebarStops);
+      }
+      if (newSettings.keyboardShortcuts !== undefined) {
+        setActiveShortcuts(normalizeKeyboardShortcuts(newSettings.keyboardShortcuts));
       }
 
       if (newSettings.tracksCount !== undefined) {
@@ -1490,19 +1521,17 @@ export function Timeline({
       const region = tracks.flatMap(t => t.regions).find(r => r.id === regionId);
       if (!region) return;
       const splitTime = (clickX / pixelsPerSecond) + region.startPos;
-      const newTracks = tracks.map(t => {
-        if (!t.regions.some(r => r.id === regionId)) return t;
-        const newRegion1 = { ...region, duration: splitTime - region.startPos };
-        const newRegion2 = { 
-          ...region, 
-          id: Math.random().toString(36).substr(2, 9), 
-          startPos: splitTime, 
-          duration: region.startPos + region.duration - splitTime,
-          sourceOffset: (region.sourceOffset || 0) + (splitTime - region.startPos)
-        };
-        return { ...t, regions: [...t.regions.filter(r => r.id !== regionId), newRegion1, newRegion2] };
-      });
-      updateTracksWithHistory(newTracks);
+      
+      const tempProject: any = {
+        format: 'OWEP',
+        version: '1.0.0',
+        tracks: tracks,
+        settings: { zoomLevel, sampleRate, playheadPos },
+        metadata: { createdAt: Date.now(), updatedAt: Date.now(), author: '' }
+      };
+      
+      const nextProject = projectCore.splitClip(tempProject, trackId, regionId, splitTime);
+      updateTracksWithHistory(nextProject.tracks as any);
     } else if (!e.ctrlKey) {
       // Plain click without Ctrl: select only this region (Ctrl+Click handled in MouseDown)
       if (!isLassoActiveRef.current) {

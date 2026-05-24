@@ -2,6 +2,14 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [Unreleased]
+### Added
+- **Bearbeitbare Tastaturkürzel**: Programmeinstellungen enthalten jetzt editierbare Shortcuts, die von Menü und Timeline gemeinsam genutzt werden.
+
+### Changed
+- **Programmeinstellungen**: Das Einstellungsfenster startet standardmäßig in den Projekteinstellungen.
+- **Wiedergabe-Einstellungen**: Die nicht funktional angebundene Auswahl zwischen Wave-Treiber und Direct-Sound wurde entfernt; die tatsächliche Ausgabe erfolgt weiterhin über die Geräteauswahl.
+
 ## [0.4.1] - 2026-05-23
 ### Added
 - **Echtzeit-Download-Statistiken**: Anzeige von Downloadgeschwindigkeit, geladener Datenmenge und verbleibender Restlaufzeit im Update-Dialog.

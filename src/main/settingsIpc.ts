@@ -47,7 +47,6 @@ export function setupSettingsIpc() {
     recPath: path.join(documentsDir, 'Recordings'),
     dlPath: path.join(documentsDir, 'Downloads'),
     defaultExplorerPath: documentsDir,
-    audioDriver: 'Wave-Treiber',
     autoScroll: 'Schnell',
     spacebarStops: false,
     autoSave: true,
@@ -56,7 +55,34 @@ export function setupSettingsIpc() {
     tracksCount: 32,
     maxUndoSteps: 50,
     showStartScreen: true,
-    recentProjects: []
+    recentProjects: [],
+    keyboardShortcuts: {
+      newProject: 'Ctrl+N',
+      openProject: 'Ctrl+O',
+      saveProject: 'Ctrl+S',
+      saveProjectAs: 'Ctrl+Shift+S',
+      exportAudio: 'Ctrl+E',
+      openSettings: 'Ctrl+P',
+      playPause: 'Space',
+      undo: 'Ctrl+Z',
+      redo: 'Ctrl+Y',
+      cut: 'Ctrl+X',
+      copy: 'Ctrl+C',
+      paste: 'Ctrl+V',
+      deleteSelection: 'Delete',
+      deleteSelectionAlt: 'Backspace',
+      splitAtPlayhead: 'T',
+      trimStart: 'Z',
+      trimStartAlt: 'C',
+      trimEnd: 'U',
+      zoomIn: 'Ctrl+Plus',
+      zoomOut: 'Ctrl+Minus',
+      normalizePeak: 'Alt+N',
+      toggleAutomation: 'Alt+K',
+      resetEffects: 'Ctrl+Alt+Plus',
+      saveEffectsPreset: 'Shift+Plus',
+      pasteEffects: 'Shift+Minus'
+    }
   }
 
   ipcMain.handle('get-settings', () => {
@@ -142,4 +168,4 @@ export function setupSettingsIpc() {
       return { cpuUsage: 0, processRamBytes: 0, systemRamPct: 0 };
     }
   });
-}
+}
