@@ -2,11 +2,17 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
-## [Unreleased]
+## [0.5.0] - 2026-05-24
 ### Added
-- **Bearbeitbare Tastaturkürzel**: Programmeinstellungen enthalten jetzt editierbare Shortcuts, die von Menü und Timeline gemeinsam genutzt werden.
+- **Verlustfreie Projektmodelle**: Regionen und Spuren speichern nun alle Timeline-Attribute (`color`, `groupId`, `fileDuration`, Fades, Gain und Effekte) verlustfrei; unbenutzte oder herstellerspezifische Zusatzfelder werden beim Importieren, Speichern und Validieren (`validateAndMigrateProject`) vollständig erhalten.
+- **Sichere Befehlsarchitektur (Command Layer)**: Nicht unterstützte oder unimplemented Stubs (wie `export.render` oder `metadata.write`) brechen nun kontrolliert mit klaren Ausnahmen ab, anstatt stillschweigend ignoriert zu werden.
+- **Gehärteter MCP-Server**: Der Headless Model Context Protocol Server validiert nun dynamisch Dateipfade sowie Spuren-IDs und passt seine Versionskennung automatisch an die `package.json` an.
+- **Modulare IPC-Brücke**: Die IPC-Handler wurden in übersichtliche Submodule (`audioIpc`, `pluginIpc`, `projectIpc`, `systemIpc`) aufgeteilt, um Registrierungskonflikte zu vermeiden.
+- **Asynchroner Plugin-Scanner**: Der "Interface öffnen"-Button im EffectsPanel wertet nun das Rückgabeobjekt der Plugin-Bridge asynchron aus und zeigt dem Benutzer im Fehlerfall eine verständliche `window.alert`-Meldung an.
+- **Ehrliche Plugin-UI**: Aktualisierung aller VST-Dokumentationspfade und ehrlicher Hinweis in der UI, dass Plugin-Hosting in diesem Prototyp noch nicht implementiert ist.
 
 ### Changed
+- **Bearbeitbare Tastaturkürzel**: Programmeinstellungen enthalten jetzt editierbare Shortcuts, die von Menü und Timeline gemeinsam genutzt werden.
 - **Programmeinstellungen**: Das Einstellungsfenster startet standardmäßig in den Projekteinstellungen.
 - **Wiedergabe-Einstellungen**: Die nicht funktional angebundene Auswahl zwischen Wave-Treiber und Direct-Sound wurde entfernt; die tatsächliche Ausgabe erfolgt weiterhin über die Geräteauswahl.
 
