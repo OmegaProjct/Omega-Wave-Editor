@@ -2,6 +2,11 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.5.1] - 2026-05-24
+### Fixed
+- **Projekt-Wiedergabe**: Beim Laden von `.owep`-Projekten werden referenzierte Audiodateien jetzt wieder in die AudioEngine vorgeladen, sodass importierte Regionen nach dem Oeffnen hoerbar abgespielt werden.
+- **Echo-Default**: Der neutrale Effektzustand setzt Delay-Feedback jetzt konsequent auf `0`, damit Clips beim Zuruecksetzen, Preset-Laden oder Einfuegen von Effekten kein ungewolltes Echo erhalten.
+
 ## [0.5.0] - 2026-05-24
 ### Added
 - **Verlustfreie Projektmodelle**: Regionen und Spuren speichern nun alle Timeline-Attribute (`color`, `groupId`, `fileDuration`, Fades, Gain und Effekte) verlustfrei; unbenutzte oder herstellerspezifische Zusatzfelder werden beim Importieren, Speichern und Validieren (`validateAndMigrateProject`) vollständig erhalten.

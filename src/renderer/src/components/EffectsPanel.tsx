@@ -165,7 +165,7 @@ export function EffectsPanel({
     reverbMix: 0,
     reverbTime: 1.5,
     delayTime: 300,
-    delayFeedback: 40,
+    delayFeedback: 0,
     pitchRate: 1.0,
     keepPitch: false
   };
@@ -275,7 +275,7 @@ export function EffectsPanel({
             engine.updateActiveRegionCompressor(regionId, presetEffects.compThreshold ?? -20, presetEffects.compRatio ?? 4);
             engine.updateActiveRegionDeEsser(regionId, presetEffects.deEsserActive ?? false, presetEffects.deEsserReduction ?? 6);
             engine.updateActiveRegionReverb(regionId, presetEffects.reverbMix ?? 0, presetEffects.reverbTime ?? 1.5);
-            engine.updateActiveRegionDelay(regionId, presetEffects.delayTime ?? 300, presetEffects.delayFeedback ?? 40);
+            engine.updateActiveRegionDelay(regionId, presetEffects.delayTime ?? 300, presetEffects.delayFeedback ?? 0);
             engine.updateActiveRegionPitch(regionId, presetEffects.pitchRate ?? 1.0, presetEffects.keepPitch ?? false);
             
             setStatusMessage('✓ Preset erfolgreich geladen');
@@ -352,7 +352,7 @@ export function EffectsPanel({
       engine.updateActiveRegionCompressor(regionId, clipboard.compThreshold ?? -20, clipboard.compRatio ?? 4);
       engine.updateActiveRegionDeEsser(regionId, clipboard.deEsserActive ?? false, clipboard.deEsserReduction ?? 6);
       engine.updateActiveRegionReverb(regionId, clipboard.reverbMix ?? 0, clipboard.reverbTime ?? 1.5);
-      engine.updateActiveRegionDelay(regionId, clipboard.delayTime ?? 300, clipboard.delayFeedback ?? 40);
+      engine.updateActiveRegionDelay(regionId, clipboard.delayTime ?? 300, clipboard.delayFeedback ?? 0);
       engine.updateActiveRegionPitch(regionId, clipboard.pitchRate ?? 1.0, clipboard.keepPitch ?? false);
       
       setStatusMessage('✓ Effekte eingefügt');

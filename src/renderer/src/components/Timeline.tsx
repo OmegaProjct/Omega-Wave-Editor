@@ -650,8 +650,24 @@ export function Timeline({
         }
         const result = await ProjectManager.loadProject(filePath);
         if (result.success) {
-          setTracks(result.data.tracks);
-          if (onTracksChange) onTracksChange(result.data.tracks);
+          const loadedTracks = await Promise.all(result.data.tracks.map(async (track: Track) => {
+            const regions = await Promise.all(track.regions.map(async (region: Region) => {
+              try {
+                await engine.loadFile(region.file.path);
+                if (!region.fileDuration) {
+                  const info = await window.api.getMediaInfo(region.file.path);
+                  return { ...region, fileDuration: info?.duration || region.duration };
+                }
+              } catch (err) {
+                console.error('Fehler beim Vorladen der Audiodatei aus dem Projekt:', region.file.path, err);
+              }
+              return region;
+            }));
+            return { ...track, regions };
+          }));
+
+          setTracks(loadedTracks);
+          if (onTracksChange) onTracksChange(loadedTracks);
           setZoomLevel(result.data.settings.zoomLevel || 1);
           setPlayheadPos(result.data.settings.playheadPos || 0);
           setSampleRate(result.data.settings.sampleRate || 48000);
