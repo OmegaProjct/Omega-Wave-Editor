@@ -1,16 +1,20 @@
 import React, { useState, useRef, useEffect } from 'react'
+import { KeyboardShortcuts, formatShortcut, normalizeKeyboardShortcuts } from '../lib/keyboardShortcuts'
 
 export function MenuBar({ 
   onOpenSettings, 
   onOpenExport,
-  onFileAction
+  onFileAction,
+  shortcuts
 }: { 
   onOpenSettings: () => void, 
   onOpenExport: () => void,
-  onFileAction: (type: string, payload?: any) => void
+  onFileAction: (type: string, payload?: any) => void,
+  shortcuts?: KeyboardShortcuts
 }) {
   const [openMenu, setOpenMenu] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  const activeShortcuts = normalizeKeyboardShortcuts(shortcuts)
   
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -138,17 +142,17 @@ export function MenuBar({
         <span className={`mx-1 px-3 py-1 cursor-pointer hover:bg-gray-700 rounded transition-colors ${openMenu === 'file' ? 'bg-gray-700' : ''}`} onClick={() => handleMenuClick('file')}>Datei</span>
         {openMenu === 'file' && (
           <div className="absolute top-full left-0 bg-[#2b2d31] border border-gray-700 shadow-xl py-1 z-[1000] rounded text-omega-text">
-            <MenuItem label="Neues Projekt..." shortcut="Strg+N" action="new_project" />
-            <MenuItem label="Projekt Öffnen..." shortcut="Strg+O" action="open_project" />
+            <MenuItem label="Neues Projekt..." shortcut={formatShortcut(activeShortcuts.newProject)} action="new_project" />
+            <MenuItem label="Projekt Öffnen..." shortcut={formatShortcut(activeShortcuts.openProject)} action="open_project" />
             <MenuItem divider />
-            <MenuItem label="Projekt speichern" shortcut="Strg+S" action="save_project" />
-            <MenuItem label="Projekt speichern unter..." shortcut="Strg+Umschalt+S" action="save_project_as" />
+            <MenuItem label="Projekt speichern" shortcut={formatShortcut(activeShortcuts.saveProject)} action="save_project" />
+            <MenuItem label="Projekt speichern unter..." shortcut={formatShortcut(activeShortcuts.saveProjectAs)} action="save_project_as" />
             <MenuItem divider />
-            <MenuItem label="Audio exportieren (Mixdown)..." shortcut="Strg+E" action="export" />
+            <MenuItem label="Audio exportieren (Mixdown)..." shortcut={formatShortcut(activeShortcuts.exportAudio)} action="export" />
             <MenuItem label="Arrangement exportieren (.owea)..." action="export_arrangement" />
             <MenuItem label="Layer exportieren (.owel)..." action="export_layer" />
             <MenuItem divider />
-            <MenuItem label="Einstellungen" shortcut="Strg+P" action="settings" />
+            <MenuItem label="Einstellungen" shortcut={formatShortcut(activeShortcuts.openSettings)} action="settings" />
             <MenuItem divider />
             <MenuItem label="Beenden" shortcut="Alt+F4" action="quit" />
           </div>
@@ -160,13 +164,13 @@ export function MenuBar({
         <span className={`mx-1 px-3 py-1 cursor-pointer hover:bg-gray-700 rounded transition-colors ${openMenu === 'edit' ? 'bg-gray-700' : ''}`} onClick={() => handleMenuClick('edit')}>Bearbeiten</span>
         {openMenu === 'edit' && (
           <div className="absolute top-full left-0 bg-[#2b2d31] border border-gray-700 shadow-xl py-1 z-[1000] rounded">
-            <MenuItem label="Rückgängig" shortcut="Strg+Z" action="undo" />
-            <MenuItem label="Wiederherstellen" shortcut="Strg+Y" action="redo" />
+            <MenuItem label="Rückgängig" shortcut={formatShortcut(activeShortcuts.undo)} action="undo" />
+            <MenuItem label="Wiederherstellen" shortcut={formatShortcut(activeShortcuts.redo)} action="redo" />
             <MenuItem divider />
-            <MenuItem label="Objekte ausschneiden" shortcut="Strg+X" action="cut" />
-            <MenuItem label="Objekte kopieren" shortcut="Strg+C" action="copy" />
-            <MenuItem label="Objekte einfügen" shortcut="Strg+V" action="paste" />
-            <MenuItem label="Objekte löschen" shortcut="Entf" action="delete" />
+            <MenuItem label="Objekte ausschneiden" shortcut={formatShortcut(activeShortcuts.cut)} action="cut" />
+            <MenuItem label="Objekte kopieren" shortcut={formatShortcut(activeShortcuts.copy)} action="copy" />
+            <MenuItem label="Objekte einfügen" shortcut={formatShortcut(activeShortcuts.paste)} action="paste" />
+            <MenuItem label="Objekte löschen" shortcut={formatShortcut(activeShortcuts.deleteSelection)} action="delete" />
           </div>
         )}
       </div>

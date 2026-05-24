@@ -13,15 +13,23 @@ import { SaveConfirmationModal } from './components/SaveConfirmationModal'
 import { UpdateModal } from './components/UpdateModal'
 import { useHistory } from './lib/useHistory'
 import { ProjectManager } from './lib/ProjectManager'
+import { AudioEngine } from './lib/AudioEngine'
+import {
+  DEFAULT_KEYBOARD_SHORTCUTS,
+  KeyboardShortcuts,
+  matchesShortcut,
+  normalizeKeyboardShortcuts
+} from './lib/keyboardShortcuts'
 import appIcon from './assets/app_icon.png'
 import { Loader2 } from 'lucide-react'
 
 function App(): JSX.Element {
   const [showSettings, setShowSettings] = useState(false)
-  const [settingsTab, setSettingsTab] = useState<'Wiedergabe' | 'Ordner' | 'Import/Audio' | 'System' | 'Tastaturkürzel' | 'Projekteinstellungen'>('Ordner')
+  const [settingsTab, setSettingsTab] = useState<'Wiedergabe' | 'Ordner' | 'Import/Audio' | 'System' | 'Tastaturkürzel' | 'Projekteinstellungen'>('Projekteinstellungen')
   const [showExport, setShowExport] = useState(false)
   const [showManual, setShowManual] = useState(false)
   const [updateAvailable, setUpdateAvailable] = useState<any | null>(null)
+  const [keyboardShortcuts, setKeyboardShortcuts] = useState<KeyboardShortcuts>(DEFAULT_KEYBOARD_SHORTCUTS)
   
   // Custom Modals & Dashboard States
   const [showStartDashboard, setShowStartDashboard] = useState(false)
@@ -47,7 +55,7 @@ function App(): JSX.Element {
 
   const { state: tracks, push: pushTracks, undo, redo } = useHistory(initialTracks, maxUndoSteps);
 
-  const openSettings = (tab: 'Wiedergabe' | 'Ordner' | 'Import/Audio' | 'System' | 'Tastaturkürzel' | 'Projekteinstellungen' = 'Ordner') => {
+  const openSettings = (tab: 'Wiedergabe' | 'Ordner' | 'Import/Audio' | 'System' | 'Tastaturkürzel' | 'Projekteinstellungen' = 'Projekteinstellungen') => {
     setSettingsTab(tab)
     setShowSettings(true)
   }
@@ -67,7 +75,18 @@ function App(): JSX.Element {
       if (settings.autoSaveInterval) {
         setAutoSaveInterval(settings.autoSaveInterval)
       }
+      setKeyboardShortcuts(normalizeKeyboardShortcuts(settings.keyboardShortcuts))
     }).catch(e => console.error('Fehler beim Laden der Einstellungen:', e))
+  }, [])
+
+  useEffect(() => {
+    const handleSettingsUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent<any>
+      setKeyboardShortcuts(normalizeKeyboardShortcuts(customEvent.detail?.keyboardShortcuts))
+    }
+
+    window.addEventListener('SETTINGS_UPDATED', handleSettingsUpdated as EventListener)
+    return () => window.removeEventListener('SETTINGS_UPDATED', handleSettingsUpdated as EventListener)
   }, [])
 
   // Recent Projects updater utility
@@ -335,24 +354,33 @@ function App(): JSX.Element {
         return;
       }
 
-      // 4. Globaler Spacebar Intercept für Wiedergabe/Pause
-      if (e.code === 'Space') {
+      // 4. Globale Tastenkürzel
+      if (matchesShortcut(e, keyboardShortcuts.playPause)) {
         e.preventDefault();
         window.dispatchEvent(new CustomEvent('TIMELINE_ACTION_PLAY'));
         return;
       }
 
-      if (e.ctrlKey && e.key === 'z') {
+      if (matchesShortcut(e, keyboardShortcuts.newProject)) {
+        e.preventDefault();
+        triggerTimelineAction('NEW_PROJECT');
+      } else if (matchesShortcut(e, keyboardShortcuts.openProject)) {
+        e.preventDefault();
+        triggerTimelineAction('LOAD_PROJECT');
+      } else if (matchesShortcut(e, keyboardShortcuts.saveProject) || matchesShortcut(e, keyboardShortcuts.saveProjectAs)) {
+        e.preventDefault();
+        triggerTimelineAction('SAVE_PROJECT');
+      } else if (matchesShortcut(e, keyboardShortcuts.undo)) {
         e.preventDefault();
         triggerTimelineAction('UNDO');
-      } else if (e.ctrlKey && e.key === 'y') {
+      } else if (matchesShortcut(e, keyboardShortcuts.redo)) {
         e.preventDefault();
         triggerTimelineAction('REDO');
-      } else if (e.ctrlKey && (e.key === 'p' || e.key === 'P')) {
+      } else if (matchesShortcut(e, keyboardShortcuts.openSettings)) {
         e.preventDefault();
-        setSettingsTab('Ordner');
+        setSettingsTab('Projekteinstellungen');
         setShowSettings(true);
-      } else if (e.ctrlKey && (e.key === 'e' || e.key === 'E')) {
+      } else if (matchesShortcut(e, keyboardShortcuts.exportAudio)) {
         e.preventDefault();
         window.api.openExportSettings(tracks);
       }
@@ -377,7 +405,7 @@ function App(): JSX.Element {
       window.removeEventListener('dragover', preventDefault);
       window.removeEventListener('drop', preventDefault);
     };
-  }, [undo, redo, showSettings, showExport, showManual, modalConfig, showStartDashboard, showSaveConfirm, activeUpdateInfo, tracks]);
+  }, [undo, redo, showSettings, showExport, showManual, modalConfig, showStartDashboard, showSaveConfirm, activeUpdateInfo, tracks, keyboardShortcuts]);
 
   const triggerTimelineActionRef = useRef<any>(null);
   useEffect(() => {
@@ -435,7 +463,6 @@ function App(): JSX.Element {
           }
         }, 120);
 
-        const { AudioEngine } = await import('./lib/AudioEngine');
         const audioBuffer = await AudioEngine.getInstance().renderOffline(
           { tracks: settings.tracks },
           parsedSampleRate
@@ -495,6 +522,7 @@ function App(): JSX.Element {
               if (s.maxUndoSteps) setMaxUndoSteps(s.maxUndoSteps)
               if (typeof s.autoSave === 'boolean') setAutoSaveEnabled(s.autoSave)
               if (s.autoSaveInterval) setAutoSaveInterval(s.autoSaveInterval)
+              setKeyboardShortcuts(normalizeKeyboardShortcuts(s.keyboardShortcuts))
             })
           }} 
           initialTab={settingsTab} 
@@ -544,7 +572,7 @@ function App(): JSX.Element {
           onClose={() => setShowStartDashboard(false)}
           onOpenSettings={() => {
             setShowStartDashboard(false)
-            openSettings('Ordner')
+            openSettings('Projekteinstellungen')
           }}
         />
       )}
@@ -617,9 +645,10 @@ function App(): JSX.Element {
             )}
         </div>
         <MenuBar 
-          onOpenSettings={() => openSettings('Ordner')} 
+          onOpenSettings={() => openSettings('Projekteinstellungen')} 
           onOpenExport={() => window.api.openExportSettings(tracks)} 
           onFileAction={triggerTimelineAction}
+          shortcuts={keyboardShortcuts}
         />
       </div>
 
@@ -657,6 +686,7 @@ function App(): JSX.Element {
               initialTracks={tracks}
               selectedRegionIds={selectedRegionIds}
               onSelectedRegionIdsChange={setSelectedRegionIds}
+              keyboardShortcuts={keyboardShortcuts}
             />
           </Panel>
         </PanelGroup>

@@ -23,6 +23,13 @@ function findProjectFile(args: string[]): string | null {
   return null
 }
 
+// Headless MCP mode check
+if (process.argv.includes('--mcp')) {
+  import('./mcpServer').then(({ startMcpServer }) => {
+    startMcpServer()
+  })
+} else {
+
 // Implement Single-Instance Lock
 const gotTheLock = app.requestSingleInstanceLock()
 if (!gotTheLock) {
@@ -291,6 +298,7 @@ if (gotTheLock) {
       app.quit()
     }
   })
+}
 }
 
 

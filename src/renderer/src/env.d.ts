@@ -1,7 +1,12 @@
+type VstUiOpenResult = {
+  success: boolean;
+  error?: string;
+};
+
 interface Window {
   api: {
     scanVstPlugins: () => Promise<any[]>;
-    openVstUi: (path: string) => Promise<boolean>;
+    openVstUi: (path: string) => Promise<VstUiOpenResult>;
     readFileBuffer: (path: string) => Promise<any>;
     getHomeDir: () => Promise<string>;
     getSystemPath: (name: string) => Promise<string>;

@@ -687,7 +687,7 @@ export function EffectsPanel({
           ) : activeCategory === 'VST Plugins' ? (
             <div className="flex flex-col gap-4">
               <div className="flex justify-between items-center mb-2 bg-[#1a1d21] p-3 rounded-lg border border-gray-700">
-                <span className="text-xs text-gray-300 font-medium">Installierte VST Instrumente & Effekte</span>
+                <span className="text-xs text-gray-300 font-medium">Installierte Audio-Plugins</span>
                 <button
                   onClick={handleVstScan}
                   className="bg-omega-accent hover:bg-blue-500 text-white px-3 py-1 rounded text-xs transition-colors flex items-center gap-1"
@@ -697,7 +697,7 @@ export function EffectsPanel({
               </div>
               {vstPlugins.length === 0 ? (
                 <div className="text-center p-8 border border-gray-700/80 border-dashed rounded-lg text-gray-500 text-xs bg-black/10">
-                  Klicken Sie auf "Scannen", um VST2/VST3-Plugins auf Ihrem Windows-System zu lokalisieren.
+                  Klicken Sie auf "Scannen", um installierte Audio-Plugins zu lokalisieren. Plugin-Hosting ist in diesem Prototyp noch nicht implementiert.
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-2 max-h-[300px] overflow-y-auto pr-1">
@@ -708,7 +708,16 @@ export function EffectsPanel({
                         <span className="text-[9px] text-gray-500">{vst.type} | Version {vst.version}</span>
                       </div>
                       <button
-                        onClick={() => window.api.openVstUi(vst.path)}
+                        onClick={async () => {
+                          try {
+                            const result = await window.api.openVstUi(vst.path)
+                            if (!result.success) {
+                              window.alert(result.error || 'Plugin Host und Bridge sind in diesem Prototyp noch nicht implementiert.')
+                            }
+                          } catch (err: any) {
+                            window.alert(err?.message || 'Plugin Interface konnte nicht geöffnet werden.')
+                          }
+                        }}
                         className="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-[11px] text-white transition-colors"
                       >
                         Interface öffnen

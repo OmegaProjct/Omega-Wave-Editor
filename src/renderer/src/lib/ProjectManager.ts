@@ -1,65 +1,52 @@
 /**
  * ProjectManager.ts
  * Manages .owep (Project), .owea (Arrangement), and .owel (Layer) lifecycle.
+ * Utilizing unified types and validation core.
  */
 
-export type ProjectData = {
-  format: 'OWEP';
-  version: string;
-  tracks: any[];
-  settings: {
-    zoomLevel: number;
-    sampleRate: number;
-    playheadPos: number;
-  };
-  metadata: {
-    createdAt: number;
-    updatedAt: number;
-    author: string;
-  };
-};
-
-export type ArrangementData = {
-  format: 'OWEA'; // Omega Wave Arrangement
-  version: string;
-  tracks: any[]; // Subset or full set of tracks without global settings
-};
-
-export type LayerData = {
-  format: 'OWEL'; // Omega Wave Layer
-  version: string;
-  track: any; // Single track data
-};
+import { Project, ArrangementData, LayerData } from '../../../common/types'
+import { validateAndMigrateProject } from '../../../common/projectCore'
 
 export class ProjectManager {
-  private static currentPath: string | null = null;
+  private static currentPath: string | null = null
 
   public static async saveProject(path: string, tracks: any[], settings: any) {
-    const data: ProjectData = {
+    const data: Project = {
       format: 'OWEP',
       version: '1.0.0',
       tracks,
       settings,
       metadata: {
-        createdAt: Date.now(), // Simplified for MVP
+        createdAt: Date.now(),
         updatedAt: Date.now(),
         author: 'Omega User'
       }
-    };
-    const result = await window.api.saveProject(path, data);
-    if (result.success) {
-      this.currentPath = path;
     }
-    return result;
+    
+    // Validate project before saving to guarantee file health
+    const validated = validateAndMigrateProject(data)
+    const result = await window.api.saveProject(path, validated)
+    
+    if (result.success) {
+      this.currentPath = path
+    }
+    return result
   }
 
   public static async loadProject(path: string) {
-    const result = await window.api.loadProject(path);
-    if (result.success && result.data.format === 'OWEP') {
-      this.currentPath = path;
-      return result;
+    const result = await window.api.loadProject(path)
+    if (result.success && result.data) {
+      try {
+        // Validate and migrate automatically upon loading
+        const migratedProject = validateAndMigrateProject(result.data)
+        result.data = migratedProject
+        this.currentPath = path
+        return result
+      } catch (err: any) {
+        throw new Error(`Fehler bei der Projekt-Validierung: ${err.message}`)
+      }
     }
-    throw new Error('Invalid project file format');
+    throw new Error('Projekt-Dateiformat ist ungültig.')
   }
 
   /**
@@ -70,8 +57,8 @@ export class ProjectManager {
       format: 'OWEA',
       version: '1.0.0',
       tracks
-    };
-    return await window.api.savePreset(path, data);
+    }
+    return await window.api.savePreset(path, data)
   }
 
   /**
@@ -82,19 +69,19 @@ export class ProjectManager {
       format: 'OWEL',
       version: '1.0.0',
       track
-    };
-    return await window.api.savePreset(path, data);
+    }
+    return await window.api.savePreset(path, data)
   }
 
   public static getCurrentPath() {
-    return this.currentPath;
+    return this.currentPath
   }
 
   public static setCurrentPath(path: string | null) {
-    this.currentPath = path;
+    this.currentPath = path
   }
 
   public static reset() {
-    this.currentPath = null;
+    this.currentPath = null
   }
 }
