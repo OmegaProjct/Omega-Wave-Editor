@@ -25,7 +25,7 @@
 ---
 
 <a name="english"></a>
-# 🇬🇧 English Documentation
+# EN English Documentation
 
 A modern, cross-platform **desktop audio editor & DAW** (Digital Audio Workstation) for fast, non-destructive, and creative audio editing. 
 
@@ -149,7 +149,7 @@ Omega Wave Editor is free, open-source software. If you find the program useful 
 ---
 
 <a name="deutsch"></a>
-# 🇩🇪 Deutsche Dokumentation
+# DE Deutsche Dokumentation
 
 Ein moderner, plattformübergreifender **Desktop-Audioeditor & DAW** (Digital Audio Workstation) für die schnelle, verlustfreie und kreative Audio-Bearbeitung. 
 
