@@ -10,6 +10,7 @@ import { HeadlessRunner } from './headlessRunner'
 import { executeCommand } from './commandLayer'
 import { Project, Recipe } from './types'
 import * as path from 'path'
+import * as fs from 'fs'
 
 console.log('=== STARTE ERWEITERTE OMEGA WAVE EDITOR CORE TESTS ===\n')
 
@@ -213,6 +214,33 @@ async function runTests() {
     }
   )
   console.log('  -> OK: export.render schlägt mit klarem, ehrlichen Not-Implemented-Fehler fehl.\n')
+
+  // --- Test 9: Recipe-Ausführung mit project.save (physisches Schreiben) ---
+  console.log('[Test 9] Recipe-Ausführung mit project.save (Echtes Schreiben auf Festplatte)...');
+  const tempSavePath = path.join(__dirname, 'temp_saved_project.owep')
+  
+  if (fs.existsSync(tempSavePath)) {
+    fs.unlinkSync(tempSavePath)
+  }
+
+  const saveRecipe: Recipe = {
+    steps: [
+      {
+        action: 'project.save',
+        payload: { path: tempSavePath }
+      }
+    ]
+  }
+
+  const saveResult = await HeadlessRunner.executeRecipe(proj, saveRecipe)
+  assert.strictEqual(saveResult.lastOutputPath, tempSavePath)
+  
+  assert.ok(fs.existsSync(tempSavePath))
+  const savedData = JSON.parse(fs.readFileSync(tempSavePath, 'utf8'))
+  assert.strictEqual(savedData.version, saveResult.project.version)
+  
+  fs.unlinkSync(tempSavePath)
+  console.log('  -> OK: project.save schreibt valides JSON-Projekt erfolgreich auf die Festplatte.\n')
 
   console.log('=== ALLE ERWEITERTEN CORE TESTS ERFOLGREICH BESTANDEN! ===');
 }

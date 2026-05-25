@@ -92,6 +92,7 @@ export class HeadlessRunner {
         const safePath = this.getSafeOutputPath(originalPath, inputPaths, options)
         lastOutputPath = safePath
         console.log(`[HeadlessRunner] Saves project file safely to: ${safePath}`)
+        fs.writeFileSync(safePath, JSON.stringify(currentProject, null, 2), 'utf8')
       } else {
         // Safe pure-functional state mutations
         currentProject = executeCommand(currentProject, step)

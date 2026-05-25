@@ -41,10 +41,10 @@ Releases & CI/CD
 
 
 
-🔌 VST-Plugin-Bridge (Windows)
+🔌 Audio-Plugin-Scanner (Cross-Platform)
 
-⚙️ Automatischer Plugin-Scanner für VST2 & VST3
-🪟 Native UI-Windowing: Lädt das Original-Bedienfeld deiner Plugins direkt im Editor!
+⚙️ Automatischer Plugin-Scanner für VST2, VST3, AU & LV2
+🧩 Interface-Vorbereitung: Prototypische Erkennung und Auflistung installierter Plugins (Plugin-Hosting ist für zukünftige Phasen geplant)
 
 
 
