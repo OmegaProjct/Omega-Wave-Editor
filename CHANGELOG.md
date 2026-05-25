@@ -2,18 +2,20 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
-## [0.5.1] - 2026-05-25
+## [0.5.2] - 2026-05-25
 ### Added
 - **Physisches Projekt-Speichern**: Die `project.save`-Aktion im `HeadlessRunner` führt nun das echte Schreiben der `.owep`-Projektdatei mittels `fs.writeFileSync` durch.
 - **Automatisierte I/O-Unit-Tests**: Erweiterung der Core-Testsuite um einen automatisierten Integrations-Test (`Test 9`), der den echten Schreibvorgang, die JSON-Strukturintegrität und die anschließende temporäre Dateibereinigung vollautomatisch validiert.
 
 ### Changed
-- **Markenbereinigung (Brand Sanitization)**: Vollständige Bereinigung verbliebener herstellerspezifischer Markennamen (insb. "Magix") in allen Konzeptdokumenten (`concepts/OMEGA_PLAN.md`, `concepts/ui-advanced-completion.md`) zugunsten einer neutralen, industrieüblichen Terminologie.
+- **Markenbereinigung (Brand Sanitization)**: Vollständige Bereinigung verbliebener herstellerspezifischer Markennamen (insb. "Magix") in allen Konzepten, internen Quellcode-Kommentaren (`settingsIpc.ts`, `SaveConfirmationModal.tsx`, `StartDashboard.tsx`) und Dokumenten zugunsten einer neutralen, industrieüblichen Terminologie.
 - **Klarstellung zum Plugin-Hosting**: Richtigstellung der Plugin-Hosting-Claims in Marketingmaterialien (`discord_vorstellung.md`); der plattformübergreifende Plugin-Scanner für VST2, VST3, AU und LV2 wird ehrlich als prototypische Registry-Erkennung deklariert (DSP-Routing und natives GUI-Hosting sind als zukünftige Entwicklungsphasen ausgewiesen).
 
+## [0.5.1] - 2026-05-24
 ### Fixed
 - **Projekt-Wiedergabe**: Beim Laden von `.owep`-Projekten werden referenzierte Audiodateien jetzt wieder in die AudioEngine vorgeladen, sodass importierte Regionen nach dem Oeffnen hoerbar abgespielt werden.
 - **Echo-Default**: Der neutrale Effektzustand setzt Delay-Feedback jetzt konsequent auf `0`, damit Clips beim Zuruecksetzen, Preset-Laden oder Einfuegen von Effekten kein ungewolltes Echo erhalten.
+
 
 
 ## [0.5.0] - 2026-05-24
