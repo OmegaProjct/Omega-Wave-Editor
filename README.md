@@ -15,6 +15,22 @@
 
 ---
 
+## Contents / Inhalt
+
+| English | Deutsch |
+| --- | --- |
+| [Screenshots](#screenshots) | [Screenshots](#screenshots) |
+| [English Documentation](#english) | [Deutsche Dokumentation](#deutsch) |
+| [Core Features](#en-core-features) | [Hauptfunktionen](#de-hauptfunktionen) |
+| [Tech Stack & Architecture](#en-tech-stack--architecture) | [Technologie & Architektur](#de-technologie--architektur) |
+| [Installation & Development](#en-installation--development) | [Installation & Entwicklung](#de-installation--entwicklung) |
+| [Supported Distribution Packages](#en-supported-distribution-packages) | [Distributionen](#de-distributionen) |
+| [Support the Project](#en-support-the-project) | [Projekt unterstützen](#de-projekt-unterstuetzen) |
+| [Changelog](CHANGELOG.md) | [Changelog](CHANGELOG.md) |
+
+---
+
+<a name="screenshots"></a>
 ## 📸 Screenshots
 
 <p align="center">
@@ -33,6 +49,7 @@ A modern, cross-platform **desktop audio editor & DAW** (Digital Audio Workstati
 
 ---
 
+<a name="en-core-features"></a>
 ## 🌟 Core Features
 
 ### 1. Professional Multitrack Timeline
@@ -73,6 +90,7 @@ A dedicated tool for restoring and enhancing low-quality or noisy recordings:
 
 ---
 
+<a name="en-tech-stack--architecture"></a>
 ## 🛠️ Tech Stack & Architecture
 
 ```mermaid
@@ -92,6 +110,7 @@ graph TD
 
 ---
 
+<a name="en-installation--development"></a>
 ## 🚀 Installation & Development
 
 ### Prerequisites
@@ -125,6 +144,7 @@ npm run dist
 
 ---
 
+<a name="en-supported-distribution-packages"></a>
 ## 📦 Supported Distribution Packages
 
 Every release automatically compiles the following:
@@ -140,6 +160,7 @@ Every release automatically compiles the following:
 
 ---
 
+<a name="en-support-the-project"></a>
 ## ❤️ Support the Project
 
 Omega Wave Editor is free, open-source software. If you find the program useful and would like to support its development, feel free to buy us a coffee via PayPal:
@@ -157,6 +178,7 @@ Der **Omega Wave Editor** kombiniert die Flexibilität moderner Webtechnologien 
 
 ---
 
+<a name="de-hauptfunktionen"></a>
 ## 🌟 Hauptfunktionen (Core Features)
 
 ### 1. Professionelle Multitrack-Timeline
@@ -197,6 +219,7 @@ Ein dediziertes Werkzeug zur Restaurierung und Verbesserung problematischer Aufn
 
 ---
 
+<a name="de-technologie--architektur"></a>
 ## 🛠️ Technologie & Architektur
 
 * **Frontend**: React (18), TypeScript, TailwindCSS, Lucide Icons, Framer Motion.
@@ -206,6 +229,7 @@ Ein dediziertes Werkzeug zur Restaurierung und Verbesserung problematischer Aufn
 
 ---
 
+<a name="de-installation--entwicklung"></a>
 ## 🚀 Installation & Entwicklung
 
 ### Voraussetzungen
@@ -239,6 +263,7 @@ npm run dist
 
 ---
 
+<a name="de-distributionen"></a>
 ## 📦 Distributionen (Releases)
 
 Für jedes Release werden automatisch folgende Formate gebaut:
@@ -254,6 +279,7 @@ Für jedes Release werden automatisch folgende Formate gebaut:
 
 ---
 
+<a name="de-projekt-unterstuetzen"></a>
 ## ❤️ Projekt unterstützen
 
 Der Omega Wave Editor ist freie Open-Source-Software. Wenn dir das Programm gefällt und du die Weiterentwicklung unterstützen möchtest, freuen wir uns über einen Kaffee via PayPal:
