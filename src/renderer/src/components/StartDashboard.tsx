@@ -65,7 +65,7 @@ export function StartDashboard({
     return fullPath
   }
 
-  // Deutsches relatives Datumsformatting exakt nach MAGIX-Stil
+  // Deutsches relatives Datumsformatting exakt nach professionellem DAW-Stil
   const formatGermanRelativeDate = (timestamp: number) => {
     if (!timestamp) return ''
     const now = Date.now()
@@ -107,7 +107,7 @@ export function StartDashboard({
     <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-[4000] animate-in fade-in duration-200">
       <div className="bg-[#24272c] border border-gray-700/60 w-[840px] h-[540px] rounded-lg shadow-2xl overflow-hidden flex flex-col font-sans select-none relative">
         
-        {/* Title Bar (Branding analog zu /// MAGIX) */}
+        {/* Title Bar (Branding analog zu professionellen DAWs) */}
         <div className="bg-[#1a1d21] h-10 px-4 border-b border-gray-800/80 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-2">
             <span className="text-[14px] font-bold text-white tracking-wide">Omega Wave Editor Start Center</span>

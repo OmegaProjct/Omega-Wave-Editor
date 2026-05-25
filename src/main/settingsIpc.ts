@@ -28,7 +28,7 @@ export function setupSettingsIpc() {
     }
   }
 
-  // MAGIX-orientierte Unterordner erstellen
+  // Standardmäßige Audio-Unterordner erstellen
   const subDirs = ['Projects', 'Exports', 'Recordings', 'Presets', 'AudioTemp', 'Downloads']
   try {
     subDirs.forEach(dir => {
