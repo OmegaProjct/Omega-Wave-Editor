@@ -9,7 +9,7 @@ interface SaveConfirmationModalProps {
 }
 
 export function SaveConfirmationModal({ projectName, onSave, onDiscard, onCancel }: SaveConfirmationModalProps) {
-  // Replikation des originalen MAGIX Speichern-Alerts:
+  // Replikation des originalen professionellen DAW Speichern-Alerts:
   // - Slate-Gray Farbspektrum (#2d3136 für den Body, #1e2124 für die Titelzeile)
   // - Gelbes Warndreieck-Icon auf der linken Seite
   // - Rechter Textbereich mit exaktem Fragetext und Layout
@@ -33,7 +33,7 @@ export function SaveConfirmationModal({ projectName, onSave, onDiscard, onCancel
             <AlertTriangle size={38} strokeWidth={2} />
           </div>
 
-          {/* Nachrichtentext im originalen MAGIX-Wortlaut */}
+          {/* Nachrichtentext im originalen DAW-Wortlaut */}
           <div className="flex flex-col text-left text-xs leading-relaxed text-gray-200">
             <p className="mb-0.5">Das Projekt</p>
             <p className="font-bold text-white tracking-wide font-mono text-[13px] my-1">
