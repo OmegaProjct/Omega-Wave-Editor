@@ -48,6 +48,9 @@
     "vite": "^5.2.11"
   },
   "build": {
+    "toolsets": {
+      "appimage": "1.0.3"
+    },
     "appId": "de.omegaprojects.waveeditor",
     "productName": "Omega Wave Editor",
     "directories": {
