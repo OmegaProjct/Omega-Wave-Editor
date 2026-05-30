@@ -142,6 +142,21 @@ export function setupSettingsIpc() {
   let startCpuUsage = process.cpuUsage();
   let startTime = process.hrtime();
 
+  function getCpuTotalAndIdle() {
+    const cpus = os.cpus();
+    let idle = 0;
+    let total = 0;
+    for (const cpu of cpus) {
+      for (const type in cpu.times) {
+        total += cpu.times[type as keyof typeof cpu.times];
+      }
+      idle += cpu.times.idle;
+    }
+    return { idle, total };
+  }
+
+  let prevCpus = getCpuTotalAndIdle();
+
   ipcMain.handle('get-performance-stats', () => {
     try {
       const totalMem = os.totalmem();
@@ -158,14 +173,23 @@ export function setupSettingsIpc() {
       const elapCpuMs = (elapCpu.user + elapCpu.system) / 1000;
       const cpuPercent = elapTimeMs > 0 ? Math.min(100, Math.round((elapCpuMs / elapTimeMs) * 100)) : 0;
 
+      // System CPU calculation
+      const currentCpus = getCpuTotalAndIdle();
+      const idleDiff = currentCpus.idle - prevCpus.idle;
+      const totalDiff = currentCpus.total - prevCpus.total;
+      prevCpus = currentCpus;
+
+      const systemCpuPct = totalDiff > 0 ? Math.max(0, Math.min(100, Math.round(100 * (1 - (idleDiff / totalDiff))))) : 0;
+
       return {
         cpuUsage: cpuPercent,
         processRamBytes,
-        systemRamPct
+        systemRamPct,
+        systemCpuPct
       };
     } catch (err) {
       console.error('Error fetching performance stats:', err);
-      return { cpuUsage: 0, processRamBytes: 0, systemRamPct: 0 };
+      return { cpuUsage: 0, processRamBytes: 0, systemRamPct: 0, systemCpuPct: 0 };
     }
   });
 }

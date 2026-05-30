@@ -151,8 +151,9 @@ export function setupUpdateDownloader(mainWindow: BrowserWindow) {
     }
 
     if (installNow) {
-      // Sofort ausführen und App beenden
-      executeInstaller(downloadedInstallerPath)
+      // Setze Flag für verzögerte Ausführung beim Beenden und schließe die App ordentlich
+      // So werden Speichern-Abfragen erst vollständig abgearbeitet
+      runInstallerOnQuit = true
       app.quit()
       return { success: true }
     } else {

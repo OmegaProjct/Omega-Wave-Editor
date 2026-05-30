@@ -154,6 +154,10 @@ if (gotTheLock) {
     let progressWindow: BrowserWindow | null = null
     let currentTracksData: any = null
 
+    ipcMain.handle('get-export-tracks', () => {
+      return currentTracksData
+    })
+
     // Open Popout Export Settings Window
     ipcMain.on('open-export-settings', (event, tracksData) => {
       currentTracksData = tracksData

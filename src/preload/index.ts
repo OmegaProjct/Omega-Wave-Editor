@@ -72,6 +72,7 @@ const api = {
 
   // Export popouts
   openExportSettings: (tracks: any) => ipcRenderer.send('open-export-settings', tracks),
+  getExportTracks: () => ipcRenderer.invoke('get-export-tracks'),
   startOfflineExport: (settings: any) => ipcRenderer.send('start-offline-export', settings),
   updateExportProgress: (progress: number, label: string) => ipcRenderer.send('update-export-progress', progress, label),
   notifyExportFinished: (status: string, filePath?: string, errorMsg?: string) => ipcRenderer.send('notify-export-finished', status, filePath, errorMsg),

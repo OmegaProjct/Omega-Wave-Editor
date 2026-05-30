@@ -12,8 +12,22 @@ const EXPORT_PHASES = [
   'Fertigstellen...',
 ]
 
-export function ExportModal({ onClose, tracks = [] }: { onClose?: () => void; tracks?: any[] }) {
+export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?: () => void; tracks?: any[] }) {
   const isPopout = new URLSearchParams(window.location.search).get('window') === 'export';
+
+  const [tracks, setTracks] = useState<any[]>(initialTracks)
+
+  useEffect(() => {
+    if (isPopout) {
+      window.api.getExportTracks().then(loadedTracks => {
+        if (loadedTracks) {
+          setTracks(loadedTracks)
+        }
+      }).catch(err => {
+        console.error('Failed to load export tracks:', err)
+      })
+    }
+  }, [isPopout])
 
   const handleClose = () => {
     if (isPopout) {
