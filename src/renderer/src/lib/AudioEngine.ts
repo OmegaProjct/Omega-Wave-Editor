@@ -158,6 +158,14 @@ export class AudioEngine {
   // LRU cache management
   private bufferAccessTimes: Map<string, number> = new Map();
 
+  // Sliding-Window Audio Cache & Memory limits
+  private currentProject: { tracks: any[] } | null = null;
+  private maxActiveBuffers: number = 8;
+  private maxCacheMemoryBytes: number = 400 * 1024 * 1024;
+  private prefetchWindowSecondsBefore: number = 10;
+  private prefetchWindowSecondsAfter: number = 30;
+  private slidingWindowTimer: any = null;
+
   // Keep track of all active playing region nodes for real-time DSP parameter updates
   private activeRegions: Map<string, ActiveRegionNode[]> = new Map();
   
@@ -228,6 +236,151 @@ export class AudioEngine {
           this.bufferAccessTimes.delete(filePath);
           console.log(`LRU Memory Unloaded buffer: ${filePath}`);
         }
+      }
+    }
+  }
+
+  public setMaxActiveBuffers(val: number) {
+    this.maxActiveBuffers = val;
+    this.manageSlidingWindowCache();
+  }
+
+  public setMaxCacheMemoryBytes(val: number) {
+    this.maxCacheMemoryBytes = val;
+    this.manageSlidingWindowCache();
+  }
+
+  public updateProjectState(project: { tracks: any[] }) {
+    this.currentProject = project;
+    this.manageSlidingWindowCache();
+  }
+
+  private startSlidingWindowTimer() {
+    this.stopSlidingWindowTimer();
+    this.slidingWindowTimer = setInterval(() => {
+      this.manageSlidingWindowCache();
+    }, 1000);
+  }
+
+  private stopSlidingWindowTimer() {
+    if (this.slidingWindowTimer) {
+      clearInterval(this.slidingWindowTimer);
+      this.slidingWindowTimer = null;
+    }
+  }
+
+  public manageSlidingWindowCache() {
+    if (!this.currentProject) {
+      this.checkMemoryAndClean();
+      return;
+    }
+
+    const playhead = this.currentTime;
+    
+    // 1. Gather all unique file paths in the project and calculate their distance/priority
+    const fileStats = new Map<string, {
+      isPlayingNow: boolean;
+      inWindow: boolean;
+      minDistance: number;
+    }>();
+
+    this.currentProject.tracks.forEach(track => {
+      track.regions.forEach((r: any) => {
+        if (!r.file || !r.file.path) return;
+        const filePath = r.file.path;
+        
+        const regionStart = r.startPos;
+        const regionEnd = r.startPos + r.duration;
+        
+        const isPlayingNow = playhead >= regionStart && playhead <= regionEnd;
+        const inWindow = playhead >= (regionStart - this.prefetchWindowSecondsBefore) &&
+                         playhead <= (regionEnd + this.prefetchWindowSecondsAfter);
+                         
+        let distance = 0;
+        if (!isPlayingNow) {
+          distance = Math.min(
+            Math.abs(regionStart - playhead),
+            Math.abs(regionEnd - playhead)
+          );
+        }
+
+        const existing = fileStats.get(filePath);
+        if (!existing) {
+          fileStats.set(filePath, { isPlayingNow, inWindow, minDistance: distance });
+        } else {
+          fileStats.set(filePath, {
+            isPlayingNow: existing.isPlayingNow || isPlayingNow,
+            inWindow: existing.inWindow || inWindow,
+            minDistance: Math.min(existing.minDistance, distance)
+          });
+        }
+      });
+    });
+
+    // 2. Calculate current memory usage of cached files
+    let totalSize = 0;
+    for (const [_, buf] of this.buffers.entries()) {
+      totalSize += this.getBufferSize(buf);
+    }
+
+    // 3. Preload approaching in-window files that are not yet loaded
+    const allProjectFiles = Array.from(fileStats.keys());
+    const approachingUnloaded = allProjectFiles
+      .filter(fp => fileStats.get(fp)!.inWindow && !this.buffers.has(fp))
+      .sort((a, b) => fileStats.get(a)!.minDistance - fileStats.get(b)!.minDistance);
+
+    for (const filePath of approachingUnloaded) {
+      const currentActiveCount = this.buffers.size;
+      if (currentActiveCount < this.maxActiveBuffers && totalSize < this.maxCacheMemoryBytes) {
+        console.log(`[AudioEngine] Preloading approaching file: ${filePath}`);
+        this.loadFile(filePath).catch(err => {
+          console.warn(`[AudioEngine] Preload failed for ${filePath}:`, err.message);
+        });
+      }
+    }
+
+    // 4. Evict buffers if limits are exceeded
+    let loadedPaths = Array.from(this.buffers.keys());
+
+    loadedPaths.sort((a, b) => {
+      const statsA = fileStats.get(a);
+      const statsB = fileStats.get(b);
+
+      if (!statsA && statsB) return -1;
+      if (statsA && !statsB) return 1;
+      if (!statsA && !statsB) {
+        return (this.bufferAccessTimes.get(a) || 0) - (this.bufferAccessTimes.get(b) || 0);
+      }
+
+      if (statsA!.isPlayingNow && !statsB!.isPlayingNow) return 1;
+      if (!statsA!.isPlayingNow && statsB!.isPlayingNow) return -1;
+
+      if (statsA!.inWindow && !statsB!.inWindow) return 1;
+      if (!statsA!.inWindow && statsB!.inWindow) return -1;
+
+      return statsB!.minDistance - statsA!.minDistance;
+    });
+
+    for (const filePath of loadedPaths) {
+      const currentSize = totalSize;
+      const currentCount = this.buffers.size;
+      
+      const exceedsLimits = currentCount > this.maxActiveBuffers || currentSize > this.maxCacheMemoryBytes;
+      if (!exceedsLimits) {
+        break;
+      }
+
+      const stats = fileStats.get(filePath);
+      if (stats && stats.isPlayingNow) {
+        continue;
+      }
+
+      const buf = this.buffers.get(filePath);
+      if (buf) {
+        totalSize -= this.getBufferSize(buf);
+        this.buffers.delete(filePath);
+        this.bufferAccessTimes.delete(filePath);
+        console.log(`[AudioEngine Window Eviction] Unloaded buffer: ${filePath} (Distance: ${stats ? stats.minDistance.toFixed(1) : 'N/A'}s)`);
       }
     }
   }
@@ -350,10 +503,14 @@ export class AudioEngine {
     this.stop(); // Always destroy previous state to prevent layering
     if (this.ctx.state === 'suspended') this.ctx.resume();
 
+    this.currentProject = project;
     this.startTime = this.ctx.currentTime - startTime;
     this.pauseTime = startTime;
     this.isPlaying = true;
     this.activeRegions.clear();
+
+    this.manageSlidingWindowCache();
+    this.startSlidingWindowTimer();
 
     const hasSolo = project.tracks.some(t => t.solo);
 
@@ -527,12 +684,12 @@ export class AudioEngine {
             // --- Detect overlap with other regions on this track (crossfade) ---
             const nextRegion = sortedRegions.find((other: any) =>
               other.id !== r.id &&
-              other.startPos < regionEnd &&
+              other.startPos <= regionEnd + 0.02 &&
               other.startPos > r.startPos
             );
             const prevRegion = sortedRegions.find((other: any) =>
               other.id !== r.id &&
-              other.startPos + other.duration > r.startPos &&
+              other.startPos + other.duration >= r.startPos - 0.02 &&
               other.startPos < r.startPos
             );
 
@@ -548,8 +705,8 @@ export class AudioEngine {
               Math.abs(regionEnd - nextRegion.startPos) < 0.02 &&
               Math.abs(((r.sourceOffset || 0) + r.duration) - (nextRegion.sourceOffset || 0)) < 0.02;
 
-            const fadeInDuration = r.fadeIn !== undefined ? r.fadeIn : (isContinuousPrev ? 0.001 : 0.005);
-            const fadeOutDuration = r.fadeOut !== undefined ? r.fadeOut : (isContinuousNext ? 0.001 : 0.005);
+            const fadeInDuration = r.fadeIn !== undefined ? r.fadeIn : (isContinuousPrev ? 0.0 : 0.005);
+            const fadeOutDuration = r.fadeOut !== undefined ? r.fadeOut : (isContinuousNext ? 0.0 : 0.005);
 
             // Crossfade: if next region starts before this one ends, apply crossfade
             let effectiveFadeOut = fadeOutDuration;
@@ -601,8 +758,12 @@ export class AudioEngine {
 
             if (inFadeOut) {
               // Wenn die Wiedergabe direkt im Ausblendbereich einsteigt (Equal-Power Curve)
-              const curve = this.getEqualPowerFadeOutCurve(startFadeOutGain);
-              fadeGain.gain.setValueCurveAtTime(curve, absStart, playDuration);
+              if (effectiveFadeOut > 0) {
+                const curve = this.getEqualPowerFadeOutCurve(startFadeOutGain);
+                fadeGain.gain.setValueCurveAtTime(curve, absStart, playDuration);
+              } else {
+                fadeGain.gain.setValueAtTime(0, absStart);
+              }
             } else {
               // Normaler Ablauf (ggf. mit Rest-Fade-In und späterem Fade-Out)
               fadeGain.gain.setValueAtTime(startGain, absStart);
@@ -617,12 +778,16 @@ export class AudioEngine {
               const fadeOutStartAbs = absStart + (fadeOutStartOffset - offset);
               if (fadeOutStartAbs > absStart + fadeInTimeRemaining) {
                 fadeGain.gain.setValueAtTime(1.0, fadeOutStartAbs);
-                const curve = this.getEqualPowerFadeOutCurve(1.0);
-                fadeGain.gain.setValueCurveAtTime(curve, fadeOutStartAbs, effectiveFadeOut);
+                if (effectiveFadeOut > 0) {
+                  const curve = this.getEqualPowerFadeOutCurve(1.0);
+                  fadeGain.gain.setValueCurveAtTime(curve, fadeOutStartAbs, effectiveFadeOut);
+                }
               } else {
                 // Falls das Fade-Out das restliche Fade-In überlappt
-                const curve = this.getEqualPowerFadeOutCurve(1.0);
-                fadeGain.gain.setValueCurveAtTime(curve, absStart + fadeInTimeRemaining, effectiveFadeOut);
+                if (effectiveFadeOut > 0) {
+                  const curve = this.getEqualPowerFadeOutCurve(1.0);
+                  fadeGain.gain.setValueCurveAtTime(curve, absStart + fadeInTimeRemaining, effectiveFadeOut);
+                }
               }
             }
           }
@@ -651,6 +816,7 @@ export class AudioEngine {
   public stop() {
     this.isPlaying = false;
     this.pauseTime = 0;
+    this.stopSlidingWindowTimer();
     
     this.tracks.forEach(track => {
       this.disconnectTrack(track);
@@ -696,13 +862,16 @@ export class AudioEngine {
   }
 
   public pause() {
+    const cur = this.currentTime;
     this.isPlaying = false;
-    this.pauseTime = this.currentTime;
+    this.pauseTime = cur;
+    this.stopSlidingWindowTimer();
     this.ctx.suspend();
   }
 
   public resume() {
     this.isPlaying = true;
+    this.startSlidingWindowTimer();
     this.ctx.resume();
   }
 

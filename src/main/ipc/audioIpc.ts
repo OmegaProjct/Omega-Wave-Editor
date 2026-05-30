@@ -94,30 +94,67 @@ export function registerAudioIpc() {
   ipcMain.handle('get-peaks', async (_, filePath: string, samples: number = 1000) => {
     if (!isSafePath(filePath)) return Array.from({ length: samples }, () => Math.random() * 0.8)
     return new Promise((resolve) => {
-      const peakData: number[] = []
-      const command = ffmpeg(filePath)
-        .audioFilters(`astats=metadata=1:reset=1,aresample=8000,asetnsamples=n=${Math.floor(8000 / samples)}`)
-        .format('null')
-        .on('stderr', (stderrLine: string) => {
-          if (stderrLine.includes('RMS level dB')) {
-            const match = stderrLine.match(/RMS level dB:\s*([\-\d\.]+)/)
-            if (match) {
-              const db = parseFloat(match[1])
-              const linear = Math.pow(10, db / 20)
-              peakData.push(Math.min(1, linear * 4))
+      try {
+        let pcmBuffer = Buffer.alloc(0);
+        const sampleRate = 8000;
+        const ffmpegCmd = ffmpeg(filePath)
+          .noVideo()
+          .audioChannels(1)
+          .audioFrequency(sampleRate)
+          .format('s16le'); // 16-bit Signed Integer PCM
+
+        ffmpegCmd.on('error', (err) => {
+          console.error('get-peaks ffmpeg error:', err);
+          resolve(Array.from({ length: samples }, () => Math.random() * 0.8));
+        });
+
+        ffmpegCmd.on('end', () => {
+          try {
+            if (pcmBuffer.length === 0) {
+              return resolve(Array.from({ length: samples }, () => Math.random() * 0.8));
             }
+
+            const int16Data = new Int16Array(
+              pcmBuffer.buffer,
+              pcmBuffer.byteOffset,
+              pcmBuffer.length / 2
+            );
+
+            // Downsample to exactly 'samples' points
+            const blockSize = Math.max(1, Math.floor(int16Data.length / samples));
+            const peaks: number[] = [];
+
+            for (let i = 0; i < samples; i++) {
+              const start = i * blockSize;
+              const end = Math.min(int16Data.length, start + blockSize);
+              let maxVal = 0;
+              for (let j = start; j < end; j++) {
+                const val = Math.abs(int16Data[j]);
+                if (val > maxVal) {
+                  maxVal = val;
+                }
+              }
+              // Normalize 16-bit value (0 to 32767) to (0.0 to 1.0)
+              const normalized = maxVal / 32768;
+              // Boost slightly for visual quality
+              peaks.push(Math.max(0.04, Math.min(0.95, normalized * 1.5)));
+            }
+            resolve(peaks);
+          } catch (e) {
+            console.error('get-peaks end processing error:', e);
+            resolve(Array.from({ length: samples }, () => Math.random() * 0.8));
           }
-        })
-        .on('end', () => {
-          if (peakData.length === 0) {
-            resolve(Array.from({ length: samples }, () => Math.random() * 0.8))
-          } else {
-            resolve(peakData)
-          }
-        })
-        .on('error', () => resolve(Array.from({ length: samples }, () => Math.random() * 0.8)))
-      command.run()
-    })
+        });
+
+        const stdoutStream = ffmpegCmd.pipe();
+        stdoutStream.on('data', (chunk: Buffer) => {
+          pcmBuffer = Buffer.concat([pcmBuffer, chunk]);
+        });
+      } catch (err) {
+        console.error('get-peaks general error:', err);
+        resolve(Array.from({ length: samples }, () => Math.random() * 0.8));
+      }
+    });
   })
 
   ipcMain.handle('export-project', async (_, tracksData: any, outputPath: string, id3Tags?: any) => {
@@ -148,10 +185,12 @@ export function registerAudioIpc() {
 
       if (allRegions.length === 1) {
         const region = allRegions[0]
-        filterChain.push(`[0:a]adelay=${Math.floor(region.startPos * 1000)}|${Math.floor(region.startPos * 1000)}[out]`)
+        const sourceOffset = region.sourceOffset || 0
+        filterChain.push(`[0:a]atrim=start=${sourceOffset}:duration=${region.duration},asetpts=PTS-STARTPTS,adelay=${Math.floor(region.startPos * 1000)}|${Math.floor(region.startPos * 1000)}[out]`)
       } else {
         allRegions.forEach((region: any, i: number) => {
-          filterChain.push(`[${i}:a]adelay=${Math.floor(region.startPos * 1000)}|${Math.floor(region.startPos * 1000)}[a${i}]`)
+          const sourceOffset = region.sourceOffset || 0
+          filterChain.push(`[${i}:a]atrim=start=${sourceOffset}:duration=${region.duration},asetpts=PTS-STARTPTS,adelay=${Math.floor(region.startPos * 1000)}|${Math.floor(region.startPos * 1000)}[a${i}]`)
         })
         const inputs = allRegions.map((_, i: number) => `[a${i}]`).join('')
         filterChain.push(`${inputs}amix=inputs=${allRegions.length}:duration=longest[out]`)

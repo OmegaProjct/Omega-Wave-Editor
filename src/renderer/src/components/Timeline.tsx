@@ -551,11 +551,12 @@ export function Timeline({
         playheadPosRef.current = curTime
       }
     } else {
-      playbackStartPosRef.current = playheadPos
-      engine.play({ tracks }, playheadPos)
+      const startPos = playheadPosRef.current
+      playbackStartPosRef.current = startPos
+      engine.play({ tracks }, startPos)
       setIsPlaying(true)
     }
-  }, [isPlaying, engine, tracks, playheadPos, spacebarStops])
+  }, [isPlaying, engine, tracks, spacebarStops])
 
   const handleSaveRecord = async (filePath: string, durationSec: number) => {
     const filename = filePath.split(/[\\/]/).pop() || 'Aufnahme.wav';

@@ -76,7 +76,7 @@ export function WaveformRenderer({ filePath, sourceOffset = 0, duration = 0, fil
         console.warn('getPeaks IPC timed out, falling back to deterministic visual waveform.')
         setPeaks(getDeterministicPeaks(filePath, 1000))
       }
-    }, 150)
+    }, 3000)
 
     // Get fast peak data from Main Process via FFmpeg
     window.api.getPeaks(filePath).then(data => {

@@ -2,6 +2,12 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.5.3] - 2026-05-30
+### Fixed
+- **Playhead-Visualisierung**: Die vertikale rote Abspiellinie wurde so begrenzt, dass sie oberhalb der Scrollbar und der Zoom-Steuerung am unteren Rand endet.
+- **Spacebar-Wiedergabeverhalten & Stabilität**: Die Stoppzeit im Audiokontext bei Pausen wird nun präzise ermittelt. Zudem wurde das Spacebar-Wiedergabe-Callback stabilisiert, was die kontinuierliche Neuerstellung des Callbacks und Neuregistrierung der Tastatur-Event-Listener behebt.
+- **Präzises Audio-Trimming & Wellenformen**: Beim Dateiexport werden Clip-Trimmings (sourceOffset / duration) nun korrekt berücksichtigt. Zudem wurde ein hochperformanter, PCM-basierter Peak-Extraktor im Hauptprozess und ein verlängertes Timeout im Waveform-Renderer implementiert, um fehlerhafte fiktive Wellenformen zu beheben.
+
 ## [0.5.2] - 2026-05-25
 ### Added
 - **Physisches Projekt-Speichern**: Die `project.save`-Aktion im `HeadlessRunner` führt nun das echte Schreiben der `.owep`-Projektdatei mittels `fs.writeFileSync` durch.
