@@ -47,11 +47,16 @@ export function ExportModal({ onClose, tracks = [] }: { onClose?: () => void; tr
   const [isExporting, setIsExporting] = useState(false)
   const [isBrowsing, setIsBrowsing] = useState(false)
   const [playAfterExport, setPlayAfterExport] = useState(false)
+  const [exportToImportDir, setExportToImportDir] = useState(false)
+  const [useVersioning, setUseVersioning] = useState(false)
+  const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false)
   const [exportPhase, setExportPhase] = useState(0)
   const [exportProgress, setExportProgress] = useState(0)
   const [status, setStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
   const [showId3, setShowId3] = useState(false)
+
+  const firstSource = useMemo(() => uniqueSources[0] || null, [uniqueSources])
 
   // ID3-Tags States
   const [id3Title, setId3Title] = useState('')
@@ -89,18 +94,22 @@ export function ExportModal({ onClose, tracks = [] }: { onClose?: () => void; tr
     ]).then(([home, settings]) => {
       const ext = getExt(format)
       let name = 'omega_master'
-      if (singleSource) {
-        name = singleSource.replace(/.*[\\\/]/, '').replace(/\.[^.]+$/, '')
+      if (firstSource) {
+        name = firstSource.replace(/.*[\\\/]/, '').replace(/\.[^.]+$/, '')
       }
       
       // Nutze den Exporte-Ordner aus den Einstellungen, falls gesetzt. Ansonsten Fallback auf den Home-Ordner.
-      const baseDir = (settings && typeof settings.expPath === 'string' && settings.expPath.trim() !== '')
+      let baseDir = (settings && typeof settings.expPath === 'string' && settings.expPath.trim() !== '')
         ? settings.expPath
         : home
+
+      if (exportToImportDir && firstSource) {
+        baseDir = firstSource.replace(/[\\\/][^\\\/]*$/, '')
+      }
         
       setPath(`${baseDir}\\${name}.${ext}`)
     })
-  }, [format, singleSource])
+  }, [format, firstSource, exportToImportDir])
 
   const getExt = (f: string) =>
     f.match(/MP3/i) ? 'mp3' : f.match(/FLAC/i) ? 'flac' : f.match(/OGG/i) ? 'ogg'
@@ -179,9 +188,7 @@ export function ExportModal({ onClose, tracks = [] }: { onClose?: () => void; tr
     setPath(`${dir}${baseName}_master.${getExt(format)}`)
   }
 
-  const handleExport = async () => {
-    if (isExporting || isBrowsing) return
-
+  const executeActualExport = async (targetPath: string) => {
     if (isPopout) {
       const id3Tags = supportsId3 ? {
         title: id3Title, artist: id3Artist, album: id3Album,
@@ -190,7 +197,7 @@ export function ExportModal({ onClose, tracks = [] }: { onClose?: () => void; tr
 
       window.api.startOfflineExport({
         format,
-        path,
+        path: targetPath,
         sampleRate,
         bitDepth,
         bitrate,
@@ -230,14 +237,14 @@ export function ExportModal({ onClose, tracks = [] }: { onClose?: () => void; tr
       const wavBuffer = AudioEngine.getInstance().exportToWav(audioBuffer)
 
       // Save temporary lossless WAV file
-      const tempWavPath = path + '.temp.wav'
+      const tempWavPath = targetPath + '.temp.wav'
       await window.api.saveRecording(tempWavPath, wavBuffer)
 
       // Phase 3: Metadaten werden geschrieben (Transcoding & Tagging)
       setExportPhase(3)
       setExportProgress(85)
       const ext = getExt(format)
-      await window.api.transcodeExport(tempWavPath, path, { format: ext, bitrate, sampleRate: parsedSampleRate }, id3Tags)
+      await window.api.transcodeExport(tempWavPath, targetPath, { format: ext, bitrate, sampleRate: parsedSampleRate }, id3Tags)
 
       // Phase 4: Fertigstellen
       setExportPhase(4)
@@ -246,7 +253,7 @@ export function ExportModal({ onClose, tracks = [] }: { onClose?: () => void; tr
 
       // Auto-play the master file if selected
       if (playAfterExport) {
-        await window.api.openPath(path)
+        await window.api.openPath(targetPath)
       }
 
       setTimeout(() => handleClose(), 2000)
@@ -257,6 +264,45 @@ export function ExportModal({ onClose, tracks = [] }: { onClose?: () => void; tr
     } finally {
       setIsExporting(false)
       setIsBrowsing(false)
+    }
+  }
+
+  const handleExport = async () => {
+    if (isExporting || isBrowsing) return
+
+    try {
+      const exists = await window.api.fileExists(path)
+
+      if (exists) {
+        if (useVersioning) {
+          // Versionierung: Finde nächsten freien v1, v2... Suffix
+          let version = 1
+          const ext = getExt(format)
+          const dir = path.replace(/[\\\/][^\\\/]*$/, '')
+          const baseName = path.replace(/.*[\\\/]/, '').replace(/\.[^.]+$/, '')
+          const baseNameClean = baseName.replace(/_v\d+$/, '')
+
+          let targetPath = path
+          let existsCheck = true
+          while (existsCheck) {
+            targetPath = `${dir}\\${baseNameClean}_v${version}.${ext}`
+            existsCheck = await window.api.fileExists(targetPath)
+            version++
+          }
+
+          setPath(targetPath)
+          await executeActualExport(targetPath)
+        } else {
+          // Keine Versionierung: Zeige Sicherheitsdialog vor Überschreiben
+          setShowOverwriteConfirm(true)
+        }
+      } else {
+        // Datei existiert nicht, direkt exportieren
+        await executeActualExport(path)
+      }
+    } catch (err: any) {
+      console.error('Error during file existence check:', err)
+      await executeActualExport(path)
     }
   }
 
@@ -422,7 +468,7 @@ export function ExportModal({ onClose, tracks = [] }: { onClose?: () => void; tr
               </button>
             </div>
             
-            <div className="flex items-center gap-2 mt-3 justify-between">
+            <div className="grid grid-cols-2 gap-y-3 gap-x-6 mt-3 border-t border-gray-700/55 pt-3">
               <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer select-none">
                 <input
                   type="checkbox"
@@ -434,15 +480,29 @@ export function ExportModal({ onClose, tracks = [] }: { onClose?: () => void; tr
                 Titel nach dem Export abspielen
               </label>
 
-              {singleSource && (
-                <button
-                  onClick={handleSaveNextToSource}
-                  className="text-[10px] text-omega-accent hover:text-blue-300 underline disabled:text-gray-500"
-                  disabled={isExporting || isBrowsing}
-                >
-                  → Neben Quelldatei speichern ({singleSource.replace(/.*[\\\/]/, '')})
-                </button>
+              {firstSource && (
+                <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={exportToImportDir}
+                    onChange={(e) => setExportToImportDir(e.target.checked)}
+                    disabled={isExporting || isBrowsing}
+                    className="rounded border-gray-600 bg-[#1a1d21] text-omega-accent focus:ring-0 focus:ring-offset-0 w-3.5 h-3.5"
+                  />
+                  Im Import-Ordner speichern
+                </label>
               )}
+
+              <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer select-none col-span-2">
+                <input
+                  type="checkbox"
+                  checked={useVersioning}
+                  onChange={(e) => setUseVersioning(e.target.checked)}
+                  disabled={isExporting || isBrowsing}
+                  className="rounded border-gray-600 bg-[#1a1d21] text-omega-accent focus:ring-0 focus:ring-offset-0 w-3.5 h-3.5"
+                />
+                Fortlaufende Versionierung (v1, v2...)
+              </label>
             </div>
           </div>
 
@@ -506,6 +566,37 @@ export function ExportModal({ onClose, tracks = [] }: { onClose?: () => void; tr
         </div>
 
       </div>
+
+      {/* Overwrite Confirmation Dialog */}
+      {showOverwriteConfirm && (
+        <div className="absolute inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-[2200]">
+          <div className="bg-[#1e2124] border border-gray-600 p-6 rounded shadow-2xl flex flex-col w-[380px] gap-4">
+            <span className="text-sm font-semibold text-white">Datei überschreiben?</span>
+            <p className="text-xs text-gray-300 leading-relaxed">
+              Die Datei <span className="font-mono text-omega-accent break-all">{path.replace(/.*[\\\/]/, '')}</span> existiert bereits im Zielordner. Möchtest du sie überschreiben?
+            </p>
+            <div className="flex justify-end gap-2 mt-2">
+              <button
+                onClick={async () => {
+                  setShowOverwriteConfirm(false)
+                  await executeActualExport(path)
+                }}
+                className="px-4 py-1.5 bg-red-600 hover:bg-red-500 rounded text-white text-xs font-semibold shadow transition-colors"
+              >
+                Ja, überschreiben
+              </button>
+              <button
+                onClick={() => {
+                  setShowOverwriteConfirm(false)
+                }}
+                className="px-4 py-1.5 bg-gray-600 hover:bg-gray-500 rounded text-gray-300 text-xs font-semibold shadow transition-colors"
+              >
+                Abbrechen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

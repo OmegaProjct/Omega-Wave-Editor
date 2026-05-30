@@ -229,4 +229,13 @@ export function registerSystemIpc() {
   ipcMain.handle('get-app-version', () => {
     return app.getVersion()
   })
+  
+  ipcMain.handle('file-exists', (_, filePath: string) => {
+    if (!isSafePath(filePath)) return false
+    try {
+      return fs.existsSync(path.resolve(filePath))
+    } catch {
+      return false
+    }
+  })
 }

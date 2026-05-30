@@ -9,6 +9,7 @@ interface Window {
     openVstUi: (path: string) => Promise<VstUiOpenResult>;
     readFileBuffer: (path: string) => Promise<any>;
     getHomeDir: () => Promise<string>;
+    fileExists: (filePath: string) => Promise<boolean>;
     getSystemPath: (name: string) => Promise<string>;
     saveRecording: (path: string, buffer: ArrayBuffer) => Promise<{ success: boolean; error?: string }>;
     getDiskSpace: (dirPath: string) => Promise<{ success: boolean; freeBytes: number }>;
