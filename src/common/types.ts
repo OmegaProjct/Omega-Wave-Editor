@@ -65,6 +65,7 @@ export interface ProjectSettings {
   zoomLevel: number
   sampleRate: number
   playheadPos: number
+  exportSettings?: ExportSettings
 }
 
 export interface ProjectMetadata {

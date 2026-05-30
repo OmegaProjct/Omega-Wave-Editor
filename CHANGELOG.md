@@ -2,7 +2,24 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.6.0] - 2026-05-30
+
+### Added
+- **Immer sichtbare Fade-Handles**: Die kreisförmigen Anfass-Punkte für Fade-in und Fade-out an jedem Audio-Clip in der Timeline sind nun dauerhaft sichtbar und müssen nicht mehr per Klick aktiviert werden.
+- **Halbe Wellenformdarstellung**: Neue Einstellung im Reiter „Import/Audio" der Programmeinstellungen, um die Wellenformdarstellung von Audio-Clips zwischen der vollen (symmetrischen) und der einseitig-halben (unten ausgerichteten) Ansicht zu wechseln.
+- **Ruler-Exportmarkierung**: Durch Linksklick auf das Zeitlineal wird der Startpunkt der Exportauswahl gesetzt, per Rechtsklick der Endpunkt. Ein blauer Balken mit Klammer-Markierungen und Dauerzeilanzeige visualisiert den markierten Bereich. Ein Doppelklick löscht die gesamte Auswahl.
+- **Selektionsbasierter Export**: Im Export-Dialog gibt es eine neue Checkbox „Nur markierten Bereich exportieren", die den Mixdown auf die im Ruler definierte Zeitspanne begrenzt.
+- **Stille-Lücken-Warnung**: Wenn vor dem ersten Audio-Clip eine stille Pause liegt, erscheint beim Exportieren ein Warn-Dialog mit den Optionen „Ignorieren", „Zur Lücke springen" und „Abbrechen". Diese Warnung kann dauerhaft deaktiviert werden.
+- **Einzelspur-Export (Mixdown)**: Im Rechtsklick-Kontextmenü einer Spur steht nun ganz oben „Spur exportieren (Mixdown)...", mit dem jede Spur separat in alle unterstützten Formate (inkl. MP3 mit ID3-Tags) exportiert werden kann.
+- **Exporteinstellungen-Persistenz**: Alle Exporteinstellungen (Format, Bitrate, Preset, Versionierung, Abspielen nach Export, Selektions-Export, etc.) werden im Projekt gespeichert und beim erneuten Öffnen des Dialogs wiederhergestellt.
+
+### Fixed
+- **handleSaveAndClose mit korrekten Projektdaten**: Das Speichern beim Schließen des Fensters delegiert nun an die Timeline-interne SAVE_PROJECT-Aktion, sodass alle Sitzungsdaten (exportSettings, Zoomebene, Abspielkopf-Position, Samplerate) korrekt in der `.owep`-Datei persistiert werden.
+- **Seek-Timeline aus Export-Popup**: Klicken auf „Zur Lücke springen" im Stille-Lücken-Warndialog springt nun korrekt zum entsprechenden Zeitpunkt in der Timeline der Hauptapplikation.
+- **Signatur-Konsistenz (openExportSettings)**: Alle Aufrufstellen von `openExportSettings` (Tastaturkürzel, Menüleiste, Timeline-Schaltfläche) übergeben nun korrekt Selektion und Exporteinstellungen gemäß der aktualisierten IPC-Schnittstelle.
+
 ## [0.5.6] - 2026-05-30
+
 ### Fixed
 - **Popout-Exportfenster Spurendaten**: Behebung des Fehlers, bei dem die Checkbox „Im Import-Ordner speichern“ im separaten Export-Dialog ausgeblendet war. Durch asynchrones Laden der Spurendaten über IPC (`get-export-tracks`) ist die Import-Quellerkennung nun auch im Popout-Modus voll funktionsfähig.
 - **Update-Shutdown-Race-Condition**: Der Updater wartet mit dem Start des Installers/Uninstallers nun sicher ab, bis das Hauptprogramm regulär geschlossen wurde und offene Projekte gespeichert/abgefragt wurden, um störende Überlagerungen zu vermeiden.

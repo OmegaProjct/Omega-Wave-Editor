@@ -22,6 +22,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
     sampleRate: 48000,
     tracksCount: 32,
     maxUndoSteps: 50,
+    halfWaveform: false,
     keyboardShortcuts: DEFAULT_KEYBOARD_SHORTCUTS
   })
   const [capturingShortcut, setCapturingShortcut] = useState<ShortcutAction | null>(null)
@@ -191,6 +192,14 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
          </label>
          <label className="flex items-center gap-2 cursor-pointer">
            <input type="checkbox" defaultChecked /> Wellenform beim Import automatisch erstellen
+         </label>
+         <label className="flex items-center gap-2 cursor-pointer">
+           <input 
+             type="checkbox" 
+             checked={!!settings.halfWaveform} 
+             onChange={(e) => setSettings({ ...settings, halfWaveform: e.target.checked })} 
+           /> 
+           Halbe Wellenformdarstellung
          </label>
       </div>
     </div>

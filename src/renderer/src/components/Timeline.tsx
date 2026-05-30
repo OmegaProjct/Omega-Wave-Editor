@@ -88,7 +88,7 @@ export function Timeline({
   keyboardShortcuts = DEFAULT_KEYBOARD_SHORTCUTS
 }: { 
   onTracksChange?: (tracks: Track[]) => void, 
-  onOpenExport?: () => void,
+  onOpenExport?: (customTracks?: Track[], selection?: { selectionStart: number | null; selectionEnd: number | null }, customExportSettings?: any) => void,
   externalAction?: { type: string; payload?: any },
   initialTracks?: Track[],
   selectedRegionIds?: Set<string>,
@@ -124,6 +124,9 @@ export function Timeline({
   const [isPlaying, setIsPlaying] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
   const [showAudioRecording, setShowAudioRecording] = useState(false)
+  const [selectionStart, setSelectionStart] = useState<number | null>(null)
+  const [selectionEnd, setSelectionEnd] = useState<number | null>(null)
+  const [exportSettings, setExportSettings] = useState<any>(null)
   const selectedRegionId = selectedRegionIds.size > 0 ? [...selectedRegionIds][0] : null
   const setSelectedRegionIds = useCallback((ids: Set<string>) => {
     if (onSelectedRegionIdsChange) {
@@ -629,6 +632,8 @@ export function Timeline({
         if (onTracksChange) onTracksChange(resetTracks);
         setPlayheadPos(0);
         setSampleRate(rate);
+        setSelectionStart(null);
+        setSelectionEnd(null);
         ProjectManager.reset();
         window.dispatchEvent(new CustomEvent('PROJECT_RESET'));
       } else if (externalAction.type === 'SAVE_PROJECT') {
@@ -638,7 +643,7 @@ export function Timeline({
           if (res.canceled || !res.filePath) return;
           path = res.filePath;
         }
-        const saveRes = await ProjectManager.saveProject(path, tracks, { zoomLevel, playheadPos, sampleRate });
+        const saveRes = await ProjectManager.saveProject(path, tracks, { zoomLevel, playheadPos, sampleRate, exportSettings });
         if (saveRes.success) {
           window.dispatchEvent(new CustomEvent('PROJECT_SAVED', { detail: { path } }));
           window.dispatchEvent(new CustomEvent('SHOW_GLOBAL_MODAL', { detail: { type: 'info', title: 'Erfolg', message: 'Projekt gespeichert.' } }));
@@ -657,8 +662,8 @@ export function Timeline({
               try {
                 await engine.loadFile(region.file.path);
                 if (!region.fileDuration) {
-                  const info = await window.api.getMediaInfo(region.file.path);
-                  return { ...region, fileDuration: info?.duration || region.duration };
+                   const info = await window.api.getMediaInfo(region.file.path);
+                   return { ...region, fileDuration: info?.duration || region.duration };
                 }
               } catch (err) {
                 console.error('Fehler beim Vorladen der Audiodatei aus dem Projekt:', region.file.path, err);
@@ -673,6 +678,9 @@ export function Timeline({
           setZoomLevel(result.data.settings.zoomLevel || 1);
           setPlayheadPos(result.data.settings.playheadPos || 0);
           setSampleRate(result.data.settings.sampleRate || 48000);
+          setExportSettings(result.data.settings.exportSettings || null);
+          setSelectionStart(null);
+          setSelectionEnd(null);
           window.dispatchEvent(new CustomEvent('PROJECT_LOADED', { detail: { path: filePath } }));
         }
       } else if (externalAction.type === 'EXPORT_ARRANGEMENT') {
@@ -696,7 +704,18 @@ export function Timeline({
     };
 
     handleAction();
-  }, [externalAction, tracks, onTracksChange, zoomLevel, playheadPos, selectedRegionId]);
+  }, [externalAction, tracks, onTracksChange, zoomLevel, playheadPos, selectedRegionId, exportSettings]);
+
+  // Listen to exportSettings updates from the export popup window and trigger dirty checking
+  useEffect(() => {
+    const unsubscribe = window.api.onExportSettingsUpdated((settings: any) => {
+      setExportSettings(settings);
+      if (onTracksChange) {
+        onTracksChange([...tracks]);
+      }
+    });
+    return () => unsubscribe();
+  }, [tracks, onTracksChange]);
 
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, regionId: string, submenu: string | null } | null>(null)
   const [zoomMenuOpen, setZoomMenuOpen] = useState(false)
@@ -1091,7 +1110,24 @@ export function Timeline({
     setScrollTop(e.currentTarget.scrollTop)
   }
 
+  const handleRulerDoubleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setSelectionStart(null);
+    setSelectionEnd(null);
+  };
+
   const handleRulerMouseDown = (e: React.MouseEvent) => {
+    if (e.button === 2) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!tracksRef.current) return;
+      const rect = tracksRef.current.getBoundingClientRect();
+      const clickX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+      const newPos = (clickX + scrollLeft) / pixelsPerSecond;
+      setSelectionEnd(newPos);
+      return;
+    }
+
     if (e.button !== 0) return; // Only primary mouse click
     e.preventDefault();
     setContextMenu(null);
@@ -1112,6 +1148,7 @@ export function Timeline({
       const newPos = (clickX + scrollLeft) / pixelsPerSecond;
       setPlayheadPos(newPos);
       playheadPosRef.current = newPos;
+      setSelectionStart(newPos);
     };
 
     updatePlayheadFromEvent(e.clientX);
@@ -1636,6 +1673,18 @@ export function Timeline({
 
       {contextMenu && (
         <div className="fixed bg-[#e5e5e5] text-black border border-gray-400 shadow-lg py-1 z-[9999] text-xs w-56 flex flex-col" style={{ top: contextMenu.y, left: contextMenu.x }} onClick={(e) => e.stopPropagation()}>
+          <button 
+            className="text-left px-4 py-1 hover:bg-blue-500 hover:text-white flex items-center justify-between font-semibold border-b border-gray-300 pb-1"
+            onClick={() => {
+              const targetTrack = tracks.find(t => t.regions.some(r => r.id === contextMenu.regionId));
+              if (targetTrack && onOpenExport) {
+                onOpenExport([targetTrack], { selectionStart, selectionEnd }, exportSettings);
+              }
+              setContextMenu(null);
+            }}
+          >
+            Spur exportieren (Mixdown)...
+          </button>
           <button className="text-left px-4 py-1 hover:bg-blue-500 hover:text-white flex items-center justify-between" onClick={() => { setShowCleaning(true); setContextMenu(null); }}>
             Audio Cleaning... <span className="text-[10px] text-gray-500 font-mono">Objekt</span>
           </button>
@@ -1875,9 +1924,9 @@ export function Timeline({
           </button>
         </div>
         <div className="flex-1"></div>
-        <button className="px-4 py-1 bg-omega-accent hover:bg-blue-500 text-white text-xs rounded shadow transition-colors" onClick={onOpenExport}>Mixdown Export</button>
+        <button className="px-4 py-1 bg-omega-accent hover:bg-blue-500 text-white text-xs rounded shadow transition-colors" onClick={() => onOpenExport?.(tracks, { selectionStart, selectionEnd }, exportSettings)}>Mixdown Export</button>
       </div>
-
+ 
       <div className="flex-1 flex flex-col overflow-hidden relative">
         <motion.div 
           className="absolute top-0 w-[17px] z-[150] cursor-ew-resize flex justify-center pointer-events-auto transform -translate-x-1/2" 
@@ -1887,19 +1936,58 @@ export function Timeline({
            <div className="w-px bg-red-600 h-full shadow-[0_0_8px_rgba(255,0,0,0.5)] pointer-events-none"></div>
            <div className="absolute top-[8px] w-3.5 h-3.5 bg-red-600 rotate-45 border border-red-400 z-[160] shadow pointer-events-none"></div>
         </motion.div>
-
+ 
         <div className="h-8 border-b border-omega-border flex items-center bg-[#1a1d21] z-[130] relative">
            <div className="w-32 h-full flex-shrink-0 bg-omega-panel border-r border-omega-border flex items-center justify-end px-3 gap-2 shadow-[2px_0_5px_rgba(0,0,0,0.3)] z-[160]">
               <Unlock size={12} className="text-gray-500" />
               <Zap size={12} className="text-gray-500" />
               <ChevronDown size={12} className="text-gray-500" />
            </div>
-           <div ref={rulerRef} className="flex-1 h-full relative overflow-hidden cursor-ew-resize select-none" onMouseDown={handleRulerMouseDown}>
+           <div 
+             ref={rulerRef} 
+             className="flex-1 h-full relative overflow-hidden cursor-ew-resize select-none" 
+             onMouseDown={handleRulerMouseDown}
+             onDoubleClick={handleRulerDoubleClick}
+             onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
+           >
               <div className="absolute inset-0 flex items-center" style={{ transform: `translateX(-${scrollLeft}px)` }}>
                  <motion.div className="absolute top-0 h-1 bg-blue-500/80 rounded-b shadow-[0_0_5px_rgba(59,130,246,0.5)]" style={{ width: playheadRulerMotionWidth, left: 0 }}></motion.div>
                  {[...Array(300)].map((_, i) => (
                     <div key={i} className="absolute h-full border-l border-gray-800 text-[9px] text-gray-500 pl-1 flex items-end pb-1.5" style={{ left: pixelsPerSecond * (i * 5) }}>{i * 5}s</div>
                  ))}
+                 {selectionStart !== null && selectionEnd !== null && selectionStart !== selectionEnd && (() => {
+                    const minVal = Math.min(selectionStart, selectionEnd);
+                    const maxVal = Math.max(selectionStart, selectionEnd);
+                    const duration = maxVal - minVal;
+                    
+                    const formatTimecode = (secs: number) => {
+                      const h = Math.floor(secs / 3600);
+                      const m = Math.floor((secs % 3600) / 60);
+                      const s = Math.floor(secs % 60);
+                      const f = Math.floor((secs % 1) * 30);
+                      
+                      const pad = (num: number) => String(num).padStart(2, '0');
+                      return `${pad(h)}:${pad(m)}:${pad(s)}:${pad(f)}`;
+                    };
+                    
+                    const timecode = `[ ${formatTimecode(duration)} ]`;
+                    
+                    return (
+                      <div 
+                        className="absolute top-0 bottom-0 bg-blue-500/20 border-l border-r border-blue-500/60 z-[10] flex items-center justify-between px-1 pointer-events-none"
+                        style={{ 
+                          left: `${minVal * pixelsPerSecond}px`, 
+                          width: `${(maxVal - minVal) * pixelsPerSecond}px` 
+                        }}
+                      >
+                        <span className="text-blue-400 font-bold text-xs select-none">[</span>
+                        <span className="absolute left-1/2 -translate-x-1/2 text-blue-300 font-mono text-[9px] font-bold bg-[#1a1d21]/90 px-1 py-0.5 rounded border border-blue-500/30 shadow select-none">
+                          {timecode}
+                        </span>
+                        <span className="text-blue-400 font-bold text-xs select-none">]</span>
+                      </div>
+                    );
+                 })()}
               </div>
            </div>
            <div className="w-6 border-l border-omega-border bg-[#282b30] h-full z-[160]"></div>
@@ -2209,61 +2297,61 @@ export function Timeline({
                                    <div className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/60 shadow pointer-events-none transition-all ${(isHovered || draggingGain?.regionId === region.id) ? 'w-3 h-3 bg-white' : 'w-2.5 h-2.5 bg-white/75'}`} />
                                  </div>
 
-                                 {/* z-[10]: Fade-In circular handle (Kugel - only shown on hover or drag) */}
-                                 {(isHovered || (draggingFade?.regionId === region.id && draggingFade?.edge === 'in')) && (
-                                   <div
-                                     className="absolute z-[10] cursor-ew-resize flex items-center justify-center -translate-x-1/2 -translate-y-1/2 group/fadein"
-                                     style={{
-                                       left: `${fadeInPx}px`,
-                                       top: `${gainYPercent}%`,
-                                       width: '18px',
-                                       height: '18px',
-                                     }}
-                                     onMouseDown={(e) => {
-                                       e.stopPropagation();
-                                       e.preventDefault();
-                                       HistoryManager.pushState(tracks);
-                                       setDraggingFade({ regionId: region.id, edge: 'in', startX: e.clientX, startValue: region.fadeIn || 0 });
-                                     }}
-                                   >
-                                     <div className={`rounded-full border border-white/60 shadow transition-all ${
-                                       (draggingFade?.regionId === region.id && draggingFade?.edge === 'in')
-                                         ? 'w-3.5 h-3.5 bg-omega-accent'
-                                         : 'w-2.5 h-2.5 bg-white hover:bg-omega-accent group-hover/fadein:w-3.5 group-hover/fadein:h-3.5'
-                                     }`} />
+                                 {/* z-[10]: Fade-In circular handle (Kugel - always visible) */}
+                                 <div
+                                   className="absolute z-[10] cursor-ew-resize flex items-center justify-center -translate-x-1/2 -translate-y-1/2 group/fadein"
+                                   style={{
+                                     left: `${fadeInPx}px`,
+                                     top: `${gainYPercent}%`,
+                                     width: '18px',
+                                     height: '18px',
+                                   }}
+                                   onMouseDown={(e) => {
+                                     e.stopPropagation();
+                                     e.preventDefault();
+                                     HistoryManager.pushState(tracks);
+                                     setDraggingFade({ regionId: region.id, edge: 'in', startX: e.clientX, startValue: region.fadeIn || 0 });
+                                   }}
+                                 >
+                                   <div className={`rounded-full border border-white/60 shadow transition-all ${
+                                     (draggingFade?.regionId === region.id && draggingFade?.edge === 'in')
+                                       ? 'w-3.5 h-3.5 bg-omega-accent'
+                                       : 'w-2.5 h-2.5 bg-white hover:bg-omega-accent group-hover/fadein:w-3.5 group-hover/fadein:h-3.5'
+                                   }`} />
+                                   {(isHovered || (draggingFade?.regionId === region.id && draggingFade?.edge === 'in')) && (
                                      <div className="absolute -top-7 bg-black/90 text-white text-[9px] px-2 py-0.5 rounded pointer-events-none whitespace-nowrap z-[50] shadow border border-gray-700/50">
                                        Einblenden: {(region.fadeIn || 0).toFixed(2)}s
                                      </div>
-                                   </div>
-                                 )}
+                                   )}
+                                 </div>
 
-                                 {/* z-[10]: Fade-Out circular handle (Kugel - only shown on hover or drag) */}
-                                 {(isHovered || (draggingFade?.regionId === region.id && draggingFade?.edge === 'out')) && (
-                                   <div
-                                     className="absolute z-[10] cursor-ew-resize flex items-center justify-center -translate-x-1/2 -translate-y-1/2 group/fadeout"
-                                     style={{
-                                       left: `${regionWidthPx - fadeOutPx}px`,
-                                       top: `${gainYPercent}%`,
-                                       width: '18px',
-                                       height: '18px',
-                                     }}
-                                     onMouseDown={(e) => {
-                                       e.stopPropagation();
-                                       e.preventDefault();
-                                       HistoryManager.pushState(tracks);
-                                       setDraggingFade({ regionId: region.id, edge: 'out', startX: e.clientX, startValue: region.fadeOut || 0 });
-                                     }}
-                                   >
-                                     <div className={`rounded-full border border-white/60 shadow transition-all ${
-                                       (draggingFade?.regionId === region.id && draggingFade?.edge === 'out')
-                                         ? 'w-3.5 h-3.5 bg-omega-accent'
-                                         : 'w-2.5 h-2.5 bg-white hover:bg-omega-accent group-hover/fadeout:w-3.5 group-hover/fadeout:h-3.5'
-                                     }`} />
+                                 {/* z-[10]: Fade-Out circular handle (Kugel - always visible) */}
+                                 <div
+                                   className="absolute z-[10] cursor-ew-resize flex items-center justify-center -translate-x-1/2 -translate-y-1/2 group/fadeout"
+                                   style={{
+                                     left: `${regionWidthPx - fadeOutPx}px`,
+                                     top: `${gainYPercent}%`,
+                                     width: '18px',
+                                     height: '18px',
+                                   }}
+                                   onMouseDown={(e) => {
+                                     e.stopPropagation();
+                                     e.preventDefault();
+                                     HistoryManager.pushState(tracks);
+                                     setDraggingFade({ regionId: region.id, edge: 'out', startX: e.clientX, startValue: region.fadeOut || 0 });
+                                   }}
+                                 >
+                                   <div className={`rounded-full border border-white/60 shadow transition-all ${
+                                     (draggingFade?.regionId === region.id && draggingFade?.edge === 'out')
+                                       ? 'w-3.5 h-3.5 bg-omega-accent'
+                                       : 'w-2.5 h-2.5 bg-white hover:bg-omega-accent group-hover/fadeout:w-3.5 group-hover/fadeout:h-3.5'
+                                   }`} />
+                                   {(isHovered || (draggingFade?.regionId === region.id && draggingFade?.edge === 'out')) && (
                                      <div className="absolute -top-7 bg-black/90 text-white text-[9px] px-2 py-0.5 rounded pointer-events-none whitespace-nowrap z-[50] shadow border border-gray-700/50">
                                        Ausblenden: {(region.fadeOut || 0).toFixed(2)}s
                                      </div>
-                                   </div>
-                                 )}
+                                   )}
+                                 </div>
 
                                  {/* z-[6]: Trim handles (left/right resize) */}
                                  <div className="absolute left-0 top-0 bottom-0 w-2 z-[6] cursor-w-resize hover:bg-white/20" onMouseDown={(e) => handleRegionMouseDown(e, track.id, region.id, 'trimStart')} />
