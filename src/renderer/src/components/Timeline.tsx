@@ -163,7 +163,7 @@ export function Timeline({
   const [showAutomation, setShowAutomation] = useState(false)
   const [effectsClipboard, setEffectsClipboard] = useState<RegionEffects | null>(null)
 
-  const [perfStats, setPerfStats] = useState<{ cpuUsage: number; processRamBytes: number; systemRamPct: number }>({ cpuUsage: 0, processRamBytes: 0, systemRamPct: 0 });
+  const [perfStats, setPerfStats] = useState<{ cpuUsage: number; processRamBytes: number; systemRamPct: number; systemCpuPct: number }>({ cpuUsage: 0, processRamBytes: 0, systemRamPct: 0, systemCpuPct: 0 });
   const [globalProgress, setGlobalProgress] = useState<number | null>(null);
   const [globalProgressLabel, setGlobalProgressLabel] = useState<string>('');
 
@@ -2330,7 +2330,7 @@ export function Timeline({
              perfStats.cpuUsage > 50 ? 'bg-yellow-500 shadow-[0_0_4px_#eab308]' :
              'bg-green-500 shadow-[0_0_4px_#22c55e]'
            }`} />
-           CPU: {perfStats.cpuUsage}%
+           CPU: {perfStats.cpuUsage}% (System: {perfStats.systemCpuPct || 0}%)
          </span>
          <div className="h-2 w-px bg-gray-800"></div>
          <span className="flex items-center gap-1.5">

@@ -47,8 +47,9 @@ interface Window {
     startUpdateDownload: (payload: { url: string; latestVersion: string }) => Promise<{ success: boolean; error?: string; filePath?: string }>;
     installUpdate: (payload: { installNow: boolean }) => Promise<{ success: boolean; error?: string; deferred?: boolean }>;
     onDownloadProgress: (callback: (data: any) => void) => () => void;
-    getPerformanceStats: () => Promise<{ cpuUsage: number, processRamBytes: number, systemRamPct: number }>;
+    getPerformanceStats: () => Promise<{ cpuUsage: number, processRamBytes: number, systemRamPct: number, systemCpuPct: number }>;
     openExportSettings: (tracks: any) => void;
+    getExportTracks: () => Promise<any[] | null>;
     startOfflineExport: (settings: any) => void;
     updateExportProgress: (progress: number, label: string) => void;
     notifyExportFinished: (status: string, filePath?: string, errorMsg?: string) => void;

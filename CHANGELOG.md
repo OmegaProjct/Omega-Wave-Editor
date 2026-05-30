@@ -2,6 +2,15 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.5.6] - 2026-05-30
+### Fixed
+- **Popout-Exportfenster Spurendaten**: Behebung des Fehlers, bei dem die Checkbox „Im Import-Ordner speichern“ im separaten Export-Dialog ausgeblendet war. Durch asynchrones Laden der Spurendaten über IPC (`get-export-tracks`) ist die Import-Quellerkennung nun auch im Popout-Modus voll funktionsfähig.
+- **Update-Shutdown-Race-Condition**: Der Updater wartet mit dem Start des Installers/Uninstallers nun sicher ab, bis das Hauptprogramm regulär geschlossen wurde und offene Projekte gespeichert/abgefragt wurden, um störende Überlagerungen zu vermeiden.
+- **Sanitisierung des Uninstaller-Dialogs**: Im NSIS-Uninstaller wurde die Abfrage zur Löschung der persönlichen Einstellungen so abgesichert, dass sie bei automatischen (stummen) Updates im Hintergrund übersprungen wird, um Datenverlust und störende Popups zu verhindern.
+
+### Added
+- **DAW Performance-Monitor (System-CPU)**: Im Footer wird neben der CPU-Auslastung der App nun auch die Gesamtlast des PCs (System-CPU) symmetrisch und live angezeigt.
+
 ## [0.5.5] - 2026-05-30
 ### Fixed
 - **Playhead-Visualisierung (Ziehbereich & Layering)**: Der manuelle Ziehbereich des Markers per Maus wurde mathematisch auf das Spur-Raster eingegrenzt (Drag Clamping), um ein Hinausziehen über die vertikale Scrollleiste zu unterbinden. Zudem wurde die Tiefenebene (Z-Index) der statischen Seiten-Spalten auf `z-[160]` erhöht, um den Playhead beim Scrollen oder Versetzen dahinter perfekt zu maskieren.

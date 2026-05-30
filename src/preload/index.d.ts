@@ -44,10 +44,11 @@ declare global {
       openVstUi: (pluginPath: string) => Promise<VstUiOpenResult>
       saveRecording: (outputPath: string, arrayBuffer: ArrayBuffer) => Promise<any>
       getDiskSpace: (dirPath: string) => Promise<{ success: boolean, freeBytes: number }>
-      getPerformanceStats: () => Promise<{ cpuUsage: number, processRamBytes: number, systemRamPct: number }>
+      getPerformanceStats: () => Promise<{ cpuUsage: number, processRamBytes: number, systemRamPct: number, systemCpuPct: number }>
       showOpenDialog: (options: any) => Promise<any>
       showSaveDialog: (options: any) => Promise<any>
       openExportSettings: (tracks: any) => void
+      getExportTracks: () => Promise<any[] | null>
       startOfflineExport: (settings: any) => void
       updateExportProgress: (progress: number, label: string) => void
       notifyExportFinished: (status: string, filePath?: string, errorMsg?: string) => void
