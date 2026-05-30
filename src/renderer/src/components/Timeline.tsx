@@ -1108,8 +1108,8 @@ export function Timeline({
     const updatePlayheadFromEvent = (clientX: number) => {
       if (!tracksRef.current) return;
       const rect = tracksRef.current.getBoundingClientRect();
-      const clickX = clientX - rect.left;
-      const newPos = Math.max(0, (clickX + scrollLeft) / pixelsPerSecond);
+      const clickX = Math.max(0, Math.min(clientX - rect.left, rect.width));
+      const newPos = (clickX + scrollLeft) / pixelsPerSecond;
       setPlayheadPos(newPos);
       playheadPosRef.current = newPos;
     };
@@ -1156,8 +1156,8 @@ export function Timeline({
     const updatePlayheadFromEvent = (clientX: number) => {
       if (!tracksRef.current) return;
       const rect = tracksRef.current.getBoundingClientRect();
-      const clickX = clientX - rect.left;
-      const newPos = Math.max(0, (clickX + scrollLeft) / pixelsPerSecond);
+      const clickX = Math.max(0, Math.min(clientX - rect.left, rect.width));
+      const newPos = (clickX + scrollLeft) / pixelsPerSecond;
       setPlayheadPos(newPos);
       playheadPosRef.current = newPos;
     };
@@ -1889,7 +1889,7 @@ export function Timeline({
         </motion.div>
 
         <div className="h-8 border-b border-omega-border flex items-center bg-[#1a1d21] z-[130] relative">
-           <div className="w-32 h-full flex-shrink-0 bg-omega-panel border-r border-omega-border flex items-center justify-end px-3 gap-2 shadow-[2px_0_5px_rgba(0,0,0,0.3)] z-[140]">
+           <div className="w-32 h-full flex-shrink-0 bg-omega-panel border-r border-omega-border flex items-center justify-end px-3 gap-2 shadow-[2px_0_5px_rgba(0,0,0,0.3)] z-[160]">
               <Unlock size={12} className="text-gray-500" />
               <Zap size={12} className="text-gray-500" />
               <ChevronDown size={12} className="text-gray-500" />
@@ -1902,11 +1902,11 @@ export function Timeline({
                  ))}
               </div>
            </div>
-           <div className="w-6 border-l border-omega-border bg-[#282b30] h-full z-[140]"></div>
+           <div className="w-6 border-l border-omega-border bg-[#282b30] h-full z-[160]"></div>
         </div>
 
         <div className="flex-1 flex overflow-hidden relative">
-           <div className="w-32 bg-omega-panel border-r border-omega-border z-[110] shadow-[2px_0_5px_rgba(0,0,0,0.3)] flex flex-col overflow-hidden relative">
+           <div className="w-32 bg-omega-panel border-r border-omega-border z-[160] shadow-[2px_0_5px_rgba(0,0,0,0.3)] flex flex-col overflow-hidden relative">
               <div className="flex-1 overflow-hidden relative">
                  <div className="flex flex-col" style={{ transform: `translateY(-${scrollTop}px)` }}>
                    {tracks.map(track => (
@@ -2277,7 +2277,7 @@ export function Timeline({
               </div>
            </div>
 
-           <div className="w-6 bg-[#282b30] border-l border-omega-border flex flex-col items-center py-0.5 z-[135]">
+           <div className="w-6 bg-[#282b30] border-l border-omega-border flex flex-col items-center py-0.5 z-[160]">
               <button className="w-full h-4 flex items-center justify-center text-gray-500 hover:text-white hover:bg-gray-700 text-[8px]">▴</button>
               <div className="flex-1 w-full px-1 py-1 relative bg-[#1a1d21] border-y border-gray-800 cursor-pointer" onMouseDown={onMouseDownV} ref={vScrollTrackRef}>
                   <div className="absolute left-1 right-1 bg-[#4a4d52] rounded shadow-sm hover:bg-gray-500 transition-colors pointer-events-none" style={{ height: `${Math.max(5, vThumbHeight)}%`, top: `${vThumbTop}%` }}></div>
@@ -2289,7 +2289,7 @@ export function Timeline({
         </div>
 
         <div className="h-8 bg-omega-panel border-t border-omega-border flex items-center px-0 z-[140]">
-            <div className="w-32 h-full border-r border-omega-border flex-shrink-0 bg-omega-panel shadow-[2px_0_5px_rgba(0,0,0,0.3)] z-[150] flex items-center justify-center p-1">
+            <div className="w-32 h-full border-r border-omega-border flex-shrink-0 bg-omega-panel shadow-[2px_0_5px_rgba(0,0,0,0.3)] z-[160] flex items-center justify-center p-1">
                <button onClick={addTrack} className="w-full h-full flex items-center justify-center hover:bg-gray-750 text-gray-500 hover:text-omega-accent transition-colors bg-[#202225] rounded border border-gray-700/80" title="Neue Audiospur hinzufügen"><Plus size={14} /></button>
             </div>
            <div className="flex-1 h-full flex items-center px-1 bg-omega-dark relative overflow-hidden">
@@ -2301,7 +2301,7 @@ export function Timeline({
                   <button className="w-4 h-full bg-[#2b2d31] border-l border-gray-700 flex items-center justify-center text-[8px] text-gray-400 hover:text-white">▶</button>
               </div>
            </div>
-           <div className="flex items-center gap-1.5 px-2 bg-[#282b30] h-full border-l border-omega-border relative z-[150]">
+           <div className="flex items-center gap-1.5 px-2 bg-[#282b30] h-full border-l border-omega-border relative z-[160]">
               <div className="flex items-center gap-0.5 text-gray-400 hover:text-white cursor-pointer px-1 h-full relative" onClick={(e) => { e.stopPropagation(); setZoomMenuOpen(!zoomMenuOpen); }}>
                  <span className="text-[10px] font-semibold min-w-[32px] text-right">{Math.round(zoomLevel * 100)}%</span>
                  <ChevronDown size={10} />
@@ -2319,7 +2319,7 @@ export function Timeline({
               <button className="p-1 hover:bg-gray-700 rounded text-gray-400 hover:text-white" onClick={() => setZoomLevel(z => Math.max(0.05, z - 0.1))}><Minus size={14} /></button>
               <button className="p-1 hover:bg-gray-700 rounded text-gray-400 hover:text-white" onClick={() => setZoomLevel(z => Math.min(20, z + 0.1))}><Plus size={14} /></button>
            </div>
-           <div className="w-6 bg-[#282b30] h-full border-l border-omega-border flex-shrink-0 z-[150]"></div>
+           <div className="w-6 bg-[#282b30] h-full border-l border-omega-border flex-shrink-0 z-[160]"></div>
         </div>
       </div>
 

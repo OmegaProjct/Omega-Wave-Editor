@@ -2,6 +2,16 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.5.5] - 2026-05-30
+### Fixed
+- **Playhead-Visualisierung (Ziehbereich & Layering)**: Der manuelle Ziehbereich des Markers per Maus wurde mathematisch auf das Spur-Raster eingegrenzt (Drag Clamping), um ein Hinausziehen über die vertikale Scrollleiste zu unterbinden. Zudem wurde die Tiefenebene (Z-Index) der statischen Seiten-Spalten auf `z-[160]` erhöht, um den Playhead beim Scrollen oder Versetzen dahinter perfekt zu maskieren.
+
+### Added
+- **Erweiterter Dateiexport (Import-Ordner & Versionierung)**:
+  - Checkbox zum dynamischen Ändern des Exportpfades in den Quellordner des ersten importierten Tracks.
+  - Checkbox für fortlaufende Dateiversionierung (`_v1`, `_v2` etc.) bei Namensgleichheit im Zielordner.
+  - Blockierungsfreies, modernes Sicherheits-Overlay zur Abfrage einer Bestätigung vor dem Überschreiben existierender Dateien (falls keine Versionierung aktiv ist).
+
 ## [0.5.4] - 2026-05-30
 ### Fixed
 - **Playhead-Visualisierung (Höhe)**: Die Behebung des Überhangs wurde direkt im aktiven Playhead von `Timeline.tsx` verankert, sodass der rote Marker die untere Toolbar (Zoom-Menü und Buttons) garantiert nicht mehr überlappt.
