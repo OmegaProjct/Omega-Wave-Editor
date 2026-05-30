@@ -23,8 +23,8 @@ export const TimelineRuler: React.FC<TimelineRulerProps> = ({
     <>
       {/* Playhead vertical line & drag handle */}
       <motion.div
-        className="absolute top-0 bottom-8 w-[17px] z-[150] cursor-ew-resize flex justify-center pointer-events-auto transform -translate-x-1/2"
-        style={{ left: playheadMotionX }}
+        className="absolute top-0 w-[17px] z-[150] cursor-ew-resize flex justify-center pointer-events-auto transform -translate-x-1/2"
+        style={{ left: playheadMotionX, bottom: 32 }}
         onMouseDown={onPlayheadDragMouseDown}
       >
         <div className="w-px bg-red-600 h-full shadow-[0_0_8px_rgba(255,0,0,0.5)] pointer-events-none"></div>
