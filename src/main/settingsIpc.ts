@@ -55,6 +55,8 @@ export function setupSettingsIpc() {
     tracksCount: 32,
     maxUndoSteps: 50,
     showStartScreen: true,
+    halfWaveform: false,
+    showExportGapWarning: true,
     recentProjects: [],
     keyboardShortcuts: {
       newProject: 'Ctrl+N',

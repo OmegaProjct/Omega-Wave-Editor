@@ -71,13 +71,20 @@ const api = {
   },
 
   // Export popouts
-  openExportSettings: (tracks: any) => ipcRenderer.send('open-export-settings', tracks),
+  openExportSettings: (tracks: any, selection: any, exportSettings: any) => ipcRenderer.send('open-export-settings', { tracks, selection, exportSettings }),
   getExportTracks: () => ipcRenderer.invoke('get-export-tracks'),
+  updateExportSettings: (settings: any) => ipcRenderer.send('update-export-settings', settings),
   startOfflineExport: (settings: any) => ipcRenderer.send('start-offline-export', settings),
   updateExportProgress: (progress: number, label: string) => ipcRenderer.send('update-export-progress', progress, label),
   notifyExportFinished: (status: string, filePath?: string, errorMsg?: string) => ipcRenderer.send('notify-export-finished', status, filePath, errorMsg),
   closeProgressWindow: () => ipcRenderer.send('close-progress-window'),
+  seekTimeline: (position: number) => ipcRenderer.send('seek-timeline', position),
   
+  onExportSettingsUpdated: (callback: (settings: any) => void) => {
+    const sub = (_e: any, settings: any) => callback(settings)
+    ipcRenderer.on('export-settings-updated', sub)
+    return () => { ipcRenderer.removeListener('export-settings-updated', sub) }
+  },
   onStartOfflineRender: (callback: (settings: any) => void) => {
     const sub = (_e: any, settings: any) => callback(settings)
     ipcRenderer.on('start-offline-render', sub)
@@ -97,6 +104,11 @@ const api = {
     const sub = (_e: any, locked: boolean) => callback(locked)
     ipcRenderer.on('lock-main-window', sub)
     return () => { ipcRenderer.removeListener('lock-main-window', sub) }
+  },
+  onSeekTimeline: (callback: (position: number) => void) => {
+    const sub = (_e: any, position: number) => callback(position)
+    ipcRenderer.on('seek-timeline', sub)
+    return () => { ipcRenderer.removeListener('seek-timeline', sub) }
   }
 }
 

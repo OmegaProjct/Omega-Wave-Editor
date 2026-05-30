@@ -1111,20 +1111,33 @@ export class AudioEngine {
   }
 
   // --- Complete Offline Mastering Multi-track Audio Renderer ---
-  public async renderOffline(project: { tracks: any[] }, _targetSampleRate: number = 44100): Promise<AudioBuffer> {
+  public async renderOffline(
+    project: { tracks: any[] },
+    _targetSampleRate: number = 44100,
+    options?: { exportSelectionOnly?: boolean; selection?: { start: number; end: number; active?: boolean } }
+  ): Promise<AudioBuffer> {
     const sampleRate = this.ctx.sampleRate; // Native Echtzeit-Samplerate zur Vermeidung von Resampling-Fehlern
+    
+    const exportSelectionOnly = !!(options?.exportSelectionOnly && options?.selection && (options.selection.active || (options.selection.start !== undefined && options.selection.end !== undefined && options.selection.start !== options.selection.end && options.selection.end > options.selection.start)));
+    const selectionStart = options?.selection?.start ?? 0;
+    const selectionEnd = options?.selection?.end ?? 0;
+    const selectionLength = Math.max(0, selectionEnd - selectionStart);
+
     // 1. Calculate project duration
     let maxDuration = 1.0;
-    project.tracks.forEach(t => {
-      t.regions.forEach((r: any) => {
-        if (r.startPos + r.duration > maxDuration) {
-          maxDuration = r.startPos + r.duration;
-        }
+    if (exportSelectionOnly) {
+      maxDuration = selectionLength;
+    } else {
+      project.tracks.forEach(t => {
+        t.regions.forEach((r: any) => {
+          if (r.startPos + r.duration > maxDuration) {
+            maxDuration = r.startPos + r.duration;
+          }
+        });
       });
-    });
-    
-    // Add 1 second of buffer for reverb tails / delay decays
-    maxDuration += 1.0;
+      // Add 1 second of buffer for reverb tails / delay decays
+      maxDuration += 1.0;
+    }
     
     const totalFrames = Math.ceil(maxDuration * sampleRate);
     const offlineCtx = new OfflineAudioContext(2, totalFrames, sampleRate);
@@ -1264,12 +1277,19 @@ export class AudioEngine {
         const buffer = this.buffers.get(r.file.path);
         if (!buffer) continue;
         
-        const source = offlineCtx.createBufferSource();
-        source.buffer = buffer;
-        
         const effects = r.effects || {};
         const pitchRate = effects.pitchRate !== undefined ? effects.pitchRate : 1.0;
         const keepPitch = effects.keepPitch || false;
+
+        // Perform selection cropping checks
+        if (exportSelectionOnly) {
+          if (r.startPos + r.duration <= selectionStart || r.startPos >= selectionEnd) {
+            continue; // Skip this region entirely
+          }
+        }
+
+        const source = offlineCtx.createBufferSource();
+        source.buffer = buffer;
         source.playbackRate.value = pitchRate;
         
         let lastNode: AudioNode = source;
@@ -1379,14 +1399,30 @@ export class AudioEngine {
         regionOutput.connect(fadeGain);
         fadeGain.connect(trackPan);
         
-        // Schedule fades
-        const playDuration = r.duration;
-        const absStart = r.startPos;
-        const absEnd = absStart + playDuration;
-        
+        // --- Calculate selection-driven play range & offsets ---
+        let absStart = r.startPos;
+        let playDuration = r.duration;
+        let bufferOffset = r.sourceOffset || 0;
+
+        if (exportSelectionOnly) {
+          const clipStart = Math.max(r.startPos, selectionStart);
+          const clipEnd = Math.min(r.startPos + r.duration, selectionEnd);
+          
+          absStart = clipStart - selectionStart;
+          playDuration = Math.max(0, clipEnd - clipStart);
+          
+          const trimmedSeconds = clipStart - r.startPos;
+          bufferOffset = (r.sourceOffset || 0) + trimmedSeconds * pitchRate;
+        }
+
+        // Fades scheduling with exact offset calculations
+        const origDuration = r.duration;
+        const origStart = r.startPos;
+        const origEnd = origStart + origDuration;
+
         const nextRegion = sortedRegions.find((other: any) =>
           other.id !== r.id &&
-          other.startPos < absEnd &&
+          other.startPos < origEnd &&
           other.startPos > r.startPos
         );
         const prevRegion = sortedRegions.find((other: any) =>
@@ -1395,8 +1431,7 @@ export class AudioEngine {
           other.startPos < r.startPos
         );
 
-        // Knackfreie und dip-freie Schnitte bei Export:
-        // Überprüfe, ob benachbarte Regionen nahtlose Schnitte derselben Originaldatei sind
+        // Knackfreie und dip-freie Schnitte bei Export
         const isContinuousPrev = prevRegion &&
           prevRegion.file.path === r.file.path &&
           Math.abs((prevRegion.startPos + prevRegion.duration) - r.startPos) < 0.02 &&
@@ -1404,17 +1439,16 @@ export class AudioEngine {
 
         const isContinuousNext = nextRegion &&
           nextRegion.file.path === r.file.path &&
-          Math.abs(absEnd - nextRegion.startPos) < 0.02 &&
+          Math.abs(origEnd - nextRegion.startPos) < 0.02 &&
           Math.abs(((r.sourceOffset || 0) + r.duration) - (nextRegion.sourceOffset || 0)) < 0.02;
 
         const fadeInDuration = r.fadeIn !== undefined ? r.fadeIn : (isContinuousPrev ? 0.001 : 0.005);
         const fadeOutDuration = r.fadeOut !== undefined ? r.fadeOut : (isContinuousNext ? 0.001 : 0.005);
         
-        // Crossfade detection
         let effectiveFadeOut = fadeOutDuration;
         if (nextRegion && !isContinuousNext) {
           const overlapStart = nextRegion.startPos;
-          const overlapDuration = absEnd - overlapStart;
+          const overlapDuration = origEnd - overlapStart;
           if (overlapDuration > 0) {
             effectiveFadeOut = Math.max(overlapDuration, fadeOutDuration);
           }
@@ -1427,31 +1461,76 @@ export class AudioEngine {
             effectiveFadeIn = Math.max(overlapDuration, fadeInDuration);
           }
         }
+
+        const offset = exportSelectionOnly ? Math.max(0, selectionStart - r.startPos) : 0;
         
-        // Schedule fade in (Equal-Power Curve)
-        fadeGain.gain.setValueAtTime(0, absStart);
-        if (effectiveFadeIn > 0) {
-          const fadeInCurve = new Float32Array(128);
-          for (let i = 0; i < 128; i++) {
-            fadeInCurve[i] = Math.sin((i / 127) * 0.5 * Math.PI);
-          }
-          fadeGain.gain.setValueCurveAtTime(fadeInCurve, absStart, effectiveFadeIn);
+        let startGain = 1.0;
+        let fadeInTimeRemaining = 0;
+
+        if (offset < effectiveFadeIn) {
+          startGain = effectiveFadeIn > 0 ? (offset / effectiveFadeIn) : 1.0;
+          fadeInTimeRemaining = effectiveFadeIn - offset;
         } else {
-          fadeGain.gain.setValueAtTime(1.0, absStart);
+          startGain = 1.0;
         }
-        
-        // Schedule fade out (Equal-Power Curve)
-        const fadeOutStartAbs = absEnd - effectiveFadeOut;
-        if (effectiveFadeOut > 0 && fadeOutStartAbs > absStart) {
-          fadeGain.gain.setValueAtTime(1.0, fadeOutStartAbs);
-          const fadeOutCurve = new Float32Array(128);
-          for (let i = 0; i < 128; i++) {
-            fadeOutCurve[i] = Math.cos((i / 127) * 0.5 * Math.PI);
+
+        const fadeOutStartOffset = origDuration - effectiveFadeOut;
+        let inFadeOut = false;
+        let startFadeOutGain = 1.0;
+
+        if (offset >= fadeOutStartOffset) {
+          inFadeOut = true;
+          const remainingTimeInClip = origDuration - offset;
+          startFadeOutGain = effectiveFadeOut > 0 ? (remainingTimeInClip / effectiveFadeOut) : 0.0;
+        }
+
+        // Knisterfreie Initialisierung und exakte Lautstärke-Rampen in der Offline-Umgebung
+        fadeGain.gain.setValueAtTime(0, absStart);
+
+        if (inFadeOut) {
+          if (effectiveFadeOut > 0) {
+            const curve = new Float32Array(128);
+            for (let i = 0; i < 128; i++) {
+              curve[i] = startFadeOutGain * Math.cos((i / 127) * 0.5 * Math.PI);
+            }
+            fadeGain.gain.setValueCurveAtTime(curve, absStart, playDuration);
+          } else {
+            fadeGain.gain.setValueAtTime(0, absStart);
           }
-          fadeGain.gain.setValueCurveAtTime(fadeOutCurve, fadeOutStartAbs, effectiveFadeOut);
+        } else {
+          fadeGain.gain.setValueAtTime(startGain, absStart);
+
+          if (fadeInTimeRemaining > 0 && fadeInTimeRemaining < playDuration) {
+            const curve = new Float32Array(128);
+            for (let i = 0; i < 128; i++) {
+              const x = i / 127;
+              const targetVal = Math.sin(x * 0.5 * Math.PI);
+              curve[i] = startGain + (1.0 - startGain) * targetVal;
+            }
+            fadeGain.gain.setValueCurveAtTime(curve, absStart, fadeInTimeRemaining);
+          }
+
+          const fadeOutStartAbs = absStart + (fadeOutStartOffset - offset);
+          if (fadeOutStartAbs > absStart + fadeInTimeRemaining && fadeOutStartAbs < absStart + playDuration) {
+            fadeGain.gain.setValueAtTime(1.0, fadeOutStartAbs);
+            if (effectiveFadeOut > 0) {
+              const curve = new Float32Array(128);
+              for (let i = 0; i < 128; i++) {
+                curve[i] = Math.cos((i / 127) * 0.5 * Math.PI);
+              }
+              fadeGain.gain.setValueCurveAtTime(curve, fadeOutStartAbs, Math.min(effectiveFadeOut, absStart + playDuration - fadeOutStartAbs));
+            }
+          } else {
+            if (effectiveFadeOut > 0 && absStart + fadeInTimeRemaining < absStart + playDuration) {
+              const curve = new Float32Array(128);
+              for (let i = 0; i < 128; i++) {
+                curve[i] = Math.cos((i / 127) * 0.5 * Math.PI);
+              }
+              fadeGain.gain.setValueCurveAtTime(curve, absStart + fadeInTimeRemaining, Math.min(effectiveFadeOut, playDuration - fadeInTimeRemaining));
+            }
+          }
         }
         
-        const bufferOffset = r.sourceOffset || 0;
         source.start(absStart, bufferOffset, playDuration);
         if (shifter) {
           shifter.start(absStart);

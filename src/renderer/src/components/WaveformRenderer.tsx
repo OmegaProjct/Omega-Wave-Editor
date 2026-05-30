@@ -63,6 +63,27 @@ function getDeterministicPeaks(filePath: string, samples: number = 1000): number
 export function WaveformRenderer({ filePath, sourceOffset = 0, duration = 0, fileDuration = 0 }: { filePath: string, sourceOffset?: number, duration?: number, fileDuration?: number }) {
   const [peaks, setPeaks] = useState<number[]>([])
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [halfWaveform, setHalfWaveform] = useState<boolean>(false)
+
+  useEffect(() => {
+    if (window.api && typeof window.api.getSettings === 'function') {
+      window.api.getSettings().then((s: any) => {
+        if (s && typeof s.halfWaveform === 'boolean') {
+          setHalfWaveform(s.halfWaveform)
+        }
+      })
+    }
+
+    const handleSettingsUpdate = (e: any) => {
+      if (e.detail && typeof e.detail.halfWaveform === 'boolean') {
+        setHalfWaveform(e.detail.halfWaveform)
+      }
+    }
+    window.addEventListener('SETTINGS_UPDATED', handleSettingsUpdate as EventListener)
+    return () => {
+      window.removeEventListener('SETTINGS_UPDATED', handleSettingsUpdate as EventListener)
+    }
+  }, [])
 
   useEffect(() => {
     if (!filePath) {
@@ -145,20 +166,31 @@ export function WaveformRenderer({ filePath, sourceOffset = 0, duration = 0, fil
     
     const step = width / (peaksToDraw.length || 1)
     
-    peaksToDraw.forEach((peak, i) => {
-      const x = i * step
-      const amplitude = Math.max(0.03, peak) // Boost minimum level slightly for clean visibility
-      const drawHeight = amplitude * (height / 2) * 0.85 // margin top/bottom
-      ctx.moveTo(x, centerY - drawHeight)
-      ctx.lineTo(x, centerY + drawHeight)
-    })
+    if (halfWaveform) {
+      const baseline = height * 0.95
+      peaksToDraw.forEach((peak, i) => {
+        const x = i * step
+        const amplitude = Math.max(0.03, peak)
+        const drawHeight = amplitude * height * 0.90
+        ctx.moveTo(x, baseline)
+        ctx.lineTo(x, baseline - drawHeight)
+      })
+    } else {
+      peaksToDraw.forEach((peak, i) => {
+        const x = i * step
+        const amplitude = Math.max(0.03, peak) // Boost minimum level slightly for clean visibility
+        const drawHeight = amplitude * (height / 2) * 0.85 // margin top/bottom
+        ctx.moveTo(x, centerY - drawHeight)
+        ctx.lineTo(x, centerY + drawHeight)
+      })
+    }
     ctx.stroke()
   }
 
   // Draw on data update
   useEffect(() => {
     draw()
-  }, [peaks, sourceOffset, duration, fileDuration])
+  }, [peaks, sourceOffset, duration, fileDuration, halfWaveform])
 
   // Draw on parent resize (essential when regions are dragged or resized, or zoom changes)
   useEffect(() => {
@@ -172,7 +204,7 @@ export function WaveformRenderer({ filePath, sourceOffset = 0, duration = 0, fil
     })
     observer.observe(parent)
     return () => observer.disconnect()
-  }, [peaks, sourceOffset, duration, fileDuration])
+  }, [peaks, sourceOffset, duration, fileDuration, halfWaveform])
 
   return (
     <div className="w-full h-full relative overflow-hidden">

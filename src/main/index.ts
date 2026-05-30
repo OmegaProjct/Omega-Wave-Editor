@@ -206,6 +206,15 @@ if (gotTheLock) {
     })
 
     // Forward start-offline-export command from Export Dialog to Main DAW Editor Window
+    ipcMain.on('update-export-settings', (event, settings) => {
+      if (currentTracksData) {
+        currentTracksData.exportSettings = settings
+      }
+      if (mainWindow) {
+        mainWindow.webContents.send('export-settings-updated', settings)
+      }
+    })
+
     ipcMain.on('start-offline-export', (event, settings) => {
       // 1. Close settings window
       if (exportWindow) {
@@ -249,7 +258,11 @@ if (gotTheLock) {
 
       // 3. Trigger actual offline rendering in the main editor window (which has the tracks state and AudioContext)
       if (mainWindow) {
-        mainWindow.webContents.send('start-offline-render', { ...settings, tracks: currentTracksData })
+        mainWindow.webContents.send('start-offline-render', {
+          ...settings,
+          tracks: currentTracksData ? currentTracksData.tracks : [],
+          selection: currentTracksData ? currentTracksData.selection : null
+        })
       }
     })
 
@@ -283,6 +296,12 @@ if (gotTheLock) {
       }
       if (mainWindow) {
         mainWindow.webContents.send('lock-main-window', false)
+      }
+    })
+
+    ipcMain.on('seek-timeline', (event, position) => {
+      if (mainWindow) {
+        mainWindow.webContents.send('seek-timeline', position)
       }
     })
 

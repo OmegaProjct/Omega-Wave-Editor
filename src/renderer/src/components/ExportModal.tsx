@@ -16,18 +16,60 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
   const isPopout = new URLSearchParams(window.location.search).get('window') === 'export';
 
   const [tracks, setTracks] = useState<any[]>(initialTracks)
+  const [selection, setSelection] = useState<any>(null)
+  const [exportSelectionOnly, setExportSelectionOnly] = useState(false)
+  const [showExportGapWarning, setShowExportGapWarning] = useState(true)
+  const [gapWarningInfo, setGapWarningInfo] = useState<{ gaps: { start: number; end: number }[] } | null>(null)
 
   useEffect(() => {
     if (isPopout) {
       window.api.getExportTracks().then(loadedTracks => {
         if (loadedTracks) {
-          setTracks(loadedTracks)
+          if (Array.isArray(loadedTracks.tracks)) {
+            setTracks(loadedTracks.tracks)
+          }
+          if (loadedTracks.selection) {
+            setSelection(loadedTracks.selection)
+          }
+          if (loadedTracks.exportSettings) {
+            const settingsObj = loadedTracks.exportSettings
+            // Apply loaded settings to states
+            if (settingsObj.format) setFormat(settingsObj.format)
+            if (settingsObj.sampleRate) setSampleRate(settingsObj.sampleRate)
+            if (settingsObj.bitDepth) setBitDepth(settingsObj.bitDepth)
+            if (settingsObj.bitrate) setBitrate(settingsObj.bitrate)
+            if (settingsObj.channels) setChannels(settingsObj.channels)
+            if (settingsObj.preset) setPresets(settingsObj.preset)
+            if (settingsObj.playAfterExport !== undefined) setPlayAfterExport(settingsObj.playAfterExport)
+            if (settingsObj.exportToImportDir !== undefined) setExportToImportDir(settingsObj.exportToImportDir)
+            if (settingsObj.useVersioning !== undefined) setUseVersioning(settingsObj.useVersioning)
+            if (settingsObj.exportSelectionOnly !== undefined) setExportSelectionOnly(settingsObj.exportSelectionOnly)
+            
+            // Apply ID3 tag settings if present
+            if (settingsObj.id3Tags) {
+              if (settingsObj.id3Tags.title !== undefined) setId3Title(settingsObj.id3Tags.title)
+              if (settingsObj.id3Tags.artist !== undefined) setId3Artist(settingsObj.id3Tags.artist)
+              if (settingsObj.id3Tags.album !== undefined) setId3Album(settingsObj.id3Tags.album)
+              if (settingsObj.id3Tags.year !== undefined) setId3Year(settingsObj.id3Tags.year)
+              if (settingsObj.id3Tags.genre !== undefined) setId3Genre(settingsObj.id3Tags.genre)
+              if (settingsObj.id3Tags.comment !== undefined) setId3Comment(settingsObj.id3Tags.comment)
+              if (settingsObj.id3Tags.track !== undefined) setId3Track(settingsObj.id3Tags.track)
+            }
+          }
         }
       }).catch(err => {
         console.error('Failed to load export tracks:', err)
       })
     }
   }, [isPopout])
+
+  useEffect(() => {
+    window.api.getSettings().then(s => {
+      if (s && s.showExportGapWarning !== undefined) {
+        setShowExportGapWarning(s.showExportGapWarning)
+      }
+    }).catch(err => console.error(err))
+  }, [])
 
   const handleClose = () => {
     if (isPopout) {
@@ -101,6 +143,10 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
     }
   }, [singleSource])
 
+  const sanitizeFilename = (name: string) => {
+    return name.replace(/[\\/:*?"<>|]/g, '_').trim()
+  }
+
   useEffect(() => {
     Promise.all([
       window.api.getHomeDir(),
@@ -108,7 +154,9 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
     ]).then(([home, settings]) => {
       const ext = getExt(format)
       let name = 'omega_master'
-      if (firstSource) {
+      if (tracks.length === 1 && tracks[0].name && tracks[0].name.trim() !== '') {
+        name = sanitizeFilename(tracks[0].name)
+      } else if (firstSource) {
         name = firstSource.replace(/.*[\\\/]/, '').replace(/\.[^.]+$/, '')
       }
       
@@ -123,7 +171,7 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
         
       setPath(`${baseDir}\\${name}.${ext}`)
     })
-  }, [format, firstSource, exportToImportDir])
+  }, [format, firstSource, exportToImportDir, tracks])
 
   const getExt = (f: string) =>
     f.match(/MP3/i) ? 'mp3' : f.match(/FLAC/i) ? 'flac' : f.match(/OGG/i) ? 'ogg'
@@ -195,6 +243,80 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
     }
   }, [singleSource])
 
+  // Synchronisiere Einstellungen live zurück zum Hauptfenster
+  useEffect(() => {
+    if (isPopout) {
+      const id3Tags = {
+        title: id3Title,
+        artist: id3Artist,
+        album: id3Album,
+        year: id3Year,
+        genre: id3Genre,
+        comment: id3Comment,
+        track: id3Track
+      }
+      const currentSettingsObj = {
+        format,
+        sampleRate,
+        bitDepth,
+        bitrate,
+        channels,
+        preset,
+        playAfterExport,
+        exportToImportDir,
+        useVersioning,
+        exportSelectionOnly,
+        id3Tags
+      }
+      window.api.updateExportSettings(currentSettingsObj);
+    }
+  }, [
+    isPopout,
+    format,
+    sampleRate,
+    bitDepth,
+    bitrate,
+    channels,
+    preset,
+    playAfterExport,
+    exportToImportDir,
+    useVersioning,
+    exportSelectionOnly,
+    id3Title,
+    id3Artist,
+    id3Album,
+    id3Year,
+    id3Genre,
+    id3Comment,
+    id3Track
+  ])
+
+  const findGaps = (tracksList: any[]) => {
+    const regions = tracksList.flatMap(t => t.regions)
+    if (regions.length === 0) return []
+    
+    // Sort regions by startPos
+    const sorted = [...regions].sort((a, b) => a.startPos - b.startPos)
+    const gaps: { start: number; end: number }[] = []
+    
+    // 1. Check leading gap
+    if (sorted[0].startPos > 0.05) {
+      gaps.push({ start: 0, end: sorted[0].startPos })
+    }
+    
+    // 2. Check gaps between regions
+    let furthestEnd = sorted[0].startPos + sorted[0].duration
+    for (let i = 1; i < sorted.length; i++) {
+      const r = sorted[i]
+      if (r.startPos > furthestEnd + 0.05) {
+        gaps.push({ start: furthestEnd, end: r.startPos })
+      }
+      furthestEnd = Math.max(furthestEnd, r.startPos + r.duration)
+    }
+    
+    return gaps
+  }
+
   const handleSaveNextToSource = () => {
     if (!singleSource) return
     const dir = singleSource.replace(/[^\\\/]*$/, '')
@@ -203,12 +325,27 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
   }
 
   const executeActualExport = async (targetPath: string) => {
-    if (isPopout) {
-      const id3Tags = supportsId3 ? {
-        title: id3Title, artist: id3Artist, album: id3Album,
-        year: id3Year, genre: id3Genre, comment: id3Comment, track: id3Track
-      } : undefined
+    const id3Tags = supportsId3 ? {
+      title: id3Title, artist: id3Artist, album: id3Album,
+      year: id3Year, genre: id3Genre, comment: id3Comment, track: id3Track
+    } : undefined
 
+    const settingsPayload = {
+      format,
+      path: targetPath,
+      sampleRate,
+      bitDepth,
+      bitrate,
+      channels,
+      playAfterExport,
+      preset,
+      exportSelectionOnly,
+      id3Tags
+    };
+
+    window.api.updateExportSettings(settingsPayload);
+
+    if (isPopout) {
       window.api.startOfflineExport({
         format,
         path: targetPath,
@@ -217,6 +354,8 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
         bitrate,
         channels,
         playAfterExport,
+        selection,
+        exportSelectionOnly,
         id3Tags
       })
       return
@@ -243,7 +382,11 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
       setExportPhase(1)
       setExportProgress(30)
       const parsedSampleRate = parseInt(sampleRate, 10) || 44100
-      const audioBuffer = await AudioEngine.getInstance().renderOffline({ tracks }, parsedSampleRate)
+      const audioBuffer = await AudioEngine.getInstance().renderOffline(
+        { tracks },
+        parsedSampleRate,
+        { exportSelectionOnly, selection: selection ? { start: selection.start ?? 0, end: selection.end ?? 0, active: !!(selection.start !== null && selection.end !== null) } : undefined }
+      )
 
       // Phase 2: Encoding läuft (Lossless WAV compiler)
       setExportPhase(2)
@@ -281,9 +424,7 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
     }
   }
 
-  const handleExport = async () => {
-    if (isExporting || isBrowsing) return
-
+  const proceedWithExport = async () => {
     try {
       const exists = await window.api.fileExists(path)
 
@@ -317,6 +458,45 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
     } catch (err: any) {
       console.error('Error during file existence check:', err)
       await executeActualExport(path)
+    }
+  }
+
+  const handleExport = async () => {
+    if (isExporting || isBrowsing) return
+
+    if (showExportGapWarning) {
+      const gaps = findGaps(tracks)
+      if (gaps.length > 0) {
+        setGapWarningInfo({ gaps })
+        return
+      }
+    }
+
+    await proceedWithExport()
+  }
+
+  const handleIgnoreWarning = async () => {
+    setGapWarningInfo(null)
+    await proceedWithExport()
+  }
+
+  const handleJumpToGap = (gapStart: number) => {
+    window.api.seekTimeline(gapStart)
+    handleClose()
+  }
+
+  const handleCancelWarning = () => {
+    setGapWarningInfo(null)
+  }
+
+  const handleToggleDoNotShowAgain = async (checked: boolean) => {
+    setShowExportGapWarning(!checked)
+    try {
+      const currentSettings = await window.api.getSettings()
+      currentSettings.showExportGapWarning = !checked
+      await window.api.saveSettings(currentSettings)
+    } catch (err) {
+      console.error('Failed to save showExportGapWarning setting:', err)
     }
   }
 
@@ -507,6 +687,19 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
                 </label>
               )}
 
+              {selection && selection.active && (
+                <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer select-none col-span-2">
+                  <input
+                    type="checkbox"
+                    checked={exportSelectionOnly}
+                    onChange={(e) => setExportSelectionOnly(e.target.checked)}
+                    disabled={isExporting || isBrowsing}
+                    className="rounded border-gray-600 bg-[#1a1d21] text-omega-accent focus:ring-0 focus:ring-offset-0 w-3.5 h-3.5"
+                  />
+                  Nur den markierten Bereich exportieren
+                </label>
+              )}
+
               <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer select-none col-span-2">
                 <input
                   type="checkbox"
@@ -604,6 +797,52 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
                   setShowOverwriteConfirm(false)
                 }}
                 className="px-4 py-1.5 bg-gray-600 hover:bg-gray-500 rounded text-gray-300 text-xs font-semibold shadow transition-colors"
+              >
+                Abbrechen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MAGIX-Style Gap Warning Overlay */}
+      {gapWarningInfo && (
+        <div className="absolute inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-[2200]">
+          <div className="bg-[#1e2124] border border-gray-600 p-6 rounded shadow-2xl flex flex-col w-[420px] gap-4">
+            <span className="text-sm font-semibold text-white">Leere Bereiche gefunden</span>
+            <p className="text-xs text-gray-300 leading-relaxed">
+              Es wurden silent Gaps (Lücken von mehr als 0.05s Stille) im Projekt gefunden. 
+              Möchtest du diese leeren Bereiche ignorieren oder abbrechen?
+            </p>
+            
+            <div className="flex items-center gap-2 mt-1">
+              <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={!showExportGapWarning}
+                  onChange={(e) => handleToggleDoNotShowAgain(e.target.checked)}
+                  className="rounded border-gray-600 bg-[#1a1d21] text-omega-accent focus:ring-0 focus:ring-offset-0 w-3.5 h-3.5"
+                />
+                Diese Meldung nicht mehr anzeigen
+              </label>
+            </div>
+
+            <div className="flex flex-col gap-2 mt-2">
+              <button
+                onClick={handleIgnoreWarning}
+                className="w-full py-1.5 bg-omega-accent hover:bg-blue-500 rounded text-white text-xs font-semibold shadow transition-colors"
+              >
+                Ignorieren (Export fortsetzen)
+              </button>
+              <button
+                onClick={() => handleJumpToGap(gapWarningInfo.gaps[0].start)}
+                className="w-full py-1.5 bg-yellow-600 hover:bg-yellow-500 rounded text-white text-xs font-semibold shadow transition-colors"
+              >
+                Zu leeren Bereich springen
+              </button>
+              <button
+                onClick={handleCancelWarning}
+                className="w-full py-1.5 bg-gray-650 hover:bg-gray-600 rounded text-gray-300 text-xs font-semibold shadow transition-colors"
               >
                 Abbrechen
               </button>

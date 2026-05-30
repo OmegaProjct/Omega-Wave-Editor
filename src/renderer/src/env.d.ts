@@ -48,16 +48,20 @@ interface Window {
     installUpdate: (payload: { installNow: boolean }) => Promise<{ success: boolean; error?: string; deferred?: boolean }>;
     onDownloadProgress: (callback: (data: any) => void) => () => void;
     getPerformanceStats: () => Promise<{ cpuUsage: number, processRamBytes: number, systemRamPct: number, systemCpuPct: number }>;
-    openExportSettings: (tracks: any) => void;
-    getExportTracks: () => Promise<any[] | null>;
+    openExportSettings: (tracks: any, selection?: any, exportSettings?: any) => void;
+    getExportTracks: () => Promise<{ tracks: any[]; selection: any; exportSettings: any } | null>;
+    updateExportSettings: (settings: any) => void;
     startOfflineExport: (settings: any) => void;
     updateExportProgress: (progress: number, label: string) => void;
     notifyExportFinished: (status: string, filePath?: string, errorMsg?: string) => void;
     closeProgressWindow: () => void;
+    seekTimeline: (position: number) => void;
+    onExportSettingsUpdated: (callback: (settings: any) => void) => () => void;
     onStartOfflineRender: (callback: (settings: any) => void) => () => void;
     onExportProgressUpdate: (callback: (data: { progress: number; label: string }) => void) => () => void;
     onExportFinished: (callback: (data: { status: string; filePath?: string; errorMsg?: string }) => void) => () => void;
     onLockMainWindow: (callback: (locked: boolean) => void) => () => void;
+    onSeekTimeline: (callback: (position: number) => void) => () => void;
   };
 }
 

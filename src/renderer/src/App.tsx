@@ -210,24 +210,20 @@ function App(): JSX.Element {
   }, [isDirty])
 
   // Save and Close routines for interceptor
-  const handleSaveAndClose = async () => {
+  const handleSaveAndClose = () => {
     setShowSaveConfirm(false)
-    let path = currentProjectPath
-    if (!path) {
-      const res = await window.api.showSaveDialog({ filters: [{ name: 'Omega Projects', extensions: ['owep'] }] })
-      if (res.canceled || !res.filePath) {
-        return // User canceled saving, do not close the window
-      }
-      path = res.filePath
-    }
-    
-    const saveResult = await ProjectManager.saveProject(path, tracks, { zoomLevel: 1, sampleRate: 48000, playheadPos: 0 })
-    if (saveResult.success) {
-      setIsDirty(false)
+    // Delegate to Timeline's SAVE_PROJECT action so that all session state
+    // (exportSettings, zoom, playhead, sampleRate) is included in the saved file.
+    const handleSaved = () => {
+      window.removeEventListener('PROJECT_SAVED', handleSaved)
       window.api.confirmClose()
-    } else {
-      showModal('error', 'Fehler beim Speichern', 'Das Projekt konnte nicht gespeichert werden.')
     }
+    window.addEventListener('PROJECT_SAVED', handleSaved)
+    // Trigger the Timeline's save routine
+    setTimelineAction({ type: 'SAVE_PROJECT' })
+    setTimeout(() => setTimelineAction(undefined), 100)
+    // Safety timeout: if the save takes too long, remove the listener
+    setTimeout(() => window.removeEventListener('PROJECT_SAVED', handleSaved), 15000)
   }
 
   const handleDiscardAndClose = () => {
@@ -382,7 +378,7 @@ function App(): JSX.Element {
         setShowSettings(true);
       } else if (matchesShortcut(e, keyboardShortcuts.exportAudio)) {
         e.preventDefault();
-        window.api.openExportSettings(tracks);
+        window.api.openExportSettings(tracks, null, null);
       }
     };
 
@@ -506,9 +502,16 @@ function App(): JSX.Element {
       }
     });
 
+    // Forward seek-timeline events from the export popup to the main timeline
+    const unsubscribeSeek = window.api.onSeekTimeline((position: number) => {
+      setTimelineAction({ type: 'SEEK', payload: position })
+      setTimeout(() => setTimelineAction(undefined), 100)
+    })
+
     return () => {
       unsubscribeLock();
       unsubscribeRender();
+      unsubscribeSeek();
     };
   }, []);
 
@@ -646,7 +649,7 @@ function App(): JSX.Element {
         </div>
         <MenuBar 
           onOpenSettings={() => openSettings('Projekteinstellungen')} 
-          onOpenExport={() => window.api.openExportSettings(tracks)} 
+          onOpenExport={() => window.api.openExportSettings(tracks, null, null)} 
           onFileAction={triggerTimelineAction}
           shortcuts={keyboardShortcuts}
         />
@@ -681,7 +684,13 @@ function App(): JSX.Element {
           <Panel defaultSize={50} minSize={20} className="bg-omega-panel">
             <Timeline 
               onTracksChange={handleTracksUpdate} 
-              onOpenExport={() => window.api.openExportSettings(tracks)} 
+              onOpenExport={(customTracks, selection, customExportSettings) => {
+                window.api.openExportSettings(
+                  customTracks || tracks,
+                  selection || null,
+                  customExportSettings || null
+                )
+              }}
               externalAction={timelineAction}
               initialTracks={tracks}
               selectedRegionIds={selectedRegionIds}
