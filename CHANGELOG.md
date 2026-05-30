@@ -2,6 +2,13 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.5.4] - 2026-05-30
+### Fixed
+- **Playhead-Visualisierung (Höhe)**: Die Behebung des Überhangs wurde direkt im aktiven Playhead von `Timeline.tsx` verankert, sodass der rote Marker die untere Toolbar (Zoom-Menü und Buttons) garantiert nicht mehr überlappt.
+
+### Added
+- **Live-Seeking während der Wiedergabe**: Das Klicken oder Ziehen auf dem Zeitlineal (Ruler) pausiert die Wiedergabe nun geräuschlos und setzt sie beim Loslassen nahtlos von der neuen Position aus fort, ohne manuell auf Pause drücken zu müssen.
+
 ## [0.5.3] - 2026-05-30
 ### Fixed
 - **Playhead-Visualisierung**: Die vertikale rote Abspiellinie wurde so begrenzt, dass sie oberhalb der Scrollbar und der Zoom-Steuerung am unteren Rand endet.

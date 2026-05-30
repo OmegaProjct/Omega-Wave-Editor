@@ -116,6 +116,7 @@ export function Timeline({
 
   const [playheadPos, setPlayheadPos] = useState<number>(0)
   const playheadPosRef = useRef(0)
+  const isDraggingPlayheadRef = useRef(false)
   const playheadMotionX = useMotionValue(128)
   const playheadRulerMotionWidth = useMotionValue(0)
   const [scrollLeft, setScrollLeft] = useState(0)
@@ -878,7 +879,7 @@ export function Timeline({
 
   useAnimationFrame(() => {
     const current = engine.currentTime;
-    if (engine.isPlaying) {
+    if (engine.isPlaying && !isDraggingPlayheadRef.current) {
       playheadPosRef.current = current;
       
       // Real-time Autoscroll implementation
@@ -1097,6 +1098,13 @@ export function Timeline({
     setEditorContextMenu(null);
     setZoomMenuOpen(false);
 
+    isDraggingPlayheadRef.current = true;
+    const wasPlaying = engine.isPlaying || isPlaying;
+    if (wasPlaying) {
+      engine.stop();
+      setIsPlaying(false);
+    }
+
     const updatePlayheadFromEvent = (clientX: number) => {
       if (!tracksRef.current) return;
       const rect = tracksRef.current.getBoundingClientRect();
@@ -1116,10 +1124,12 @@ export function Timeline({
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
       
-      // If we are playing, restart the playback from the new position
-      if (engine.isPlaying) {
-        engine.stop();
+      isDraggingPlayheadRef.current = false;
+      
+      // If we were playing, restart the playback from the new position
+      if (wasPlaying) {
         engine.play({ tracks }, playheadPosRef.current);
+        setIsPlaying(true);
       }
     };
 
@@ -1136,6 +1146,13 @@ export function Timeline({
     setEditorContextMenu(null);
     setZoomMenuOpen(false);
 
+    isDraggingPlayheadRef.current = true;
+    const wasPlaying = engine.isPlaying || isPlaying;
+    if (wasPlaying) {
+      engine.stop();
+      setIsPlaying(false);
+    }
+
     const updatePlayheadFromEvent = (clientX: number) => {
       if (!tracksRef.current) return;
       const rect = tracksRef.current.getBoundingClientRect();
@@ -1155,10 +1172,12 @@ export function Timeline({
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
       
-      // Wenn Wiedergabe aktiv ist, an neuer Position nahtlos fortsetzen
-      if (engine.isPlaying) {
-        engine.stop();
+      isDraggingPlayheadRef.current = false;
+      
+      // Wenn Wiedergabe aktiv war, an neuer Position nahtlos fortsetzen
+      if (wasPlaying) {
         engine.play({ tracks }, playheadPosRef.current);
+        setIsPlaying(true);
       }
     };
 
@@ -1861,8 +1880,8 @@ export function Timeline({
 
       <div className="flex-1 flex flex-col overflow-hidden relative">
         <motion.div 
-          className="absolute top-0 bottom-0 w-[17px] z-[150] cursor-ew-resize flex justify-center pointer-events-auto transform -translate-x-1/2" 
-          style={{ left: playheadMotionX }}
+          className="absolute top-0 w-[17px] z-[150] cursor-ew-resize flex justify-center pointer-events-auto transform -translate-x-1/2" 
+          style={{ left: playheadMotionX, bottom: 32 }}
           onMouseDown={handlePlayheadDragMouseDown}
         >
            <div className="w-px bg-red-600 h-full shadow-[0_0_8px_rgba(255,0,0,0.5)] pointer-events-none"></div>
