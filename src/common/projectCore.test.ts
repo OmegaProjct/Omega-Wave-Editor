@@ -194,7 +194,7 @@ async function runTests() {
   console.log('  -> OK: Unbekannte Actions schlagen kontrolliert und sicher fehl.\n')
 
   // --- Test 8: Recipe-Ausführung mit nicht implementierten I/O-Aktionen ---
-  console.log('[Test 8] Recipe-Ausführung mit I/O-Actions (export.render / metadata.write) (erwartete Fehler)...');
+  console.log('[Test 8] Recipe-Ausführung mit I/O-Actions (export.render) (erwarteter Fehler)...');
   const renderRecipe: Recipe = {
     steps: [
       {
@@ -241,6 +241,71 @@ async function runTests() {
   
   fs.unlinkSync(tempSavePath)
   console.log('  -> OK: project.save schreibt valides JSON-Projekt erfolgreich auf die Festplatte.\n')
+
+  // --- Test 10: Headless ID3 Metadaten-Schreiben via FFmpeg ---
+  console.log('[Test 10] Headless ID3 Metadaten-Schreiben via FFmpeg...');
+  const tempAudioDir = path.join(__dirname, 'temp_audio_test')
+  if (!fs.existsSync(tempAudioDir)) {
+    fs.mkdirSync(tempAudioDir, { recursive: true })
+  }
+  const testWavPath = path.join(tempAudioDir, 'input_test.wav')
+  
+  // Helper function to write a minimal valid WAV file header + silent PCM data
+  function createTinyWav(filePath: string) {
+    const buffer = Buffer.alloc(44 + 4000)
+    buffer.write('RIFF', 0)
+    buffer.writeUInt32LE(44 + 4000 - 8, 4)
+    buffer.write('WAVE', 8)
+    buffer.write('fmt ', 12)
+    buffer.writeUInt32LE(16, 16)
+    buffer.writeUInt16LE(1, 20) // PCM format
+    buffer.writeUInt16LE(1, 22) // 1 channel
+    buffer.writeUInt32LE(8000, 24) // 8000 Hz sample rate
+    buffer.writeUInt32LE(16000, 28) // byte rate
+    buffer.writeUInt16LE(2, 32) // block align
+    buffer.writeUInt16LE(16, 34) // bits per sample
+    buffer.write('data', 36)
+    buffer.writeUInt32LE(4000, 40)
+    fs.writeFileSync(filePath, buffer)
+  }
+  
+  createTinyWav(testWavPath)
+  assert.ok(fs.existsSync(testWavPath))
+
+  const metadataRecipe: Recipe = {
+    steps: [
+      {
+        action: 'metadata.write',
+        payload: {
+          inputPath: testWavPath,
+          outputPath: testWavPath, // test in-place overwriting
+          tags: {
+            title: 'Omega Wave',
+            artist: 'Omega Developer',
+            album: 'Architecture Improvements',
+            year: '2026',
+            genre: 'Software',
+            comment: 'FFmpeg lossless ID3 bridge test',
+            track: '1'
+          }
+        }
+      }
+    ]
+  }
+
+  const metaResult = await HeadlessRunner.executeRecipe(proj, metadataRecipe, { allowOverwrite: true })
+  assert.strictEqual(metaResult.lastOutputPath, testWavPath)
+  assert.ok(fs.existsSync(testWavPath))
+  assert.ok(fs.statSync(testWavPath).size > 44)
+
+  // Clean up
+  try {
+    fs.unlinkSync(testWavPath)
+    fs.rmdirSync(tempAudioDir)
+  } catch (e) {
+    // ignore cleanup errors
+  }
+  console.log('  -> OK: Metadaten erfolgreich lossless über FFmpeg-Subprozess geschrieben und validiert.\n')
 
   console.log('=== ALLE ERWEITERTEN CORE TESTS ERFOLGREICH BESTANDEN! ===');
 }

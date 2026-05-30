@@ -7,6 +7,7 @@ import { Project, Recipe, RecipeStep, Region } from './types'
 import { executeCommand } from './commandLayer'
 import * as path from 'path'
 import * as fs from 'fs'
+import { spawn } from 'child_process'
 
 export interface HeadlessRunnerOptions {
   allowOverwrite?: boolean
@@ -83,7 +84,41 @@ export class HeadlessRunner {
       if (action === 'export.render') {
         throw new Error("Fehler: Aktion 'export.render' (Audio-Rendering) ist im Headless-Prototyp noch nicht implementiert.")
       } else if (action === 'metadata.write') {
-        throw new Error("Fehler: Aktion 'metadata.write' (Metadaten schreiben) ist im Headless-Prototyp noch nicht implementiert.")
+        if (!payload || !payload.inputPath) {
+          throw new Error('Aktion "metadata.write" erfordert einen "inputPath".')
+        }
+        const inputPath = payload.inputPath
+        const tags = payload.tags || {}
+
+        // Find safe output path
+        const originalOutPath = payload.outputPath || inputPath
+        const safeOutPath = this.getSafeOutputPath(originalOutPath, inputPaths, options)
+
+        // If safeOutPath is the same as inputPath, write to a temp file first (preserving original extension for FFmpeg format detection), then replace.
+        const resolvedInput = path.resolve(inputPath)
+        const resolvedSafeOut = path.resolve(safeOutPath)
+        const useTempFile = (resolvedInput === resolvedSafeOut)
+        
+        const ext = path.extname(safeOutPath)
+        const base = path.basename(safeOutPath, ext)
+        const dir = path.dirname(safeOutPath)
+        const ffmpegOutPath = useTempFile ? path.join(dir, `${base}_temp${ext}`) : safeOutPath
+
+        // Create directory for safeOutPath if it doesn't exist
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true })
+        }
+
+        await this.writeMetadataWithFFmpeg(inputPath, ffmpegOutPath, tags)
+
+        if (useTempFile) {
+          if (fs.existsSync(safeOutPath)) {
+            fs.unlinkSync(safeOutPath)
+          }
+          fs.renameSync(ffmpegOutPath, safeOutPath)
+        }
+
+        lastOutputPath = safeOutPath
       } else if (action === 'project.save') {
         if (!payload || !payload.path) {
           throw new Error('Projekt-Speichern erfordert einen Pfad ("path").')
@@ -100,5 +135,62 @@ export class HeadlessRunner {
     }
 
     return { project: currentProject, lastOutputPath }
+  }
+
+  /**
+   * Writes metadata tags to an audio file using FFmpeg.
+   */
+  public static writeMetadataWithFFmpeg(
+    inputPath: string,
+    outputPath: string,
+    tags: Record<string, string>
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      // Find ffmpeg path
+      let resolvedFfmpegPath: string | null = null
+      try {
+        // Resolve ffmpeg-static path
+        resolvedFfmpegPath = require('ffmpeg-static')
+      } catch (err) {
+        // Fallback: expect ffmpeg to be on system PATH
+        resolvedFfmpegPath = 'ffmpeg'
+      }
+
+      if (!resolvedFfmpegPath) {
+        resolvedFfmpegPath = 'ffmpeg'
+      }
+
+      const args = ['-y', '-i', inputPath]
+      
+      // Map standard tags to FFmpeg metadata
+      if (tags.title !== undefined) args.push('-metadata', `title=${tags.title}`)
+      if (tags.artist !== undefined) args.push('-metadata', `artist=${tags.artist}`)
+      if (tags.album !== undefined) args.push('-metadata', `album=${tags.album}`)
+      if (tags.year !== undefined) args.push('-metadata', `date=${tags.year}`)
+      if (tags.genre !== undefined) args.push('-metadata', `genre=${tags.genre}`)
+      if (tags.comment !== undefined) args.push('-metadata', `comment=${tags.comment}`)
+      if (tags.track !== undefined) args.push('-metadata', `track=${tags.track}`)
+      
+      args.push('-codec', 'copy', outputPath)
+
+      const cp = spawn(resolvedFfmpegPath, args)
+      let stderr = ''
+
+      cp.stderr.on('data', (data) => {
+        stderr += data.toString()
+      })
+
+      cp.on('error', (err) => {
+        reject(new Error(`Failed to start FFmpeg: ${err.message}`))
+      })
+
+      cp.on('close', (code) => {
+        if (code === 0) {
+          resolve()
+        } else {
+          reject(new Error(`FFmpeg exited with code ${code}. Error: ${stderr}`))
+        }
+      })
+    })
   }
 }
