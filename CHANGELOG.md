@@ -2,6 +2,22 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.7.4] - 2026-05-31
+
+### English
+
+#### Fixed
+- **About Logo Restoration**: Replaced the custom animated wave placeholder with the official static brand logo image (`app_icon.png`) for a clean, consistent corporate identity.
+- **FLAC Metadata & Cover Art Support**: Fully enabled the ID3/Metadata and cover art panel for `FLAC (Free Lossless)` format exports, ensuring native format-compliant Vorbis Comments and embedded pictures are written perfectly.
+- **Export Mixdown Layout & Size**: Increased popout export window height to `940px` and optimized layout paddings/gaps to ensure all settings, inputs, and cover art fit completely on a single page without requiring any scrolling.
+
+### Deutsch
+
+#### Behoben
+- **Logo-Wiederherstellung im Info-Modal**: Ersetzung des animierten Wellen-Platzhalters durch die offizielle, starre Version des Markenlogos (`app_icon.png`) für eine konsistente Corporate Identity.
+- **Metadaten- & Cover-Art-Unterstützung für FLAC**: ID3-Tags- & Album-Cover-Panel vollständig für das Exportformat `FLAC (Free Lossless)` freigeschaltet, sodass native, standardkonforme Vorbis-Comments und Cover-Bilder fehlerfrei geschrieben werden.
+- **Export-Mixdown Layout & Höhe**: Erhöhung der Höhe des Popout-Exportfensters auf `940px` sowie Optimierung aller Abstände und Ränder, damit alle Exportoptionen, Metadaten-Felder und Cover-Bilder lückenlos auf einer einzigen Seite ohne lästiges Scrollen Platz finden.
+
 ## [0.7.3] - 2026-05-31
 
 ### English

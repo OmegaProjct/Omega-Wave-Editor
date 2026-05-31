@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Github, Heart, Info, X } from 'lucide-react'
+import appIcon from '../assets/app_icon.png'
 
 interface AboutModalProps {
   onClose: () => void
@@ -42,16 +43,11 @@ export function AboutModal({ onClose }: AboutModalProps) {
         {/* Content */}
         <div className="p-7 flex flex-col items-center text-center">
           {/* Logo / Icon */}
-          <div className="h-16 w-16 bg-gradient-to-br from-blue-500/20 to-omega-accent/20 border border-omega-accent/40 rounded-2xl flex items-center justify-center text-omega-accent shadow-[0_0_15px_rgba(30,144,255,0.15)] mb-4 select-none">
-            {/* Visual audio wave representation */}
-            <div className="flex items-end gap-1 h-8">
-              <div className="w-1 bg-omega-accent h-4 rounded-full animate-pulse" style={{ animationDuration: '1.2s' }}></div>
-              <div className="w-1 bg-blue-400 h-7 rounded-full animate-pulse" style={{ animationDuration: '0.8s' }}></div>
-              <div className="w-1 bg-omega-accent h-5 rounded-full animate-pulse" style={{ animationDuration: '1.5s' }}></div>
-              <div className="w-1 bg-blue-400 h-8 rounded-full animate-pulse" style={{ animationDuration: '1.0s' }}></div>
-              <div className="w-1 bg-omega-accent h-3 rounded-full animate-pulse" style={{ animationDuration: '1.3s' }}></div>
-            </div>
-          </div>
+          <img
+            src={appIcon}
+            alt="Omega Wave Editor Logo"
+            className="h-16 w-16 object-contain rounded-xl mb-4 select-none shadow-[0_0_15px_rgba(30,144,255,0.15)]"
+          />
 
           <h2 className="font-bold text-xl text-white tracking-tight mb-1 select-none">Omega Wave Editor</h2>
           <span className="text-xs font-mono bg-[#16181b] border border-gray-800 text-gray-400 px-2.5 py-0.5 rounded-full select-none mb-5">
