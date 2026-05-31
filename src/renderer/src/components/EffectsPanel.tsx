@@ -217,8 +217,8 @@ export function EffectsPanel({
         if (g !== effects.eqGains![i]) engine.updateActiveRegionEQ(rid, i, g)
       })
     }
-    if (newEffects.compThreshold !== undefined || newEffects.compRatio !== undefined)
-      engine.updateActiveRegionCompressor(rid, newEffects.compThreshold ?? effects.compThreshold!, newEffects.compRatio ?? effects.compRatio!)
+    if (newEffects.compActive !== undefined || newEffects.compThreshold !== undefined || newEffects.compRatio !== undefined)
+      engine.updateActiveRegionCompressor(rid, newEffects.compActive ?? effects.compActive!, newEffects.compThreshold ?? effects.compThreshold!, newEffects.compRatio ?? effects.compRatio!)
     if (newEffects.deEsserActive !== undefined || newEffects.deEsserReduction !== undefined)
       engine.updateActiveRegionDeEsser(rid, newEffects.deEsserActive ?? effects.deEsserActive!, newEffects.deEsserReduction ?? effects.deEsserReduction!)
     if (newEffects.reverbMix !== undefined || newEffects.reverbTime !== undefined)
@@ -252,7 +252,7 @@ export function EffectsPanel({
             updateEffects(pe)
             const rid = selectedRegion!.id
             if (pe.eqGains) pe.eqGains.forEach((g: number, i: number) => engine.updateActiveRegionEQ(rid, i, g))
-            engine.updateActiveRegionCompressor(rid, pe.compThreshold ?? -20, pe.compRatio ?? 4)
+            engine.updateActiveRegionCompressor(rid, pe.compActive ?? false, pe.compThreshold ?? -20, pe.compRatio ?? 4)
             engine.updateActiveRegionDeEsser(rid, pe.deEsserActive ?? false, pe.deEsserReduction ?? 6)
             engine.updateActiveRegionReverb(rid, pe.reverbMix ?? 0, pe.reverbTime ?? 1.5)
             engine.updateActiveRegionDelay(rid, pe.delayTime ?? 300, pe.delayFeedback ?? 0)
@@ -286,7 +286,7 @@ export function EffectsPanel({
     updateEffects(defaultEffects)
     const rid = selectedRegion!.id
     defaultEffects.eqGains!.forEach((g, i) => engine.updateActiveRegionEQ(rid, i, g))
-    engine.updateActiveRegionCompressor(rid, defaultEffects.compThreshold, defaultEffects.compRatio)
+    engine.updateActiveRegionCompressor(rid, defaultEffects.compActive, defaultEffects.compThreshold, defaultEffects.compRatio)
     engine.updateActiveRegionDeEsser(rid, defaultEffects.deEsserActive, defaultEffects.deEsserReduction)
     engine.updateActiveRegionReverb(rid, defaultEffects.reverbMix, defaultEffects.reverbTime)
     engine.updateActiveRegionDelay(rid, defaultEffects.delayTime, defaultEffects.delayFeedback)
@@ -307,7 +307,7 @@ export function EffectsPanel({
     updateEffects(cb)
     const rid = selectedRegion!.id
     if (cb.eqGains) cb.eqGains.forEach((g: number, i: number) => engine.updateActiveRegionEQ(rid, i, g))
-    engine.updateActiveRegionCompressor(rid, cb.compThreshold ?? -20, cb.compRatio ?? 4)
+    engine.updateActiveRegionCompressor(rid, cb.compActive ?? false, cb.compThreshold ?? -20, cb.compRatio ?? 4)
     engine.updateActiveRegionDeEsser(rid, cb.deEsserActive ?? false, cb.deEsserReduction ?? 6)
     engine.updateActiveRegionReverb(rid, cb.reverbMix ?? 0, cb.reverbTime ?? 1.5)
     engine.updateActiveRegionDelay(rid, cb.delayTime ?? 300, cb.delayFeedback ?? 0)
@@ -325,7 +325,7 @@ export function EffectsPanel({
     onTracksChange(updatedTracks)
     tracks.flatMap((t: any) => t.regions).forEach((r: any) => {
       if (effects.eqGains) effects.eqGains.forEach((g: number, i: number) => engine.updateActiveRegionEQ(r.id, i, g))
-      engine.updateActiveRegionCompressor(r.id, effects.compThreshold!, effects.compRatio!)
+      engine.updateActiveRegionCompressor(r.id, effects.compActive ?? false, effects.compThreshold!, effects.compRatio!)
       engine.updateActiveRegionDeEsser(r.id, effects.deEsserActive!, effects.deEsserReduction!)
       engine.updateActiveRegionReverb(r.id, effects.reverbMix!, effects.reverbTime!)
       engine.updateActiveRegionDelay(r.id, effects.delayTime!, effects.delayFeedback!)
@@ -529,6 +529,12 @@ export function EffectsPanel({
             {selectedItem === 'comp' && (
               <div className="flex flex-col gap-4 max-w-sm">
                 <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wider">🗜️ Kompressor</h3>
+                <label className="flex items-center gap-2 cursor-pointer p-3 rounded-lg bg-[#1a1d21]/60 border border-gray-700/50">
+                  <input type="checkbox" checked={effects.compActive || false}
+                    onChange={e => updateEffects({ compActive: e.target.checked })}
+                    className="w-4 h-4 rounded accent-omega-accent cursor-pointer" />
+                  <span className="text-xs text-gray-300 font-medium select-none">Kompressor aktivieren</span>
+                </label>
                 <EffectSlider label="Threshold (Schwellwert)" min={-60} max={0} step={1} value={effects.compThreshold!} defaultValue={-20} unit="dB" onChange={v => updateEffects({ compThreshold: v })} />
                 <EffectSlider label="Ratio (Verhältnis)" min={1} max={20} step={0.5} value={effects.compRatio!} defaultValue={4} unit=":1" onChange={v => updateEffects({ compRatio: v })} />
                 <p className="text-[10px] text-gray-500 leading-relaxed p-3 bg-[#1a1d21]/60 rounded-lg border border-gray-700/60">

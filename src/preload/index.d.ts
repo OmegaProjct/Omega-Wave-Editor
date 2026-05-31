@@ -62,6 +62,7 @@ declare global {
       onExportFinished: (callback: (data: { status: string; filePath?: string; errorMsg?: string }) => void) => () => void
       onLockMainWindow: (callback: (locked: boolean) => void) => () => void
       onSeekTimeline: (callback: (position: number) => void) => () => void
+      openPopoutWindow: (name: string, options?: { width?: number; height?: number; title?: string }) => void
     }
   }
 }

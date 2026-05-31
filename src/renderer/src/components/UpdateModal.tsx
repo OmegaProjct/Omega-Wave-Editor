@@ -190,7 +190,12 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
   const handleInstallLater = async () => {
     try {
       await window.api.installUpdate({ installNow: false })
-      onClose(true) // Schließt Modal und übergibt true für "aufgeschoben"
+      if (window.location.search.includes('window=')) {
+        alert('Das Update wurde erfolgreich heruntergeladen und wird ausgeführt, sobald der Editor beendet wird.')
+        window.close()
+      } else {
+        onClose(true) // Schließt Modal und übergibt true für "aufgeschoben"
+      }
     } catch (err) {
       console.error(err)
     }

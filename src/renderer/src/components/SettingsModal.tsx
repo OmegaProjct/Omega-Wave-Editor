@@ -118,6 +118,13 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
     }
     await window.api.saveSettings(settingsToSave)
     AudioEngine.getInstance().setAudioDriver(settingsToSave.driverType || 'wave', settingsToSave.bufferCount || 6)
+    
+    // Write trigger to localStorage so the main window can synchronize instantly
+    localStorage.setItem('settings_updated_trigger', JSON.stringify({ 
+      timestamp: Date.now(), 
+      settings: settingsToSave 
+    }))
+
     window.dispatchEvent(new CustomEvent('SETTINGS_UPDATED', { detail: settingsToSave }))
     onClose()
   }

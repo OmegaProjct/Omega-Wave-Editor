@@ -81,6 +81,9 @@ const api = {
   closeProgressWindow: () => ipcRenderer.send('close-progress-window'),
   seekTimeline: (position: number) => ipcRenderer.send('seek-timeline', position),
   
+  openPopoutWindow: (name: string, options?: { width?: number; height?: number; title?: string }) => 
+    ipcRenderer.send('open-popout-window', { name, ...options }),
+  
   onExportSettingsUpdated: (callback: (settings: any) => void) => {
     const sub = (_e: any, settings: any) => callback(settings)
     ipcRenderer.on('export-settings-updated', sub)

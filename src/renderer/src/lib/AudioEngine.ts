@@ -408,7 +408,17 @@ export class AudioEngine {
       this.checkMemoryAndClean();
       return audioBuffer;
     } catch (err: any) {
-      throw new Error(`Fehler beim Einlesen der Datei: ${err.message}`);
+      let msg = err.message || '';
+      if (
+        msg.includes('decodeAudioData') || 
+        msg.includes('decode') || 
+        msg.toLowerCase().includes('format') || 
+        msg.toLowerCase().includes('corrupt') ||
+        msg.toLowerCase().includes('unable to decode')
+      ) {
+        msg = `Die Audiodatei ist beschädigt, unvollständig oder in einem nicht unterstützten Format. (Details: ${msg})`;
+      }
+      throw new Error(`Fehler beim Einlesen der Datei: ${msg}`);
     }
   }
 
@@ -598,8 +608,9 @@ export class AudioEngine {
 
           // 3. Compressor Node
           const compressor = this.ctx.createDynamicsCompressor();
-          compressor.threshold.value = effects.compThreshold !== undefined ? effects.compThreshold : 0;
-          compressor.ratio.value = effects.compRatio !== undefined ? Math.max(1, effects.compRatio) : 1; // 1 = bypass
+          const compActive = effects.compActive !== undefined ? effects.compActive : false;
+          compressor.threshold.value = effects.compThreshold !== undefined ? effects.compThreshold : -20;
+          compressor.ratio.value = compActive ? (effects.compRatio !== undefined ? Math.max(1, effects.compRatio) : 4) : 1; // 1 = bypass
           lastNode.connect(compressor);
           lastNode = compressor;
 
@@ -997,12 +1008,12 @@ export class AudioEngine {
     });
   }
 
-  public updateActiveRegionCompressor(regionId: string, threshold: number, ratio: number) {
+  public updateActiveRegionCompressor(regionId: string, active: boolean, threshold: number, ratio: number) {
     const list = this.activeRegions.get(regionId);
     if (!list) return;
     list.forEach(node => {
       this.rampParam(node.compressor.threshold, threshold);
-      this.rampParam(node.compressor.ratio, ratio);
+      this.rampParam(node.compressor.ratio, active ? Math.max(1, ratio) : 1);
     });
   }
 
@@ -1021,7 +1032,26 @@ export class AudioEngine {
           leftRev[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / reverbLength, 3);
           rightRev[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / reverbLength, 3);
         }
-        node.reverb.buffer = reverbImpulse;
+        
+        try {
+          // Disconnect old convolver
+          node.reverb.disconnect();
+          
+          // Create new convolver and load impulse response
+          const newReverb = this.ctx.createConvolver();
+          newReverb.buffer = reverbImpulse;
+          
+          // Reconnect node chain: compressor connects to newReverb, which connects to reverbGain
+          node.compressor.disconnect(node.reverb);
+          node.compressor.connect(newReverb);
+          newReverb.connect(node.reverbGain);
+          
+          // Update reference
+          node.reverb = newReverb;
+        } catch (e) {
+          console.warn('Convolver live update fallback:', e);
+          node.reverb.buffer = reverbImpulse;
+        }
       }
     });
   }
@@ -1373,8 +1403,9 @@ export class AudioEngine {
         
         // Region Compressor
         const regionCompressor = offlineCtx.createDynamicsCompressor();
-        regionCompressor.threshold.value = effects.compThreshold !== undefined ? effects.compThreshold : 0;
-        regionCompressor.ratio.value = effects.compRatio !== undefined ? Math.max(1, effects.compRatio) : 1;
+        const compActive = effects.compActive !== undefined ? effects.compActive : false;
+        regionCompressor.threshold.value = effects.compThreshold !== undefined ? effects.compThreshold : -20;
+        regionCompressor.ratio.value = compActive ? (effects.compRatio !== undefined ? Math.max(1, effects.compRatio) : 4) : 1; // 1 = bypass
         lastNode.connect(regionCompressor);
         lastNode = regionCompressor;
         

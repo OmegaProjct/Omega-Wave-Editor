@@ -387,7 +387,7 @@ export function Timeline({
           if (engine.isPlaying) {
             const eff = effectsClipboard;
             if (eff.eqGains) eff.eqGains.forEach((g, i) => engine.updateActiveRegionEQ(regionId, i, g));
-            if (eff.compThreshold !== undefined && eff.compRatio !== undefined) engine.updateActiveRegionCompressor(regionId, eff.compThreshold, eff.compRatio);
+            if (eff.compThreshold !== undefined && eff.compRatio !== undefined) engine.updateActiveRegionCompressor(regionId, eff.compActive ?? false, eff.compThreshold, eff.compRatio);
             if (eff.deEsserActive !== undefined && eff.deEsserReduction !== undefined) engine.updateActiveRegionDeEsser(regionId, eff.deEsserActive, eff.deEsserReduction);
             if (eff.reverbMix !== undefined && eff.reverbTime !== undefined) engine.updateActiveRegionReverb(regionId, eff.reverbMix, eff.reverbTime);
             if (eff.delayTime !== undefined && eff.delayFeedback !== undefined) engine.updateActiveRegionDelay(regionId, eff.delayTime, eff.delayFeedback);
@@ -402,7 +402,7 @@ export function Timeline({
   };
 
   const resetEffects = (regionId: string) => {
-    const defaults = { eqGains: new Array(10).fill(0), compThreshold: 0, compRatio: 1, deEsserActive: false, deEsserReduction: 0, reverbMix: 0, reverbTime: 1.5, delayTime: 300, delayFeedback: 0, pitchRate: 1.0 };
+    const defaults = { eqGains: new Array(10).fill(0), compActive: false, compThreshold: 0, compRatio: 1, deEsserActive: false, deEsserReduction: 0, reverbMix: 0, reverbTime: 1.5, delayTime: 300, delayFeedback: 0, pitchRate: 1.0 };
     const newTracks = tracks.map(t => ({
       ...t,
       regions: t.regions.map(r => {
@@ -410,7 +410,7 @@ export function Timeline({
           const updated = { ...r, effects: defaults };
           if (engine.isPlaying) {
             defaults.eqGains.forEach((g, i) => engine.updateActiveRegionEQ(regionId, i, g));
-            engine.updateActiveRegionCompressor(regionId, 0, 1);
+            engine.updateActiveRegionCompressor(regionId, false, 0, 1);
             engine.updateActiveRegionDeEsser(regionId, false, 0);
             engine.updateActiveRegionReverb(regionId, 0, 1.5);
             engine.updateActiveRegionDelay(regionId, 300, 0);
@@ -427,7 +427,7 @@ export function Timeline({
   const applyEffectsToAll = (regionId: string, followingOnly: boolean = false) => {
     const sourceRegion = tracks.flatMap(t => t.regions).find(r => r.id === regionId);
     if (!sourceRegion) return;
-    const eff = sourceRegion.effects || { eqGains: new Array(10).fill(0), compThreshold: 0, compRatio: 1, deEsserActive: false, deEsserReduction: 0, reverbMix: 0, reverbTime: 1.5, delayTime: 300, delayFeedback: 0, pitchRate: 1.0 };
+    const eff = sourceRegion.effects || { eqGains: new Array(10).fill(0), compActive: false, compThreshold: 0, compRatio: 1, deEsserActive: false, deEsserReduction: 0, reverbMix: 0, reverbTime: 1.5, delayTime: 300, delayFeedback: 0, pitchRate: 1.0 };
     
     const newTracks = tracks.map(t => ({
       ...t,
@@ -438,7 +438,7 @@ export function Timeline({
         const updated = { ...r, effects: { ...eff } };
         if (engine.isPlaying) {
           if (eff.eqGains) eff.eqGains.forEach((g, i) => engine.updateActiveRegionEQ(r.id, i, g));
-          if (eff.compThreshold !== undefined && eff.compRatio !== undefined) engine.updateActiveRegionCompressor(r.id, eff.compThreshold, eff.compRatio);
+          if (eff.compThreshold !== undefined && eff.compRatio !== undefined) engine.updateActiveRegionCompressor(r.id, eff.compActive ?? false, eff.compThreshold, eff.compRatio);
           if (eff.deEsserActive !== undefined && eff.deEsserReduction !== undefined) engine.updateActiveRegionDeEsser(r.id, eff.deEsserActive, eff.deEsserReduction);
           if (eff.reverbMix !== undefined && eff.reverbTime !== undefined) engine.updateActiveRegionReverb(r.id, eff.reverbMix, eff.reverbTime);
           if (eff.delayTime !== undefined && eff.delayFeedback !== undefined) engine.updateActiveRegionDelay(r.id, eff.delayTime, eff.delayFeedback);
@@ -475,7 +475,7 @@ export function Timeline({
               const updated = { ...r, effects: { ...eff } };
               if (engine.isPlaying) {
                  if (eff.eqGains) eff.eqGains.forEach((g: number, i: number) => engine.updateActiveRegionEQ(regionId, i, g));
-                if (eff.compThreshold !== undefined && eff.compRatio !== undefined) engine.updateActiveRegionCompressor(regionId, eff.compThreshold, eff.compRatio);
+                if (eff.compThreshold !== undefined && eff.compRatio !== undefined) engine.updateActiveRegionCompressor(regionId, eff.compActive ?? false, eff.compThreshold, eff.compRatio);
                 if (eff.deEsserActive !== undefined && eff.deEsserReduction !== undefined) engine.updateActiveRegionDeEsser(regionId, eff.deEsserActive, eff.deEsserReduction);
                 if (eff.reverbMix !== undefined && eff.reverbTime !== undefined) engine.updateActiveRegionReverb(regionId, eff.reverbMix, eff.reverbTime);
                 if (eff.delayTime !== undefined && eff.delayFeedback !== undefined) engine.updateActiveRegionDelay(regionId, eff.delayTime, eff.delayFeedback);
