@@ -52,7 +52,7 @@ export function MenuBar({
     
     if (action === 'vst_plugins') {
       const plugins = await window.api.scanVstPlugins()
-      onFileAction('SHOW_MODAL', { type: 'info', title: 'VST Scan', message: `VST Scan abgeschlossen. ${plugins.length} Plugins gefunden:\n\n${plugins.map((p: any) => `- ${p.name} (${p.type})`).join('\n')}` })
+      onFileAction('SHOW_MODAL', { type: 'info', title: 'VST Scan', message: `VST Scan abgeschlossen. ${plugins.length} Plugins gefunden:\n\n${plugins.map((p: any) => `- ${p.name} (${p.format})`).join('\n')}` })
       return
     }
 
@@ -183,12 +183,11 @@ export function MenuBar({
         )}
       </div>
 
-      {/* Effekte */}
+      {/* Plugins */}
       <div className="relative h-full flex items-center">
-        <span className={`mx-1 px-3 py-1 cursor-pointer hover:bg-gray-700 rounded transition-colors ${openMenu === 'effects' ? 'bg-gray-700' : ''}`} onClick={() => handleMenuClick('effects')}>Effekte</span>
+        <span className={`mx-1 px-3 py-1 cursor-pointer hover:bg-gray-700 rounded transition-colors ${openMenu === 'effects' ? 'bg-gray-700' : ''}`} onClick={() => handleMenuClick('effects')}>Plugins</span>
         {openMenu === 'effects' && (
           <div className="absolute top-full left-0 bg-[#2b2d31] border border-gray-700 shadow-xl py-1 z-[1000] rounded">
-            <MenuItem label="Audioeffekte (Master)..." action="audio_effects" />
             <MenuItem label="VST Plugins laden/scannen..." action="vst_plugins" />
           </div>
         )}

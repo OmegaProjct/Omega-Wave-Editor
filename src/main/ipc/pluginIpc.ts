@@ -55,29 +55,35 @@ export function registerPluginIpc() {
 
     // 1. Setup platform-specific scan directories (Windows VST2/VST3, macOS VST2/VST3/AU, Linux VST3/LV2)
     if (platform === 'win32') {
-      // Standard Windows directories for audio plugins
       scanPaths.push(
         'C:\\Program Files\\VSTPlugins',
         'C:\\Program Files\\Common Files\\VST3',
         'C:\\Program Files\\Steinberg\\VSTPlugins',
-        path.join(os.homedir(), 'AppData', 'Local', 'Programs', 'Common', 'VST3')
+        'C:\\Program Files (x86)\\VSTPlugins',
+        'C:\\Program Files (x86)\\Common Files\\VST3',
+        'C:\\Program Files (x86)\\Steinberg\\VSTPlugins',
+        path.join(os.homedir(), 'AppData', 'Local', 'Programs', 'Common', 'VST3'),
+        path.join(os.homedir(), 'Documents', 'VST Plugins'),
+        path.join(os.homedir(), 'Documents', 'VST3 Plugins')
       )
     } else if (platform === 'darwin') {
-      // Standard macOS directories for VSTs and Audio Units (AU component files)
       scanPaths.push(
         '/Library/Audio/Plug-Ins/VST',
         '/Library/Audio/Plug-Ins/VST3',
-        '/Library/Audio/Plug-Ins/Components', // Audio Units
+        '/Library/Audio/Plug-Ins/Components',
+        path.join(os.homedir(), 'Library/Audio/Plug-Ins/VST'),
         path.join(os.homedir(), 'Library/Audio/Plug-Ins/VST3'),
         path.join(os.homedir(), 'Library/Audio/Plug-Ins/Components')
       )
     } else {
-      // Standard Linux directories for VST3 and LV2 bundle formats
       scanPaths.push(
+        '/usr/lib/vst',
         '/usr/lib/vst3',
+        '/usr/local/lib/vst',
         '/usr/local/lib/vst3',
         '/usr/lib/lv2',
         '/usr/local/lib/lv2',
+        path.join(os.homedir(), '.vst'),
         path.join(os.homedir(), '.vst3'),
         path.join(os.homedir(), '.lv2')
       )
@@ -100,62 +106,88 @@ export function registerPluginIpc() {
       }
     }
 
+    // Instrument-Erkennung anhand von Schlüsselwörtern im Namen/Pfad
+    function detectCategory(name: string, filePath: string): string {
+      const lower = (name + ' ' + filePath).toLowerCase()
+      const instrumentKeywords = [
+        'synth', 'instrument', 'vsti', 'piano', 'keys', 'organ', 'drum', 'drums',
+        'bass', 'guitar', 'violin', 'cello', 'brass', 'strings', 'sampler',
+        'kontakt', 'omnisphere', 'serum', 'massive', 'nexus', 'sylenth',
+        'battery', 'addictive', 'superior', 'ezdrummer', 'addictivekeys'
+      ]
+      return instrumentKeywords.some(kw => lower.includes(kw)) ? 'Instrument' : 'Effekt'
+    }
+
+    // Rekursiver Verzeichnis-Scanner
+    async function scanDirRecursive(
+      dir: string,
+      depth: number = 0
+    ): Promise<Array<{ fullPath: string; name: string; format: 'VST2' | 'VST3' | 'AU' | 'LV2' }>> {
+      const MAX_DEPTH = 6
+      if (depth > MAX_DEPTH) return []
+      const items: Array<{ fullPath: string; name: string; format: 'VST2' | 'VST3' | 'AU' | 'LV2' }> = []
+      try {
+        const entries = await fs.promises.readdir(dir, { withFileTypes: true })
+        for (const entry of entries) {
+          const fullPath = path.join(dir, entry.name)
+          const lowerName = entry.name.toLowerCase()
+
+          if (lowerName.endsWith('.dll')) {
+            items.push({ fullPath, name: entry.name.replace(/\.dll$/i, ''), format: 'VST2' })
+          } else if (lowerName.endsWith('.vst') && !entry.isDirectory()) {
+            items.push({ fullPath, name: entry.name.replace(/\.vst$/i, ''), format: 'VST2' })
+          } else if (lowerName.endsWith('.vst3')) {
+            // VST3 ist typischerweise ein Bundle-Ordner
+            items.push({ fullPath, name: entry.name.replace(/\.vst3$/i, ''), format: 'VST3' })
+          } else if (lowerName.endsWith('.component')) {
+            items.push({ fullPath, name: entry.name.replace(/\.component$/i, ''), format: 'AU' })
+          } else if (lowerName.endsWith('.lv2')) {
+            items.push({ fullPath, name: entry.name.replace(/\.lv2$/i, ''), format: 'LV2' })
+          } else if (entry.isDirectory() && !entry.name.startsWith('.')) {
+            // Rekursiv in Unterordner scannen (außer bekannte Bundle-Endungen)
+            const sub = await scanDirRecursive(fullPath, depth + 1)
+            items.push(...sub)
+          }
+        }
+      } catch {
+        // Verzeichnis nicht zugänglich – überspringen
+      }
+      return items
+    }
+
     const currentRegistry = readRegistry()
     const foundPlugins: PluginDescriptor[] = []
 
-    // 2. Perform filesystem scans
+    // 2. Rekursiver Filesystem-Scan über alle Suchpfade
     for (const scanDir of scanPaths) {
+      if (!fs.existsSync(scanDir)) continue
       try {
-        if (fs.existsSync(scanDir)) {
-          const entries = await fs.promises.readdir(scanDir, { withFileTypes: true })
-          
-          for (const entry of entries) {
-            const fullPath = path.join(scanDir, entry.name)
-            const name = entry.name.replace(/\.(dll|vst|vst3|component|lv2|so)$/i, '')
-            let format: 'VST2' | 'VST3' | 'AU' | 'LV2' = 'VST3'
+        const entries = await scanDirRecursive(scanDir)
+        for (const { fullPath, name, format } of entries) {
+          const pluginId = generatePluginId(fullPath, name)
+          const existing = currentRegistry[pluginId]
+          const category = detectCategory(name, fullPath)
 
-            if (entry.name.endsWith('.dll') || entry.name.endsWith('.vst')) {
-              format = 'VST2'
-            } else if (entry.name.endsWith('.vst3')) {
-              format = 'VST3'
-            } else if (entry.name.endsWith('.component')) {
-              format = 'AU'
-            } else if (entry.name.endsWith('.lv2')) {
-              format = 'LV2'
-            } else if (entry.name.endsWith('.so')) {
-              format = 'VST3' // default fallback under linux
-            } else {
-              continue // skip unsupported file types
-            }
-
-            const pluginId = generatePluginId(fullPath, name)
-            const existing = currentRegistry[pluginId]
-
-            // Retain blocklist metadata
-            const plugin: PluginDescriptor = {
-              id: pluginId,
-              name,
-              manufacturer: 'Unbekannt',
-              format,
-              path: fullPath,
-              scanStatus: existing ? existing.scanStatus : 'scanned',
-              crashCount: existing ? existing.crashCount : 0,
-              blocked: existing ? existing.blocked : false,
-              category: format === 'AU' ? 'Instrument/Effect' : 'Effekt'
-            }
-
-            // Block plugins that crash repeatedly (threshold >= 3 crashes)
-            if (plugin.crashCount && plugin.crashCount >= 3) {
-              plugin.blocked = true
-              plugin.scanStatus = 'failed'
-              plugin.error = 'Plugin stürzte wiederholt ab und wurde blockiert.'
-            }
-
-            currentRegistry[pluginId] = plugin
-            if (!plugin.blocked) {
-              foundPlugins.push(plugin)
-            }
+          const plugin: PluginDescriptor = {
+            id: pluginId,
+            name,
+            manufacturer: existing?.manufacturer || 'Unbekannt',
+            format,
+            path: fullPath,
+            scanStatus: existing ? existing.scanStatus : 'scanned',
+            crashCount: existing ? existing.crashCount : 0,
+            blocked: existing ? existing.blocked : false,
+            category
           }
+
+          if (plugin.crashCount && plugin.crashCount >= 3) {
+            plugin.blocked = true
+            plugin.scanStatus = 'failed'
+            plugin.error = 'Plugin stürzte wiederholt ab und wurde blockiert.'
+          }
+
+          currentRegistry[pluginId] = plugin
+          if (!plugin.blocked) foundPlugins.push(plugin)
         }
       } catch (err) {
         console.error(`Fehler beim Scannen von ${scanDir}:`, err)
