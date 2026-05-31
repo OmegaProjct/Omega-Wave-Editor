@@ -2,6 +2,28 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.7.1] - 2026-05-31
+
+### English
+
+#### Added
+- **UI Adjustments**: Expanded the Update Modal width to `720px` and increased scrollable changelog display box heights (up to 380px) for maximum reading comfort during checking and installation.
+- **Bilingual Release Notes**: Full dual English and German support for all future release notes, upgrade notifications, and update screens.
+
+#### Fixed
+- **Double v Prefix**: Resolved a cosmetic formatting issue where the latest version was rendered with a double `v` (e.g. `vv0.7.0`) in the menu bar and update process screens.
+- **UTF-8 Encoding**: Fixed a standard Windows PowerShell redirection encoding issue (defaulting to UTF-16LE in `>`) by rewriting release notes files directly in UTF-8 format within the extraction utility.
+
+### Deutsch
+
+#### Hinzugefügt
+- **UI-Verbesserungen**: Breite des Update-Modals auf `720px` vergrößert und scrollbare Höhen der Changelogs (auf bis zu 380px) für optimalen Lesekomfort während der Prüfung und des Downloads erhöht.
+- **Zweisprachige Release-Notes**: Vollständig zweisprachige (EN/DE) Unterstützung für alle zukünftigen Versionshinweise und Update-Fenster.
+
+#### Behoben
+- **Doppel-v-Präfix**: Kosmetisches Formatierungsproblem behoben, bei dem die neueste Version irrtümlich als `vv0.7.0` in der Menüleiste und in den Update-Schritten dargestellt wurde.
+- **UTF-8-Codierung**: Klassischen Windows-PowerShell-Ausgabeumleitungsfehler (Standard-UTF-16LE bei `>`) korrigiert, indem das Extraktionsskript Ausgabedateien direkt als UTF-8 schreibt.
+
 ## [0.7.0] - 2026-05-31
 
 ### English
