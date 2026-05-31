@@ -547,7 +547,7 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
 
   return (
     <div className={isPopout ? "w-screen h-screen bg-[#282b30] flex flex-col overflow-hidden relative font-sans text-omega-text select-none" : "fixed inset-0 bg-black/80 flex items-center justify-center z-[2000] font-sans text-omega-text select-none"}>
-      <div className={isPopout ? "w-full h-full flex flex-col overflow-hidden relative" : "bg-[#282b30] border border-gray-600 w-[720px] rounded-xl shadow-2xl flex flex-col overflow-hidden max-h-[96vh] relative"}>
+      <div className={isPopout ? "w-full h-full flex flex-col overflow-hidden relative" : "bg-[#282b30] border border-gray-600 w-[720px] rounded-xl shadow-2xl flex flex-col overflow-hidden relative"}>
         
         {/* Interactive Double-Click Guard Mask */}
         {isBrowsing && !isExporting && (
@@ -571,7 +571,7 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
           )}
         </div>
 
-        <div className="p-3.5 flex flex-col gap-3 overflow-y-auto scrollbar-hide">
+        <div className="p-3.5 flex flex-col gap-3 overflow-hidden">
           
           {/* FORMAT */}
           <div className="border border-gray-700 p-3 rounded bg-black/5 relative">

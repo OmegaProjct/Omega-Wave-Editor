@@ -2,7 +2,20 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.7.14] - 2026-06-01
+
+### English
+
+#### Changed
+- **Export Dialog Dynamic Height**: Removed the fixed `max-h-[96vh]` constraint and internal scrollbar from the Mixdown Export dialog. The dialog now auto-sizes to its content, closing just below the export/cancel buttons without stretching to fill the window.
+
+### Deutsch
+
+#### Geändert
+- **Exportdialog dynamische Höhe**: Entfernung der festen `max-h-[96vh]`-Beschränkung und der internen Scrollleiste aus dem Mixdown-Export-Dialog. Der Dialog passt sich nun dynamisch seinem Inhalt an und endet knapp unterhalb der Schaltflächen, ohne das Fenster vollständig auszufüllen.
+
 ## [0.7.13] - 2026-06-01
+
 
 ### English
 
