@@ -84,7 +84,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
     }).catch((e: any) => console.error('Fehler beim Abrufen der App-Version:', e))
 
     navigator.mediaDevices.enumerateDevices().then(devs => {
-      const outputs = devs.filter(d => d.kind === 'audiooutput')
+      const outputs = devs.filter(d => d.kind === 'audiooutput' && d.deviceId !== 'default')
       setDevices(outputs)
     }).catch(err => {
       console.error('Error enumerating audio output devices:', err)
@@ -684,7 +684,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[2000]" data-settings-modal="true">
-      <div className="bg-[#282b30] border border-gray-700 w-[750px] h-[550px] rounded shadow-2xl flex flex-col">
+      <div className="bg-[#282b30] border border-gray-700 w-[750px] h-[700px] rounded shadow-2xl flex flex-col">
         <div className="p-3 border-b border-gray-700 font-semibold flex justify-between items-center bg-[#1e2124] rounded-t">
           <span>Programmeinstellungen</span>
           <button onClick={onClose} className="hover:text-red-400">✖</button>

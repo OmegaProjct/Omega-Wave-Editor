@@ -2,6 +2,44 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.7.6] - 2026-05-31
+
+### English
+
+#### Added
+- **Always-Visible Effects & Plugins Panel**: The right-side panel now remains fully visible at all times, even when no audio clip is selected. Controls are clearly disabled with an inline warning when no clip is active.
+- **Accordion Layout for Effects Panel**: Replaced the flat sidebar navigation with two collapsible accordion sections — **"Audioeffekte"** (Equalizer, Compressor, Hall/Reverb, Echo/Delay, De-Esser, Pitch/Timestretch as sub-accordions) and **"VST-Plugins"** (dynamic plugin list).
+- **Instrument vs. Effect Detection in VST Scanner**: The scanner now automatically distinguishes between virtual instruments and audio effects via keyword analysis. Instruments shown with a purple badge; effects with a blue badge.
+- **Auto-Load VST Plugin Registry on Startup**: Previously scanned plugins load immediately from the local registry when the panel opens, without requiring a manual scan trigger.
+
+#### Changed
+- **Menu Rename: "Effekte" → "Plugins"**: Top menu bar entry renamed for clarity. The redundant "Audioeffekte (Master)" sub-item has been removed.
+- **Settings Dialog Height Increased**: Programmeinstellungen dialog height increased from 550 px to 700 px, preventing scrolling in content-heavy tabs such as "Ordner".
+- **VST Scanner: Recursive Directory Scanning**: Plugin scanner now traverses subdirectories up to 6 levels deep, correctly discovering nested VST3 bundles and VST2 DLLs.
+- **VST Scanner: Extended Windows Search Paths**: Added `Program Files (x86)` variants and user Documents folders to the Windows scan path list.
+
+#### Fixed
+- **Duplicate Audio Output Device Entry**: Removed the browser-injected `Default - System (...)` duplicate from the audio output device dropdown in Playback settings.
+- **VST Plugin Type Display `(undefined)`**: Fixed field name mismatch — `vst.type` corrected to `vst.format`, resolving the `(undefined)` label in scan results.
+
+### Deutsch
+
+#### Hinzugefügt
+- **Dauerhaft sichtbares Effekte- & Plugins-Panel**: Das rechte Panel bleibt jetzt immer vollständig sichtbar, auch wenn kein Audio-Clip ausgewählt ist. Bedienelemente werden deaktiviert mit einem integrierten Hinweis angezeigt.
+- **Akkordeon-Layout für das Effekte-Panel**: Die flache Seitennavigation wurde durch zwei ausklappbare Akkordeon-Sektionen ersetzt – **„Audioeffekte"** (mit Equalizer, Kompressor, Hall/Reverb, Echo/Delay, De-Esser und Pitch/Timestretch) und **„VST-Plugins"** (dynamische Plugin-Liste).
+- **Instrument- vs. Effekt-Erkennung im VST-Scanner**: Der Scanner erkennt automatisch den Unterschied zwischen Instrumenten und Audioeffekten per Schlüsselwortanalyse. Instrumente: lilafarbener Badge; Effekte: blauer Badge.
+- **Automatisches Laden der VST-Plugin-Registry beim Start**: Bereits gescannte Plugins werden beim Öffnen des Panels sofort aus der lokalen Registry geladen.
+
+#### Geändert
+- **Menü-Umbenennung: „Effekte" → „Plugins"**: Der Menüpunkt wurde umbenannt. Der Unterpunkt „Audioeffekte (Master)" wurde als redundant entfernt.
+- **Einstellungsdialog-Höhe erhöht**: Die Höhe des Programmeinstellungen-Dialogs wurde von 550 px auf 700 px erhöht.
+- **VST-Scanner: Rekursive Verzeichnis-Suche**: Der Scanner durchsucht nun bis zu 6 Ebenen tief, wodurch VST3-Bundles und VST2-DLLs in verschachtelten Ordnern gefunden werden.
+- **VST-Scanner: Erweiterte Windows-Suchpfade**: `Program Files (x86)`-Varianten und benutzerspezifische Dokument-Ordner wurden hinzugefügt.
+
+#### Behoben
+- **Doppelter Audioausgabe-Geräteeintrag**: Der vom Browser automatisch generierte `Default - System (...)`-Doppeleintrag in der Audioausgabe-Auswahl wurde entfernt.
+- **VST-Plugin-Typ-Anzeige `(undefined)`**: Feldnamen-Fehler behoben – `vst.type` durch `vst.format` ersetzt.
+
 ## [0.7.5] - 2026-05-31
 
 ### English
