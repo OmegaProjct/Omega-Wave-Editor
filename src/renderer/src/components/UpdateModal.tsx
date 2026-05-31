@@ -182,7 +182,7 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
 
   return (
     <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-[5000] animate-in fade-in duration-200">
-      <div className="bg-[#24272c]/90 border border-gray-700/60 w-[580px] rounded-xl shadow-2xl overflow-hidden flex flex-col backdrop-blur-md">
+      <div className="bg-[#24272c]/90 border border-gray-700/60 w-[720px] rounded-xl shadow-2xl overflow-hidden flex flex-col backdrop-blur-md">
         
         {/* Header */}
         <div className="bg-[#1a1d21]/60 px-5 py-3.5 border-b border-gray-800/80 flex items-center justify-between">
@@ -207,7 +207,7 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
               </div>
               <div className="flex flex-col gap-1 text-center">
                 <h3 className="font-bold text-base text-white">Ein neues Update ist verfügbar!</h3>
-                <p className="text-xs text-gray-400">Omega Wave Editor v{updateInfo.latestVersion}</p>
+                <p className="text-xs text-gray-400">Omega Wave Editor {updateInfo.latestVersion.startsWith('v') ? updateInfo.latestVersion : `v${updateInfo.latestVersion}`}</p>
               </div>
 
               {/* Version overview and HandBrake changelog */}
@@ -215,16 +215,16 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
                 <div className="flex justify-between border-b border-gray-800/50 pb-2.5 font-semibold text-gray-400">
                   <div className="flex flex-col gap-0.5">
                     <span className="text-[10px] text-gray-500 uppercase font-bold">Installiert</span>
-                    <span className="font-mono text-white text-xs">v{updateInfo.currentVersion}</span>
+                    <span className="font-mono text-white text-xs">{updateInfo.currentVersion.startsWith('v') ? updateInfo.currentVersion : `v${updateInfo.currentVersion}`}</span>
                   </div>
                   <div className="flex flex-col gap-0.5 text-right">
                     <span className="text-[10px] text-gray-500 uppercase font-bold">Verfügbar</span>
-                    <span className="font-mono text-green-400 text-xs">v{updateInfo.latestVersion}</span>
+                    <span className="font-mono text-green-400 text-xs">{updateInfo.latestVersion.startsWith('v') ? updateInfo.latestVersion : `v${updateInfo.latestVersion}`}</span>
                   </div>
                 </div>
                 
                 {/* Scrollable Changelog box */}
-                <div className="max-h-[250px] overflow-y-auto pr-1 leading-normal text-gray-400 custom-scrollbar select-text">
+                <div className="max-h-[380px] overflow-y-auto pr-1 leading-normal text-gray-400 custom-scrollbar select-text">
                   {renderFormattedChangelog(updateInfo.body || '')}
                 </div>
               </div>
@@ -279,7 +279,7 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
 
               {/* Changelog readable during download */}
               {updateInfo.body && (
-                <div className="w-full bg-[#16181b]/50 border border-gray-800/40 rounded-lg p-4 text-xs text-left text-gray-400 mt-3 flex flex-col gap-1.5 max-h-[150px] overflow-y-auto select-text shadow-inner">
+                <div className="w-full bg-[#16181b]/50 border border-gray-800/40 rounded-lg p-4 text-xs text-left text-gray-400 mt-3 flex flex-col gap-1.5 max-h-[240px] overflow-y-auto select-text shadow-inner">
                   <div className="text-[9px] uppercase font-bold text-gray-500 border-b border-gray-800/40 pb-1 mb-1.5 select-none">Was ist neu:</div>
                   {renderFormattedChangelog(updateInfo.body)}
                 </div>
@@ -294,7 +294,7 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
               </div>
               <div className="flex flex-col gap-1 text-center">
                 <h3 className="font-bold text-base text-white">Download abgeschlossen!</h3>
-                <p className="text-xs text-gray-400">Das Update für v{updateInfo.latestVersion} ist bereit zur Installation.</p>
+                <p className="text-xs text-gray-400">Das Update für {updateInfo.latestVersion.startsWith('v') ? updateInfo.latestVersion : `v${updateInfo.latestVersion}`} ist bereit zur Installation.</p>
               </div>
               <p className="text-xs text-gray-355 px-4 leading-relaxed mt-1 text-center">
                 Möchtest du das Update jetzt installieren (die App wird sofort neu gestartet) oder soll die Installation erst beim nächsten Beenden der App ausgeführt werden?
@@ -302,7 +302,7 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
 
               {/* Changelog viewable in Ready step */}
               {updateInfo.body && (
-                <div className="w-full bg-[#16181b]/50 border border-gray-800/40 rounded-lg p-4 text-xs text-left text-gray-400 mt-3 flex flex-col gap-1.5 max-h-[140px] overflow-y-auto select-text shadow-inner">
+                <div className="w-full bg-[#16181b]/50 border border-gray-800/40 rounded-lg p-4 text-xs text-left text-gray-400 mt-3 flex flex-col gap-1.5 max-h-[220px] overflow-y-auto select-text shadow-inner">
                   <div className="text-[9px] uppercase font-bold text-gray-500 border-b border-gray-800/40 pb-1 mb-1.5 select-none">Neue Features in diesem Update:</div>
                   {renderFormattedChangelog(updateInfo.body)}
                 </div>

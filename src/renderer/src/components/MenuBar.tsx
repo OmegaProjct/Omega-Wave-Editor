@@ -76,10 +76,14 @@ export function MenuBar({
         if (updateInfo.available) {
           onFileAction('TRIGGER_UPDATE', updateInfo)
         } else {
+          const cleanCurrent = updateInfo.currentVersion.startsWith('v') ? updateInfo.currentVersion : `v${updateInfo.currentVersion}`
+          const cleanLatest = (updateInfo.latestVersion || updateInfo.currentVersion).startsWith('v') 
+            ? (updateInfo.latestVersion || updateInfo.currentVersion) 
+            : `v${updateInfo.latestVersion || updateInfo.currentVersion}`
           onFileAction('SHOW_MODAL', {
             type: 'info',
             title: 'Updates',
-            message: `Deine Software ist auf dem neuesten Stand.\n\nInstallierte Version: v${updateInfo.currentVersion}\nNeueste Version: v${updateInfo.latestVersion || updateInfo.currentVersion}`
+            message: `Deine Software ist auf dem neuesten Stand.\n\nInstallierte Version: ${cleanCurrent}\nNeueste Version: ${cleanLatest}`
           })
         }
       } catch (err: any) {
