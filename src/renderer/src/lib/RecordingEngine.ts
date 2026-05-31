@@ -24,7 +24,7 @@ export class RecordingEngine {
   private mediaStream: MediaStream | null = null;
   private audioCtx: AudioContext | null = null;
   private sourceNode: MediaStreamAudioSourceNode | null = null;
-  private processorNode: ScriptProcessorNode | null = null;
+  private processorNode: AudioWorkletNode | null = null;
 
   // Puffer für aufgezeichnete Audiodaten (Float32Array Chunks)
   private leftChunks: Float32Array[] = [];
@@ -74,8 +74,50 @@ export class RecordingEngine {
     this.audioCtx = new AudioContext();
     this.sourceNode = this.audioCtx.createMediaStreamSource(this.mediaStream);
 
-    // 3. Prozessor-Knoten einrichten (Buffer-Größe 4096 Samples für stabile Latenz)
-    this.processorNode = this.audioCtx.createScriptProcessor(4096, 2, 2);
+    // 3. Prozessor-Knoten als AudioWorklet einrichten
+    const workletCode = `
+      class RecordingProcessor extends AudioWorkletProcessor {
+        constructor(options) {
+          super();
+          this.playthrough = options.processorOptions.playthrough;
+        }
+
+        process(inputs, outputs, parameters) {
+          const input = inputs[0];
+          const output = outputs[0];
+          
+          if (input && input.length > 0) {
+            const left = input[0] || new Float32Array(128);
+            const right = input[1] || left;
+
+            this.port.postMessage({
+              left: left.slice(),
+              right: right.slice()
+            });
+
+            if (output && output.length > 0) {
+              const outLeft = output[0];
+              const outRight = output[1] || outLeft;
+              
+              if (this.playthrough) {
+                outLeft.set(left);
+                if (output[1]) outRight.set(right);
+              } else {
+                outLeft.fill(0);
+                if (output[1]) outRight.fill(0);
+              }
+            }
+          }
+          return true;
+        }
+      }
+      registerProcessor('recording-processor', RecordingProcessor);
+    `;
+
+    const blob = new Blob([workletCode], { type: 'application/javascript' });
+    const url = URL.createObjectURL(blob);
+    await this.audioCtx.audioWorklet.addModule(url);
+    URL.revokeObjectURL(url);
 
     this.leftChunks = [];
     this.rightChunks = [];
@@ -83,18 +125,22 @@ export class RecordingEngine {
     this.peakL = 0;
     this.peakR = 0;
 
-    // 4. Audio-Prozessschleife definieren
-    this.processorNode.onaudioprocess = (e) => {
+    // Create the AudioWorkletNode
+    const processorNode = new AudioWorkletNode(this.audioCtx, 'recording-processor', {
+      processorOptions: { playthrough: options.playthrough }
+    });
+    this.processorNode = processorNode;
+
+    // 4. Audio-Prozessschleife definieren über Nachrichtenaustausch
+    processorNode.port.onmessage = (e) => {
       if (!this.isRecording) return;
 
-      const inputBuffer = e.inputBuffer;
-      const left = inputBuffer.getChannelData(0);
-      // Falls das Gerät Mono ist, kopieren wir den linken Kanal auf den rechten
-      const right = inputBuffer.numberOfChannels > 1 ? inputBuffer.getChannelData(1) : left;
+      const { left, right } = e.data;
+      if (!left || !right) return;
 
       // Chunks klonen und in Puffer sichern
-      this.leftChunks.push(new Float32Array(left));
-      this.rightChunks.push(new Float32Array(right));
+      this.leftChunks.push(left);
+      this.rightChunks.push(right);
       this.totalSamplesRecorded += left.length;
 
       // Pegelspitzen (L/R) linear berechnen
@@ -108,15 +154,6 @@ export class RecordingEngine {
       }
       this.peakL = pL;
       this.peakR = pR;
-
-      // Software-Monitoring (Durchschleifen des Mikrosignals auf die Boxen)
-      if (options.playthrough) {
-        e.outputBuffer.getChannelData(0).set(left);
-        e.outputBuffer.getChannelData(1).set(right);
-      } else {
-        e.outputBuffer.getChannelData(0).fill(0);
-        e.outputBuffer.getChannelData(1).fill(0);
-      }
     };
 
     // 5. Verbindungen im Audio-Graph herstellen

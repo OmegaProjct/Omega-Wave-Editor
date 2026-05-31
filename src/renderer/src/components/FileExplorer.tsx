@@ -232,7 +232,7 @@ export function FileExplorer() {
     };
   }, [currentPath, history]);
 
-  const playPreview = (filePath: string) => {
+  const playPreview = async (filePath: string) => {
     // 1. Stop existing preview
     if (audioObj) {
       audioObj.pause()
@@ -252,7 +252,7 @@ export function FileExplorer() {
     try {
       // Close previous audio context if any
       if (audioCtx) {
-        audioCtx.close()
+        await audioCtx.close().catch(() => {})
       }
 
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext
@@ -288,7 +288,7 @@ export function FileExplorer() {
     }
   }
 
-  const stopPreview = () => {
+  const stopPreview = async () => {
     if (audioObjRef.current) {
       audioObjRef.current.pause()
       audioObjRef.current.src = ''
@@ -301,7 +301,7 @@ export function FileExplorer() {
     setDuration(0)
     setAnalyser(null)
     if (audioCtxRef.current) {
-      audioCtxRef.current.close()
+      await audioCtxRef.current.close().catch(() => {})
     }
     setAudioCtx(null)
   }

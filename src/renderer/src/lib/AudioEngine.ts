@@ -422,6 +422,7 @@ export class AudioEngine {
     this.bufferAccessTimes.set(filePath, Date.now());
     if (this.buffers.has(filePath)) return this.buffers.get(filePath)!;
     
+    const activeCtx = this.ctx;
     try {
       // Use IPC to read the file buffer directly to bypass fetch / protocol issues on Windows
       const buffer = await window.api.readFileBuffer(filePath);
@@ -429,7 +430,18 @@ export class AudioEngine {
       // buffer is a Uint8Array or Buffer object from IPC
       const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
       
-      const audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
+      let audioBuffer: AudioBuffer;
+      try {
+        audioBuffer = await activeCtx.decodeAudioData(arrayBuffer);
+      } catch (decodeErr) {
+        // If the context changed in the meantime (e.g. stopped/device changed), try decoding on the new context
+        if (this.ctx !== activeCtx) {
+          audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
+        } else {
+          throw decodeErr;
+        }
+      }
+
       this.buffers.set(filePath, audioBuffer);
       this.bufferAccessTimes.set(filePath, Date.now());
       
@@ -510,6 +522,13 @@ export class AudioEngine {
     // Apply saved params
     if (this.trackParams.has(trackId)) {
        const p = this.trackParams.get(trackId);
+       if (p.volume !== undefined) this.rampParam(output.gain, p.volume);
+       if (p.pan !== undefined) this.rampParam(pan.pan, p.pan);
+       if (p.eq) {
+         p.eq.forEach((gain: number, idx: number) => {
+           if (eq[idx]) this.rampParam(eq[idx].gain, gain);
+         });
+       }
        if (p.comp) this.setTrackCompressor(trackId, p.comp.threshold, p.comp.ratio);
        if (p.reverb) this.setTrackReverb(trackId, p.reverb.mix, p.reverb.time);
        if (p.delay) this.setTrackDelay(trackId, p.delay.timeMs, p.delay.feedback);
@@ -861,6 +880,7 @@ export class AudioEngine {
   public stop() {
     this.isPlaying = false;
     this.pauseTime = 0;
+    this.currentProject = null;
     this.stopSlidingWindowTimer();
     
     this.tracks.forEach(track => {
@@ -905,6 +925,13 @@ export class AudioEngine {
     this.originalMasterVolume = this.masterVolumeValue; // Ducking should restore user master volume
     this.tracks.clear();
     this.activeRegions.clear();
+
+    // Sicherstellen: der neue AudioContext bleibt im Ruhezustand, bis play() explizit aufgerufen wird.
+    // In Electron startet ein neuer AudioContext direkt im 'running' State, was zu unerwartetem
+    // Audio-Abspielen führen kann (z.B. bei Gerätewechsel in den Einstellungen).
+    if (this.ctx.state === 'running') {
+      this.ctx.suspend().catch(() => {});
+    }
   }
 
   public pause() {
@@ -917,6 +944,7 @@ export class AudioEngine {
 
   public resume() {
     this.isPlaying = true;
+    this.startTime = this.ctx.currentTime - this.pauseTime;
     this.startSlidingWindowTimer();
     this.ctx.resume();
   }
@@ -939,58 +967,77 @@ export class AudioEngine {
   }
 
   public setTrackVolume(trackId: string, linearValue: number) {
-    const track = this.tracks.get(trackId) || this.createTrack(trackId);
-    this.rampParam(track.output.gain, linearValue);
+    this.saveParam(trackId, 'volume', linearValue);
+    const track = this.tracks.get(trackId) || (this.isPlaying ? this.createTrack(trackId) : null);
+    if (track) {
+      this.rampParam(track.output.gain, linearValue);
+    }
   }
 
   public setTrackPan(trackId: string, panValue: number) {
-    const track = this.tracks.get(trackId) || this.createTrack(trackId);
-    this.rampParam(track.pan.pan, panValue);
+    this.saveParam(trackId, 'pan', panValue);
+    const track = this.tracks.get(trackId) || (this.isPlaying ? this.createTrack(trackId) : null);
+    if (track) {
+      this.rampParam(track.pan.pan, panValue);
+    }
   }
 
   public setTrackEQ(trackId: string, bandIndex: number, gain: number) {
-    const track = this.tracks.get(trackId) || this.createTrack(trackId);
-    if (track.eq[bandIndex]) {
+    if (!this.trackParams.has(trackId)) this.trackParams.set(trackId, {});
+    const p = this.trackParams.get(trackId);
+    if (!p.eq) p.eq = new Array(10).fill(0);
+    p.eq[bandIndex] = gain;
+
+    const track = this.tracks.get(trackId) || (this.isPlaying ? this.createTrack(trackId) : null);
+    if (track && track.eq[bandIndex]) {
       this.rampParam(track.eq[bandIndex].gain, gain);
     }
   }
 
   public setTrackCompressor(trackId: string, threshold: number, ratio: number) {
-    const track = this.tracks.get(trackId) || this.createTrack(trackId);
-    this.rampParam(track.compressor.threshold, threshold);
-    this.rampParam(track.compressor.ratio, ratio);
     this.saveParam(trackId, 'comp', { threshold, ratio });
+    const track = this.tracks.get(trackId) || (this.isPlaying ? this.createTrack(trackId) : null);
+    if (track) {
+      this.rampParam(track.compressor.threshold, threshold);
+      this.rampParam(track.compressor.ratio, ratio);
+    }
   }
 
   public setTrackReverb(trackId: string, mix: number, time: number) {
-    const track = this.tracks.get(trackId) || this.createTrack(trackId);
-    this.rampParam(track.reverbGain.gain, mix / 100);
     this.saveParam(trackId, 'reverb', { mix, time });
-    
-    // Generate simple impulse response for reverb
-    const length = this.ctx.sampleRate * time;
-    const impulse = this.ctx.createBuffer(2, length, this.ctx.sampleRate);
-    const left = impulse.getChannelData(0);
-    const right = impulse.getChannelData(1);
-    for (let i = 0; i < length; i++) {
-       left[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, 3);
-       right[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, 3);
+    const track = this.tracks.get(trackId) || (this.isPlaying ? this.createTrack(trackId) : null);
+    if (track) {
+      this.rampParam(track.reverbGain.gain, mix / 100);
+      
+      // Generate simple impulse response for reverb
+      const length = this.ctx.sampleRate * time;
+      const impulse = this.ctx.createBuffer(2, length, this.ctx.sampleRate);
+      const left = impulse.getChannelData(0);
+      const right = impulse.getChannelData(1);
+      for (let i = 0; i < length; i++) {
+         left[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, 3);
+         right[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, 3);
+      }
+      track.reverb.buffer = impulse;
     }
-    track.reverb.buffer = impulse;
   }
 
   public setTrackDelay(trackId: string, timeMs: number, feedback: number) {
-    const track = this.tracks.get(trackId) || this.createTrack(trackId);
-    this.rampParam(track.delay.delayTime, timeMs / 1000);
-    this.rampParam(track.delayFeedback.gain, feedback / 100);
-    this.rampParam(track.delayGain.gain, feedback > 0 ? 0.5 : 0);
     this.saveParam(trackId, 'delay', { timeMs, feedback });
+    const track = this.tracks.get(trackId) || (this.isPlaying ? this.createTrack(trackId) : null);
+    if (track) {
+      this.rampParam(track.delay.delayTime, timeMs / 1000);
+      this.rampParam(track.delayFeedback.gain, feedback / 100);
+      this.rampParam(track.delayGain.gain, feedback > 0 ? 0.5 : 0);
+    }
   }
 
   public setTrackDeEsser(trackId: string, active: boolean, reduction: number) {
-    const track = this.tracks.get(trackId) || this.createTrack(trackId);
-    this.rampParam(track.deEsser.gain, active ? -reduction : 0);
     this.saveParam(trackId, 'deEsser', { active, reduction });
+    const track = this.tracks.get(trackId) || (this.isPlaying ? this.createTrack(trackId) : null);
+    if (track) {
+      this.rampParam(track.deEsser.gain, active ? -reduction : 0);
+    }
   }
   
   public setTrackPitch(trackId: string, rate: number) {
@@ -1190,7 +1237,19 @@ export class AudioEngine {
     this.activeDeviceId = deviceId;
     try {
       if (this.ctx && (this.ctx as any).setSinkId) {
+        // Merke den Zustand VOR dem setSinkId-Aufruf.
+        // Chromium kann nach setSinkId den AudioContext intern neu starten (State 'running'),
+        // was dazu führt, dass Audio unerwartet abgespielt wird, wenn der Player gestoppt/pausiert war.
+        const wasPlaying = this.isPlaying;
+        const stateBefore = this.ctx.state;
+
         await (this.ctx as any).setSinkId(deviceId);
+
+        // Stelle den vorherigen Zustand wieder her:
+        // Wenn nicht aktiv gespielt wurde, den Context wieder suspendieren.
+        if (!wasPlaying && this.ctx.state === 'running' && stateBefore !== 'running') {
+          this.ctx.suspend().catch(() => {});
+        }
         return true;
       }
     } catch (err) {

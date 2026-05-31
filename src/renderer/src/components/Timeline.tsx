@@ -722,6 +722,7 @@ export function Timeline({
 
   const skipToStart = () => {
     setPlayheadPos(0);
+    playheadPosRef.current = 0;
     if (isPlaying) { engine.stop(); engine.play({ tracks }, 0); }
   };
 
@@ -730,6 +731,7 @@ export function Timeline({
     if (allRegions.length === 0) return;
     const end = Math.max(...allRegions.map(r => r.startPos + r.duration));
     setPlayheadPos(end);
+    playheadPosRef.current = end;
     if (isPlaying) { engine.stop(); engine.play({ tracks }, end); }
   };
 
