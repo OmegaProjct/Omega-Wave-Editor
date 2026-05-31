@@ -118,7 +118,7 @@ export function Timeline({
   const playheadPosRef = useRef(0)
   const isDraggingPlayheadRef = useRef(false)
   const playheadMotionX = useMotionValue(128)
-  const playheadRulerMotionWidth = useMotionValue(0)
+  // playheadRulerMotionWidth removed – the blue bar is now an independent export selection marker
   const [scrollLeft, setScrollLeft] = useState(0)
   const [scrollTop, setScrollTop] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -927,7 +927,7 @@ export function Timeline({
       }
 
       playheadMotionX.set(128 + (current * pixelsPerSecond) - currentScrollLeft);
-      playheadRulerMotionWidth.set(current * pixelsPerSecond);
+      // (blue trailing bar removed – selection is independent)
       
       // Throttle state updates for UI
       if (Math.floor(current * 10) % 2 === 0) {
@@ -1069,7 +1069,7 @@ export function Timeline({
     if (isPlaying) return; // Prevent fighting with useAnimationFrame during playback
     playheadPosRef.current = playheadPos;
     playheadMotionX.set(128 + (playheadPos * pixelsPerSecond) - scrollLeft);
-    playheadRulerMotionWidth.set(playheadPos * pixelsPerSecond);
+    // (playheadRulerMotionWidth removed)
   }, [playheadPos, pixelsPerSecond, scrollLeft, isPlaying]);
 
   // Eventbus Listener: Empfange Aktionen vom Player-Tab
@@ -1110,68 +1110,51 @@ export function Timeline({
     setScrollTop(e.currentTarget.scrollTop)
   }
 
+  // Guard: wenn ein Doppelklick erkannt wird, ignoriert mouseDown das Setzen der Selektion
+  const rulerDoubleClickPendingRef = useRef(false);
+
   const handleRulerDoubleClick = (e: React.MouseEvent) => {
     e.preventDefault();
+    e.stopPropagation();
+    rulerDoubleClickPendingRef.current = true;
     setSelectionStart(null);
     setSelectionEnd(null);
+    // Reset the guard after a short tick
+    setTimeout(() => { rulerDoubleClickPendingRef.current = false; }, 300);
   };
 
   const handleRulerMouseDown = (e: React.MouseEvent) => {
+    // Rechtsklick → Endpunkt der Export-Selektion setzen
     if (e.button === 2) {
       e.preventDefault();
       e.stopPropagation();
-      if (!tracksRef.current) return;
-      const rect = tracksRef.current.getBoundingClientRect();
+      if (rulerDoubleClickPendingRef.current) return;
+      const rulerEl = rulerRef.current;
+      if (!rulerEl) return;
+      const rect = rulerEl.getBoundingClientRect();
       const clickX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
       const newPos = (clickX + scrollLeft) / pixelsPerSecond;
       setSelectionEnd(newPos);
       return;
     }
 
-    if (e.button !== 0) return; // Only primary mouse click
+    if (e.button !== 0) return;
     e.preventDefault();
+    e.stopPropagation();
     setContextMenu(null);
     setEditorContextMenu(null);
     setZoomMenuOpen(false);
 
-    isDraggingPlayheadRef.current = true;
-    const wasPlaying = engine.isPlaying || isPlaying;
-    if (wasPlaying) {
-      engine.stop();
-      setIsPlaying(false);
-    }
+    // Doppelklick hat Vorrang – Selektion löschen statt neue setzen
+    if (rulerDoubleClickPendingRef.current) return;
 
-    const updatePlayheadFromEvent = (clientX: number) => {
-      if (!tracksRef.current) return;
-      const rect = tracksRef.current.getBoundingClientRect();
-      const clickX = Math.max(0, Math.min(clientX - rect.left, rect.width));
-      const newPos = (clickX + scrollLeft) / pixelsPerSecond;
-      setPlayheadPos(newPos);
-      playheadPosRef.current = newPos;
-      setSelectionStart(newPos);
-    };
-
-    updatePlayheadFromEvent(e.clientX);
-
-    const handleMouseMove = (me: MouseEvent) => {
-      updatePlayheadFromEvent(me.clientX);
-    };
-
-    const handleMouseUp = () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-      
-      isDraggingPlayheadRef.current = false;
-      
-      // If we were playing, restart the playback from the new position
-      if (wasPlaying) {
-        engine.play({ tracks }, playheadPosRef.current);
-        setIsPlaying(true);
-      }
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
+    // Linksklick → nur Startpunkt der Export-Selektion setzen (kein Playhead-Move)
+    const rulerEl = rulerRef.current;
+    if (!rulerEl) return;
+    const rect = rulerEl.getBoundingClientRect();
+    const clickX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+    const newPos = (clickX + scrollLeft) / pixelsPerSecond;
+    setSelectionStart(newPos);
   };
   
   // Stufenloses Greifen und Verschieben des Abspielkopfs (Playhead-Dragging)
@@ -1937,54 +1920,74 @@ export function Timeline({
            <div className="absolute top-[8px] w-3.5 h-3.5 bg-red-600 rotate-45 border border-red-400 z-[160] shadow pointer-events-none"></div>
         </motion.div>
  
+        {/* ── Export-Selektion: schmaler Streifen oberhalb des Rulers ────────── */}
+        <div className="h-2 flex-shrink-0 relative bg-[#131518] z-[131] overflow-hidden"
+          style={{ marginLeft: 128 /* align with ruler, not left column */ }}
+        >
+          <div className="absolute inset-0" style={{ transform: `translateX(-${scrollLeft}px)` }}>
+            {/* Gesamter Hintergrund als dünne Linie */}
+            <div className="absolute inset-y-0 left-0" style={{ width: totalTimelineWidth, background: 'rgba(30,33,38,1)' }} />
+            {/* Blauer Selektionsbalken */}
+            {selectionStart !== null && selectionEnd !== null && selectionStart !== selectionEnd && (() => {
+              const minVal = Math.min(selectionStart, selectionEnd);
+              const maxVal = Math.max(selectionStart, selectionEnd);
+              return (
+                <div
+                  className="absolute inset-y-0 bg-blue-500 shadow-[0_0_6px_rgba(59,130,246,0.7)]"
+                  style={{
+                    left: `${minVal * pixelsPerSecond}px`,
+                    width: `${(maxVal - minVal) * pixelsPerSecond}px`,
+                  }}
+                />
+              );
+            })()}
+          </div>
+        </div>
+
+        {/* ── Timecode-Ruler ───────────────────────────────────────────────────── */}
         <div className="h-8 border-b border-omega-border flex items-center bg-[#1a1d21] z-[130] relative">
            <div className="w-32 h-full flex-shrink-0 bg-omega-panel border-r border-omega-border flex items-center justify-end px-3 gap-2 shadow-[2px_0_5px_rgba(0,0,0,0.3)] z-[160]">
               <Unlock size={12} className="text-gray-500" />
               <Zap size={12} className="text-gray-500" />
               <ChevronDown size={12} className="text-gray-500" />
            </div>
-           <div 
-             ref={rulerRef} 
-             className="flex-1 h-full relative overflow-hidden cursor-ew-resize select-none" 
+           <div
+             ref={rulerRef}
+             className="flex-1 h-full relative overflow-hidden cursor-ew-resize select-none"
              onMouseDown={handleRulerMouseDown}
              onDoubleClick={handleRulerDoubleClick}
              onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
            >
               <div className="absolute inset-0 flex items-center" style={{ transform: `translateX(-${scrollLeft}px)` }}>
-                 <motion.div className="absolute top-0 h-1 bg-blue-500/80 rounded-b shadow-[0_0_5px_rgba(59,130,246,0.5)]" style={{ width: playheadRulerMotionWidth, left: 0 }}></motion.div>
                  {[...Array(300)].map((_, i) => (
                     <div key={i} className="absolute h-full border-l border-gray-800 text-[9px] text-gray-500 pl-1 flex items-end pb-1.5" style={{ left: pixelsPerSecond * (i * 5) }}>{i * 5}s</div>
                  ))}
+                 {/* Floating timecode badge – nur Dauer, kein Background-Fill mehr */}
                  {selectionStart !== null && selectionEnd !== null && selectionStart !== selectionEnd && (() => {
                     const minVal = Math.min(selectionStart, selectionEnd);
                     const maxVal = Math.max(selectionStart, selectionEnd);
                     const duration = maxVal - minVal;
-                    
+
                     const formatTimecode = (secs: number) => {
                       const h = Math.floor(secs / 3600);
                       const m = Math.floor((secs % 3600) / 60);
                       const s = Math.floor(secs % 60);
                       const f = Math.floor((secs % 1) * 30);
-                      
                       const pad = (num: number) => String(num).padStart(2, '0');
                       return `${pad(h)}:${pad(m)}:${pad(s)}:${pad(f)}`;
                     };
-                    
-                    const timecode = `[ ${formatTimecode(duration)} ]`;
-                    
+
                     return (
-                      <div 
-                        className="absolute top-0 bottom-0 bg-blue-500/20 border-l border-r border-blue-500/60 z-[10] flex items-center justify-between px-1 pointer-events-none"
-                        style={{ 
-                          left: `${minVal * pixelsPerSecond}px`, 
-                          width: `${(maxVal - minVal) * pixelsPerSecond}px` 
+                      <div
+                        className="absolute top-0 bottom-0 border-l border-r border-blue-500/50 z-[10] flex items-center justify-center pointer-events-none"
+                        style={{
+                          left: `${minVal * pixelsPerSecond}px`,
+                          width: `${(maxVal - minVal) * pixelsPerSecond}px`,
                         }}
                       >
-                        <span className="text-blue-400 font-bold text-xs select-none">[</span>
-                        <span className="absolute left-1/2 -translate-x-1/2 text-blue-300 font-mono text-[9px] font-bold bg-[#1a1d21]/90 px-1 py-0.5 rounded border border-blue-500/30 shadow select-none">
-                          {timecode}
+                        <span className="text-blue-300 font-mono text-[9px] font-bold bg-[#1a1d21]/90 px-1.5 py-0.5 rounded border border-blue-500/40 shadow-sm select-none whitespace-nowrap">
+                          {formatTimecode(duration)}
                         </span>
-                        <span className="text-blue-400 font-bold text-xs select-none">]</span>
                       </div>
                     );
                  })()}
@@ -1992,6 +1995,7 @@ export function Timeline({
            </div>
            <div className="w-6 border-l border-omega-border bg-[#282b30] h-full z-[160]"></div>
         </div>
+
 
         <div className="flex-1 flex overflow-hidden relative">
            <div className="w-32 bg-omega-panel border-r border-omega-border z-[160] shadow-[2px_0_5px_rgba(0,0,0,0.3)] flex flex-col overflow-hidden relative">
@@ -2141,6 +2145,20 @@ export function Timeline({
                      <div
                        className="absolute pointer-events-none z-50 border border-blue-400 bg-blue-400/10"
                        style={{ left: lx, top: ly, width: lw, height: lh }}
+                     />
+                   );
+                 })()}
+                 {/* Export Selection overlay – shown across all tracks */}
+                 {selectionStart !== null && selectionEnd !== null && selectionStart !== selectionEnd && (() => {
+                   const minVal = Math.min(selectionStart, selectionEnd);
+                   const maxVal = Math.max(selectionStart, selectionEnd);
+                   return (
+                     <div
+                       className="absolute top-0 bottom-0 pointer-events-none z-[15] bg-blue-500/10 border-l-2 border-r-2 border-blue-500/50"
+                       style={{
+                         left: `${minVal * pixelsPerSecond}px`,
+                         width: `${(maxVal - minVal) * pixelsPerSecond}px`,
+                       }}
                      />
                    );
                  })()}

@@ -2,6 +2,15 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.6.1] - 2026-05-31
+
+### Fixed
+- **Blauer Balken läuft nicht mehr mit dem Playhead mit**: Der blaue Streifen ist nun vollständig vom Abspielkopf entkoppelt und dient ausschließlich als eigenständiges Export-Selektionswerkzeug.
+- **Ruler-Klick-Verhalten korrigiert**: Ein Linksklick im Zeitlineal setzt nur noch den Startpunkt der Exportmarkierung, ohne den Abspielkopf zu verschieben. Der Abspielkopf wird weiterhin ausschließlich über das rote Diamant-Handle bewegt.
+- **Doppelklick löscht Selektion zuverlässig**: Ein `rulerDoubleClickPendingRef`-Guard verhindert, dass der `mouseDown`-Handler beim Doppelklick sofort eine neue Selektion setzt und die Löschung überschreibt.
+- **Export-Selektion als Streifen oberhalb des Rulers**: Die Exportmarkierung wird nun als dedizierter 8px-Streifen direkt über dem Timecode-Ruler dargestellt (solider blauer Balken), anstatt als halbtransparente Fläche innerhalb des Rulers. Im Ruler selbst erscheint nur noch ein kompaktes Timecode-Badge mit der Selektionsdauer.
+- **Selektions-Overlay auf Trackfläche**: Der markierte Exportbereich wird zusätzlich als halbtransparenter blauer Overlay über allen Tracks visualisiert.
+
 ## [0.6.0] - 2026-05-30
 
 ### Added
