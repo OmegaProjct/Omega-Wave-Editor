@@ -64,6 +64,6 @@ jobs:
           version="${tag#v}"
           title="Omega Wave Editor v$version"
           echo "Extracting release notes from CHANGELOG.md..."
-          node scripts/extract-changelog.js "$version" > changelog_notes.md
+          node scripts/extract-changelog.js "$version" changelog_notes.md
           echo "Publishing release $tag with title '$title'..."
           gh release edit "$tag" --draft=false --title "$title" --notes-file changelog_notes.md --latest

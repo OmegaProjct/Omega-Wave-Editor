@@ -42,6 +42,7 @@ function extractChangelog(version) {
 }
 
 const targetVersion = process.argv[2];
+const outputPath = process.argv[3];
 if (!targetVersion) {
   console.error('Please specify a version as the first argument');
   process.exit(1);
@@ -49,7 +50,12 @@ if (!targetVersion) {
 
 try {
   const notes = extractChangelog(targetVersion);
-  console.log(notes);
+  if (outputPath) {
+    fs.writeFileSync(outputPath, notes, 'utf8');
+    console.log(`Changelog successfully written to ${outputPath} (UTF-8)`);
+  } else {
+    console.log(notes);
+  }
 } catch (err) {
   console.error('Error extracting changelog:', err);
   process.exit(1);
