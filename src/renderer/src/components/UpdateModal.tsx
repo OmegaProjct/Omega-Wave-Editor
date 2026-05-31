@@ -202,8 +202,8 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-[5000] animate-in fade-in duration-200">
-      <div className="bg-[#24272c]/90 border border-gray-700/60 w-[720px] rounded-xl shadow-2xl overflow-hidden flex flex-col backdrop-blur-md">
+    <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-[5000] p-6 animate-in fade-in duration-200">
+      <div className="bg-[#24272c]/90 border border-gray-700/60 w-[720px] max-h-full rounded-xl shadow-2xl overflow-hidden flex flex-col backdrop-blur-md">
         
         {/* Header */}
         <div className="bg-[#1a1d21]/60 px-5 py-3.5 border-b border-gray-800/80 flex items-center justify-between">
@@ -219,7 +219,7 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
         </div>
 
         {/* Content */}
-        <div className="p-6 flex-1 flex flex-col items-center">
+        <div className="p-6 flex-1 flex flex-col items-center overflow-y-auto custom-scrollbar w-full">
           
           {step === 'prompt' && (
             <div className="flex flex-col items-center gap-4 w-full">
