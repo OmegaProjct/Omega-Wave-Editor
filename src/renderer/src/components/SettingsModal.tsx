@@ -64,6 +64,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
   }
 
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([])
+  const [asioDrivers, setAsioDrivers] = useState<{ name: string; description: string }[]>([])
 
   useEffect(() => {
     window.api.getSettings().then(s => {
@@ -73,7 +74,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
           ...s,
           keyboardShortcuts: normalizeKeyboardShortcuts(s?.keyboardShortcuts)
         }
-        if (merged.activeDeviceId && merged.activeDeviceId !== 'default') {
+        if (merged.activeDeviceId && merged.activeDeviceId !== 'default' && merged.driverType !== 'asio') {
           AudioEngine.getInstance().setOutputDevice(merged.activeDeviceId)
         }
         return merged
@@ -88,6 +89,12 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
       setDevices(outputs)
     }).catch(err => {
       console.error('Error enumerating audio output devices:', err)
+    })
+
+    window.api.getAsioDrivers().then((drivers: any[]) => {
+      setAsioDrivers(drivers)
+    }).catch((err: any) => {
+      console.error('Error fetching ASIO drivers:', err)
     })
   }, [])
 
@@ -130,7 +137,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
                   name="driverType" 
                   value="wave" 
                   checked={settings.driverType === 'wave' || !settings.driverType} 
-                  onChange={() => setSettings({ ...settings, driverType: 'wave' })} 
+                  onChange={() => setSettings({ ...settings, driverType: 'wave', activeDeviceId: 'default' })} 
                   className="text-omega-accent bg-[#1a1d21] border-gray-600 focus:ring-0 w-3.5 h-3.5"
                 />
                 Wave-Treiber
@@ -141,7 +148,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
                   name="driverType" 
                   value="directsound" 
                   checked={settings.driverType === 'directsound'} 
-                  onChange={() => setSettings({ ...settings, driverType: 'directsound' })} 
+                  onChange={() => setSettings({ ...settings, driverType: 'directsound', activeDeviceId: 'default' })} 
                   className="text-omega-accent bg-[#1a1d21] border-gray-600 focus:ring-0 w-3.5 h-3.5"
                 />
                 Direct-Sound
@@ -152,7 +159,10 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
                   name="driverType" 
                   value="asio" 
                   checked={settings.driverType === 'asio'} 
-                  onChange={() => setSettings({ ...settings, driverType: 'asio' })} 
+                  onChange={() => {
+                    const firstAsio = asioDrivers[0]?.name || '';
+                    setSettings({ ...settings, driverType: 'asio', activeDeviceId: firstAsio })
+                  }} 
                   className="text-omega-accent bg-[#1a1d21] border-gray-600 focus:ring-0 w-3.5 h-3.5"
                 />
                 ASIO-Treiber
@@ -162,22 +172,42 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
 
           <div className="flex justify-between items-center">
             <span className="text-gray-400">Ausgabegerät:</span>
-            <select 
-              value={settings.activeDeviceId || 'default'} 
-              onChange={async (e) => {
-                const deviceId = e.target.value
-                setSettings({ ...settings, activeDeviceId: deviceId })
-                await AudioEngine.getInstance().setOutputDevice(deviceId)
-              }}
-              className="bg-[#1a1d21] border border-gray-600 rounded px-2 py-1 w-48 outline-none text-xs text-white"
-            >
-              <option value="default">System (Standard)</option>
-              {devices.map(d => (
-                <option key={d.deviceId} value={d.deviceId}>
-                  {d.label || `Ausgabegerät (${d.deviceId.slice(0, 8)})`}
-                </option>
-              ))}
-            </select>
+            {settings.driverType === 'asio' ? (
+              <select 
+                value={settings.activeDeviceId || (asioDrivers[0]?.name || 'default')} 
+                onChange={(e) => {
+                  const driverName = e.target.value
+                  setSettings({ ...settings, activeDeviceId: driverName })
+                }}
+                className="bg-[#1a1d21] border border-gray-600 rounded px-2 py-1 w-48 outline-none text-xs text-white"
+              >
+                {asioDrivers.map(drv => (
+                  <option key={drv.name} value={drv.name}>
+                    {drv.description}
+                  </option>
+                ))}
+                {asioDrivers.length === 0 && (
+                  <option value="default">Kein ASIO Treiber gefunden</option>
+                )}
+              </select>
+            ) : (
+              <select 
+                value={settings.activeDeviceId || 'default'} 
+                onChange={async (e) => {
+                  const deviceId = e.target.value
+                  setSettings({ ...settings, activeDeviceId: deviceId })
+                  await AudioEngine.getInstance().setOutputDevice(deviceId)
+                }}
+                className="bg-[#1a1d21] border border-gray-600 rounded px-2 py-1 w-48 outline-none text-xs text-white"
+              >
+                <option value="default">System (Standard)</option>
+                {devices.map(d => (
+                  <option key={d.deviceId} value={d.deviceId}>
+                    {d.label || `Ausgabegerät (${d.deviceId.slice(0, 8)})`}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
           <div className="flex justify-between items-center mt-1">
             <span className="text-gray-400">Audiopuffer:</span>
@@ -193,6 +223,14 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
               />
             </div>
           </div>
+
+          {settings.driverType === 'asio' && asioDrivers.length === 0 && (
+            <div className="mt-3 p-3 bg-red-950/20 border border-red-900/30 rounded text-red-450 text-[11px] leading-relaxed">
+              ⚠️ <strong className="text-red-400">Kein ASIO-Treiber vorhanden!</strong><br />
+              Es wurden keine ASIO-Treiber auf diesem System registriert.<br />
+              Bitte installiere einen passenden ASIO-Treiber (z. B. <strong>ASIO4ALL</strong> oder den offiziellen ASIO-Treiber deines Audio-Interfaces wie <strong>Steinberg/Yamaha ASIO</strong>), um diesen Modus zu nutzen.
+            </div>
+          )}
         </div>
       </div>
       <div className="flex-1 border border-gray-700 p-4 rounded bg-[#1e2124]">

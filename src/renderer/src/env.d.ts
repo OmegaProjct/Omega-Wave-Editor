@@ -7,6 +7,7 @@ interface Window {
   api: {
     scanVstPlugins: () => Promise<any[]>;
     openVstUi: (path: string) => Promise<VstUiOpenResult>;
+    getAsioDrivers: () => Promise<any[]>;
     readFileBuffer: (path: string) => Promise<any>;
     getHomeDir: () => Promise<string>;
     fileExists: (filePath: string) => Promise<boolean>;

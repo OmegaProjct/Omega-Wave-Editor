@@ -175,10 +175,12 @@ export class AudioEngine {
   private trackParams: Map<string, any> = new Map();
   private originalMasterVolume: number = 1.0;
   private isDucked: boolean = false;
+  private masterVolumeValue: number = 0.8;
   
   private constructor() {
     this.ctx = new AudioContext();
     this.masterGain = this.ctx.createGain();
+    this.masterGain.gain.value = this.masterVolumeValue;
     this.masterLimiter = this.ctx.createDynamicsCompressor();
     this.masterAnalyser = this.ctx.createAnalyser();
     
@@ -833,6 +835,7 @@ export class AudioEngine {
     this.ctx.close();
     this.ctx = new AudioContext();
     this.masterGain = this.ctx.createGain();
+    this.masterGain.gain.value = this.masterVolumeValue; // Restore persistent master volume!
     this.masterLimiter = this.ctx.createDynamicsCompressor();
     this.masterAnalyser = this.ctx.createAnalyser();
     
@@ -858,7 +861,7 @@ export class AudioEngine {
     }
 
     this.isDucked = false;
-    this.originalMasterVolume = 1.0;
+    this.originalMasterVolume = this.masterVolumeValue; // Ducking should restore user master volume
     this.tracks.clear();
     this.activeRegions.clear();
   }
@@ -1057,6 +1060,7 @@ export class AudioEngine {
   }
 
   public setMasterVolume(linearValue: number) {
+    this.masterVolumeValue = linearValue;
     this.rampParam(this.masterGain.gain, linearValue);
   }
 

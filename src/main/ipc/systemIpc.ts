@@ -8,6 +8,7 @@ import { ipcMain, shell, app } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
+import { exec } from 'child_process'
 
 function isSafePath(filePath: any): boolean {
   if (typeof filePath !== 'string' || filePath.trim() === '') return false
@@ -272,4 +273,61 @@ export function registerSystemIpc() {
       return false
     }
   })
+
+  ipcMain.handle('get-asio-drivers', async () => {
+    return new Promise((resolve) => {
+      if (process.platform !== 'win32') {
+        return resolve([]);
+      }
+      
+      const driversMap = new Map<string, { name: string; description: string }>();
+      
+      const queryRegistry = (keyPath: string) => {
+        return new Promise<void>((subResolve) => {
+          exec(`reg query "${keyPath}" /s`, (error, stdout) => {
+            if (error || !stdout) {
+              return subResolve();
+            }
+            
+            const lines = stdout.split(/\r?\n/);
+            let currentDriverName = '';
+            let currentDesc = '';
+            
+            for (let line of lines) {
+              line = line.trim();
+              if (line.startsWith('HKEY_LOCAL_MACHINE')) {
+                const parts = line.split('\\');
+                currentDriverName = parts[parts.length - 1] || '';
+                currentDesc = currentDriverName;
+              } else if (line.startsWith('Description')) {
+                const parts = line.split(/\s+REG_SZ\s+/);
+                if (parts.length > 1) {
+                  currentDesc = parts[1];
+                }
+              }
+              
+              if (currentDriverName) {
+                driversMap.set(currentDriverName.toLowerCase(), {
+                  name: currentDriverName,
+                  description: currentDesc || currentDriverName
+                });
+              }
+            }
+            subResolve();
+          });
+        });
+      };
+      
+      Promise.all([
+        queryRegistry('HKLM\\Software\\ASIO'),
+        queryRegistry('HKLM\\Software\\WOW6432Node\\ASIO')
+      ]).then(() => {
+        if (driversMap.size === 0) {
+          resolve([]);
+        } else {
+          resolve(Array.from(driversMap.values()));
+        }
+      });
+    });
+  });
 }

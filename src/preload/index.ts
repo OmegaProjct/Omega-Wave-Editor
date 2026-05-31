@@ -32,6 +32,7 @@ const api = {
   // VST Bridge
   scanVstPlugins: () => ipcRenderer.invoke('scan-vst-plugins'),
   openVstUi: (pluginPath: string) => ipcRenderer.invoke('open-vst-ui', pluginPath),
+  getAsioDrivers: () => ipcRenderer.invoke('get-asio-drivers'),
 
   // Recording
   saveRecording: (outputPath: string, arrayBuffer: ArrayBuffer) => ipcRenderer.invoke('save-recording', outputPath, arrayBuffer),
