@@ -199,6 +199,34 @@ export function EffectsPanel({
 
   const effects = { ...defaultEffects, ...selectedRegion?.effects }
 
+  // Synchronized state for real-time length input (Magix-style)
+  const currentLength = selectedRegion ? (selectedRegion.duration / (effects.pitchRate || 1.0)) : 0;
+  const [tempLength, setTempLength] = useState(currentLength.toFixed(2));
+
+  useEffect(() => {
+    if (selectedRegion) {
+      const len = selectedRegion.duration / (effects.pitchRate || 1.0);
+      setTempLength(len.toFixed(2));
+    }
+  }, [selectedRegion?.id, effects.pitchRate, selectedRegion?.duration]);
+
+  const handleLengthBlur = () => {
+    if (!selectedRegion) return;
+    let newLen = parseFloat(tempLength);
+    if (isNaN(newLen) || newLen <= 0) {
+      const len = selectedRegion.duration / (effects.pitchRate || 1.0);
+      setTempLength(len.toFixed(2));
+      return;
+    }
+    // Clamp between pitchRate 0.5 and pitchRate 2.0
+    const minLen = selectedRegion.duration / 2.0;
+    const maxLen = selectedRegion.duration / 0.5;
+    newLen = Math.max(minLen, Math.min(maxLen, newLen));
+    
+    const newPitchRate = Math.round((selectedRegion.duration / newLen) * 100) / 100;
+    updateEffects({ pitchRate: newPitchRate });
+  };
+
   // Effekte aktualisieren
   const updateEffects = (newEffects: Partial<RegionEffects>) => {
     if (!selectedRegion) return
@@ -588,13 +616,54 @@ export function EffectsPanel({
             {selectedItem === 'pitch' && (
               <div className="flex flex-col gap-4 max-w-sm">
                 <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wider">⏱️ Pitch / Timestretch</h3>
-                <label className="flex items-center gap-2 cursor-pointer p-3 rounded-lg bg-[#1a1d21]/60 border border-gray-700/50">
-                  <input type="checkbox" checked={effects.keepPitch!}
-                    onChange={e => updateEffects({ keepPitch: e.target.checked })}
-                    className="w-4 h-4 rounded accent-omega-accent cursor-pointer" />
-                  <span className="text-xs text-gray-300 font-medium select-none">Tonhöhe beibehalten (Time-Stretching)</span>
-                </label>
-                <EffectSlider label="Abspielgeschwindigkeit / Tempo" min={0.5} max={2.0} step={0.01} value={effects.pitchRate!} defaultValue={1.0} unit="x" onChange={v => updateEffects({ pitchRate: v })} />
+                
+                {/* Algorithm Dropdown */}
+                <div className="flex flex-col gap-1.5 p-3 rounded-lg bg-[#1a1d21]/60 border border-gray-700/50 hover:border-gray-600/50 transition-colors">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-gray-300 font-medium">Algorithmus</span>
+                    <select
+                      value={effects.keepPitch ? 'timestretching' : 'resampling'}
+                      onChange={e => updateEffects({ keepPitch: e.target.value === 'timestretching' })}
+                      className="w-52 py-1 px-2.5 text-[11px] bg-[#101214] border border-gray-600 outline-none rounded text-omega-accent font-medium cursor-pointer focus:border-omega-accent transition-colors"
+                    >
+                      <option value="timestretching">Timestretching (Tonhöhe beibehalten)</option>
+                      <option value="resampling">Resampling (Tonhöhe ändert sich)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Speed Slider */}
+                <EffectSlider 
+                  label="Faktor (Abspielgeschwindigkeit)" 
+                  min={0.5} 
+                  max={2.0} 
+                  step={0.01} 
+                  value={effects.pitchRate!} 
+                  defaultValue={1.0} 
+                  unit="x" 
+                  onChange={v => updateEffects({ pitchRate: v })} 
+                />
+
+                {/* Length Input */}
+                <div className="flex flex-col gap-1.5 p-3 rounded-lg bg-[#1a1d21]/60 border border-gray-700/50 hover:border-gray-600/50 transition-colors">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-gray-300 font-medium">Länge (Echtzeit-Dauer)</span>
+                    <div className="flex items-center gap-1.5">
+                      <div className="flex items-center bg-[#101214] border border-gray-600 rounded overflow-hidden h-6">
+                        <input
+                          type="text"
+                          value={tempLength}
+                          onChange={e => setTempLength(e.target.value)}
+                          onBlur={handleLengthBlur}
+                          onKeyDown={e => e.key === 'Enter' && handleLengthBlur()}
+                          className="w-16 bg-transparent text-center text-[11px] text-omega-accent font-mono outline-none border-none py-0 px-1"
+                        />
+                        <span className="text-[10px] text-gray-500 pr-1 font-mono">s</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <p className="text-[10px] text-gray-500 leading-relaxed p-3 bg-[#1a1d21]/60 rounded-lg border border-gray-700/60">
                   {effects.keepPitch
                     ? 'Passt das Tempo an, ohne die Tonhöhe zu verändern (Timestretching).'

@@ -21,6 +21,10 @@ class Jungle {
   private fade2Gain: GainNode;
   private delayTime: number = 0.100;
 
+  // Clean bypass support to eliminate comb filtering / phasing
+  private bypassGain: GainNode;
+  private delayGainNode: GainNode;
+
   constructor(ctx: BaseAudioContext) {
     this.ctx = ctx;
     this.input = ctx.createGain();
@@ -32,12 +36,25 @@ class Jungle {
     this.fade1Gain = ctx.createGain();
     this.fade2Gain = ctx.createGain();
 
-    this.input.connect(this.delay1);
-    this.input.connect(this.delay2);
+    // Clean bypass nodes
+    this.bypassGain = ctx.createGain();
+    this.delayGainNode = ctx.createGain();
+
+    this.input.connect(this.bypassGain);
+    this.bypassGain.connect(this.output);
+
+    this.input.connect(this.delayGainNode);
+    this.delayGainNode.connect(this.delay1);
+    this.delayGainNode.connect(this.delay2);
+
     this.delay1.connect(this.fade1Gain);
     this.delay2.connect(this.fade2Gain);
     this.fade1Gain.connect(this.output);
     this.fade2Gain.connect(this.output);
+
+    // Default to bypassed state
+    this.bypassGain.gain.value = 1.0;
+    this.delayGainNode.gain.value = 0.0;
 
     this.mod1Gain.gain.value = this.delayTime;
     this.mod2Gain.gain.value = this.delayTime;
@@ -78,6 +95,17 @@ class Jungle {
   }
 
   public setPitchRatio(ratio: number) {
+    if (Math.abs(ratio - 1.0) < 0.001) {
+      // Perfect digital bypass!
+      this.bypassGain.gain.setValueAtTime(1.0, this.ctx.currentTime);
+      this.delayGainNode.gain.setValueAtTime(0.0, this.ctx.currentTime);
+      return;
+    }
+
+    // Active Pitch Shifting
+    this.bypassGain.gain.setValueAtTime(0.0, this.ctx.currentTime);
+    this.delayGainNode.gain.setValueAtTime(1.0, this.ctx.currentTime);
+
     const delayRate = 1.0 - ratio;
     const speed = Math.abs(delayRate);
     const playRate = Math.max(0.001, Math.min(100.0, speed));
