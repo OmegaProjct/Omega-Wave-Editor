@@ -494,48 +494,38 @@ export function Timeline({
   };
 
   const closeAllGaps = useCallback(() => {
-    const flatRegions: { region: Region; trackId: string }[] = [];
-    tracks.forEach(track => {
-      track.regions.forEach(region => {
-        flatRegions.push({ region: { ...region }, trackId: track.id });
-      });
-    });
-
-    if (flatRegions.length === 0) {
-      window.dispatchEvent(new CustomEvent('SHOW_GLOBAL_MODAL', { detail: { type: 'info', title: 'Lücken schließen', message: 'Keine Audio-Objekte im Projekt vorhanden.' } }));
-      return;
-    }
-
-    flatRegions.sort((a, b) => a.region.startPos - b.region.startPos);
-
-    // Erstes Objekt wird auf 0.0s verschoben, um führende Lücken zu schließen
-    let cumulativeShift = flatRegions[0].region.startPos;
-    flatRegions[0].region.startPos = 0;
-    let prevEnd = flatRegions[0].region.duration;
-    
-    for (let i = 1; i < flatRegions.length; i++) {
-      const item = flatRegions[i];
-      item.region.startPos -= cumulativeShift;
-      
-      const currentStart = item.region.startPos;
-      if (currentStart > prevEnd) {
-        const gap = currentStart - prevEnd;
-        cumulativeShift += gap;
-        item.region.startPos -= gap;
-      }
-      
-      prevEnd = Math.max(prevEnd, item.region.startPos + item.region.duration);
-    }
-
+    let changed = false;
     const updatedTracks = tracks.map(track => {
-      const trackRegions = flatRegions
-        .filter(item => item.trackId === track.id)
-        .map(item => item.region);
+      if (track.regions.length === 0) return track;
+      
+      // Sort regions by startPos
+      const sortedRegions = [...track.regions].sort((a, b) => a.startPos - b.startPos);
+      
+      // Pack them back-to-back starting at 0.0s
+      let prevEnd = 0;
+      const updatedRegions = sortedRegions.map((region) => {
+        const newStart = prevEnd;
+        const newRegion = {
+          ...region,
+          startPos: newStart
+        };
+        prevEnd = newStart + region.duration;
+        if (newStart !== region.startPos) {
+          changed = true;
+        }
+        return newRegion;
+      });
+      
       return {
         ...track,
-        regions: trackRegions
+        regions: updatedRegions
       };
     });
+
+    if (!changed) {
+      window.dispatchEvent(new CustomEvent('SHOW_GLOBAL_MODAL', { detail: { type: 'info', title: 'Lücken schließen', message: 'Keine Lücken zum Schließen vorhanden.' } }));
+      return;
+    }
 
     updateTracksWithHistory(updatedTracks);
   }, [tracks, updateTracksWithHistory]);
@@ -725,6 +715,7 @@ export function Timeline({
 
   const tracksRef = useRef<HTMLDivElement>(null)
   const rulerRef = useRef<HTMLDivElement>(null)
+  const stripRef = useRef<HTMLDivElement>(null)
   const hScrollTrackRef = useRef<HTMLDivElement>(null)
   const vScrollTrackRef = useRef<HTMLDivElement>(null)
 
@@ -1113,7 +1104,7 @@ export function Timeline({
   // Guard: wenn ein Doppelklick erkannt wird, ignoriert mouseDown das Setzen der Selektion
   const rulerDoubleClickPendingRef = useRef(false);
 
-  const handleRulerDoubleClick = (e: React.MouseEvent) => {
+  const handleStripDoubleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     rulerDoubleClickPendingRef.current = true;
@@ -1123,22 +1114,8 @@ export function Timeline({
     setTimeout(() => { rulerDoubleClickPendingRef.current = false; }, 300);
   };
 
-  const handleRulerMouseDown = (e: React.MouseEvent) => {
-    // Rechtsklick → Endpunkt der Export-Selektion setzen
-    if (e.button === 2) {
-      e.preventDefault();
-      e.stopPropagation();
-      if (rulerDoubleClickPendingRef.current) return;
-      const rulerEl = rulerRef.current;
-      if (!rulerEl) return;
-      const rect = rulerEl.getBoundingClientRect();
-      const clickX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
-      const newPos = (clickX + scrollLeft) / pixelsPerSecond;
-      setSelectionEnd(newPos);
-      return;
-    }
-
-    if (e.button !== 0) return;
+  const handleStripMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0 && e.button !== 2) return;
     e.preventDefault();
     e.stopPropagation();
     setContextMenu(null);
@@ -1148,13 +1125,15 @@ export function Timeline({
     // Doppelklick hat Vorrang – Selektion löschen statt neue setzen
     if (rulerDoubleClickPendingRef.current) return;
 
-    // Linksklick → nur Startpunkt der Export-Selektion setzen (kein Playhead-Move)
-    const rulerEl = rulerRef.current;
-    if (!rulerEl) return;
-    const rect = rulerEl.getBoundingClientRect();
+    // Linksklick / Rechtsklick im blauen Balken -> markiert immer von Anfang an (0s) bis zum Klickpunkt
+    const stripEl = stripRef.current;
+    if (!stripEl) return;
+    const rect = stripEl.getBoundingClientRect();
     const clickX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
     const newPos = (clickX + scrollLeft) / pixelsPerSecond;
-    setSelectionStart(newPos);
+    
+    setSelectionStart(0);
+    setSelectionEnd(newPos);
   };
   
   // Stufenloses Greifen und Verschieben des Abspielkopfs (Playhead-Dragging)
@@ -1917,31 +1896,36 @@ export function Timeline({
           onMouseDown={handlePlayheadDragMouseDown}
         >
            <div className="w-px bg-red-600 h-full shadow-[0_0_8px_rgba(255,0,0,0.5)] pointer-events-none"></div>
-           <div className="absolute top-[8px] w-3.5 h-3.5 bg-red-600 rotate-45 border border-red-400 z-[160] shadow pointer-events-none"></div>
+           <div className="absolute top-[22px] w-3.5 h-3.5 bg-red-600 rotate-45 border border-red-400 z-[160] shadow pointer-events-none"></div>
         </motion.div>
  
         {/* ── Export-Selektion: schmaler Streifen oberhalb des Rulers ────────── */}
-        <div className="h-2 flex-shrink-0 relative bg-[#131518] z-[131] overflow-hidden"
-          style={{ marginLeft: 128 /* align with ruler, not left column */ }}
-        >
-          <div className="absolute inset-0" style={{ transform: `translateX(-${scrollLeft}px)` }}>
-            {/* Gesamter Hintergrund als dünne Linie */}
-            <div className="absolute inset-y-0 left-0" style={{ width: totalTimelineWidth, background: 'rgba(30,33,38,1)' }} />
-            {/* Blauer Selektionsbalken */}
-            {selectionStart !== null && selectionEnd !== null && selectionStart !== selectionEnd && (() => {
-              const minVal = Math.min(selectionStart, selectionEnd);
-              const maxVal = Math.max(selectionStart, selectionEnd);
-              return (
-                <div
-                  className="absolute inset-y-0 bg-blue-500 shadow-[0_0_6px_rgba(59,130,246,0.7)]"
-                  style={{
-                    left: `${minVal * pixelsPerSecond}px`,
-                    width: `${(maxVal - minVal) * pixelsPerSecond}px`,
-                  }}
-                />
-              );
-            })()}
+        <div className="h-4 flex-shrink-0 flex z-[131] overflow-hidden">
+          <div className="w-32 flex-shrink-0 bg-omega-panel border-r border-omega-border" />
+          <div
+            ref={stripRef}
+            className="flex-1 relative overflow-hidden bg-[#131518] cursor-ew-resize"
+            onMouseDown={handleStripMouseDown}
+            onDoubleClick={handleStripDoubleClick}
+            onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
+          >
+            <div className="absolute inset-0" style={{ transform: `translateX(-${scrollLeft}px)` }}>
+              {selectionStart !== null && selectionEnd !== null && selectionStart !== selectionEnd && (() => {
+                const minVal = Math.min(selectionStart, selectionEnd);
+                const maxVal = Math.max(selectionStart, selectionEnd);
+                return (
+                  <div
+                    className="absolute inset-y-0 bg-blue-500 shadow-[0_0_6px_rgba(59,130,246,0.8)]"
+                    style={{
+                      left: `${minVal * pixelsPerSecond}px`,
+                      width: `${(maxVal - minVal) * pixelsPerSecond}px`,
+                    }}
+                  />
+                );
+              })()}
+            </div>
           </div>
+          <div className="w-6 flex-shrink-0 bg-[#282b30] border-l border-omega-border" />
         </div>
 
         {/* ── Timecode-Ruler ───────────────────────────────────────────────────── */}
@@ -1954,43 +1938,14 @@ export function Timeline({
            <div
              ref={rulerRef}
              className="flex-1 h-full relative overflow-hidden cursor-ew-resize select-none"
-             onMouseDown={handleRulerMouseDown}
-             onDoubleClick={handleRulerDoubleClick}
+             onMouseDown={handlePlayheadDragMouseDown}
              onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
            >
               <div className="absolute inset-0 flex items-center" style={{ transform: `translateX(-${scrollLeft}px)` }}>
                  {[...Array(300)].map((_, i) => (
                     <div key={i} className="absolute h-full border-l border-gray-800 text-[9px] text-gray-500 pl-1 flex items-end pb-1.5" style={{ left: pixelsPerSecond * (i * 5) }}>{i * 5}s</div>
                  ))}
-                 {/* Floating timecode badge – nur Dauer, kein Background-Fill mehr */}
-                 {selectionStart !== null && selectionEnd !== null && selectionStart !== selectionEnd && (() => {
-                    const minVal = Math.min(selectionStart, selectionEnd);
-                    const maxVal = Math.max(selectionStart, selectionEnd);
-                    const duration = maxVal - minVal;
-
-                    const formatTimecode = (secs: number) => {
-                      const h = Math.floor(secs / 3600);
-                      const m = Math.floor((secs % 3600) / 60);
-                      const s = Math.floor(secs % 60);
-                      const f = Math.floor((secs % 1) * 30);
-                      const pad = (num: number) => String(num).padStart(2, '0');
-                      return `${pad(h)}:${pad(m)}:${pad(s)}:${pad(f)}`;
-                    };
-
-                    return (
-                      <div
-                        className="absolute top-0 bottom-0 border-l border-r border-blue-500/50 z-[10] flex items-center justify-center pointer-events-none"
-                        style={{
-                          left: `${minVal * pixelsPerSecond}px`,
-                          width: `${(maxVal - minVal) * pixelsPerSecond}px`,
-                        }}
-                      >
-                        <span className="text-blue-300 font-mono text-[9px] font-bold bg-[#1a1d21]/90 px-1.5 py-0.5 rounded border border-blue-500/40 shadow-sm select-none whitespace-nowrap">
-                          {formatTimecode(duration)}
-                        </span>
-                      </div>
-                    );
-                 })()}
+                 {/* selection markers removed – only the blue strip above the ruler is used */}
               </div>
            </div>
            <div className="w-6 border-l border-omega-border bg-[#282b30] h-full z-[160]"></div>
@@ -2148,20 +2103,7 @@ export function Timeline({
                      />
                    );
                  })()}
-                 {/* Export Selection overlay – shown across all tracks */}
-                 {selectionStart !== null && selectionEnd !== null && selectionStart !== selectionEnd && (() => {
-                   const minVal = Math.min(selectionStart, selectionEnd);
-                   const maxVal = Math.max(selectionStart, selectionEnd);
-                   return (
-                     <div
-                       className="absolute top-0 bottom-0 pointer-events-none z-[15] bg-blue-500/10 border-l-2 border-r-2 border-blue-500/50"
-                       style={{
-                         left: `${minVal * pixelsPerSecond}px`,
-                         width: `${(maxVal - minVal) * pixelsPerSecond}px`,
-                       }}
-                     />
-                   );
-                 })()}
+                 {/* track-area selection overlay removed – only the blue strip above is used */}
                  {tracks.map(track => (
                     <div 
                        key={track.id} 
