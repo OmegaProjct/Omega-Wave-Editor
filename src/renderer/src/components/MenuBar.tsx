@@ -98,20 +98,7 @@ export function MenuBar({
     }
 
     if (action === 'about') {
-      try {
-        const version = await window.api.getAppVersion()
-        onFileAction('SHOW_MODAL', { 
-          type: 'info', 
-          title: 'Info', 
-          message: `Omega Wave Editor\nVersion ${version}\n\n© 2026 Omega Projects\n\nEin verlustfreier, schneller Audio-Editor.` 
-        })
-      } catch (e: any) {
-        onFileAction('SHOW_MODAL', { 
-          type: 'info', 
-          title: 'Info', 
-          message: 'Omega Wave Editor\nVersion 0.2.0\n\n© 2026 Omega Projects\n\nEin verlustfreier, schneller Audio-Editor.' 
-        })
-      }
+      onFileAction('SHOW_ABOUT')
       return
     }
     if (action === 'help' || action === 'manual') return onFileAction('SHOW_MANUAL')
@@ -195,7 +182,7 @@ export function MenuBar({
         <span className={`mx-1 px-3 py-1 cursor-pointer hover:bg-gray-700 rounded transition-colors ${openMenu === 'help' ? 'bg-gray-700' : ''}`} onClick={() => handleMenuClick('help')}>Hilfe</span>
         {openMenu === 'help' && (
           <div className="absolute top-full left-0 bg-[#2b2d31] border border-gray-700 shadow-xl py-1 z-[1000] rounded">
-            <MenuItem label="Handbuch (PDF) herunterladen" action="manual" />
+            <MenuItem label="Benutzerhandbuch" action="manual" />
             <MenuItem divider />
             <MenuItem label="Auf Updates prüfen..." action="updates" />
             <MenuItem label="Über Omega Wave Editor..." action="about" />

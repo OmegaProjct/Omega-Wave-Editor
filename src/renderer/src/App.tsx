@@ -8,6 +8,7 @@ import { EffectsPanel } from './components/EffectsPanel'
 import { ExportModal } from './components/ExportModal'
 import { MessageModal, ModalType } from './components/MessageModal'
 import { ManualModal } from './components/ManualModal'
+import { AboutModal } from './components/AboutModal'
 import { StartDashboard } from './components/StartDashboard'
 import { SaveConfirmationModal } from './components/SaveConfirmationModal'
 import { UpdateModal } from './components/UpdateModal'
@@ -28,6 +29,7 @@ function App(): JSX.Element {
   const [settingsTab, setSettingsTab] = useState<'Wiedergabe' | 'Ordner' | 'Import/Audio' | 'System' | 'Tastaturkürzel' | 'Projekteinstellungen'>('Projekteinstellungen')
   const [showExport, setShowExport] = useState(false)
   const [showManual, setShowManual] = useState(false)
+  const [showAbout, setShowAbout] = useState(false)
   const [updateAvailable, setUpdateAvailable] = useState<any | null>(null)
   const [keyboardShortcuts, setKeyboardShortcuts] = useState<KeyboardShortcuts>(DEFAULT_KEYBOARD_SHORTCUTS)
   
@@ -314,6 +316,10 @@ function App(): JSX.Element {
        setShowManual(true);
        return;
     }
+    if (type === 'SHOW_ABOUT') {
+       setShowAbout(true);
+       return;
+    }
     setTimelineAction({ type, payload });
     setTimeout(() => setTimelineAction(undefined), 100);
   }
@@ -338,6 +344,7 @@ function App(): JSX.Element {
         showSettings ||
         showExport ||
         showManual ||
+        showAbout ||
         modalConfig ||
         showStartDashboard ||
         showSaveConfirm ||
@@ -546,6 +553,7 @@ function App(): JSX.Element {
       )}
       {showExport && <ExportModal onClose={() => setShowExport(false)} tracks={tracks} />}
       {showManual && <ManualModal onClose={() => setShowManual(false)} />}
+      {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
       {modalConfig && <MessageModal type={modalConfig.type} title={modalConfig.title} message={modalConfig.message} onClose={handleModalClose} />}
       
       {/* Premium Start Dashboard */}
