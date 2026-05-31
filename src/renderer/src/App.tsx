@@ -323,11 +323,13 @@ function App(): JSX.Element {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
 
-      // 1. Eingabefelder und editierbare Elemente überspringen
-      if (
-        ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) ||
-        target.isContentEditable
-      ) {
+      // 1. Nur bei echten Texteingabefeldern überspringen (damit Leertaste z. B. bei Range-Slidern, Buttons etc. trotzdem funktioniert)
+      const isTextInput = 
+        (target.tagName === 'INPUT' && ['text', 'number', 'email', 'search', 'password'].includes((target.getAttribute('type') || 'text').toLowerCase())) ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable;
+
+      if (isTextInput) {
         return;
       }
 
