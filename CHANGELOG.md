@@ -2,6 +2,15 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.6.2] - 2026-05-31
+
+### Changed
+- **Export-Selektion (Blauer Balken)**: Ein Linksklick sowie ein Rechtsklick im blauen Selektionsstreifen markieren nun immer konsistent vom Anfang des Projekts (0.0s) bis zur Klickposition. Ein Doppelklick löscht die Selektion weiterhin zuverlässig.
+
+### Fixed
+- **Playhead-Diamant perfekt zentriert**: Die vertikale Ausrichtung des roten Abspielkopfs wurde auf `top-[22px]` angepasst, wodurch der gedrehte Diamant nun mathematisch und visuell exakt auf der Mittelachse des Timecode-Rulers zentriert ist und nicht mehr am oberen blauen Streifen klebt.
+- **Spur-unabhängiges Lücken schließen**: Die Funktion „Lücken schließen“ wurde komplett überarbeitet und arbeitet nun Spur für Spur unabhängig. Clips auf den einzelnen Spuren werden chronologisch sortiert und lückenlos von 0.0s beginnend aneinandergereiht, anstatt sich durch Clips auf anderen Spuren zu blockieren.
+
 ## [0.6.1] - 2026-05-31
 
 ### Fixed
