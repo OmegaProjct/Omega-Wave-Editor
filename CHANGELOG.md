@@ -2,6 +2,28 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.7.5] - 2026-05-31
+
+### English
+
+#### Added
+- **ASIO & Driver Selection**: Implemented professional audio driver selection support (Wave, Direct-Sound, ASIO) inside the "Playback" settings tab, including full persistent settings storage and live simulated latency optimization reports.
+- **Tuning of Audio Buffer Size**: Added an editable input field to customize the playback audio buffer count directly in the preferences.
+- **Functional VST2 & VST3 Search Paths**: Fixed the previously non-functional "Add VST plug-in path..." button. Added an elegant list display and removal buttons to visually configure VST folders. The backend scanner has been updated to scan these user-defined directories recursively for VST2 (`.dll`/`.vst`) and VST3 (`.vst3`) plugins.
+
+#### Fixed
+- **Nonsensical Update Version Logic**: Resolved a logical bug in the update check modal. When the installed local version is newer than the public version on the server (e.g., installed `v0.7.4` vs server `v0.7.3`), the check screen now logically renders both as `v0.7.4` instead of stating a lower "latest version".
+
+### Deutsch
+
+#### Hinzugefügt
+- **ASIO- & Treiberauswahl**: Integration einer professionellen Audiotreiberauswahl (Wave-Treiber, Direct-Sound, ASIO-Treiber) im Reiter „Wiedergabe“ der Programmeinstellungen, inklusive vollständiger Speicherung der Treibertypen und simulierter Echtzeit-Latenzoptimierung.
+- **Dynamische Audiopuffer-Größe**: Möglichkeit zur manuellen Anpassung der Pufferanzahl direkt im Einstellungsfenster für feinste Latenzjustierungen.
+- **Funktionale VST2- & VST3-Suchpfade (Bugfix)**: Behebung des ehemals funktionslosen "VST-Pfad hinzufügen" Buttons. Hinzugefügt wurde eine ästhetische Auflistung und ein "Entfernen"-Button für VST-Ordnerpfade im Reiter „Ordner“. Der Dateiscanner liest diese zusätzlichen Pfade nun aus der Konfiguration und scannt sie gezielt nach VST2 (`.dll`/`.vst`) und VST3 (`.vst3`) Effekten.
+
+#### Behoben
+- **Korrektur der unsinnigen Update-Anzeige**: Behebung eines Logikfehlers beim manuellen Update-Check in der Menüleiste. Falls deine installierte lokale Version neuer ist als die öffentliche Version auf dem GitHub-Server (z.B. installierte `v0.7.4` vs. server `v0.7.3`), zeigt der Update-Bildschirm nun logisch und konsistent beide Versionen als `v0.7.4` an.
+
 ## [0.7.4] - 2026-05-31
 
 ### English

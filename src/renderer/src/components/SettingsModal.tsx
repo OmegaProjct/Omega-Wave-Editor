@@ -27,6 +27,9 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
     midiMappings: [],
     midiInputDeviceId: '',
     midiChannel: 0,
+    driverType: 'wave',
+    bufferCount: 6,
+    vstPaths: [],
     keyboardShortcuts: DEFAULT_KEYBOARD_SHORTCUTS
   })
   const [capturingShortcut, setCapturingShortcut] = useState<ShortcutAction | null>(null)
@@ -107,6 +110,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
       keyboardShortcuts: normalizeKeyboardShortcuts(settings.keyboardShortcuts)
     }
     await window.api.saveSettings(settingsToSave)
+    AudioEngine.getInstance().setAudioDriver(settingsToSave.driverType || 'wave', settingsToSave.bufferCount || 6)
     window.dispatchEvent(new CustomEvent('SETTINGS_UPDATED', { detail: settingsToSave }))
     onClose()
   }
@@ -115,7 +119,47 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
     <div className="flex gap-4 h-full">
       <div className="flex-1 border border-gray-700 p-4 rounded bg-[#1e2124]">
         <h3 className="text-center font-semibold mb-4 text-sm">Audioausgabe</h3>
-        <div className="flex flex-col gap-3 text-sm">
+        <div className="flex flex-col gap-4 text-sm">
+          {/* Treiberauswahl */}
+          <div className="flex justify-between items-start gap-4">
+            <span className="text-gray-400">Treiberauswahl:</span>
+            <div className="flex flex-col gap-2 w-48">
+              <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-200">
+                <input 
+                  type="radio" 
+                  name="driverType" 
+                  value="wave" 
+                  checked={settings.driverType === 'wave' || !settings.driverType} 
+                  onChange={() => setSettings({ ...settings, driverType: 'wave' })} 
+                  className="text-omega-accent bg-[#1a1d21] border-gray-600 focus:ring-0 w-3.5 h-3.5"
+                />
+                Wave-Treiber
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-200">
+                <input 
+                  type="radio" 
+                  name="driverType" 
+                  value="directsound" 
+                  checked={settings.driverType === 'directsound'} 
+                  onChange={() => setSettings({ ...settings, driverType: 'directsound' })} 
+                  className="text-omega-accent bg-[#1a1d21] border-gray-600 focus:ring-0 w-3.5 h-3.5"
+                />
+                Direct-Sound
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-200">
+                <input 
+                  type="radio" 
+                  name="driverType" 
+                  value="asio" 
+                  checked={settings.driverType === 'asio'} 
+                  onChange={() => setSettings({ ...settings, driverType: 'asio' })} 
+                  className="text-omega-accent bg-[#1a1d21] border-gray-600 focus:ring-0 w-3.5 h-3.5"
+                />
+                ASIO-Treiber
+              </label>
+            </div>
+          </div>
+
           <div className="flex justify-between items-center">
             <span className="text-gray-400">Ausgabegerät:</span>
             <select 
@@ -135,11 +179,18 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
               ))}
             </select>
           </div>
-          <div className="flex justify-between items-center mt-2">
+          <div className="flex justify-between items-center mt-1">
             <span className="text-gray-400">Audiopuffer:</span>
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-500">Anzahl:</span>
-              <input type="number" value={6} readOnly className="w-12 bg-[#1a1d21] border border-gray-600 rounded px-1 text-center" />
+              <input 
+                type="number" 
+                min={2}
+                max={64}
+                value={settings.bufferCount !== undefined ? settings.bufferCount : 6} 
+                onChange={(e) => setSettings({ ...settings, bufferCount: parseInt(e.target.value) || 6 })}
+                className="w-12 bg-[#1a1d21] border border-gray-600 rounded px-1.5 py-0.5 text-center text-xs text-white outline-none focus:border-omega-accent" 
+              />
             </div>
           </div>
         </div>
@@ -193,11 +244,52 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
             }}>📁</button>
           </div>
         ))}
-        <div className="mt-4 flex justify-center">
-           <button className="bg-gray-700 hover:bg-gray-600 px-4 py-1.5 rounded text-xs" onClick={async () => {
-             const res = await window.api.showOpenDialog({ properties: ['openDirectory'], title: 'VST Plug-in-Pfad auswählen' })
-             if (!res.canceled && res.filePaths.length > 0) alert(`VST Plug-in Pfad "${res.filePaths[0]}" hinzugefügt und wird beim nächsten Start gescannt.`)
-           }}>VST Plug-in-Pfad hinzufügen...</button>
+        
+        {/* Zusätzliche VST Pfade */}
+        <div className="mt-4 border-t border-gray-700/60 pt-4">
+          <span className="text-gray-400 block mb-2 font-bold uppercase text-[10px] tracking-wider">Zusätzliche VST2- & VST3-Suchpfade:</span>
+          {(!settings.vstPaths || settings.vstPaths.length === 0) ? (
+            <div className="text-xs text-gray-500 italic mb-3">Keine zusätzlichen Pfade konfiguriert (es werden nur die System-Standardpfade gescannt).</div>
+          ) : (
+            <div className="flex flex-col gap-2 mb-3 bg-[#1a1d21] p-2.5 rounded border border-gray-800">
+              {(settings.vstPaths || []).map((path: string, idx: number) => (
+                <div key={idx} className="flex justify-between items-center gap-2 text-xs">
+                  <span className="text-gray-300 font-mono break-all">{path}</span>
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      const updated = settings.vstPaths.filter((_: any, i: number) => i !== idx)
+                      setSettings({ ...settings, vstPaths: updated })
+                    }}
+                    className="text-red-400 hover:text-red-300 px-1.5 py-0.5 rounded bg-red-950/20 hover:bg-red-950/40 border border-red-900/30 text-[10px] transition-colors"
+                  >
+                    Entfernen
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex justify-center">
+            <button 
+              type="button"
+              className="bg-omega-accent hover:bg-blue-500 px-4 py-1.5 rounded text-xs text-white font-semibold flex items-center gap-1.5 transition-colors shadow" 
+              onClick={async () => {
+                const res = await window.api.showOpenDialog({ properties: ['openDirectory'], title: 'VST Plug-in-Pfad auswählen' })
+                if (!res.canceled && res.filePaths.length > 0) {
+                  const pathToAdd = res.filePaths[0]
+                  const currentPaths = settings.vstPaths || []
+                  if (!currentPaths.includes(pathToAdd)) {
+                    const updated = [...currentPaths, pathToAdd]
+                    setSettings({ ...settings, vstPaths: updated })
+                  } else {
+                    alert('Dieser Pfad wurde bereits hinzugefügt.')
+                  }
+                }
+              }}
+            >
+              <span>+ VST Plug-in-Pfad hinzufügen...</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
