@@ -158,7 +158,7 @@ export function registerSystemIpc() {
   ipcMain.handle('check-for-updates', async () => {
     const currentVersion = app.getVersion()
     try {
-      const response = await fetch('https://api.github.com/repos/OmegaProjct/Omega-Wave-Editor/releases/latest', {
+      const response = await fetch('https://api.github.com/repos/OmegaProjct/Omega-Wave-Editor/releases', {
         headers: {
           'User-Agent': 'Omega-Wave-Editor-Updater'
         }
@@ -178,16 +178,50 @@ export function registerSystemIpc() {
         throw new Error(`GitHub API meldet Status ${response.status}`)
       }
 
-      const data: any = await response.json()
-      const latestVersion = data.tag_name || ''
+      const releases: any[] = await response.json()
+      if (!Array.isArray(releases) || releases.length === 0) {
+        return {
+          available: false,
+          currentVersion,
+          latestVersion: currentVersion,
+          url: 'https://github.com/OmegaProjct/Omega-Wave-Editor/releases',
+          body: ''
+        }
+      }
+
+      const latestRelease = releases[0]
+      const latestVersion = latestRelease.tag_name || ''
       const updateAvailable = isNewerVersion(currentVersion, latestVersion)
+
+      // Gather intermediate releases between currentVersion and latestVersion (inclusive)
+      const intermediateReleases = releases.filter(r => {
+        const v = r.tag_name || ''
+        return isNewerVersion(currentVersion, v)
+      })
+
+      let aggregatedChangelog = ''
+      if (intermediateReleases.length > 0) {
+        aggregatedChangelog = intermediateReleases.map(r => {
+          const dateStr = r.published_at
+            ? new Date(r.published_at).toLocaleDateString('de-DE', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+              })
+            : ''
+          const header = `### Version ${r.tag_name} (${dateStr})\n`
+          return `${header}${r.body || 'Keine Details verfügbar.'}\n\n`
+        }).join('---\n\n')
+      } else {
+        aggregatedChangelog = latestRelease.body || 'Keine Details verfügbar.'
+      }
 
       return {
         available: updateAvailable,
         currentVersion,
         latestVersion,
-        url: data.html_url || 'https://github.com/OmegaProjct/Omega-Wave-Editor/releases',
-        body: data.body || ''
+        url: latestRelease.html_url || 'https://github.com/OmegaProjct/Omega-Wave-Editor/releases',
+        body: aggregatedChangelog
       }
     } catch (err: any) {
       console.error('Update-Prüfung fehlgeschlagen:', err)

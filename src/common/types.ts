@@ -90,6 +90,7 @@ export interface MetadataTags {
   genre?: string
   comment?: string
   track?: string
+  coverPath?: string
 }
 
 export interface ExportSettings {
