@@ -2,6 +2,14 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.6.3] - 2026-05-31
+
+### Changed
+- **Globaler Leertasten-Fokus (Equalizer / Slider)**: Verfeinerung des globalen Tastatur-Bypass-Filters. Shortcuts (insb. Leertaste für Start/Stopp) werden nun ausschließlich in echten Texteingabefeldern (`input type="text"`, `textarea`, `contenteditable`) blockiert. Bei fokussierten Range-Slidern (wie den Equalizer-Bändern, Spurenlautstärken), Checkboxen oder normalen Buttons bleibt die Steuerung der Wiedergabe voll aktiv.
+
+### Fixed
+- **Adaptive Schnitt- & Trimm-Logik am Playhead**: Intelligente, kontextabhängige Steuerung für die Shortcuts **T** (Teilen), **Z** (Anfang trimmen) und **U** (Ende trimmen). Ist ein Clip unter dem Playhead ausgewählt, wird nur dieser geschnitten; ist kein Clip ausgewählt, werden alle übereinanderliegenden Clips unter dem Playhead gleichzeitig geschnitten, unbeeinflusst von Auswahlen an anderen Stellen des Projekts.
+
 ## [0.6.2] - 2026-05-31
 
 ### Changed

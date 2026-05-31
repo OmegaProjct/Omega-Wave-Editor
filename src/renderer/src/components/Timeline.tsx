@@ -736,10 +736,12 @@ export function Timeline({
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement
       if (document.querySelector('[data-settings-modal="true"]')) return
-      if (
-        ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(target.tagName) ||
-        target.isContentEditable
-      ) return
+      const isTextInput = 
+        (target.tagName === 'INPUT' && ['text', 'number', 'email', 'search', 'password'].includes((target.getAttribute('type') || 'text').toLowerCase())) ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable;
+
+      if (isTextInput) return;
 
       if (matchesShortcut(e, activeShortcuts.normalizePeak)) {
         if (selectedRegionId) {
@@ -808,8 +810,22 @@ export function Timeline({
       } else if (matchesShortcut(e, activeShortcuts.splitAtPlayhead)) {
         e.preventDefault();
         const curPlayhead = playheadPosRef.current;
-        const hasSelection = selectedRegionIds.size > 0;
         
+        // 1. Alle Regionen ermitteln, die sich unter dem Playhead befinden
+        const regionsUnderPlayhead: { region: Region; trackId: string }[] = [];
+        tracks.forEach(t => {
+          t.regions.forEach(r => {
+            if (curPlayhead > r.startPos && curPlayhead < r.startPos + r.duration) {
+              regionsUnderPlayhead.push({ region: r, trackId: t.id });
+            }
+          });
+        });
+
+        if (regionsUnderPlayhead.length === 0) return;
+
+        // 2. Prüfen, ob eine dieser Regionen unter dem Playhead ausgewählt ist
+        const hasSelectionUnderPlayhead = regionsUnderPlayhead.some(item => selectedRegionIds.has(item.region.id));
+
         let tempProject: any = {
           format: 'OWEP',
           version: '1.0.0',
@@ -819,30 +835,67 @@ export function Timeline({
         };
 
         let changed = false;
-        tracks.forEach(t => {
-          t.regions.forEach(region => {
-            const isTarget = hasSelection
-              ? selectedRegionIds.has(region.id)
-              : (curPlayhead > region.startPos && curPlayhead < region.startPos + region.duration);
-            if (isTarget && curPlayhead > region.startPos && curPlayhead < region.startPos + region.duration) {
-              tempProject = projectCore.splitClip(tempProject, t.id, region.id, curPlayhead);
-              changed = true;
+        const newSelectedIds = new Set(selectedRegionIds);
+
+        regionsUnderPlayhead.forEach(item => {
+          const region = item.region;
+          const trackId = item.trackId;
+
+          // Target-Bedingung: 
+          // Wenn eine Selektion unter dem Playhead aktiv ist, schneiden wir nur diese.
+          // Ansonsten schneiden wir alle Regionen unter dem Playhead.
+          const isTarget = hasSelectionUnderPlayhead ? selectedRegionIds.has(region.id) : true;
+
+          if (isTarget) {
+            const targetTrackBefore = tempProject.tracks.find((x: any) => x.id === trackId);
+            const regionsBefore = targetTrackBefore ? [...targetTrackBefore.regions] : [];
+
+            tempProject = projectCore.splitClip(tempProject, trackId, region.id, curPlayhead);
+            
+            const targetTrackAfter = tempProject.tracks.find((x: any) => x.id === trackId);
+            if (targetTrackAfter) {
+              const newRegions = targetTrackAfter.regions.filter((r: any) => !regionsBefore.some((rb: any) => rb.id === r.id));
+              newRegions.forEach((nr: any) => newSelectedIds.add(nr.id));
             }
-          });
+
+            changed = true;
+          }
         });
 
         if (changed) {
           updateTracksWithHistory(tempProject.tracks as any);
+          if (hasSelectionUnderPlayhead) {
+            setSelectedRegionIds(newSelectedIds);
+          }
         }
       } else if (matchesShortcut(e, activeShortcuts.trimStart) || matchesShortcut(e, activeShortcuts.trimStartAlt)) {
         e.preventDefault();
         const curPlayhead = playheadPosRef.current;
-        const hasSelection = selectedRegionIds.size > 0;
+        
+        // 1. Alle Regionen ermitteln, die sich unter dem Playhead befinden
+        const regionsUnderPlayhead: { region: Region; trackId: string }[] = [];
+        tracks.forEach(t => {
+          t.regions.forEach(r => {
+            if (curPlayhead > r.startPos && curPlayhead < r.startPos + r.duration) {
+              regionsUnderPlayhead.push({ region: r, trackId: t.id });
+            }
+          });
+        });
+
+        if (regionsUnderPlayhead.length === 0) return;
+
+        // 2. Prüfen, ob eine dieser Regionen unter dem Playhead ausgewählt ist
+        const hasSelectionUnderPlayhead = regionsUnderPlayhead.some(item => selectedRegionIds.has(item.region.id));
+
         const newTracks = tracks.map(t => {
           let changed = false;
           const updatedRegions = t.regions.map(region => {
-            const isTarget = hasSelection ? selectedRegionIds.has(region.id) : (curPlayhead > region.startPos && curPlayhead < region.startPos + region.duration);
-            if (isTarget && curPlayhead > region.startPos && curPlayhead < region.startPos + region.duration) {
+            const isUnderPlayhead = curPlayhead > region.startPos && curPlayhead < region.startPos + region.duration;
+            if (!isUnderPlayhead) return region;
+
+            const isTarget = hasSelectionUnderPlayhead ? selectedRegionIds.has(region.id) : true;
+
+            if (isTarget) {
               changed = true;
               const cutAmount = curPlayhead - region.startPos;
               return {
@@ -856,16 +909,39 @@ export function Timeline({
           });
           return changed ? { ...t, regions: updatedRegions } : t;
         });
-        updateTracksWithHistory(newTracks);
+
+        const isChanged = newTracks.some((t, i) => t !== tracks[i]);
+        if (isChanged) {
+          updateTracksWithHistory(newTracks);
+        }
       } else if (matchesShortcut(e, activeShortcuts.trimEnd)) {
         e.preventDefault();
         const curPlayhead = playheadPosRef.current;
-        const hasSelection = selectedRegionIds.size > 0;
+        
+        // 1. Alle Regionen ermitteln, die sich unter dem Playhead befinden
+        const regionsUnderPlayhead: { region: Region; trackId: string }[] = [];
+        tracks.forEach(t => {
+          t.regions.forEach(r => {
+            if (curPlayhead > r.startPos && curPlayhead < r.startPos + r.duration) {
+              regionsUnderPlayhead.push({ region: r, trackId: t.id });
+            }
+          });
+        });
+
+        if (regionsUnderPlayhead.length === 0) return;
+
+        // 2. Prüfen, ob eine dieser Regionen unter dem Playhead ausgewählt ist
+        const hasSelectionUnderPlayhead = regionsUnderPlayhead.some(item => selectedRegionIds.has(item.region.id));
+
         const newTracks = tracks.map(t => {
           let changed = false;
           const updatedRegions = t.regions.map(region => {
-            const isTarget = hasSelection ? selectedRegionIds.has(region.id) : (curPlayhead > region.startPos && curPlayhead < region.startPos + region.duration);
-            if (isTarget && curPlayhead > region.startPos && curPlayhead < region.startPos + region.duration) {
+            const isUnderPlayhead = curPlayhead > region.startPos && curPlayhead < region.startPos + region.duration;
+            if (!isUnderPlayhead) return region;
+
+            const isTarget = hasSelectionUnderPlayhead ? selectedRegionIds.has(region.id) : true;
+
+            if (isTarget) {
               changed = true;
               return {
                 ...region,
@@ -876,7 +952,11 @@ export function Timeline({
           });
           return changed ? { ...t, regions: updatedRegions } : t;
         });
-        updateTracksWithHistory(newTracks);
+
+        const isChanged = newTracks.some((t, i) => t !== tracks[i]);
+        if (isChanged) {
+          updateTracksWithHistory(newTracks);
+        }
       }
     }
 
@@ -1125,15 +1205,39 @@ export function Timeline({
     // Doppelklick hat Vorrang – Selektion löschen statt neue setzen
     if (rulerDoubleClickPendingRef.current) return;
 
-    // Linksklick / Rechtsklick im blauen Balken -> markiert immer von Anfang an (0s) bis zum Klickpunkt
     const stripEl = stripRef.current;
     if (!stripEl) return;
     const rect = stripEl.getBoundingClientRect();
     const clickX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
-    const newPos = (clickX + scrollLeft) / pixelsPerSecond;
-    
-    setSelectionStart(0);
-    setSelectionEnd(newPos);
+    const clickedTime = (clickX + scrollLeft) / pixelsPerSecond;
+
+    const isSelectionPresent = selectionStart !== null && selectionEnd !== null && selectionStart !== selectionEnd;
+
+    if (!isSelectionPresent) {
+      if (e.button === 0) {
+        // Linksklick: Erzeugt Selektion ab Klickpunkt bis zum absoluten Projektende
+        const allRegions = tracks.flatMap(t => t.regions);
+        const projectEnd = allRegions.length > 0 ? Math.max(...allRegions.map(r => r.startPos + r.duration)) : 30;
+        setSelectionStart(clickedTime);
+        setSelectionEnd(projectEnd);
+      } else {
+        // Rechtsklick: Erzeugt Selektion ab Projektstart (0s) bis zum Klickpunkt
+        setSelectionStart(0);
+        setSelectionEnd(clickedTime);
+      }
+    } else {
+      if (e.button === 0) {
+        // Linksklick bei vorhandenem Balken: Startpunkt (vorne) verschieben/kürzen
+        const currentEnd = selectionEnd !== null ? selectionEnd : clickedTime;
+        setSelectionStart(clickedTime);
+        setSelectionEnd(currentEnd);
+      } else {
+        // Rechtsklick bei vorhandenem Balken: Endpunkt (hinten) verschieben/kürzen
+        const currentStart = selectionStart !== null ? selectionStart : 0;
+        setSelectionStart(currentStart);
+        setSelectionEnd(clickedTime);
+      }
+    }
   };
   
   // Stufenloses Greifen und Verschieben des Abspielkopfs (Playhead-Dragging)
