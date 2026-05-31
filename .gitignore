@@ -27,6 +27,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Deployment runtime data
+deployment/youtrack/.env
+deployment/youtrack/volumes/
+
 # User temporary templates
 Neuer Ordner/
 

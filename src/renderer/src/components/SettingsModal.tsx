@@ -706,8 +706,8 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
   const tabs: Tab[] = ['Projekteinstellungen', 'Wiedergabe', 'Ordner', 'Import/Audio', 'System', 'Tastaturkürzel', 'MIDI']
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[2000]" data-settings-modal="true">
-      <div className="bg-[#282b30] border border-gray-700 w-[750px] h-[700px] rounded shadow-2xl flex flex-col">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[2000] p-6" data-settings-modal="true">
+      <div className="bg-[#282b30] border border-gray-700 w-[750px] max-h-full rounded shadow-2xl flex flex-col">
         <div className="p-3 border-b border-gray-700 font-semibold flex justify-between items-center bg-[#1e2124] rounded-t">
           <span>Programmeinstellungen</span>
           <button onClick={onClose} className="hover:text-red-400">✖</button>
@@ -727,7 +727,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
         </div>
 
         {/* Tab Content */}
-        <div className="p-4 flex-1 overflow-hidden">
+        <div className="p-4 flex-1 overflow-y-auto custom-scrollbar">
           {activeTab === 'Wiedergabe' && renderWiedergabe()}
           {activeTab === 'Ordner' && renderOrdner()}
           {activeTab === 'Import/Audio' && renderVideoAudio()}
