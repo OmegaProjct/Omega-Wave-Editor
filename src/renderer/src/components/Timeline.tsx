@@ -137,7 +137,7 @@ export function Timeline({
   const setSelectedRegionId = useCallback((id: string | null) => {
     setSelectedRegionIds(id ? new Set([id]) : new Set())
   }, [setSelectedRegionIds])
-  const [draggingRegion, setDraggingRegion] = useState<{ id: string, trackId: string, initialStartPos: number, startX: number, action: 'move' | 'trimStart' | 'trimEnd', initialDuration: number, initialSourceOffset: number, initialFileDuration: number } | null>(null)
+  const [draggingRegion, setDraggingRegion] = useState<{ id: string, trackId: string, initialStartPos: number, startX: number, action: 'move' | 'trimStart' | 'trimEnd', initialDuration: number, initialSourceOffset: number, initialFileDuration: number, pitchRate?: number } | null>(null)
   // Lasso / Rubber-Band Selection
   const [lassoRect, setLassoRect] = useState<{ startX: number; startY: number; endX: number; endY: number } | null>(null)
   const lassoStartRef = useRef<{ x: number; y: number } | null>(null)
@@ -1518,7 +1518,8 @@ export function Timeline({
       initialSourceOffset: region.sourceOffset || 0,
       initialFileDuration: region.fileDuration || region.duration,
       startX: e.clientX,
-      action 
+      action,
+      pitchRate: region.effects?.pitchRate || 1.0
     });
   }
 
@@ -1693,9 +1694,10 @@ export function Timeline({
           }
 
         } else if (draggingRegion.action === 'trimStart') {
+          const pitchRate = draggingRegion.pitchRate || 1.0;
           // Prevent dragging left edge before the file start (sourceOffset cannot be less than 0)
-          const minPos = Math.max(0, draggingRegion.initialStartPos - draggingRegion.initialSourceOffset);
-          const maxDelta = draggingRegion.initialDuration - 0.1;
+          const minPos = Math.max(0, draggingRegion.initialStartPos - (draggingRegion.initialSourceOffset / pitchRate));
+          const maxDelta = (draggingRegion.initialDuration / pitchRate) - 0.1;
           const actualDelta = Math.min(deltaTime, maxDelta);
           const newPos = Math.max(minPos, draggingRegion.initialStartPos + actualDelta);
           const actualDeltaClamped = newPos - draggingRegion.initialStartPos;
@@ -1705,16 +1707,17 @@ export function Timeline({
               regions: newTracks[sourceTrackIdx].regions.map(r => r.id === draggingRegion.id ? { 
                 ...r, 
                 startPos: newPos, 
-                duration: draggingRegion.initialDuration - actualDeltaClamped,
-                sourceOffset: draggingRegion.initialSourceOffset + actualDeltaClamped
+                duration: draggingRegion.initialDuration - actualDeltaClamped * pitchRate,
+                sourceOffset: draggingRegion.initialSourceOffset + actualDeltaClamped * pitchRate
               } : r)
           }
         } else if (draggingRegion.action === 'trimEnd') {
+          const pitchRate = draggingRegion.pitchRate || 1.0;
           // Prevent dragging right edge beyond the actual physical file length
           const fileDur = draggingRegion.initialFileDuration;
           const srcOff = draggingRegion.initialSourceOffset;
           const maxDur = Math.max(0.1, fileDur - srcOff);
-          const newDuration = Math.min(maxDur, Math.max(0.1, draggingRegion.initialDuration + deltaTime));
+          const newDuration = Math.min(maxDur, Math.max(0.1, draggingRegion.initialDuration + deltaTime * pitchRate));
           newTracks[sourceTrackIdx] = {
               ...newTracks[sourceTrackIdx],
               regions: newTracks[sourceTrackIdx].regions.map(r => r.id === draggingRegion.id ? { ...r, duration: newDuration } : r)
@@ -2314,7 +2317,7 @@ export function Timeline({
                             setSelectedRegionIds(new Set());
                             setEditorContextMenu(null);
                           }
-                        }}
+                       }}
                     >
                         {showAutomation && (
                           <div className="absolute left-0 right-0 top-1/2 border-t border-dashed border-cyan-500/40 pointer-events-none z-[8]" title="Spurkurve: Lautstärke">
@@ -2322,9 +2325,10 @@ export function Timeline({
                           </div>
                         )}
                         {track.regions.map(region => {
-                           const regionWidthPx = region.duration * pixelsPerSecond;
-                           const fadeInPx = (region.fadeIn || 0) * pixelsPerSecond;
-                           const fadeOutPx = (region.fadeOut || 0) * pixelsPerSecond;
+                           const pitchRate = region.effects?.pitchRate || 1.0;
+                           const regionWidthPx = (region.duration / pitchRate) * pixelsPerSecond;
+                           const fadeInPx = ((region.fadeIn || 0) / pitchRate) * pixelsPerSecond;
+                           const fadeOutPx = ((region.fadeOut || 0) / pitchRate) * pixelsPerSecond;
                            const gainLinear = region.gain !== undefined ? region.gain : 1.0;
                            const gainDb = gainLinear > 0 ? 20 * Math.log10(gainLinear) : -Infinity;
                            let gainYPercent = 50;
@@ -2339,10 +2343,10 @@ export function Timeline({
 
                            // Crossfade: same-track overlap detection
                            const sortedOnTrack = [...track.regions].sort((a, b) => a.startPos - b.startPos);
-                           const prevOnTrack = sortedOnTrack.find(r => r.id !== region.id && r.startPos + r.duration > region.startPos && r.startPos < region.startPos);
-                           const nextOnTrack = sortedOnTrack.find(r => r.id !== region.id && r.startPos < region.startPos + region.duration && r.startPos > region.startPos);
-                           const xfadeInPx  = prevOnTrack ? Math.max(0, (prevOnTrack.startPos + prevOnTrack.duration - region.startPos) * pixelsPerSecond) : 0;
-                           const xfadeOutPx = nextOnTrack ? Math.max(0, (region.startPos + region.duration - nextOnTrack.startPos) * pixelsPerSecond) : 0;
+                           const prevOnTrack = sortedOnTrack.find(r => r.id !== region.id && r.startPos + (r.duration / (r.effects?.pitchRate || 1.0)) > region.startPos && r.startPos < region.startPos);
+                           const nextOnTrack = sortedOnTrack.find(r => r.id !== region.id && r.startPos < region.startPos + (region.duration / pitchRate) && r.startPos > region.startPos);
+                           const xfadeInPx  = prevOnTrack ? Math.max(0, (prevOnTrack.startPos + (prevOnTrack.duration / (prevOnTrack.effects?.pitchRate || 1.0)) - region.startPos) * pixelsPerSecond) : 0;
+                           const xfadeOutPx = nextOnTrack ? Math.max(0, (region.startPos + (region.duration / pitchRate) - nextOnTrack.startPos) * pixelsPerSecond) : 0;
 
                            // Manual fades shown only when no crossfade is active on that side
                            const showFadeIn  = fadeInPx  > 1 && xfadeInPx  < 1;

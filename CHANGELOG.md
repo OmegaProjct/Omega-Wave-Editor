@@ -2,6 +2,28 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.7.10] - 2026-05-31
+
+### English
+
+#### Changed
+- **Real-Time Keep-Pitch (Time-Stretching)**: Unified the `Jungle` pitch shifter node to always connect in the active region DSP path, enabling dynamic real-time hot-toggling of "Tonhöhe beibehalten" (time-stretching) during active playback.
+- **Audio Speed-Stretching Calculations**: Completely scaled and aligned all visual duration trimming, region boundaries, and fade-in/fade-out/crossfade calculations into real-time seconds inside both the live multitrack player and the offline renderer (`renderOffline`).
+
+#### Fixed
+- **Trim and Offset Sync**: Fixed multitrack buffer playback start and read length parameter offset scaling by `pitchRate` to match the visual speed-stretching on the timeline.
+- **JSX Syntax in Timeline**: Corrected a mismatched and unclosed `onClick` handler in the Timeline's track element loop.
+
+### Deutsch
+
+#### Geändert
+- **Echtzeit „Tonhöhe beibehalten“ (Time-Stretching)**: Der `Jungle`-Pitch-Shifter ist nun dauerhaft in die DSP-Kette der Regionen eingebunden, um ein unterbrechungsfreies, live Hot-Toggling der Tonhöhenkorrektur während des Abspielens zu ermöglichen (mit latenzfreiem Bypass-Zustand).
+- **Präzise Tempo-Dehnungsberechnungen**: Sämtliche Abspiel-Grenzen, Fades, Crossfades und Trimm-Berechnungen wurden in Echtzeit-Sekunden umgerechnet (geteilt durch `pitchRate`), um eine perfekte Synchronisation zur gestauchten oder gedehnten Timeline zu garantieren.
+
+#### Behoben
+- **Buffer-Offset & Längen-Skalierung**: Die Parameter für Lese-Offset und Lese-Länge beim Starten von Audioquellen (`source.start`) in der Live-Wiedergabe und im Export wurden präzise an das Wiedergabetempo angepasst.
+- **JSX-Syntax in Timeline**: Behebung eines ungeschlossenen `onClick`-Handlers und fehlenden DIV-Tags im Spur-Rendering der Timeline.
+
 ## [0.7.9] - 2026-05-31
 
 ### English
