@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { Folder, Save, Tag } from 'lucide-react'
 import { AudioEngine } from '../lib/AudioEngine'
 
-const ID3_FORMATS = ['MP3 (Lame Encoder)', 'M4A (AAC Audio)', 'OGG (Vorbis)', 'OPUS (Interactive)']
+const ID3_FORMATS = ['MP3 (Lame Encoder)', 'M4A (AAC Audio)', 'OGG (Vorbis)', 'OPUS (Interactive)', 'FLAC (Free Lossless)']
 
 const EXPORT_PHASES = [
   'Analysiere Spuren...',
@@ -547,7 +547,7 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
 
   return (
     <div className={isPopout ? "w-screen h-screen bg-[#282b30] flex flex-col overflow-hidden relative font-sans text-omega-text select-none" : "fixed inset-0 bg-black/80 flex items-center justify-center z-[2000] font-sans text-omega-text select-none"}>
-      <div className={isPopout ? "w-full h-full flex flex-col overflow-hidden relative" : "bg-[#282b30] border border-gray-600 w-[700px] rounded shadow-2xl flex flex-col overflow-hidden max-h-[90vh] relative"}>
+      <div className={isPopout ? "w-full h-full flex flex-col overflow-hidden relative" : "bg-[#282b30] border border-gray-600 w-[720px] rounded-xl shadow-2xl flex flex-col overflow-hidden max-h-[96vh] relative"}>
         
         {/* Interactive Double-Click Guard Mask */}
         {isBrowsing && !isExporting && (
@@ -569,10 +569,10 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
           <button onClick={handleClose} className="hover:text-red-400 text-sm" disabled={isExporting || isBrowsing}>✖</button>
         </div>
 
-        <div className="p-4 flex flex-col gap-4 overflow-y-auto scrollbar-hide">
+        <div className="p-3.5 flex flex-col gap-3 overflow-y-auto scrollbar-hide">
           
           {/* FORMAT */}
-          <div className="border border-gray-700 p-4 rounded bg-black/5 relative">
+          <div className="border border-gray-700 p-3 rounded bg-black/5 relative">
             <span className="absolute -top-2.5 left-4 bg-[#282b30] px-2 text-[10px] text-gray-400 uppercase tracking-widest font-bold">Export-Format</span>
             <div className="flex items-center gap-3 mt-2">
               <select value={format} onChange={(e) => setFormat(e.target.value)} className="flex-1 py-1 px-2 text-xs bg-[#1a1d21] border border-gray-600 outline-none rounded" disabled={isExporting || isBrowsing}>
@@ -582,9 +582,9 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
           </div>
 
           {/* EXPORTEINSTELLUNGEN */}
-          <div className="border border-gray-700 p-4 rounded bg-black/5 relative">
+          <div className="border border-gray-700 p-3 rounded bg-black/5 relative">
             <span className="absolute -top-2.5 left-4 bg-[#282b30] px-2 text-[10px] text-gray-400 uppercase tracking-widest font-bold">Exporteinstellungen</span>
-            <div className="grid grid-cols-2 gap-x-8 gap-y-4 mt-2">
+            <div className="grid grid-cols-2 gap-x-6 gap-y-3 mt-2">
               <div className="flex flex-col gap-1">
                 <span className="text-[10px] text-gray-500 font-bold uppercase">Voreinstellung:</span>
                 <select value={preset} onChange={(e) => setPresets(e.target.value)} className="flex-1 py-1 px-2 text-xs bg-[#1a1d21] border border-gray-600 outline-none rounded" disabled={isExporting || isBrowsing}>
@@ -627,7 +627,7 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
           {supportsId3 && (
             <div className="border border-gray-700 rounded bg-black/5 relative">
               <button
-                className="w-full p-3 px-4 flex items-center justify-between text-[10px] text-gray-400 uppercase tracking-widest font-bold hover:text-white transition-colors"
+                className="w-full p-2.5 px-3 flex items-center justify-between text-[10px] text-gray-400 uppercase tracking-widest font-bold hover:text-white transition-colors"
                 onClick={() => !isExporting && !isBrowsing && setShowId3(s => !s)}
                 disabled={isExporting || isBrowsing}
               >
@@ -635,7 +635,7 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
                 <span>{showId3 ? '▲' : '▼'}</span>
               </button>
               {showId3 && (
-                <div className="px-4 pb-4 grid grid-cols-2 gap-3">
+                <div className="px-3 pb-3 grid grid-cols-2 gap-2">
                   {[
                     ['Titel', id3Title, setId3Title],
                     ['Künstler', id3Artist, setId3Artist],
@@ -712,7 +712,7 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
           )}
 
           {/* SPEICHERORT */}
-          <div className="border border-gray-700 p-4 rounded bg-black/5 relative">
+          <div className="border border-gray-700 p-3 rounded bg-black/5 relative">
             <span className="absolute -top-2.5 left-4 bg-[#282b30] px-2 text-[10px] text-gray-400 uppercase tracking-widest font-bold">Speicherort und Dateiname</span>
             <div className="flex items-center gap-2 mt-2">
               <input type="text" value={path} onChange={(e) => setPath(e.target.value)} className="flex-1 bg-[#1a1d21] border border-gray-600 rounded px-2 py-1 text-xs outline-none focus:border-omega-accent text-white font-sans" disabled={isExporting || isBrowsing} />

@@ -174,7 +174,7 @@ if (gotTheLock) {
 
       exportWindow = new BrowserWindow({
         width: 780,
-        height: 660,
+        height: 940,
         parent: mainWindow || undefined,
         modal: false, // We use custom blur and locking to allow moving it out
         resizable: true,
