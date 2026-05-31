@@ -2,6 +2,26 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.7.13] - 2026-06-01
+
+### English
+
+#### Changed
+- **Modal Popout Size Adjustment**: Set the update popout dimensions to 740x780 to match its actual layout requirements, resolving previous crop defects.
+- **Unified Popout Router Hook**: Routed settings keyboard shortcut and settings modal update checker triggers through the popout router to consistently catch small viewport scenarios.
+
+#### Fixed
+- **Reverted Inline Modal Scrolling**: Restored the original full-height layouts for Update, Settings, and About modals, removing internal scrollbars and relying on dynamic popouts to prevent cropping.
+
+### Deutsch
+
+#### Geändert
+- **Update-Popout Abmessungen**: Anpassung der Update-Popout-Größe auf 740x780 zur korrekten Darstellung ohne Abschneiden.
+- **Einheitliche Popout-Routung**: Tastaturkürzel für Einstellungen und der Update-Trigger aus dem Einstellungsfenster laufen nun über den Popout-Router, um bei kleinem Hauptfenster verlässlich auszuploppen.
+
+#### Behoben
+- **Rückbau der internen Scrollbars**: Wiederherstellung der ursprünglichen Full-Height-Modals für Updates, Einstellungen und Über uns, um jegliches Scrollen im Dialog zu vermeiden.
+
 ## [0.7.12] - 2026-05-31
 
 ### English

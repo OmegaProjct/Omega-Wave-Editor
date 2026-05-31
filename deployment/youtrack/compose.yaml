@@ -1,0 +1,28 @@
+services:
+  youtrack:
+    image: jetbrains/youtrack:${YOUTRACK_VERSION}
+    container_name: omega-youtrack
+    restart: unless-stopped
+    expose:
+      - "8080"
+    volumes:
+      - ./volumes/youtrack/data:/opt/youtrack/data
+      - ./volumes/youtrack/conf:/opt/youtrack/conf
+      - ./volumes/youtrack/logs:/opt/youtrack/logs
+      - ./volumes/youtrack/backups:/opt/youtrack/backups
+
+  caddy:
+    image: caddy:2.10-alpine
+    container_name: omega-youtrack-caddy
+    restart: unless-stopped
+    depends_on:
+      - youtrack
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      YOUTRACK_DOMAIN: ${YOUTRACK_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./volumes/caddy/data:/data
+      - ./volumes/caddy/config:/config

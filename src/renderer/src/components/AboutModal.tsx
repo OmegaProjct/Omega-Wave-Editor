@@ -26,8 +26,8 @@ export function AboutModal({ onClose }: AboutModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center z-[5000] p-6 animate-in fade-in duration-200">
-      <div className="bg-[#24272c]/95 border border-gray-700/60 w-[460px] max-h-full rounded-xl shadow-2xl overflow-hidden flex flex-col backdrop-blur-md">
+    <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center z-[5000] animate-in fade-in duration-200">
+      <div className="bg-[#24272c]/95 border border-gray-700/60 w-[460px] rounded-xl shadow-2xl overflow-hidden flex flex-col backdrop-blur-md">
         
         {/* Header */}
         <div className="bg-[#1a1d21]/60 px-5 py-3.5 border-b border-gray-800/80 flex items-center justify-between">
@@ -41,7 +41,7 @@ export function AboutModal({ onClose }: AboutModalProps) {
         </div>
 
         {/* Content */}
-        <div className="p-7 flex-1 flex flex-col items-center text-center overflow-y-auto custom-scrollbar w-full">
+        <div className="p-7 flex flex-col items-center text-center">
           {/* Logo / Icon */}
           <img
             src={appIcon}
