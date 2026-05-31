@@ -2,6 +2,34 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.7.12] - 2026-05-31
+
+### English
+
+#### Changed
+- **AudioEngine Stopped Track Guard**: Preventive param saving in `trackParams` when adjusting sliders while stopped, avoiding redundant AudioNode creation on closed/suspended audio contexts.
+- **Timeline Autoscroll & Playhead Sync**: Synchronized mutable playhead ref `playheadPosRef` in timeline skip-to-start and skip-to-end triggers, securing exact position rendering.
+- **Empty currentProject on Stop**: Set `currentProject = null` on multitrack player stop, preventing background sliding-window cache preloading when stopped.
+- **File Explorer Preview await close**: Changed FileExplorer preview functions to `async` and awaited `audioCtx.close()` before creating a new context, preventing hardware preview glitches.
+
+#### Fixed
+- **Modern RecordingEngine AudioWorklet Migration**: Upgraded the deprecated `ScriptProcessorNode` to a modern `AudioWorkletNode` in `RecordingEngine`, completely offloading real-time peak calculation and software monitoring to a background thread to prevent dropouts.
+- **AudioEngine Resume Timing Recalibration**: Recalibrated `startTime` directly in `resume()` to prevent timeline timing drift if the context resets or switches output routing.
+- **AudioEngine Async loadFile Swap Protection**: Captured the active context during async load and automatically retried decoding on the new context if stopped/swapped during loading.
+
+### Deutsch
+
+#### Geändert
+- **DSP-Parameter-Schutz im Stopp-Zustand**: Schieberegler-Änderungen bei gestopptem Player werden nun präventiv in `trackParams` gesichert, anstatt unnötige Audio-Knoten auf geschlossenen Contexten zu erstellen.
+- **Timeline Abspielkopf-Synchronisation**: Perfekte Synchronisation von `playheadPosRef.current` bei Sprüngen an den Anfang oder das Ende der Timeline für ruckelfreies Rendering.
+- **Speicherbereinigung bei Stopp**: Das Leeren des Projekt-Zustands (`currentProject = null`) bei Stopp verhindert unnötige Cache-Prefetch-Berechnungen im Hintergrund.
+- **Vorschau-Visualizer-Kollision**: Die Vorschau-Funktionen des Datei-Explorers warten nun explizit das Schließen (`await`) des vorherigen AudioContexts ab, um Glitches auf schwächerer Hardware zu vermeiden.
+
+#### Behoben
+- **Modernisierung der Aufnahme-Engine (AudioWorklet)**: Migration des veralteten `ScriptProcessorNode` auf eine moderne `AudioWorkletNode` in der `RecordingEngine`, wodurch Aufnahmepuffer-Erfassung, Pegelanzeigen (VU) und Software-Monitoring stabil im Hintergrundthread laufen.
+- **Exakte Abspielzeit nach Pause (Resume-Fix)**: Neukalibrierung von `startTime` beim Fortsetzen des Abspielens, um Positionsverschiebungen bei Gerätewechseln auszuschließen.
+- **Robustes Dateiladen bei Context-Reset**: Transparenter Zweitversuch in `loadFile()`, falls der AudioContext während der asynchronen Dateiladung gestoppt oder zurückgesetzt wurde.
+
 ## [0.7.11] - 2026-05-31
 
 ### English
