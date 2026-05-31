@@ -356,8 +356,8 @@ function App(): JSX.Element {
     }
     if (type === 'TRIGGER_UPDATE') {
        openModalPopoutOrInline('update', () => setActiveUpdateInfo(payload), {
-         width: 550,
-         height: 650,
+         width: 740,
+         height: 780,
          title: 'Software Update',
          payload: payload
        });
@@ -442,8 +442,7 @@ function App(): JSX.Element {
         triggerTimelineAction('REDO');
       } else if (matchesShortcut(e, keyboardShortcuts.openSettings)) {
         e.preventDefault();
-        setSettingsTab('Projekteinstellungen');
-        setShowSettings(true);
+        openSettings('Projekteinstellungen');
       } else if (matchesShortcut(e, keyboardShortcuts.exportAudio)) {
         e.preventDefault();
         window.api.openExportSettings(tracks, null, null);
@@ -606,7 +605,12 @@ function App(): JSX.Element {
           initialTab={settingsTab} 
           onTriggerUpdate={(updateInfo) => {
             setShowSettings(false)
-            setActiveUpdateInfo(updateInfo)
+            openModalPopoutOrInline('update', () => setActiveUpdateInfo(updateInfo), {
+              width: 740,
+              height: 780,
+              title: 'Software Update',
+              payload: updateInfo
+            });
           }}
         />
       )}
@@ -702,8 +706,8 @@ function App(): JSX.Element {
             <button 
               onClick={() => {
                 openModalPopoutOrInline('update', () => setActiveUpdateInfo(updateAvailable), {
-                  width: 550,
-                  height: 650,
+                  width: 740,
+                  height: 780,
                   title: 'Software Update',
                   payload: updateAvailable
                 });
