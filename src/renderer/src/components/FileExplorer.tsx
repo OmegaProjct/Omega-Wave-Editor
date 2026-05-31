@@ -93,10 +93,55 @@ export function FileExplorer() {
     AudioEngine.getInstance().setMasterVolume(nextMuted ? 0 : volume)
   }
 
+  const [pinnedFolders, setPinnedFolders] = useState<string[]>([])
+
   useEffect(() => {
-    window.api.getHomeDir().then(home => {
-      loadDirectory(home)
-    })
+    try {
+      const stored = localStorage.getItem('pinnedFolders')
+      if (stored) {
+        setPinnedFolders(JSON.parse(stored))
+      }
+    } catch (e) {
+      console.error('Error loading pinned folders from localStorage:', e)
+    }
+  }, [])
+
+  const pinFolder = async () => {
+    const res = await window.api.showOpenDialog({ properties: ['openDirectory'], title: 'Ordner zum Anpinnen auswählen' })
+    if (!res.canceled && res.filePaths.length > 0) {
+      const pathToAdd = res.filePaths[0]
+      if (!pinnedFolders.includes(pathToAdd)) {
+        const updated = [...pinnedFolders, pathToAdd]
+        setPinnedFolders(updated)
+        localStorage.setItem('pinnedFolders', JSON.stringify(updated))
+      }
+    }
+  }
+
+  const unpinFolder = (path: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const updated = pinnedFolders.filter(p => p !== path)
+    setPinnedFolders(updated)
+    localStorage.setItem('pinnedFolders', JSON.stringify(updated))
+  }
+
+  const getFolderName = (path: string) => {
+    const parts = path.split(/[\\/]/)
+    return parts.pop() || path
+  }
+
+  useEffect(() => {
+    window.api.getSystemPath('music')
+      .then(musicDir => {
+        if (musicDir) {
+          loadDirectory(musicDir)
+        } else {
+          window.api.getHomeDir().then(home => loadDirectory(home))
+        }
+      })
+      .catch(() => {
+        window.api.getHomeDir().then(home => loadDirectory(home))
+      })
   }, [])
 
   // Cleanup on unmount
@@ -391,11 +436,39 @@ export function FileExplorer() {
         <div className="px-3 py-1.5 hover:bg-omega-accent hover:text-white cursor-pointer flex items-center gap-2 transition-colors text-gray-300" onClick={() => loadDirectory('computer')}><HardDrive size={12} /> Computer</div>
         <div className="px-3 py-1.5 hover:bg-omega-accent hover:text-white cursor-pointer flex items-center gap-2 transition-colors text-gray-300" onClick={() => window.api.getSystemPath('home').then(d => loadDirectory(d))}><User size={12} /> Benutzer</div>
         
-        <div className="px-3 py-1.5 text-gray-400 font-bold mt-2 mb-1 border-b border-gray-700 bg-[#1a1d21] uppercase tracking-wider">Eigene Medien</div>
+        <div className="px-3 py-1.5 text-gray-400 font-bold mt-2 mb-1 border-b border-gray-700 bg-[#1a1d21] uppercase tracking-wider flex justify-between items-center">
+          <span>Eigene Medien</span>
+          <button 
+            onClick={pinFolder}
+            className="text-omega-accent hover:text-white transition-colors p-0.5 hover:bg-gray-800 rounded font-bold text-xs" 
+            title="Ordner anpinnen"
+          >
+            +
+          </button>
+        </div>
         <div className="px-3 py-1.5 hover:bg-omega-accent hover:text-white cursor-pointer flex items-center gap-2 transition-colors text-gray-300" onClick={() => window.api.getSystemPath('documents').then(d => loadDirectory(d))}><Folder size={12} className="text-yellow-500" /> Dokumente</div>
         <div className="px-3 py-1.5 hover:bg-omega-accent hover:text-white cursor-pointer flex items-center gap-2 transition-colors text-gray-300" onClick={() => window.api.getSystemPath('music').then(d => loadDirectory(d))}><Music size={12} className="text-blue-400" /> Musik</div>
         <div className="px-3 py-1.5 hover:bg-omega-accent hover:text-white cursor-pointer flex items-center gap-2 transition-colors text-gray-300" onClick={() => window.api.getSystemPath('desktop').then(d => loadDirectory(d))}><Folder size={12} className="text-red-400" /> Desktop</div>
         <div className="px-3 py-1.5 hover:bg-omega-accent hover:text-white cursor-pointer flex items-center gap-2 transition-colors text-gray-300" onClick={() => window.api.getSystemPath('downloads').then(d => loadDirectory(d))}><Download size={12} className="text-green-500" /> Downloads</div>
+        {pinnedFolders.map(path => (
+          <div 
+            key={path} 
+            className="px-3 py-1.5 hover:bg-omega-accent hover:text-white cursor-pointer flex items-center justify-between transition-colors text-gray-300 group" 
+            onClick={() => loadDirectory(path)}
+          >
+            <div className="flex items-center gap-2 truncate">
+              <Folder size={12} className="text-omega-accent flex-shrink-0" /> 
+              <span className="truncate text-gray-300 group-hover:text-white" title={path}>{getFolderName(path)}</span>
+            </div>
+            <button 
+              onClick={(e) => unpinFolder(path, e)} 
+              className="text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity p-0.5"
+              title="Entpinnen"
+            >
+              <X size={10} />
+            </button>
+          </div>
+        ))}
       </div>
 
       <div className="flex-1 flex flex-col h-full bg-[#25282c] overflow-hidden">

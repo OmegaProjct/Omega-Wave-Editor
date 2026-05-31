@@ -161,7 +161,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
                   checked={settings.driverType === 'asio'} 
                   onChange={() => {
                     const firstAsio = asioDrivers[0]?.name || '';
-                    setSettings({ ...settings, driverType: 'asio', activeDeviceId: firstAsio })
+                    setSettings({ ...settings, driverType: 'asio', asioDriver: firstAsio })
                   }} 
                   className="text-omega-accent bg-[#1a1d21] border-gray-600 focus:ring-0 w-3.5 h-3.5"
                 />
@@ -170,14 +170,14 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
             </div>
           </div>
 
-          <div className="flex justify-between items-center">
-            <span className="text-gray-400">Ausgabegerät:</span>
-            {settings.driverType === 'asio' ? (
+          {settings.driverType === 'asio' && (
+            <div className="flex justify-between items-center">
+              <span className="text-gray-400">ASIO-Treiber:</span>
               <select 
-                value={settings.activeDeviceId || (asioDrivers[0]?.name || 'default')} 
+                value={settings.asioDriver || (asioDrivers[0]?.name || 'default')} 
                 onChange={(e) => {
                   const driverName = e.target.value
-                  setSettings({ ...settings, activeDeviceId: driverName })
+                  setSettings({ ...settings, asioDriver: driverName })
                 }}
                 className="bg-[#1a1d21] border border-gray-600 rounded px-2 py-1 w-48 outline-none text-xs text-white"
               >
@@ -190,24 +190,27 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
                   <option value="default">Kein ASIO Treiber gefunden</option>
                 )}
               </select>
-            ) : (
-              <select 
-                value={settings.activeDeviceId || 'default'} 
-                onChange={async (e) => {
-                  const deviceId = e.target.value
-                  setSettings({ ...settings, activeDeviceId: deviceId })
-                  await AudioEngine.getInstance().setOutputDevice(deviceId)
-                }}
-                className="bg-[#1a1d21] border border-gray-600 rounded px-2 py-1 w-48 outline-none text-xs text-white"
-              >
-                <option value="default">System (Standard)</option>
-                {devices.map(d => (
-                  <option key={d.deviceId} value={d.deviceId}>
-                    {d.label || `Ausgabegerät (${d.deviceId.slice(0, 8)})`}
-                  </option>
-                ))}
-              </select>
-            )}
+            </div>
+          )}
+
+          <div className="flex justify-between items-center">
+            <span className="text-gray-400">Ausgabegerät:</span>
+            <select 
+              value={settings.activeDeviceId || 'default'} 
+              onChange={async (e) => {
+                const deviceId = e.target.value
+                setSettings({ ...settings, activeDeviceId: deviceId })
+                await AudioEngine.getInstance().setOutputDevice(deviceId)
+              }}
+              className="bg-[#1a1d21] border border-gray-600 rounded px-2 py-1 w-48 outline-none text-xs text-white"
+            >
+              <option value="default">System (Standard)</option>
+              {devices.map(d => (
+                <option key={d.deviceId} value={d.deviceId}>
+                  {d.label || `Ausgabegerät (${d.deviceId.slice(0, 8)})`}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="flex justify-between items-center mt-1">
             <span className="text-gray-400">Audiopuffer:</span>
@@ -355,57 +358,32 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
     </div>
   )
 
+  const handleReactivateWarnings = () => {
+    setSettings((prev: any) => ({
+      ...prev,
+      showStartScreen: true,
+      showExportGapWarning: true
+    }))
+    window.dispatchEvent(new CustomEvent('SHOW_GLOBAL_MODAL', {
+      detail: {
+        type: 'info',
+        title: 'Erfolg',
+        message: 'Alle ausgeblendeten Warn- und Hinweisdialoge wurden wiederhergestellt.'
+      }
+    }))
+  }
+
   const renderSystem = () => (
     <div className="flex gap-4 h-full">
       <div className="flex-1 flex flex-col gap-4">
         <div className="border border-gray-700 p-4 rounded bg-[#1e2124]">
           <h3 className="text-center font-semibold mb-3 text-sm">Programmoberfläche</h3>
-          <button className="w-full py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors text-white" onClick={() => alert('Alle ausgeblendeten Warn- und Hinweisdialoge wurden wiederhergestellt.')}>Hinweisdialoge reaktivieren</button>
-        </div>
-        
-        <div className="border border-gray-700 p-4 rounded bg-[#1e2124] flex-1 flex flex-col justify-between">
-          <div>
-            <h3 className="text-center font-semibold mb-3 text-sm">Software-Updates</h3>
-            <div className="flex flex-col gap-2.5 items-center text-xs mt-1">
-              <div className="text-gray-400">
-                Aktuelle Version: <span className="text-white font-mono bg-[#1a1d21] px-2 py-0.5 rounded border border-gray-700 ml-1">v{currentVersion}</span>
-              </div>
-              
-              <button 
-                onClick={handleCheckForUpdates}
-                disabled={checkingUpdates}
-                className={`w-full py-2 rounded text-xs font-semibold shadow transition-all duration-200 text-white ${
-                  checkingUpdates 
-                    ? 'bg-gray-700 text-gray-500 cursor-not-allowed' 
-                    : 'bg-omega-accent hover:bg-blue-500 active:scale-[0.98]'
-                }`}
-              >
-                {checkingUpdates ? 'Suche läuft...' : 'Auf Updates prüfen'}
-              </button>
-            </div>
-          </div>
-
-          {updateStatus && (
-            <div className="mt-3 p-2 bg-[#1a1d21] border border-gray-700 rounded text-center">
-              <div className={`text-xs font-semibold ${updateInfo ? 'text-green-400' : 'text-gray-300'}`}>
-                {updateStatus}
-              </div>
-              {updateInfo && (
-                <button 
-                  onClick={() => {
-                    if (onTriggerUpdate) {
-                      onTriggerUpdate(updateInfo)
-                    } else {
-                      window.api.openExternal(updateInfo.url)
-                    }
-                  }}
-                  className="mt-2 w-full py-1 bg-green-600 hover:bg-green-500 text-white font-semibold text-[11px] rounded shadow animate-bounce transition-colors"
-                >
-                  Jetzt herunterladen
-                </button>
-              )}
-            </div>
-          )}
+          <button 
+            className="w-full py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors text-white" 
+            onClick={handleReactivateWarnings}
+          >
+            Hinweisdialoge reaktivieren
+          </button>
         </div>
       </div>
 

@@ -135,6 +135,7 @@ type ActiveRegionNode = {
   deEsserFilter: BiquadFilterNode;
   compressor: DynamicsCompressorNode;
   reverbGain: GainNode;
+  reverb?: ConvolverNode;
   delayTime: AudioParam;
   delayFeedback: GainNode;
   delayGain: GainNode;
@@ -598,7 +599,7 @@ export class AudioEngine {
           // 3. Compressor Node
           const compressor = this.ctx.createDynamicsCompressor();
           compressor.threshold.value = effects.compThreshold !== undefined ? effects.compThreshold : 0;
-          compressor.ratio.value = (effects.compActive && effects.compRatio !== undefined) ? Math.max(1, effects.compRatio) : 1; // 1 = bypass
+          compressor.ratio.value = effects.compRatio !== undefined ? Math.max(1, effects.compRatio) : 1; // 1 = bypass
           lastNode.connect(compressor);
           lastNode = compressor;
 
@@ -659,6 +660,7 @@ export class AudioEngine {
             deEsserFilter,
             compressor,
             reverbGain,
+            reverb,
             delayTime: delayTimeParam,
             delayFeedback,
             delayGain,
@@ -1009,6 +1011,18 @@ export class AudioEngine {
     if (!list) return;
     list.forEach(node => {
       this.rampParam(node.reverbGain.gain, mix / 100);
+      
+      if (node.reverb) {
+        const reverbLength = this.ctx.sampleRate * time;
+        const reverbImpulse = this.ctx.createBuffer(2, reverbLength, this.ctx.sampleRate);
+        const leftRev = reverbImpulse.getChannelData(0);
+        const rightRev = reverbImpulse.getChannelData(1);
+        for (let i = 0; i < reverbLength; i++) {
+          leftRev[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / reverbLength, 3);
+          rightRev[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / reverbLength, 3);
+        }
+        node.reverb.buffer = reverbImpulse;
+      }
     });
   }
 
@@ -1360,7 +1374,7 @@ export class AudioEngine {
         // Region Compressor
         const regionCompressor = offlineCtx.createDynamicsCompressor();
         regionCompressor.threshold.value = effects.compThreshold !== undefined ? effects.compThreshold : 0;
-        regionCompressor.ratio.value = (effects.compActive && effects.compRatio !== undefined) ? Math.max(1, effects.compRatio) : 1;
+        regionCompressor.ratio.value = effects.compRatio !== undefined ? Math.max(1, effects.compRatio) : 1;
         lastNode.connect(regionCompressor);
         lastNode = regionCompressor;
         
