@@ -2,6 +2,26 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.7.11] - 2026-05-31
+
+### English
+
+#### Changed
+- **Bilingual Speed & Pitch Panel**: Upgraded the Pitch/Timestretch panel to mirror professional DAW interfaces, replacing the simple checkbox with a dual-mode "Algorithmus" select dropdown (supporting Timestretching and Resampling).
+- **Real-Time Duration Input**: Added a dynamic "Länge" (Length) text input showing the region's real-time duration. Typing a new length automatically calculates, clamps, and applies the exact corresponding speed factor (`pitchRate`).
+
+#### Fixed
+- **DSP Phasing & Comb Filtering**: Implemented a phasenpure clean digital bypass inside the `Jungle` pitch shifter node when `ratio = 1.0` (or when Timestretching is bypassed), completely eliminating flanging, phasing, or comb filtering distortion.
+
+### Deutsch
+
+#### Geändert
+- **Mehrspur-Standard-Pitch- & Speed-Panel**: Umgestaltung des Pitch/Timestretch-Panels nach dem Vorbild etablierter DAW-Schnittstellen, inklusive eines zweistufigen „Algorithmus“-Dropdowns (Timestretching vs. Resampling).
+- **Echtzeit-Dauer-Eingabefeld**: Hinzufügen eines interaktiven „Länge“-Eingabefelds. Die Eingabe einer Ziel-Dauer errechnet, clamps und übernimmt automatisch das exakt dazu passende Tempo (`pitchRate`) in Echtzeit.
+
+#### Behoben
+- **Flanger- & Phaser-Störgeräusche im Bypass**: Einpflegen eines unberührten, digitalen Bypass-Signalwegs im `Jungle`-Pitch-Shifter für den Zustand `ratio = 1.0` (Bypass), was jegliche Kammfilter- und Phasing-Effekte vollständig beseitigt.
+
 ## [0.7.10] - 2026-05-31
 
 ### English
