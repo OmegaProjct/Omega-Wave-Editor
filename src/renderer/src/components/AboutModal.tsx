@@ -7,7 +7,7 @@ interface AboutModalProps {
 }
 
 export function AboutModal({ onClose }: AboutModalProps) {
-  const [version, setVersion] = useState('0.7.3')
+  const [version, setVersion] = useState('0.7.5')
 
   useEffect(() => {
     async function loadVersion() {

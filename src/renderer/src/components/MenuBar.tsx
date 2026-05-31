@@ -77,9 +77,26 @@ export function MenuBar({
           onFileAction('TRIGGER_UPDATE', updateInfo)
         } else {
           const cleanCurrent = updateInfo.currentVersion.startsWith('v') ? updateInfo.currentVersion : `v${updateInfo.currentVersion}`
-          const cleanLatest = (updateInfo.latestVersion || updateInfo.currentVersion).startsWith('v') 
-            ? (updateInfo.latestVersion || updateInfo.currentVersion) 
-            : `v${updateInfo.latestVersion || updateInfo.currentVersion}`
+          
+          // Hilfsfunktion für den Versionsvergleich (SemVer)
+          const isNewer = (v1: string, v2: string) => {
+            const clean1 = v1.replace(/^v/i, '').split('.').map(Number);
+            const clean2 = v2.replace(/^v/i, '').split('.').map(Number);
+            for (let i = 0; i < Math.max(clean1.length, clean2.length); i++) {
+              const num1 = clean1[i] || 0;
+              const num2 = clean2[i] || 0;
+              if (num2 > num1) return true;
+              if (num2 < num1) return false;
+            }
+            return false;
+          }
+
+          let latestToDisplay = updateInfo.latestVersion || updateInfo.currentVersion;
+          if (!isNewer(updateInfo.currentVersion, latestToDisplay)) {
+            latestToDisplay = updateInfo.currentVersion;
+          }
+
+          const cleanLatest = latestToDisplay.startsWith('v') ? latestToDisplay : `v${latestToDisplay}`
           onFileAction('SHOW_MODAL', {
             type: 'info',
             title: 'Updates',

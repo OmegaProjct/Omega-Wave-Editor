@@ -83,6 +83,23 @@ export function registerPluginIpc() {
       )
     }
 
+    // Load custom VST paths from user settings.json
+    const settingsPath = path.join(userDataDir, 'settings.json')
+    if (fs.existsSync(settingsPath)) {
+      try {
+        const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'))
+        if (settings && Array.isArray(settings.vstPaths)) {
+          settings.vstPaths.forEach((p: string) => {
+            if (p && !scanPaths.includes(p)) {
+              scanPaths.push(p)
+            }
+          })
+        }
+      } catch (err) {
+        console.error('Failed to read custom VST paths from settings.json:', err)
+      }
+    }
+
     const currentRegistry = readRegistry()
     const foundPlugins: PluginDescriptor[] = []
 
