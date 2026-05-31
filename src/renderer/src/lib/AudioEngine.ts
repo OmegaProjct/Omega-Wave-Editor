@@ -566,14 +566,11 @@ export class AudioEngine {
             lastNode = merger;
           }
 
-          // Pitch shifter (Jungle)
-          let shifter: Jungle | undefined = undefined;
-          if (keepPitch) {
-            shifter = new Jungle(this.ctx);
-            shifter.setPitchRatio(1 / pitchRate);
-            lastNode.connect(shifter.input);
-            lastNode = shifter.output;
-          }
+          // Pitch shifter (Jungle) - Always instantiated and connected to support dynamic keepPitch hot-toggling
+          const shifter = new Jungle(this.ctx);
+          shifter.setPitchRatio(keepPitch ? (1 / pitchRate) : 1.0);
+          lastNode.connect(shifter.input);
+          lastNode = shifter.output;
 
           // Per-region gain node (for volume gain line)
           const regionGain = this.ctx.createGain();
@@ -683,17 +680,17 @@ export class AudioEngine {
           }
           this.activeRegions.get(r.id)!.push(activeNode);
           
+          const realDuration = r.duration / pitchRate;
           const offset = Math.max(0, startTime - r.startPos);
           const when = Math.max(0, r.startPos - startTime);
-          const regionEnd = r.startPos + r.duration;
+          const regionEnd = r.startPos + realDuration;
           
-          if (offset < r.duration) {
-            const bufferOffset = (r.sourceOffset || 0) + offset;
-            const playDuration = r.duration - offset;
-            source.start(this.ctx.currentTime + when, bufferOffset, playDuration);
-            if (shifter) {
-              shifter.start(this.ctx.currentTime + when);
-            }
+          if (offset < realDuration) {
+            const bufferOffset = (r.sourceOffset || 0) + offset * pitchRate;
+            const playDuration = realDuration - offset;
+            const bufferDurationToRead = playDuration * pitchRate;
+            source.start(this.ctx.currentTime + when, bufferOffset, bufferDurationToRead);
+            shifter.start(this.ctx.currentTime + when);
             
             const absStart = this.ctx.currentTime + when;
             const absEnd = absStart + playDuration;
@@ -706,15 +703,18 @@ export class AudioEngine {
             );
             const prevRegion = sortedRegions.find((other: any) =>
               other.id !== r.id &&
-              other.startPos + other.duration >= r.startPos - 0.02 &&
+              other.startPos + (other.duration / (other.effects?.pitchRate || 1.0)) >= r.startPos - 0.02 &&
               other.startPos < r.startPos
             );
+
+            const prevPitchRate = prevRegion?.effects?.pitchRate || 1.0;
+            const prevRealDuration = prevRegion ? (prevRegion.duration / prevPitchRate) : 0.0;
 
             // Knackfreie und dip-freie Schnitte:
             // Überprüfe, ob benachbarte Regionen nahtlose Schnitte derselben Originaldatei sind
             const isContinuousPrev = prevRegion &&
               prevRegion.file.path === r.file.path &&
-              Math.abs((prevRegion.startPos + prevRegion.duration) - r.startPos) < 0.02 &&
+              Math.abs((prevRegion.startPos + prevRealDuration) - r.startPos) < 0.02 &&
               Math.abs(((prevRegion.sourceOffset || 0) + prevRegion.duration) - (r.sourceOffset || 0)) < 0.02;
 
             const isContinuousNext = nextRegion &&
@@ -722,24 +722,24 @@ export class AudioEngine {
               Math.abs(regionEnd - nextRegion.startPos) < 0.02 &&
               Math.abs(((r.sourceOffset || 0) + r.duration) - (nextRegion.sourceOffset || 0)) < 0.02;
 
-            const fadeInDuration = r.fadeIn !== undefined ? r.fadeIn : (isContinuousPrev ? 0.0 : 0.005);
-            const fadeOutDuration = r.fadeOut !== undefined ? r.fadeOut : (isContinuousNext ? 0.0 : 0.005);
+            const realFadeIn = (r.fadeIn !== undefined ? r.fadeIn : (isContinuousPrev ? 0.0 : 0.005)) / pitchRate;
+            const realFadeOut = (r.fadeOut !== undefined ? r.fadeOut : (isContinuousNext ? 0.0 : 0.005)) / pitchRate;
 
             // Crossfade: if next region starts before this one ends, apply crossfade
-            let effectiveFadeOut = fadeOutDuration;
+            let effectiveFadeOut = realFadeOut;
             if (nextRegion && !isContinuousNext) {
               const overlapStart = nextRegion.startPos;
               const overlapDuration = regionEnd - overlapStart;
               if (overlapDuration > 0) {
-                effectiveFadeOut = Math.max(overlapDuration, fadeOutDuration);
+                effectiveFadeOut = Math.max(overlapDuration, realFadeOut);
               }
             }
 
-            let effectiveFadeIn = fadeInDuration;
+            let effectiveFadeIn = realFadeIn;
             if (prevRegion && !isContinuousPrev) {
-              const overlapDuration = (prevRegion.startPos + prevRegion.duration) - r.startPos;
+              const overlapDuration = (prevRegion.startPos + prevRealDuration) - r.startPos;
               if (overlapDuration > 0) {
-                effectiveFadeIn = Math.max(overlapDuration, fadeInDuration);
+                effectiveFadeIn = Math.max(overlapDuration, realFadeIn);
               }
             }
 
@@ -757,14 +757,14 @@ export class AudioEngine {
             }
 
             // Überprüfe, ob wir uns im Ausblendbereich (Fade-Out) befinden
-            const fadeOutStartOffset = r.duration - effectiveFadeOut;
+            const fadeOutStartOffset = realDuration - effectiveFadeOut;
             let inFadeOut = false;
             let startFadeOutGain = 1.0;
 
             if (offset >= fadeOutStartOffset) {
               // Wir starten die Wiedergabe mitten im Fade-Out
               inFadeOut = true;
-              const remainingTimeInClip = r.duration - offset;
+              const remainingTimeInClip = realDuration - offset;
               startFadeOutGain = effectiveFadeOut > 0 ? (remainingTimeInClip / effectiveFadeOut) : 0.0;
             }
 
@@ -1069,14 +1069,25 @@ export class AudioEngine {
   public updateActiveRegionPitch(regionId: string, rate: number, keepPitch?: boolean) {
     const list = this.activeRegions.get(regionId);
     if (!list) return;
+
+    let resolvedKeepPitch = keepPitch;
+    if (resolvedKeepPitch === undefined && this.currentProject) {
+      for (const track of this.currentProject.tracks) {
+        const region = track.regions.find((r: any) => r.id === regionId);
+        if (region) {
+          resolvedKeepPitch = region.effects?.keepPitch || false;
+          break;
+        }
+      }
+    }
+    if (resolvedKeepPitch === undefined) {
+      resolvedKeepPitch = false;
+    }
+
     list.forEach(node => {
       this.rampParam(node.source.playbackRate, rate);
       if (node.pitchShifter) {
-        if (keepPitch) {
-          node.pitchShifter.setPitchRatio(1 / rate);
-        } else {
-          node.pitchShifter.setPitchRatio(1.0);
-        }
+        node.pitchShifter.setPitchRatio(resolvedKeepPitch ? (1 / rate) : 1.0);
       }
     });
   }
@@ -1341,9 +1352,12 @@ export class AudioEngine {
         const pitchRate = effects.pitchRate !== undefined ? effects.pitchRate : 1.0;
         const keepPitch = effects.keepPitch || false;
 
+        const realDuration = r.duration / pitchRate;
+
         // Perform selection cropping checks
         if (exportSelectionOnly) {
-          if (r.startPos + r.duration <= selectionStart || r.startPos >= selectionEnd) {
+          const regionRealEnd = r.startPos + realDuration;
+          if (regionRealEnd <= selectionStart || r.startPos >= selectionEnd) {
             continue; // Skip this region entirely
           }
         }
@@ -1365,14 +1379,11 @@ export class AudioEngine {
           lastNode = merger;
         }
 
-        // Pitch shifter (Jungle) in offline context
-        let shifter: Jungle | undefined = undefined;
-        if (keepPitch) {
-          shifter = new Jungle(offlineCtx);
-          shifter.setPitchRatio(1 / pitchRate);
-          lastNode.connect(shifter.input);
-          lastNode = shifter.output;
-        }
+        // Pitch shifter (Jungle) in offline context - Always connected to ensure perfect match with live play
+        const shifter = new Jungle(offlineCtx);
+        shifter.setPitchRatio(keepPitch ? (1 / pitchRate) : 1.0);
+        lastNode.connect(shifter.input);
+        lastNode = shifter.output;
         
         // Region gain
         const regionGain = offlineCtx.createGain();
@@ -1462,12 +1473,12 @@ export class AudioEngine {
         
         // --- Calculate selection-driven play range & offsets ---
         let absStart = r.startPos;
-        let playDuration = r.duration;
+        let playDuration = realDuration;
         let bufferOffset = r.sourceOffset || 0;
 
         if (exportSelectionOnly) {
           const clipStart = Math.max(r.startPos, selectionStart);
-          const clipEnd = Math.min(r.startPos + r.duration, selectionEnd);
+          const clipEnd = Math.min(r.startPos + realDuration, selectionEnd);
           
           absStart = clipStart - selectionStart;
           playDuration = Math.max(0, clipEnd - clipStart);
@@ -1477,49 +1488,48 @@ export class AudioEngine {
         }
 
         // Fades scheduling with exact offset calculations
-        const origDuration = r.duration;
-        const origStart = r.startPos;
-        const origEnd = origStart + origDuration;
-
         const nextRegion = sortedRegions.find((other: any) =>
           other.id !== r.id &&
-          other.startPos < origEnd &&
+          other.startPos < r.startPos + realDuration &&
           other.startPos > r.startPos
         );
         const prevRegion = sortedRegions.find((other: any) =>
           other.id !== r.id &&
-          other.startPos + other.duration > r.startPos &&
+          other.startPos + (other.duration / (other.effects?.pitchRate || 1.0)) > r.startPos &&
           other.startPos < r.startPos
         );
+
+        const prevPitchRate = prevRegion?.effects?.pitchRate || 1.0;
+        const prevRealDuration = prevRegion ? (prevRegion.duration / prevPitchRate) : 0.0;
 
         // Knackfreie und dip-freie Schnitte bei Export
         const isContinuousPrev = prevRegion &&
           prevRegion.file.path === r.file.path &&
-          Math.abs((prevRegion.startPos + prevRegion.duration) - r.startPos) < 0.02 &&
+          Math.abs((prevRegion.startPos + prevRealDuration) - r.startPos) < 0.02 &&
           Math.abs(((prevRegion.sourceOffset || 0) + prevRegion.duration) - (r.sourceOffset || 0)) < 0.02;
 
         const isContinuousNext = nextRegion &&
           nextRegion.file.path === r.file.path &&
-          Math.abs(origEnd - nextRegion.startPos) < 0.02 &&
+          Math.abs((r.startPos + realDuration) - nextRegion.startPos) < 0.02 &&
           Math.abs(((r.sourceOffset || 0) + r.duration) - (nextRegion.sourceOffset || 0)) < 0.02;
 
-        const fadeInDuration = r.fadeIn !== undefined ? r.fadeIn : (isContinuousPrev ? 0.001 : 0.005);
-        const fadeOutDuration = r.fadeOut !== undefined ? r.fadeOut : (isContinuousNext ? 0.001 : 0.005);
+        const realFadeIn = (r.fadeIn !== undefined ? r.fadeIn : (isContinuousPrev ? 0.001 : 0.005)) / pitchRate;
+        const realFadeOut = (r.fadeOut !== undefined ? r.fadeOut : (isContinuousNext ? 0.001 : 0.005)) / pitchRate;
         
-        let effectiveFadeOut = fadeOutDuration;
+        let effectiveFadeOut = realFadeOut;
         if (nextRegion && !isContinuousNext) {
           const overlapStart = nextRegion.startPos;
-          const overlapDuration = origEnd - overlapStart;
+          const overlapDuration = (r.startPos + realDuration) - overlapStart;
           if (overlapDuration > 0) {
-            effectiveFadeOut = Math.max(overlapDuration, fadeOutDuration);
+            effectiveFadeOut = Math.max(overlapDuration, realFadeOut);
           }
         }
         
-        let effectiveFadeIn = fadeInDuration;
+        let effectiveFadeIn = realFadeIn;
         if (prevRegion && !isContinuousPrev) {
-          const overlapDuration = (prevRegion.startPos + prevRegion.duration) - r.startPos;
+          const overlapDuration = (prevRegion.startPos + prevRealDuration) - r.startPos;
           if (overlapDuration > 0) {
-            effectiveFadeIn = Math.max(overlapDuration, fadeInDuration);
+            effectiveFadeIn = Math.max(overlapDuration, realFadeIn);
           }
         }
 
@@ -1535,13 +1545,13 @@ export class AudioEngine {
           startGain = 1.0;
         }
 
-        const fadeOutStartOffset = origDuration - effectiveFadeOut;
+        const fadeOutStartOffset = realDuration - effectiveFadeOut;
         let inFadeOut = false;
         let startFadeOutGain = 1.0;
 
         if (offset >= fadeOutStartOffset) {
           inFadeOut = true;
-          const remainingTimeInClip = origDuration - offset;
+          const remainingTimeInClip = realDuration - offset;
           startFadeOutGain = effectiveFadeOut > 0 ? (remainingTimeInClip / effectiveFadeOut) : 0.0;
         }
 
@@ -1592,10 +1602,9 @@ export class AudioEngine {
           }
         }
         
-        source.start(absStart, bufferOffset, playDuration);
-        if (shifter) {
-          shifter.start(absStart);
-        }
+        const bufferDurationToRead = playDuration * pitchRate;
+        source.start(absStart, bufferOffset, bufferDurationToRead);
+        shifter.start(absStart);
       }
     }
     
