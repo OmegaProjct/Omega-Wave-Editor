@@ -2,6 +2,28 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.7.3] - 2026-05-31
+
+### English
+
+#### Added
+- **Premium About Modal**: Implemented a visually stunning custom `AboutModal` component with copyright, a detailed description, support email link, and clickable dynamic links to PayPal and the official GitHub Repository.
+- **Bilingual User Manual**: Extensively updated and expanded the built-in Benutzerhandbuch (`ManualModal`) to cover selection-based export, cover art metadata tagging, Web MIDI control with MIDI-Learn, and the aggregated software updater.
+- **Developer Guidelines**: Established a permanent guideline in `.clinerules` requiring that all future feature releases automatically maintain and update the built-in manual.
+
+#### Changed
+- **Manual Label Correction**: Renamed the Help menu item from "Handbuch (PDF) herunterladen" to "Benutzerhandbuch" to accurately reflect that it opens a custom local HTML manual page.
+
+### Deutsch
+
+#### Hinzugefügt
+- **Premium Über-Modal (Info)**: Einbindung einer optisch herausragenden custom `AboutModal`-Komponente mit Urheberrechtsangaben, detaillierter Beschreibung, Support-Mailbox und klickbaren Direkt-Verknüpfungen zu PayPal und dem offiziellen GitHub-Repository.
+- **Zweisprachiges Benutzerhandbuch**: Umfassende Überarbeitung und Erweiterung des integrierten Benutzerhandbuchs (`ManualModal`) zur lückenlosen Dokumentation des Selektions-Exports, der Metadaten- & Cover-Art-Einbettung, des MIDI-Steuerungs-Setups mit MIDI-Learn und des neuen Software-Updaters.
+- **Entwickler-Richtlinien**: Etablierung einer dauerhaften Regel in den `.clinerules`, welche alle zukünftigen KIs dazu verpflichtet, das integrierte Handbuch bei jedem Feature-Release automatisch auf dem neuesten Stand zu halten.
+
+#### Geändert
+- **Handbuch-Menübeschriftung**: Den Hilfeeintrag „Handbuch (PDF) herunterladen“ in „Benutzerhandbuch“ umbenannt, da dieser eine interne HTML-Seite innerhalb der App öffnet.
+
 ## [0.7.2] - 2026-05-31
 
 ### English

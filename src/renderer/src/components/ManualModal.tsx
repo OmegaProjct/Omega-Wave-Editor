@@ -1,89 +1,139 @@
-﻿import React from 'react'
+import React from 'react'
 
 export function ManualModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[5000] p-8 animate-in fade-in duration-200">
-      <div className="bg-[#282b30] border border-omega-border w-full max-w-4xl h-full rounded-lg shadow-2xl flex flex-col overflow-hidden">
+      <div className="bg-[#24272c] border border-gray-700/60 w-full max-w-4xl h-full rounded-xl shadow-2xl flex flex-col overflow-hidden backdrop-blur-md">
         
         {/* Header */}
-        <div className="bg-[#1e2124] px-6 py-4 border-b border-gray-700 flex items-center justify-between">
+        <div className="bg-[#1a1d21]/60 px-6 py-4 border-b border-gray-800/80 flex items-center justify-between">
            <div className="flex items-center gap-3">
               <span className="text-lg font-bold text-white tracking-wide">Omega Wave Editor – Benutzerhandbuch</span>
            </div>
-           <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors">✖</button>
+           <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors text-lg">✖</button>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-8 text-omega-text space-y-8 bg-[#1e2124]/50">
+        <div className="flex-1 overflow-y-auto p-8 text-gray-300 space-y-8 bg-[#1e2124]/30 custom-scrollbar">
           
+          {/* 1. Einführung */}
           <section>
-            <h2 className="text-2xl font-bold text-omega-accent mb-4 border-b border-gray-700 pb-2">1. Einführung</h2>
-            <p className="leading-relaxed text-gray-300">
+            <h2 className="text-xl font-bold text-omega-accent mb-4 border-b border-gray-800 pb-2">1. Einführung</h2>
+            <p className="leading-relaxed text-gray-300 text-sm">
               Willkommen beim <strong>Omega Wave Editor</strong>. Dieses Handbuch erklärt die grundlegenden Konzepte 
               und professionellen Workflows für die verlustfreie Audiobearbeitung.
               Der Editor ist für maximale Effizienz gebaut und nutzt im Hintergrund FFmpeg für schnelles, re-encode-freies Arbeiten.
             </p>
           </section>
 
+          {/* 2. Die Oberfläche */}
           <section>
-            <h2 className="text-2xl font-bold text-omega-accent mb-4 border-b border-gray-700 pb-2">2. Die Oberfläche (Workspace)</h2>
+            <h2 className="text-xl font-bold text-omega-accent mb-4 border-b border-gray-800 pb-2">2. Die Oberfläche (Workspace)</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-               <div className="bg-black/20 p-4 rounded border border-gray-700">
-                  <h3 className="font-bold text-white mb-2">Der Datei-Browser (Links)</h3>
-                  <p className="text-sm text-gray-400">Navigieren Sie durch Ihre lokalen Festplatten. Ziehen Sie Audiodateien (WAV, MP3) oder Videodateien (MP4, MKV) per Drag & Drop direkt auf die Timeline. Bei Videos wird die Audiospur automatisch extrahiert.</p>
+               <div className="bg-black/20 p-4.5 rounded border border-gray-800/85">
+                  <h3 className="font-bold text-white text-sm mb-2">Der Datei-Browser (Links)</h3>
+                  <p className="text-xs text-gray-400 leading-relaxed">Navigieren Sie durch Ihre lokalen Festplatten. Ziehen Sie Audiodateien (WAV, MP3, FLAC etc.) oder Videodateien (MP4, MKV) per Drag & Drop direkt auf die Zeitleiste. Bei Videos wird die Audiospur automatisch verlustfrei extrahiert.</p>
                </div>
-               <div className="bg-black/20 p-4 rounded border border-gray-700">
-                  <h3 className="font-bold text-white mb-2">Die Zeitleiste / Timeline (Unten)</h3>
-                  <p className="text-sm text-gray-400">Ihr Haupt-Arbeitsbereich. Hier arrangieren, schneiden und mischen Sie Ihre Audio-Objekte auf beliebig vielen Spuren.</p>
+               <div className="bg-black/20 p-4.5 rounded border border-gray-800/85">
+                  <h3 className="font-bold text-white text-sm mb-2">Die Zeitleiste / Timeline (Unten)</h3>
+                  <p className="text-xs text-gray-400 leading-relaxed">Ihr Haupt-Arbeitsbereich. Hier arrangieren, schneiden und mischen Sie Ihre Audio-Objekte auf beliebig vielen Spuren. Nutzen Sie die Fading-Punkte am Anfang und Ende jedes Clips für nahtlose Ein- und Ausblendungen.</p>
                </div>
-               <div className="bg-black/20 p-4 rounded border border-gray-700">
-                  <h3 className="font-bold text-white mb-2">Das Effekte-Panel (Rechts)</h3>
-                  <p className="text-sm text-gray-400">Echtzeit-DSP-Effekte (Digital Signal Processing). Hier finden Sie den 10-Band Equalizer, Kompressor, Hall, Delay und mehr. Effekte werden in Echtzeit berechnet.</p>
+               <div className="bg-black/20 p-4.5 rounded border border-gray-800/85">
+                  <h3 className="font-bold text-white text-sm mb-2">Das Effekte-Panel (Rechts)</h3>
+                  <p className="text-xs text-gray-400 leading-relaxed">Echtzeit-DSP-Effekte (Digital Signal Processing). Hier finden Sie den 10-Band Equalizer, Kompressor, Hall, Delay und mehr. Effekte werden in Echtzeit berechnet und lassen sich spurenweise regeln.</p>
                </div>
-               <div className="bg-black/20 p-4 rounded border border-gray-700">
-                  <h3 className="font-bold text-white mb-2">Das VU-Meter</h3>
-                  <p className="text-sm text-gray-400">Die Aussteuerungsanzeige oben rechts zeigt den Master-Pegel. Achten Sie darauf, dass der Balken nicht dauerhaft im roten Bereich ist, um Clipping zu vermeiden.</p>
+               <div className="bg-black/20 p-4.5 rounded border border-gray-800/85">
+                  <h3 className="font-bold text-white text-sm mb-2">Das VU-Meter & Mixer</h3>
+                  <p className="text-xs text-gray-400 leading-relaxed">Die Aussteuerungsanzeige oben rechts zeigt den Master-Pegel. Nutzen Sie die Mute- und Solo-Schalter an den Spurköpfen sowie die Lautstärkenfader für eine feine Balance Ihres Mixdowns.</p>
                </div>
             </div>
           </section>
 
+          {/* 3. Schneiden und Arrangieren */}
           <section>
-            <h2 className="text-2xl font-bold text-omega-accent mb-4 border-b border-gray-700 pb-2">3. Schneiden und Arrangieren (Workflow)</h2>
-            <p className="mb-4 text-gray-300">Der Omega Wave Editor ist optimiert für blitzschnelles Arbeiten. Nutzen Sie diese essenziellen Tastenkürzel:</p>
-            <ul className="space-y-3 bg-[#1a1d21] p-6 rounded-lg border border-gray-800">
-               <li className="flex items-center gap-4"><span className="bg-gray-700 text-white px-2 py-1 rounded text-xs font-mono w-12 text-center">T</span> <span><strong>Objekt Zerschneiden:</strong> Teilt das angewählte Objekt exakt an der Position des roten Playheads.</span></li>
-               <li className="flex items-center gap-4"><span className="bg-gray-700 text-white px-2 py-1 rounded text-xs font-mono w-12 text-center">Z</span> <span><strong>Anfang Entfernen:</strong> Löscht alles vom Anfang des Objekts bis zum Playhead.</span></li>
-               <li className="flex items-center gap-4"><span className="bg-gray-700 text-white px-2 py-1 rounded text-xs font-mono w-12 text-center">U</span> <span><strong>Ende Entfernen:</strong> Löscht alles vom Playhead bis zum Ende des Objekts.</span></li>
-               <li className="flex items-center gap-4"><span className="bg-gray-700 text-white px-2 py-1 rounded text-xs font-mono w-12 text-center">Entf</span> <span><strong>Löschen:</strong> Entfernt das angewählte Objekt komplett.</span></li>
-               <li className="flex items-center gap-4"><span className="bg-gray-700 text-white px-2 py-1 rounded text-xs font-mono w-12 text-center">Space</span> <span><strong>Wiedergabe / Pause:</strong> Startet oder stoppt das Playback.</span></li>
-               <li className="flex items-center gap-4"><span className="bg-gray-700 text-white px-2 py-1 rounded text-xs font-mono w-12 text-center">Strg+Z</span> <span><strong>Rückgängig:</strong> Macht den letzten Schnitt oder die letzte Bewegung rückgängig.</span></li>
+            <h2 className="text-xl font-bold text-omega-accent mb-4 border-b border-gray-800 pb-2">3. Schneiden und Arrangieren (Workflow)</h2>
+            <p className="mb-4 text-gray-300 text-sm">Der Omega Wave Editor ist optimiert für blitzschnelles Arbeiten. Nutzen Sie diese essenziellen Tastenkürzel:</p>
+            <ul className="space-y-3 bg-[#16181b]/90 p-5 rounded-lg border border-gray-800/80 font-sans text-xs">
+               <li className="flex items-center gap-4"><span className="bg-gray-700 text-white px-2 py-1 rounded text-[10px] font-mono w-14 text-center select-none font-bold">T</span> <span><strong>Objekt Zerschneiden:</strong> Teilt das angewählte Objekt exakt am roten Playhead. Ist kein Objekt selektiert, werden alle übereinanderliegenden Clips unter dem Playhead zerschnitten.</span></li>
+               <li className="flex items-center gap-4"><span className="bg-gray-700 text-white px-2 py-1 rounded text-[10px] font-mono w-14 text-center select-none font-bold">Z</span> <span><strong>Anfang trimmen:</strong> Löscht alles vom Anfang des Objekts bis zur Position des Playheads.</span></li>
+               <li className="flex items-center gap-4"><span className="bg-gray-700 text-white px-2 py-1 rounded text-[10px] font-mono w-14 text-center select-none font-bold">U</span> <span><strong>Ende trimmen:</strong> Löscht alles ab der Position des Playheads bis zum Ende des Objekts.</span></li>
+               <li className="flex items-center gap-4"><span className="bg-gray-700 text-white px-2 py-1 rounded text-[10px] font-mono w-14 text-center select-none font-bold">Entf</span> <span><strong>Löschen:</strong> Entfernt das angewählte Objekt oder die ausgewählte Spur komplett aus dem Projekt.</span></li>
+               <li className="flex items-center gap-4"><span className="bg-gray-700 text-white px-2 py-1 rounded text-[10px] font-mono w-14 text-center select-none font-bold">Leertaste</span> <span><strong>Start / Stopp:</strong> Startet oder pausiert das Playback global (auch wenn Regler oder Equalizer fokussiert sind).</span></li>
+               <li className="flex items-center gap-4"><span className="bg-gray-700 text-white px-2 py-1 rounded text-[10px] font-mono w-14 text-center select-none font-bold">Strg + Z</span> <span><strong>Rückgängig:</strong> Macht den letzten Schnitt oder die letzte Verschiebung rückgängig.</span></li>
             </ul>
           </section>
 
+          {/* 4. Selektions-Export & Metadaten */}
           <section>
-            <h2 className="text-2xl font-bold text-omega-accent mb-4 border-b border-gray-700 pb-2">4. Audioaufnahme (Recording)</h2>
-            <p className="leading-relaxed text-gray-300">
+            <h2 className="text-xl font-bold text-omega-accent mb-4 border-b border-gray-800 pb-2">4. Selektions-Export & Metadaten (ID3 / Vorbis)</h2>
+            <p className="leading-relaxed text-gray-300 text-sm mb-4">
+              Für einen maßgeschneiderten Mixdown-Export stehen Ihnen hochentwickelte Werkzeuge direkt zur Verfügung:
+            </p>
+            <div className="space-y-4">
+              <div className="bg-black/20 p-4 rounded border border-gray-800">
+                <h4 className="font-bold text-white text-xs mb-1.5 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 bg-blue-500 rounded-sm inline-block"></span>
+                  Selektionsbasierter Export (Blauer Balken)
+                </h4>
+                <p className="text-xs text-gray-400 leading-relaxed">
+                  Durch Klicken und Ziehen am oberen Rand des Zeitlineals (Ruler) können Sie eine Export-Markierung definieren (visualisiert als blauer Balken über der Timeline). Aktivieren Sie im Export-Dialog die Option <strong>„Nur markierten Bereich exportieren“</strong>, um den Mixdown mathematisch exakt auf diese Spanne zu beschränken. Ein Doppelklick auf das Lineal löscht die Selektion wieder.
+                </p>
+              </div>
+              <div className="bg-black/20 p-4 rounded border border-gray-800">
+                <h4 className="font-bold text-white text-xs mb-1.5 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 bg-blue-500 rounded-sm inline-block"></span>
+                  Formatgerechte Metadaten & Cover-Art-Import
+                </h4>
+                <p className="text-xs text-gray-400 leading-relaxed">
+                  Beim Exportieren können Sie Metadaten (Titel, Interpret, Album, Jahr, Genre) eintragen. Das Programm schreibt automatisch das formatkonforme Tag-System (<strong>ID3v2</strong> für MP3/WAV, <strong>Vorbis Comments</strong> für FLAC/OGG/OPUS/M4A). Sie können zudem lokale Bilddateien (.jpg, .png) als **Album-Cover** importieren, welche ohne Qualitätsverlust der Zieldatei beigefügt werden.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {/* 5. Audioaufnahme */}
+          <section>
+            <h2 className="text-xl font-bold text-omega-accent mb-4 border-b border-gray-800 pb-2">5. Audioaufnahme (Recording)</h2>
+            <p className="leading-relaxed text-gray-300 text-sm">
               Klicken Sie in der Werkzeugleiste auf das Mikrofon-Symbol. Der Editor fragt gegebenenfalls nach Berechtigungen für Ihr System-Mikrofon. 
               Während der Aufnahme pulsiert das Symbol rot. Ein erneuter Klick beendet die Aufnahme. Die erzeugte Audio-Datei wird auf Ihrem Desktop gespeichert und sofort als neues Objekt an den Beginn von Spur 1 gelegt.
             </p>
           </section>
 
+          {/* 6. MIDI-Steuerung */}
           <section>
-            <h2 className="text-2xl font-bold text-omega-accent mb-4 border-b border-gray-700 pb-2">5. Mixdown & Export</h2>
-            <p className="leading-relaxed text-gray-300">
-              Wenn Ihr Arrangement fertig ist, klicken Sie oben rechts auf <strong>"Mixdown Export"</strong>. 
-              Wählen Sie Ihr gewünschtes Zielformat (WAV für höchste Qualität, MP3 für kompakte Dateigrößen) und die Bitrate. 
-              Der Editor rechnet alle Spuren inklusive Lautstärkeanpassungen zusammen und rendert eine fertige Master-Datei auf Ihren Desktop.
+            <h2 className="text-xl font-bold text-omega-accent mb-4 border-b border-gray-800 pb-2">6. MIDI-Steuerung & MIDI-Learn</h2>
+            <p className="leading-relaxed text-gray-300 text-sm mb-4">
+              Steuern Sie den Omega Wave Editor bequem mit externer Hardware (Keyboards, Controller, Mischpulte) über die integrierte Web MIDI API:
+            </p>
+            <ul className="space-y-3 bg-[#16181b]/90 p-5 rounded-lg border border-gray-800/80 font-sans text-xs">
+              <li className="leading-relaxed">
+                <strong>Zuweisbare Funktionen:</strong> Steuern Sie Transport-Aktionen (Play, Stop, Record) oder Mixer-Züge (Lautstärke, Mute, Solo für die visuellen Kanäle 1 bis N).
+              </li>
+              <li className="leading-relaxed">
+                <strong>MIDI-Learn (Einfache Zuweisung):</strong> Öffnen Sie das Einstellungsfenster (Reiter „MIDI“). Klicken Sie neben einer Funktion auf den Button <strong>„Learn“</strong> (blinkt rot) und bewegen Sie einfach das gewünschte Rädchen, den Fader oder die Taste an Ihrem Hardware-Gerät. Die Zuweisung (Kanal, CC-Nummer oder Note) wird sofort automatisch erkannt und dauerhaft gespeichert.
+              </li>
+              <li className="leading-relaxed">
+                <strong>Universal-Mappings:</strong> Da das Mixer-Mapping auf den visuellen Kanalzügen basiert, funktionieren Ihre Einstellungen in jedem Projekt universell – ganz gleich, welche Tracks geladen sind.
+              </li>
+            </ul>
+          </section>
+
+          {/* 7. Software-Updates */}
+          <section>
+            <h2 className="text-xl font-bold text-omega-accent mb-4 border-b border-gray-800 pb-2">7. Automatische Software-Updates</h2>
+            <p className="leading-relaxed text-gray-300 text-sm">
+              Der integrierte Software-Updater sucht bei jedem Programmstart im Hintergrund nach Aktualisierungen. Ist eine neue Version vorhanden, öffnet sich ein übersichtlicher Dialog. Dank der HandBrake-Style Changelog-Aggregation werden Ihnen alle Versionsnotizen der übersprungenen Zwischenversionen übersichtlich aufgelistet, so dass Sie immer genau wissen, welche Features hinzugekommen sind, während der Download im Hintergrund läuft.
             </p>
           </section>
 
         </div>
 
         {/* Footer */}
-        <div className="bg-[#1e2124] px-6 py-4 flex justify-end gap-2 border-t border-gray-700">
+        <div className="bg-[#1a1d21]/60 px-6 py-4 flex justify-end gap-2 border-t border-gray-800/80 select-none">
           <button 
             onClick={onClose} 
-            className="px-8 py-2 bg-omega-accent hover:bg-blue-500 text-white text-sm rounded shadow transition-all font-bold"
+            className="px-8 py-2 bg-omega-accent hover:bg-blue-500 text-white text-xs rounded-lg shadow-lg hover:shadow-omega-accent/20 transition-all font-bold active:scale-[0.98]"
           >
             Verstanden
           </button>
@@ -92,4 +142,3 @@ export function ManualModal({ onClose }: { onClose: () => void }) {
     </div>
   )
 }
-
