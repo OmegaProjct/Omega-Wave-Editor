@@ -2,6 +2,20 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.7.2] - 2026-05-31
+
+### English
+
+#### Added
+- **UI Polish**: Restored the clean vertical two-row list layout for current and available versions to eliminate all top-padding squishing and alignment issues.
+- **Typography & Parser Polish**: Optimized markdown heading hierarchy (Level 2, 3, and 4) and increased text contrast and size (`text-xs` / `12px` and brighter gray colors) to make bilingual release notes exceptionally readable.
+
+### Deutsch
+
+#### Hinzugefügt
+- **UI-Feinschliff**: Wiederherstellung des sauberen, zweizeiligen Listen-Layouts für installierte und verfügbare Versionen, um jegliche Quetschungen oder Randausrichtungsprobleme zu eliminieren.
+- **Typografie- & Parser-Politur**: Optimierung der Markdown-Überschriftenhierarchie (Level 2, 3 und 4) sowie Erhöhung des Textkontrasts und der Schriftgröße (`text-xs` / `12px` und hellere Grautöne) für eine herausragende Lesbarkeit der zweisprachigen Versionshinweise.
+
 ## [0.7.1] - 2026-05-31
 
 ### English
