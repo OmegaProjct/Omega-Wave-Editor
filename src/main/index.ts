@@ -205,6 +205,33 @@ if (gotTheLock) {
       }
     })
 
+    // Open Popout Modal Dialog Window (Settings, About, Manual, Update)
+    ipcMain.on('open-popout-window', (event, { name, width, height, title }) => {
+      let win = new BrowserWindow({
+        width: width || 800,
+        height: height || 700,
+        parent: mainWindow || undefined,
+        modal: false,
+        resizable: true,
+        minimizable: false,
+        autoHideMenuBar: true,
+        title: title || 'Omega Wave Editor',
+        webPreferences: {
+          preload: join(__dirname, '../preload/index.js'),
+          contextIsolation: true,
+          nodeIntegration: false,
+          sandbox: false,
+          webSecurity: true
+        }
+      })
+
+      if (!app.isPackaged && process.env['ELECTRON_RENDERER_URL']) {
+        win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}?window=${name}`)
+      } else {
+        win.loadFile(join(__dirname, '../renderer/index.html'), { query: { window: name } })
+      }
+    })
+
     // Forward start-offline-export command from Export Dialog to Main DAW Editor Window
     ipcMain.on('update-export-settings', (event, settings) => {
       if (currentTracksData) {

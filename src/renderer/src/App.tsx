@@ -57,9 +57,32 @@ function App(): JSX.Element {
 
   const { state: tracks, push: pushTracks, undo, redo } = useHistory(initialTracks, maxUndoSteps);
 
+  const openModalPopoutOrInline = (
+    name: 'settings' | 'manual' | 'about' | 'update',
+    openInline: () => void,
+    popoutOptions: { width: number; height: number; title: string; payload?: any }
+  ) => {
+    const isCropped = window.innerWidth < (popoutOptions.width + 20) || window.innerHeight < (popoutOptions.height + 20);
+    if (isCropped) {
+      if (popoutOptions.payload) {
+        localStorage.setItem(`popout_${name}_payload`, JSON.stringify(popoutOptions.payload));
+      }
+      window.api.openPopoutWindow(name, popoutOptions);
+    } else {
+      openInline();
+    }
+  }
+
   const openSettings = (tab: 'Wiedergabe' | 'Ordner' | 'Import/Audio' | 'System' | 'Tastaturkürzel' | 'Projekteinstellungen' = 'Projekteinstellungen') => {
-    setSettingsTab(tab)
-    setShowSettings(true)
+    openModalPopoutOrInline('settings', () => {
+      setSettingsTab(tab)
+      setShowSettings(true)
+    }, {
+      width: 760,
+      height: 720,
+      title: 'Einstellungen',
+      payload: { tab }
+    });
   }
 
   // Load initial settings on boot
@@ -80,6 +103,29 @@ function App(): JSX.Element {
       setKeyboardShortcuts(normalizeKeyboardShortcuts(settings.keyboardShortcuts))
     }).catch(e => console.error('Fehler beim Laden der Einstellungen:', e))
   }, [])
+
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'settings_updated_trigger' && e.newValue) {
+        try {
+          const payload = JSON.parse(e.newValue);
+          const s = payload.settings;
+          if (s) {
+            if (s.maxUndoSteps) setMaxUndoSteps(s.maxUndoSteps);
+            if (typeof s.autoSave === 'boolean') setAutoSaveEnabled(s.autoSave);
+            if (s.autoSaveInterval) setAutoSaveInterval(s.autoSaveInterval);
+            setKeyboardShortcuts(normalizeKeyboardShortcuts(s.keyboardShortcuts));
+            AudioEngine.getInstance().setAudioDriver(s.driverType || 'wave', s.bufferCount || 6);
+            window.dispatchEvent(new CustomEvent('SETTINGS_UPDATED', { detail: s }));
+          }
+        } catch (err) {
+          console.error('Error parsing settings popout trigger:', err);
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
 
   useEffect(() => {
     const handleSettingsUpdated = (event: Event) => {
@@ -309,15 +355,28 @@ function App(): JSX.Element {
        return
     }
     if (type === 'TRIGGER_UPDATE') {
-       setActiveUpdateInfo(payload)
+       openModalPopoutOrInline('update', () => setActiveUpdateInfo(payload), {
+         width: 550,
+         height: 650,
+         title: 'Software Update',
+         payload: payload
+       });
        return
     }
     if (type === 'SHOW_MANUAL') {
-       setShowManual(true);
+       openModalPopoutOrInline('manual', () => setShowManual(true), {
+         width: 920,
+         height: 820,
+         title: 'Benutzerhandbuch'
+       });
        return;
     }
     if (type === 'SHOW_ABOUT') {
-       setShowAbout(true);
+       openModalPopoutOrInline('about', () => setShowAbout(true), {
+         width: 480,
+         height: 530,
+         title: 'Über Omega Wave Editor'
+       });
        return;
     }
     setTimelineAction({ type, payload });
@@ -642,7 +701,12 @@ function App(): JSX.Element {
             </button>
             <button 
               onClick={() => {
-                setActiveUpdateInfo(updateAvailable)
+                openModalPopoutOrInline('update', () => setActiveUpdateInfo(updateAvailable), {
+                  width: 550,
+                  height: 650,
+                  title: 'Software Update',
+                  payload: updateAvailable
+                });
                 setUpdateAvailable(null)
               }}
               className="px-3 py-1 text-xs bg-omega-accent hover:bg-blue-500 text-white font-semibold rounded shadow transition-colors"

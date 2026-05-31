@@ -94,6 +94,7 @@ export function FileExplorer() {
   }
 
   const [pinnedFolders, setPinnedFolders] = useState<string[]>([])
+  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, path: string } | null>(null)
 
   useEffect(() => {
     try {
@@ -104,6 +105,14 @@ export function FileExplorer() {
     } catch (e) {
       console.error('Error loading pinned folders from localStorage:', e)
     }
+  }, [])
+
+  useEffect(() => {
+    const handleGlobalClick = () => {
+      setContextMenu(null)
+    }
+    document.addEventListener('click', handleGlobalClick)
+    return () => document.removeEventListener('click', handleGlobalClick)
   }, [])
 
   const pinFolder = async () => {
@@ -455,6 +464,15 @@ export function FileExplorer() {
             key={path} 
             className="px-3 py-1.5 hover:bg-omega-accent hover:text-white cursor-pointer flex items-center justify-between transition-colors text-gray-300 group" 
             onClick={() => loadDirectory(path)}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setContextMenu({
+                x: e.clientX,
+                y: e.clientY,
+                path: path
+              });
+            }}
           >
             <div className="flex items-center gap-2 truncate">
               <Folder size={12} className="text-omega-accent flex-shrink-0" /> 
@@ -720,6 +738,26 @@ export function FileExplorer() {
       </div>
       {activeTab === 'Import' && renderExplorerContent()}
       {activeTab === 'Player' && renderPlayerTab()}
+
+      {/* Glassmorphic context menu for pinned folders */}
+      {contextMenu && (
+        <div 
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          className="fixed bg-[#1e2124]/95 backdrop-blur-md border border-gray-700/60 rounded-lg shadow-xl py-1 z-[9999] min-w-[120px] select-none text-[11px]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={(e) => {
+              const ev = e as unknown as React.MouseEvent;
+              unpinFolder(contextMenu.path, ev);
+              setContextMenu(null);
+            }}
+            className="w-full text-left px-3 py-1.5 hover:bg-red-500 hover:text-white transition-colors text-red-400 flex items-center gap-1.5 font-medium"
+          >
+            <X size={10} /> Ordner entpinnen
+          </button>
+        </div>
+      )}
     </div>
   )
 }

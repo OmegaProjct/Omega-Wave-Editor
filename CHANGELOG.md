@@ -2,6 +2,38 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.7.9] - 2026-05-31
+
+### English
+
+#### Added
+- **"Enable Compressor" Toggle**: Added a dedicated activation checkbox for the region compressor in the Effects Panel.
+- **Custom Folder Context Menu**: Implemented a glassmorphic right-click context menu (with an "Ordner entpinnen" action) exclusively for user-pinned folders in the File Explorer sidebar, keeping standard folders read-only.
+
+#### Changed
+- **Pop-out Dialogs on Crop**: Modals like Settings, About, Manual, and Updates now automatically pop out as native borderless top-level Electron windows if the main window dimensions are smaller than the modal dimensions (cropped).
+- **LocalStorage State Sync**: Integrated a storage event bridge to live-synchronize settings parameters, shortcuts, and AudioEngine driver settings from popouts back to the main DAW window instantly.
+- **Seamless Live Reverb Decay**: Resolved the convolver write-once buffer constraint by dynamically hot-swapping and reconnecting a new ConvolverNode in real-time when dragging the reverb decay slider.
+
+#### Fixed
+- **Compressor Startup Fade-In Bug**: Resolved a critical issue where resetting effects would activate the compressor with default threshold and ratio regardless of the bypass flag, causing a slow fade-in volume swell on starting playback.
+- **Corrupted Audio File Details**: Improved the import catch block to display a user-friendly and highly precise German error message ("Die Audiodatei ist beschädigt, unvollständig...") upon audio decoding failure.
+
+### Deutsch
+
+#### Hinzugefügt
+- **„Kompressor aktivieren“ Toggle**: Eigener Aktivierungsschalter für den Region-Kompressor im Audioeffekt-Panel.
+- **Eigene Medien Kontextmenü**: Ein schickes Rechtsklick-Kontextmenü zum bequemen Entpinnen von selbst hinzugefügten Ordnern in der Import-Sidebar. Standardordner sind schreibgeschützt und rufen kein Menü auf.
+
+#### Geändert
+- **Pop-out-Modals bei Crop**: Einstellungen, Info, Benutzerhandbuch und Updates öffnen sich bei kleinem Hauptfenster (cropped) automatisch in eigenständigen, nativen Electron-Popout-Fenstern, anstatt abgeschnitten zu werden.
+- **LocalStorage-Synchronisation**: Einstellungs- und Treiber-Änderungen in Pop-out-Fenstern werden in Echtzeit via HTML5-Storage-Event-Bridge live ins Hauptfenster übernommen.
+- **Seamless Reverb Decay live**: Behebung von Tonausfällen bei Hall-Decay-Änderungen durch dynamisches Neuerstellen und knackfreies Wiederverbinden der ConvolverNode im laufenden Stream.
+
+#### Behoben
+- **Kompressor-Anspiel-Fade-In**: Behebung eines Fehlers, bei dem das Zurücksetzen von Effekten den Compressor fälschlicherweise aktivierte, was aufgrund des Makeup-Gains beim Song-Start ein störendes Einblenden verursachte.
+- **Fehlermeldung beschädigter Audiodateien**: Import-Fehlermeldungen wurden verbraucherfreundlich lokalisiert und präzisiert, um beschädigte oder nicht unterstützte Quelldateien sofort zu identifizieren.
+
 ## [0.7.8] - 2026-05-31
 
 ### English
