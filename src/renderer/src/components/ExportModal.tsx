@@ -566,7 +566,9 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
         {/* Header */}
         <div className="p-2 px-3 border-b border-gray-600 flex justify-between items-center bg-[#1e2124]">
           <span className="text-xs font-semibold">{format}-Export</span>
-          <button onClick={handleClose} className="hover:text-red-400 text-sm" disabled={isExporting || isBrowsing}>✖</button>
+          {!isPopout && (
+            <button onClick={handleClose} className="hover:text-red-400 text-sm" disabled={isExporting || isBrowsing}>✖</button>
+          )}
         </div>
 
         <div className="p-3.5 flex flex-col gap-3 overflow-y-auto scrollbar-hide">
