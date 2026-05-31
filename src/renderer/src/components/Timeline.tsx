@@ -1026,6 +1026,7 @@ export function Timeline({
   useEffect(() => {
     window.api.getSettings().then(s => {
       if (s) {
+        if (s.maxUndoSteps !== undefined) HistoryManager.setMaxHistory(s.maxUndoSteps);
         if (s.sampleRate !== undefined) setSampleRate(s.sampleRate);
         if (s.autoScroll !== undefined) setAutoScroll(s.autoScroll);
         if (s.spacebarStops !== undefined) setSpacebarStops(s.spacebarStops);
@@ -1072,6 +1073,9 @@ export function Timeline({
       const newSettings = customEvent.detail;
       if (!newSettings) return;
 
+      if (newSettings.maxUndoSteps !== undefined) {
+        HistoryManager.setMaxHistory(newSettings.maxUndoSteps);
+      }
       if (newSettings.sampleRate !== undefined) {
         setSampleRate(newSettings.sampleRate);
       }

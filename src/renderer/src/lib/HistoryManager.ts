@@ -1,10 +1,17 @@
 import { Track } from '../components/Timeline'
 
-const MAX_HISTORY = 50;
-
 export class HistoryManager {
   private static undoStack: Track[][] = [];
   private static redoStack: Track[][] = [];
+  private static maxHistory = 50;
+
+  // Dynamically set maximum history limit
+  public static setMaxHistory(limit: number) {
+    this.maxHistory = limit;
+    while (this.undoStack.length > this.maxHistory) {
+      this.undoStack.shift();
+    }
+  }
 
   // Pushes a new state to the history, clearing the redo stack.
   public static pushState(tracks: Track[]) {
@@ -13,7 +20,7 @@ export class HistoryManager {
     const cloned = JSON.parse(JSON.stringify(tracks));
     this.undoStack.push(cloned);
     
-    if (this.undoStack.length > MAX_HISTORY) {
+    if (this.undoStack.length > this.maxHistory) {
       this.undoStack.shift();
     }
     

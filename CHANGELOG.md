@@ -2,6 +2,42 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.7.8] - 2026-05-31
+
+### English
+
+#### Added
+- **Shortcut Folder Pinning in Import Tab**: Users can now pin directories of their choice directly under "Eigene Medien" in the Import explorer sidebar by clicking the new Plus (`+`) button. Pinned paths are persisted inside `LocalStorage` and feature hover-to-delete `X` buttons.
+
+#### Changed
+- **Default Explorer Directory**: The Import file explorer now opens the system's official **Music** folder (`music`) by default on start, falling back to user home.
+- **ASIO Split Dropdowns**: Reorganized the Wiedergabe (Playback) settings card to split ASIO driver selection and output routing. Selecting "ASIO-Treiber" now shows a dedicated physical driver dropdown (`ASIO-Treiber:`) while keeping the standard Windows output routing dropdown (`Ausgabegerät:`) visible at all times.
+- **System Settings Cleanup**: Completely removed the redundant "Software-Updates" section from System settings since it is already covered in the Help menu.
+
+#### Fixed
+- **100% Real-time Audio Effects**:
+  - **Compressor**: Bypassed the non-functional `compActive` flag, enabling dynamic compression in real-time as soon as the `Ratio` slider is greater than `1.0` (standard DAW behavior).
+  - **Reverb (Decay Time)**: Enabled live decay time updates during active playback by keeping a physical convolver reference on `ActiveRegionNode` and mathematically reconstructing the impulse response buffer in real-time when the decay slider is dragged.
+  - **Delay & De-Esser**: Ensured both parameters apply parameters immediately and smoothly to active audio streams.
+  - **Warning Reactivation**: Made "Hinweisdialoge reaktivieren" fully operational by correctly resetting hidden warnings (`showStartScreen` and `showExportGapWarning`) and displaying a beautiful global success modal.
+
+### Deutsch
+
+#### Hinzugefügt
+- **Ordner anpinnen im Import-Reiter**: Benutzer können nun beliebige Ordner direkt in der Seitenleiste unter „Eigene Medien“ anpinnen, indem sie auf das neue Plus-Symbol (`+`) klicken. Die Pfade werden im `LocalStorage` gespeichert und verfügen über ein Hover-Löschkreuz (`X`) zum schnellen Entpinnen.
+
+#### Geändert
+- **Standardordner im Explorer**: Der Import-Datei-Explorer startet beim Starten nun standardmäßig direkt im System-Ordner **„Musik“** (mit Fallback auf das Benutzerverzeichnis).
+- **ASIO getrennte Dropdowns**: Die Wiedabe-Einstellungen wurden umgestaltet, um die physikalische ASIO-Treiberauswahl und die Standard-Ausgabekanalwahl zu trennen. Bei Auswahl von „ASIO-Treiber“ erscheint ein eigenes Dropdown (`ASIO-Treiber:`), während das Standard-Ausgabegerät (`Ausgabegerät:`) immer sichtbar und aktiv bleibt.
+- **System-Bereinigung**: Die redundante Sektion „Software-Updates“ wurde vollständig aus den Einstellungen entfernt, da sie bereits über das Hilfe-Menü abgedeckt ist.
+
+#### Behoben
+- **100 % Echtzeit-Audioeffekte**:
+  - **Kompressor**: Die ungenutzte Option `compActive` wurde umgangen, wodurch die Kompression sofort in Echtzeit einsetzt, sobald der `Ratio`-Regler größer als `1.0` ist (standardmäßiges DAW-Verhalten).
+  - **Hall (Decay-Zeit)**: Unterstützung für Echtzeit-Nachhallzeit-Updates im laufenden Stream, indem eine Convolver-Referenz auf dem `ActiveRegionNode` gehalten und der Impuls-Response-Buffer bei Bewegung des Decay-Reglers mathematisch live regeneriert wird.
+  - **Delay & De-Esser**: Beide Effekte reagieren nun absolut verzögerungsfrei und knackfrei auf Reglerbewegungen im laufenden Stream.
+  - **Hinweisdialoge reaktivieren**: Der Button „Hinweisdialoge reaktivieren“ setzt nun verlässlich alle ausgeblendeten Warnungen (`showStartScreen` und `showExportGapWarning`) zurück und triggert ein schickes globales Erfolgsmodal.
+
 ## [0.7.7] - 2026-05-31
 
 ### English
