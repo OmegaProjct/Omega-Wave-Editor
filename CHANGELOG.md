@@ -2,6 +2,16 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.7.0] - 2026-05-31
+
+### Added
+- **MIDI-Unterstützung**: Vollständige, treiberlose Integration der Web MIDI API in den Renderer. Bietet eine flexible MIDI-Learn-Oberfläche zur Belegung beliebiger CC/Note-Befehle für Transport-Aktionen (Play, Stop, Record) und Mixer-Spursteuerungen (Lautstärke, Mute, Solo basierend auf dem sichtbaren Spur-Index statt dynamischen Track-UUIDs).
+- **Formatgerechtes Audio-Tagging & Cover-Bilder**: Unterstützung für natives Metadaten-Tagging je nach Format (ID3 für MP3/WAV, Vorbis Comments für FLAC/OGG/OPUS/M4A) inklusive Cover-Bild-Import und Live-Vorschau direkt im Export-Dialog.
+- **Premium Changelog-Updater**: Leistungsstarker Software-Updater nach Vorbild des HandBrake-Repositories. Aggregiert automatisch alle Patchnotes übersprungener Versionen chronologisch, bereitet sie leserlich mit Kategorie-Hervorhebungen (`Core:`, `Added:` etc.) auf und hält sie während des gesamten Download- und Update-Prozesses sichtbar.
+
+### Fixed
+- **Präziser Selektions-Export**: Mixdown-Export beschränkt sich bei aktiviertem blauen Selektionsbalken nun mathematisch exakt auf das markierte Zeitintervall der Timeline.
+
 ## [0.6.3] - 2026-05-31
 
 ### Changed

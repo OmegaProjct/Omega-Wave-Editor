@@ -228,7 +228,15 @@ export function registerAudioIpc() {
       throw new Error('Ungültige Pfade für Transcodierung')
     }
     return new Promise((resolve, reject) => {
+      let hasCover = false
+      if (id3Tags && id3Tags.coverPath && isSafePath(id3Tags.coverPath) && fs.existsSync(id3Tags.coverPath)) {
+        hasCover = true
+      }
+
       const command = ffmpeg(tempWavPath)
+      if (hasCover) {
+        command.input(id3Tags.coverPath)
+      }
       
       if (options && options.sampleRate) {
         const parsedRate = parseInt(options.sampleRate, 10)
@@ -253,15 +261,48 @@ export function registerAudioIpc() {
       
       if (id3Tags) {
         const metadataOpts: string[] = ['-map_metadata', '-1']
-        if (id3Tags.title) metadataOpts.push('-metadata', `title=${id3Tags.title}`)
-        if (id3Tags.artist) metadataOpts.push('-metadata', `artist=${id3Tags.artist}`)
-        if (id3Tags.album) metadataOpts.push('-metadata', `album=${id3Tags.album}`)
-        if (id3Tags.year) metadataOpts.push('-metadata', `date=${id3Tags.year}`)
-        if (id3Tags.genre) metadataOpts.push('-metadata', `genre=${id3Tags.genre}`)
-        if (id3Tags.comment) metadataOpts.push('-metadata', `comment=${id3Tags.comment}`)
-        if (id3Tags.track) metadataOpts.push('-metadata', `track=${id3Tags.track}`)
-        metadataOpts.push('-id3v2_version', '3')
+        const isVorbis = (format === 'flac' || format === 'ogg' || format === 'opus')
+        
+        if (id3Tags.title) {
+          metadataOpts.push('-metadata', `title=${id3Tags.title}`)
+          if (isVorbis) metadataOpts.push('-metadata', `TITLE=${id3Tags.title}`)
+        }
+        if (id3Tags.artist) {
+          metadataOpts.push('-metadata', `artist=${id3Tags.artist}`)
+          if (isVorbis) metadataOpts.push('-metadata', `ARTIST=${id3Tags.artist}`)
+        }
+        if (id3Tags.album) {
+          metadataOpts.push('-metadata', `album=${id3Tags.album}`)
+          if (isVorbis) metadataOpts.push('-metadata', `ALBUM=${id3Tags.album}`)
+        }
+        if (id3Tags.year) {
+          metadataOpts.push('-metadata', `date=${id3Tags.year}`)
+          if (isVorbis) metadataOpts.push('-metadata', `DATE=${id3Tags.year}`)
+        }
+        if (id3Tags.genre) {
+          metadataOpts.push('-metadata', `genre=${id3Tags.genre}`)
+          if (isVorbis) metadataOpts.push('-metadata', `GENRE=${id3Tags.genre}`)
+        }
+        if (id3Tags.comment) {
+          metadataOpts.push('-metadata', `comment=${id3Tags.comment}`)
+          if (isVorbis) metadataOpts.push('-metadata', `COMMENT=${id3Tags.comment}`)
+        }
+        if (id3Tags.track) {
+          metadataOpts.push('-metadata', `track=${id3Tags.track}`)
+          if (isVorbis) metadataOpts.push('-metadata', `TRACK=${id3Tags.track}`)
+        }
+        
+        if (format === 'mp3' || format === 'm4a') {
+          metadataOpts.push('-id3v2_version', '3')
+        }
         command.outputOptions(metadataOpts)
+      }
+
+      if (hasCover) {
+        command.outputOptions('-map', '0:a', '-map', '1:v', '-c:v', 'copy')
+        if (format === 'flac' || format === 'm4a' || format === 'ogg' || format === 'opus') {
+          command.outputOptions('-disposition:v', 'attached_pic')
+        }
       }
       
       command

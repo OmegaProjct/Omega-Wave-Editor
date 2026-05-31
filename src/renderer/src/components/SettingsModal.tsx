@@ -8,8 +8,9 @@ import {
   formatShortcut,
   normalizeKeyboardShortcuts
 } from '../lib/keyboardShortcuts'
+import { MidiEngine } from '../lib/MidiEngine'
 
-type Tab = 'Wiedergabe' | 'Ordner' | 'Import/Audio' | 'System' | 'Tastaturkürzel' | 'Projekteinstellungen'
+type Tab = 'Wiedergabe' | 'Ordner' | 'Import/Audio' | 'System' | 'Tastaturkürzel' | 'Projekteinstellungen' | 'MIDI'
 
 export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', onTriggerUpdate }: { onClose: () => void; initialTab?: Tab; onTriggerUpdate?: (info: any) => void }) {
   const [activeTab, setActiveTab] = useState<Tab>(initialTab)
@@ -23,9 +24,15 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
     tracksCount: 32,
     maxUndoSteps: 50,
     halfWaveform: false,
+    midiMappings: [],
+    midiInputDeviceId: '',
+    midiChannel: 0,
     keyboardShortcuts: DEFAULT_KEYBOARD_SHORTCUTS
   })
   const [capturingShortcut, setCapturingShortcut] = useState<ShortcutAction | null>(null)
+
+  const [midiDevices, setMidiDevices] = useState<{ id: string; name: string }[]>([])
+  const [learningAction, setLearningAction] = useState<{ action: string; trackIndex?: number } | null>(null)
 
   const [checkingUpdates, setCheckingUpdates] = useState(false)
   const [updateStatus, setUpdateStatus] = useState<string | null>(null)
@@ -79,6 +86,19 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
     }).catch(err => {
       console.error('Error enumerating audio output devices:', err)
     })
+  }, [])
+
+  useEffect(() => {
+    const updateMidiDevices = () => {
+      setMidiDevices(MidiEngine.getInputs())
+    }
+
+    updateMidiDevices()
+    window.addEventListener('MIDI_DEVICES_CHANGED', updateMidiDevices)
+    return () => {
+      window.removeEventListener('MIDI_DEVICES_CHANGED', updateMidiDevices)
+      MidiEngine.stopLearnMode()
+    }
   }, [])
 
   const handleSave = async () => {
@@ -403,8 +423,172 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
     </div>
   )
 
+  const renderMidi = () => {
+    const CONFIGURABLE_ACTIONS: { action: string; label: string; trackIndex?: number }[] = [
+      { action: 'transport_play', label: 'Transport: Wiedergabe' },
+      { action: 'transport_stop', label: 'Transport: Stopp' },
+      { action: 'transport_record', label: 'Transport: Aufnahme' },
+      { action: 'master_volume', label: 'Mixer: Master Lautstärke' },
+      ...[0, 1, 2, 3, 4, 5, 6, 7].flatMap(idx => [
+        { action: 'track_volume', trackIndex: idx, label: `Mixer: Spur ${idx + 1} Lautstärke` },
+        { action: 'track_mute', trackIndex: idx, label: `Mixer: Spur ${idx + 1} Mute` },
+        { action: 'track_solo', trackIndex: idx, label: `Mixer: Spur ${idx + 1} Solo` },
+      ])
+    ];
 
-  const tabs: Tab[] = ['Projekteinstellungen', 'Wiedergabe', 'Ordner', 'Import/Audio', 'System', 'Tastaturkürzel']
+    const getMappingForAction = (action: string, trackIndex?: number) => {
+      return (settings.midiMappings || []).find(
+        (m: any) => m.action === action && m.trackIndex === trackIndex
+      );
+    };
+
+    const startLearn = (action: string, trackIndex?: number) => {
+      setLearningAction({ action, trackIndex });
+      MidiEngine.startLearnMode((event) => {
+        const currentMappings = [...(settings.midiMappings || [])];
+        const existingIdx = currentMappings.findIndex(
+          (m: any) => m.action === action && m.trackIndex === trackIndex
+        );
+
+        const newMapping = {
+          action,
+          trackIndex,
+          type: event.type,
+          number: event.number
+        };
+
+        if (existingIdx >= 0) {
+          currentMappings[existingIdx] = newMapping;
+        } else {
+          currentMappings.push(newMapping);
+        }
+
+        setSettings((prev: any) => ({
+          ...prev,
+          midiMappings: currentMappings
+        }));
+        setLearningAction(null);
+      });
+    };
+
+    const stopLearn = () => {
+      MidiEngine.stopLearnMode();
+      setLearningAction(null);
+    };
+
+    const clearMapping = (action: string, trackIndex?: number) => {
+      const currentMappings = (settings.midiMappings || []).filter(
+        (m: any) => !(m.action === action && m.trackIndex === trackIndex)
+      );
+      setSettings((prev: any) => ({
+        ...prev,
+        midiMappings: currentMappings
+      }));
+    };
+
+    return (
+      <div className="border border-gray-700 p-4 rounded bg-[#1e2124] h-full flex flex-col overflow-hidden">
+        {/* Device & Channel Selector */}
+        <div className="flex gap-4 mb-4">
+          <div className="flex-1">
+            <label className="block text-xs text-gray-400 mb-1">MIDI-Eingangsgerät</label>
+            <select
+              value={settings.midiInputDeviceId || ''}
+              onChange={(e) => setSettings({ ...settings, midiInputDeviceId: e.target.value })}
+              className="w-full bg-[#1a1d21] border border-gray-750 rounded px-2 py-1 text-xs text-gray-200 outline-none focus:border-omega-accent"
+            >
+              <option value="">Kein Gerät ausgewählt</option>
+              {midiDevices.map(d => (
+                <option key={d.id} value={d.id}>{d.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="w-32">
+            <label className="block text-xs text-gray-400 mb-1">MIDI-Kanal</label>
+            <select
+              value={settings.midiChannel}
+              onChange={(e) => setSettings({ ...settings, midiChannel: parseInt(e.target.value) })}
+              className="w-full bg-[#1a1d21] border border-gray-750 rounded px-2 py-1 text-xs text-gray-200 outline-none focus:border-omega-accent"
+            >
+              <option value={0}>Omni (Alle)</option>
+              {[...Array(16)].map((_, i) => (
+                <option key={i + 1} value={i + 1}>Kanal {i + 1}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Mappings Table */}
+        <h3 className="font-semibold text-xs text-gray-300 mb-2">MIDI-Aktionszuweisungen</h3>
+        <div className="flex-1 overflow-y-auto border border-gray-750 rounded bg-[#1a1d21]">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-[#202225] text-gray-400 border-b border-gray-750">
+                <th className="p-2 font-medium">Aktion</th>
+                <th className="p-2 font-medium">Zuweisung</th>
+                <th className="p-2 font-medium text-right">Optionen</th>
+              </tr>
+            </thead>
+            <tbody>
+              {CONFIGURABLE_ACTIONS.map(cfg => {
+                const mapping = getMappingForAction(cfg.action, cfg.trackIndex);
+                const isLearning = learningAction?.action === cfg.action && learningAction?.trackIndex === cfg.trackIndex;
+                
+                let assignmentText = 'Nicht zugewiesen';
+                if (mapping) {
+                  const typeLabel = mapping.type === 'cc' ? 'Control Change' : (mapping.type === 'note' ? 'Note' : mapping.type.toUpperCase());
+                  assignmentText = `${typeLabel} #${mapping.number}`;
+                }
+
+                return (
+                  <tr key={`${cfg.action}-${cfg.trackIndex ?? 'none'}`} className="border-b border-gray-800 hover:bg-gray-800/30">
+                    <td className="p-2 text-gray-300 font-medium">{cfg.label}</td>
+                    <td className="p-2 text-gray-400">
+                      {isLearning ? (
+                        <span className="text-omega-accent animate-pulse font-semibold">Lerne... (Bewege Regler / Drücke Taste)</span>
+                      ) : (
+                        <span className={mapping ? 'text-green-400 font-medium' : ''}>{assignmentText}</span>
+                      )}
+                    </td>
+                    <td className="p-2 text-right space-x-1.5">
+                      {isLearning ? (
+                        <button
+                          onClick={stopLearn}
+                          className="px-2.5 py-1 text-[11px] bg-red-600 hover:bg-red-500 rounded text-white font-medium shadow-sm transition-colors"
+                        >
+                          Abbrechen
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => startLearn(cfg.action, cfg.trackIndex)}
+                            className="px-2.5 py-1 text-[11px] bg-omega-accent hover:bg-blue-500 rounded text-white font-medium shadow-sm transition-colors"
+                          >
+                            Lernen
+                          </button>
+                          {mapping && (
+                            <button
+                              onClick={() => clearMapping(cfg.action, cfg.trackIndex)}
+                              className="px-2.5 py-1 text-[11px] bg-gray-750 hover:bg-gray-700 rounded text-gray-400 font-medium shadow-sm transition-colors"
+                            >
+                              Löschen
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
+
+  const tabs: Tab[] = ['Projekteinstellungen', 'Wiedergabe', 'Ordner', 'Import/Audio', 'System', 'Tastaturkürzel', 'MIDI']
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[2000]" data-settings-modal="true">
@@ -435,6 +619,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
           {activeTab === 'System' && renderSystem()}
           {activeTab === 'Tastaturkürzel' && renderTastaturkuerzel()}
           {activeTab === 'Projekteinstellungen' && renderFilmeinstellungen()}
+          {activeTab === 'MIDI' && renderMidi()}
         </div>
 
         {/* Footer Buttons */}

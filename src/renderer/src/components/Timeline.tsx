@@ -9,6 +9,7 @@ import { AudioRecordingModal } from './AudioRecordingModal'
 import { AudioEngine } from '../lib/AudioEngine'
 import { ProjectManager } from '../lib/ProjectManager'
 import * as projectCore from '../../../common/projectCore'
+import { MidiEngine } from '../lib/MidiEngine'
 import {
   DEFAULT_KEYBOARD_SHORTCUTS,
   KeyboardShortcuts,
@@ -1344,6 +1345,94 @@ export function Timeline({
     const newTracks = tracks.map(t => t.id === trackId ? { ...t, solo: !t.solo } : t);
     updateTracksWithHistory(newTracks);
   }
+
+  // --- MIDI ENGINE INTEGRATION ---
+  const tracksRefForMidi = useRef(tracks);
+  useEffect(() => {
+    tracksRefForMidi.current = tracks;
+  }, [tracks]);
+
+  const isPlayingRefForMidi = useRef(isPlaying);
+  useEffect(() => {
+    isPlayingRefForMidi.current = isPlaying;
+  }, [isPlaying]);
+
+  useEffect(() => {
+    const handleMidiPlay = () => {
+      if (!isPlayingRefForMidi.current) {
+        togglePlayback();
+      }
+    };
+
+    const handleMidiStop = () => {
+      if (isPlayingRefForMidi.current) {
+        togglePlayback();
+      } else {
+        engine.stop();
+        setIsPlaying(false);
+        setPlayheadPos(0);
+        playheadPosRef.current = 0;
+      }
+    };
+
+    const handleMidiRecord = () => {
+      setShowAudioRecording(true);
+    };
+
+    const handleMidiTrackVolume = (payload?: any) => {
+      if (!payload) return;
+      const { trackIndex, value } = payload;
+      const currentTracks = tracksRefForMidi.current;
+      if (trackIndex !== undefined && trackIndex >= 0 && trackIndex < currentTracks.length) {
+        const track = currentTracks[trackIndex];
+        updateTrackVolume(track.id, value);
+      }
+    };
+
+    const handleMidiTrackMute = (payload?: any) => {
+      if (!payload) return;
+      const { trackIndex } = payload;
+      const currentTracks = tracksRefForMidi.current;
+      if (trackIndex !== undefined && trackIndex >= 0 && trackIndex < currentTracks.length) {
+        const track = currentTracks[trackIndex];
+        toggleMute(track.id);
+      }
+    };
+
+    const handleMidiTrackSolo = (payload?: any) => {
+      if (!payload) return;
+      const { trackIndex } = payload;
+      const currentTracks = tracksRefForMidi.current;
+      if (trackIndex !== undefined && trackIndex >= 0 && trackIndex < currentTracks.length) {
+        const track = currentTracks[trackIndex];
+        toggleSolo(track.id);
+      }
+    };
+
+    const handleMidiMasterVolume = (payload?: any) => {
+      if (!payload) return;
+      const { value } = payload;
+      engine.setMasterVolume(value);
+    };
+
+    MidiEngine.addListener('transport_play', handleMidiPlay);
+    MidiEngine.addListener('transport_stop', handleMidiStop);
+    MidiEngine.addListener('transport_record', handleMidiRecord);
+    MidiEngine.addListener('track_volume', handleMidiTrackVolume);
+    MidiEngine.addListener('track_mute', handleMidiTrackMute);
+    MidiEngine.addListener('track_solo', handleMidiTrackSolo);
+    MidiEngine.addListener('master_volume', handleMidiMasterVolume);
+
+    return () => {
+      MidiEngine.removeListener('transport_play', handleMidiPlay);
+      MidiEngine.removeListener('transport_stop', handleMidiStop);
+      MidiEngine.removeListener('transport_record', handleMidiRecord);
+      MidiEngine.removeListener('track_volume', handleMidiTrackVolume);
+      MidiEngine.removeListener('track_mute', handleMidiTrackMute);
+      MidiEngine.removeListener('track_solo', handleMidiTrackSolo);
+      MidiEngine.removeListener('master_volume', handleMidiMasterVolume);
+    };
+  }, [togglePlayback, updateTrackVolume, toggleMute, toggleSolo, engine]);
 
   const onDrop = async (e: React.DragEvent, trackId: string) => {
     e.preventDefault()

@@ -461,9 +461,16 @@ function App(): JSX.Element {
           }
         }, 120);
 
+        const selectionParsed = settings.selection ? {
+          start: typeof settings.selection.start === 'number' ? settings.selection.start : (typeof settings.selection.selectionStart === 'number' ? settings.selection.selectionStart : 0),
+          end: typeof settings.selection.end === 'number' ? settings.selection.end : (typeof settings.selection.selectionEnd === 'number' ? settings.selection.selectionEnd : 0),
+          active: typeof settings.selection.active === 'boolean' ? settings.selection.active : (typeof settings.selection.start === 'number' && typeof settings.selection.end === 'number')
+        } : undefined;
+
         const audioBuffer = await AudioEngine.getInstance().renderOffline(
           { tracks: settings.tracks },
-          parsedSampleRate
+          parsedSampleRate,
+          { exportSelectionOnly: settings.exportSelectionOnly, selection: selectionParsed }
         );
         clearInterval(mixInterval);
 

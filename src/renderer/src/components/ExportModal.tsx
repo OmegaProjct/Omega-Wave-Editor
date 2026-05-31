@@ -29,7 +29,11 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
             setTracks(loadedTracks.tracks)
           }
           if (loadedTracks.selection) {
-            setSelection(loadedTracks.selection)
+            const sel = loadedTracks.selection
+            const start = typeof sel.start === 'number' ? sel.start : (typeof sel.selectionStart === 'number' ? sel.selectionStart : null)
+            const end = typeof sel.end === 'number' ? sel.end : (typeof sel.selectionEnd === 'number' ? sel.selectionEnd : null)
+            const active = typeof sel.active === 'boolean' ? sel.active : (start !== null && end !== null)
+            setSelection({ start, end, active })
           }
           if (loadedTracks.exportSettings) {
             const settingsObj = loadedTracks.exportSettings
@@ -54,6 +58,7 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
               if (settingsObj.id3Tags.genre !== undefined) setId3Genre(settingsObj.id3Tags.genre)
               if (settingsObj.id3Tags.comment !== undefined) setId3Comment(settingsObj.id3Tags.comment)
               if (settingsObj.id3Tags.track !== undefined) setId3Track(settingsObj.id3Tags.track)
+              if (settingsObj.id3Tags.coverPath !== undefined) setId3CoverPath(settingsObj.id3Tags.coverPath)
             }
           }
         }
@@ -122,6 +127,7 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
   const [id3Genre, setId3Genre] = useState('')
   const [id3Comment, setId3Comment] = useState('')
   const [id3Track, setId3Track] = useState('')
+  const [id3CoverPath, setId3CoverPath] = useState('')
 
   // Synchronisiere das Export-Format, wenn sich die Quelldatei ändert
   useEffect(() => {
@@ -195,7 +201,6 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
     }
   }, [supportsId3])
 
-  // Lade Medieninformationen/Tags aus der Quelldatei, wenn vorhanden
   useEffect(() => {
     if (singleSource) {
       window.api.getMediaInfo(singleSource).then((info: any) => {
@@ -220,6 +225,7 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
         setId3Genre(genre)
         setId3Comment(comment)
         setId3Track(track)
+        setId3CoverPath('')
 
         // Panel aufklappen, da wir jetzt Metadaten geladen haben
         setShowId3(true)
@@ -228,6 +234,7 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
         // Robuster Fallback bei Fehlern
         const fallbackTitle = singleSource.replace(/.*[\\\/]/, '').replace(/\.[^.]+$/, '')
         setId3Title(fallbackTitle)
+        setId3CoverPath('')
         setShowId3(true)
       })
     } else {
@@ -239,6 +246,7 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
       setId3Genre('')
       setId3Comment('')
       setId3Track('')
+      setId3CoverPath('')
       setShowId3(false)
     }
   }, [singleSource])
@@ -253,7 +261,8 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
         year: id3Year,
         genre: id3Genre,
         comment: id3Comment,
-        track: id3Track
+        track: id3Track,
+        coverPath: id3CoverPath
       }
       const currentSettingsObj = {
         format,
@@ -288,7 +297,8 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
     id3Year,
     id3Genre,
     id3Comment,
-    id3Track
+    id3Track,
+    id3CoverPath
   ])
 
   const findGaps = (tracksList: any[]) => {
@@ -327,7 +337,8 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
   const executeActualExport = async (targetPath: string) => {
     const id3Tags = supportsId3 ? {
       title: id3Title, artist: id3Artist, album: id3Album,
-      year: id3Year, genre: id3Genre, comment: id3Comment, track: id3Track
+      year: id3Year, genre: id3Genre, comment: id3Comment, track: id3Track,
+      coverPath: id3CoverPath
     } : undefined
 
     const settingsPayload = {
@@ -370,7 +381,8 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
     try {
       const id3Tags = supportsId3 ? {
         title: id3Title, artist: id3Artist, album: id3Album,
-        year: id3Year, genre: id3Genre, comment: id3Comment, track: id3Track
+        year: id3Year, genre: id3Genre, comment: id3Comment, track: id3Track,
+        coverPath: id3CoverPath
       } : undefined
 
       // Phase 0: Spuren analysieren
@@ -645,6 +657,54 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
                   <div className="col-span-2 flex flex-col gap-1">
                     <span className="text-[10px] text-gray-500 font-bold uppercase">Kommentar:</span>
                     <input value={id3Comment} onChange={e => setId3Comment(e.target.value)} className="py-1 px-2 text-xs bg-[#1a1d21] border border-gray-600 outline-none focus:border-omega-accent text-white rounded font-sans" disabled={isExporting || isBrowsing} />
+                  </div>
+                  <div className="col-span-2 border-t border-gray-700/55 pt-3 mt-1 flex flex-col gap-2">
+                    <span className="text-[10px] text-gray-500 font-bold uppercase">Album-Cover:</span>
+                    <div className="flex gap-3 items-center">
+                      {id3CoverPath ? (
+                        <div className="w-16 h-16 border border-gray-600 rounded overflow-hidden flex-shrink-0 bg-black/40 flex items-center justify-center">
+                          <img src={`atom://${id3CoverPath}`} alt="Cover Art" className="w-full h-full object-cover" />
+                        </div>
+                      ) : (
+                        <div className="w-16 h-16 border border-gray-600 rounded flex-shrink-0 bg-black/40 flex items-center justify-center text-[9px] text-gray-500 font-semibold uppercase text-center p-1 leading-tight select-none">
+                          Kein Cover
+                        </div>
+                      )}
+                      <div className="flex flex-col gap-1.5">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (isExporting || isBrowsing) return
+                            try {
+                              const result = await window.api.showOpenDialog({
+                                title: 'Cover-Bild auswählen',
+                                properties: ['openFile'],
+                                filters: [{ name: 'Bilder', extensions: ['jpg', 'jpeg', 'png'] }]
+                              })
+                              if (!result.canceled && result.filePaths && result.filePaths.length > 0) {
+                                setId3CoverPath(result.filePaths[0])
+                              }
+                            } catch (err) {
+                              console.error('Fehler bei der Bildauswahl:', err)
+                            }
+                          }}
+                          className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs text-white font-semibold disabled:opacity-50"
+                          disabled={isExporting || isBrowsing}
+                        >
+                          Bild importieren...
+                        </button>
+                        {id3CoverPath && (
+                          <button
+                            type="button"
+                            onClick={() => setId3CoverPath('')}
+                            className="px-3 py-1 bg-red-900/40 hover:bg-red-900/60 text-red-200 border border-red-800/40 rounded text-xs font-semibold disabled:opacity-50"
+                            disabled={isExporting || isBrowsing}
+                          >
+                            Entfernen
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
