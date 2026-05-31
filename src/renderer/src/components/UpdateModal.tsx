@@ -53,32 +53,48 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
 
   // HandBrake-style Markdown-Parser for changelogs
   const renderFormattedChangelog = (text: string) => {
-    if (!text) return <p className="text-xs text-gray-550 italic">Keine Details für dieses Update verfügbar.</p>;
+    if (!text) return <p className="text-xs text-gray-500 italic">Keine Details für dieses Update verfügbar.</p>;
     
     const lines = text.split('\n');
     return lines.map((line, idx) => {
       // Horizontal lines / separators between releases
       if (line.trim() === '---') {
-        return <div key={idx} className="border-t border-gray-800/80 my-4" />;
+        return <div key={idx} className="border-t border-gray-800/80 my-5" />;
       }
       
-      // Release titles or category headings (## or ###)
+      // Headers (Level 1-6)
       const headerMatch = line.match(/^(#{1,6})\s+(.*)$/);
       if (headerMatch) {
         const level = headerMatch[1].length;
         const content = headerMatch[2];
+        
+        if (level === 2) {
+          return (
+            <h3 key={idx} className="text-white font-extrabold text-sm mt-6 mb-3 first:mt-0 border-b border-gray-800/80 pb-2 select-none tracking-tight">
+              {content}
+            </h3>
+          );
+        }
         if (level === 3) {
           return (
-            <h4 key={idx} className="text-omega-accent font-bold text-[10px] uppercase tracking-wider mt-4 mb-2 first:mt-0 border-b border-gray-850 pb-1 flex items-center gap-1.5 select-none">
+            <h4 key={idx} className="text-omega-accent font-bold text-xs uppercase tracking-wider mt-5 mb-2 flex items-center gap-1.5 select-none">
               <span className="w-1.5 h-1.5 bg-omega-accent rounded-sm inline-block"></span>
               {content}
             </h4>
           );
         }
+        if (level === 4) {
+          return (
+            <h5 key={idx} className="text-gray-100 font-bold text-xs mt-3.5 mb-2 border-l-2 border-omega-accent/60 pl-2 select-none">
+              {content}
+            </h5>
+          );
+        }
+        // Fallback for Level 1 or other levels
         return (
-          <h3 key={idx} className="text-white font-extrabold text-sm mt-5 mb-2 first:mt-0 border-l-2 border-omega-accent pl-2">
+          <h2 key={idx} className="text-white font-black text-base mt-6 mb-3 first:mt-0">
             {content}
-          </h3>
+          </h2>
         );
       }
       
@@ -89,18 +105,18 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
         
         if (categoryMatch) {
           return (
-            <li key={idx} className="list-none pl-4 relative text-[11px] text-gray-350 mb-1.5 leading-relaxed flex items-start gap-1">
-              <span className="text-omega-accent select-none mt-0.5">•</span>
+            <li key={idx} className="list-none pl-4 relative text-xs text-gray-200 mb-2 leading-relaxed flex items-start gap-1">
+              <span className="text-omega-accent select-none mt-0.5 font-bold">•</span>
               <div>
-                <strong className="text-gray-255 font-bold">{categoryMatch[1]}:</strong> {categoryMatch[2]}
+                <strong className="text-white font-bold">{categoryMatch[1]}:</strong> {categoryMatch[2]}
               </div>
             </li>
           );
         }
         
         return (
-          <li key={idx} className="list-none pl-4 relative text-[11px] text-gray-350 mb-1.5 leading-relaxed flex items-start gap-1">
-            <span className="text-omega-accent select-none mt-0.5">•</span>
+          <li key={idx} className="list-none pl-4 relative text-xs text-gray-200 mb-2 leading-relaxed flex items-start gap-1">
+            <span className="text-omega-accent select-none mt-0.5 font-bold">•</span>
             <span>{content}</span>
           </li>
         );
@@ -108,12 +124,12 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
       
       // Empty spaces
       if (line.trim() === '') {
-        return <div key={idx} className="h-1.5" />;
+        return <div key={idx} className="h-2" />;
       }
       
       // Default text lines
       return (
-        <p key={idx} className="text-[11px] text-gray-400 mb-1.5 leading-relaxed">
+        <p key={idx} className="text-xs text-gray-355 mb-2 leading-relaxed">
           {line}
         </p>
       );
@@ -211,20 +227,18 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
               </div>
 
               {/* Version overview and HandBrake changelog */}
-              <div className="w-full bg-[#16181b]/80 border border-gray-800/80 rounded-lg p-4.5 text-xs text-left text-gray-300 mt-2 flex flex-col gap-3 font-sans shadow-inner">
-                <div className="flex justify-between border-b border-gray-800/50 pb-2.5 font-semibold text-gray-400">
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[10px] text-gray-500 uppercase font-bold">Installiert</span>
-                    <span className="font-mono text-white text-xs">{updateInfo.currentVersion.startsWith('v') ? updateInfo.currentVersion : `v${updateInfo.currentVersion}`}</span>
-                  </div>
-                  <div className="flex flex-col gap-0.5 text-right">
-                    <span className="text-[10px] text-gray-500 uppercase font-bold">Verfügbar</span>
-                    <span className="font-mono text-green-400 text-xs">{updateInfo.latestVersion.startsWith('v') ? updateInfo.latestVersion : `v${updateInfo.latestVersion}`}</span>
-                  </div>
+              <div className="w-full bg-[#16181b]/80 border border-gray-800/80 rounded-lg p-4.5 text-xs text-left text-gray-300 mt-2 flex flex-col gap-2.5 font-sans shadow-inner">
+                <div className="flex justify-between items-center border-b border-gray-800/40 pb-2.5">
+                  <span className="text-gray-400 font-semibold">Installierte Version:</span>
+                  <span className="font-mono text-white font-semibold">{updateInfo.currentVersion.startsWith('v') ? updateInfo.currentVersion : `v${updateInfo.currentVersion}`}</span>
+                </div>
+                <div className="flex justify-between items-center border-b border-gray-800/40 pb-2.5">
+                  <span className="text-gray-400 font-semibold">Neueste Version:</span>
+                  <span className="font-mono text-green-400 font-semibold">{updateInfo.latestVersion.startsWith('v') ? updateInfo.latestVersion : `v${updateInfo.latestVersion}`}</span>
                 </div>
                 
                 {/* Scrollable Changelog box */}
-                <div className="max-h-[380px] overflow-y-auto pr-1 leading-normal text-gray-400 custom-scrollbar select-text">
+                <div className="max-h-[380px] overflow-y-auto pr-1 leading-normal text-gray-200 custom-scrollbar select-text mt-1.5">
                   {renderFormattedChangelog(updateInfo.body || '')}
                 </div>
               </div>
