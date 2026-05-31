@@ -41,6 +41,21 @@ function extractChangelog(version) {
   return extracted.trim();
 }
 
+function generateReleaseNotes(version, rawNotes) {
+  return `# Upgrade Notice
+
+Before updating the Omega Wave Editor, please make sure to save your active projects (\`.owep\`). 
+If you are upgrading from an older version, your settings and recent project lists will be preserved safely.
+
+---
+
+# Omega Wave Editor v${version} - Patch Notes
+
+Welcome to the new release of the **Omega Wave Editor**! Below are the changes included in this version:
+
+${rawNotes}`;
+}
+
 const targetVersion = process.argv[2];
 const outputPath = process.argv[3];
 if (!targetVersion) {
@@ -49,12 +64,13 @@ if (!targetVersion) {
 }
 
 try {
-  const notes = extractChangelog(targetVersion);
+  const rawNotes = extractChangelog(targetVersion);
+  const formattedNotes = generateReleaseNotes(targetVersion, rawNotes);
   if (outputPath) {
-    fs.writeFileSync(outputPath, notes, 'utf8');
+    fs.writeFileSync(outputPath, formattedNotes, 'utf8');
     console.log(`Changelog successfully written to ${outputPath} (UTF-8)`);
   } else {
-    console.log(notes);
+    console.log(formattedNotes);
   }
 } catch (err) {
   console.error('Error extracting changelog:', err);
