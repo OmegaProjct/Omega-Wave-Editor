@@ -42,6 +42,7 @@ declare global {
       onOpenProjectFromAssociation: (callback: (filePath: string) => void) => () => void
       scanVstPlugins: () => Promise<any[]>
       openVstUi: (pluginPath: string) => Promise<VstUiOpenResult>
+      getAsioDrivers: () => Promise<any[]>
       saveRecording: (outputPath: string, arrayBuffer: ArrayBuffer) => Promise<any>
       getDiskSpace: (dirPath: string) => Promise<{ success: boolean, freeBytes: number }>
       getPerformanceStats: () => Promise<{ cpuUsage: number, processRamBytes: number, systemRamPct: number, systemCpuPct: number }>

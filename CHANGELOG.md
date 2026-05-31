@@ -2,6 +2,22 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.7.7] - 2026-05-31
+
+### English
+
+#### Fixed
+- **Persistent Master Volume on Seek/Stop**: Fixed a bug where adjusting the master volume slider in the player would reset to 1.0 (100% volume) under the hood whenever the playhead was moved or playback stopped due to `AudioContext` recreation. The master volume setting is now stored persistently in `AudioEngine` and automatically restored.
+- **ASIO Driver Integration in Settings**: Exposes a native Windows registry scanner in the main process (`systemIpc.ts`) that queries registered ASIO drivers under `HKLM\Software\ASIO` and `HKLM\Software\WOW6432Node\ASIO`. The Playback Settings device dropdown now dynamically displays actual installed ASIO drivers (like `GoXLR ASIO Driver`, `Realtek ASIO`, etc.) when ASIO is selected.
+- **Missing ASIO Driver Warning Alert**: Added a beautiful red warning alert banner inside the Playback Settings card when "ASIO-Treiber" is selected but no ASIO drivers are registered on the system. The banner recommends installing a suitable driver like **ASIO4ALL** or interface-specific drivers like **Steinberg/Yamaha ASIO**.
+
+### Deutsch
+
+#### Behoben
+- **Dauerhafte Master-Lautstärke beim Suchen/Stoppen**: Behebt einen Fehler, bei dem der Lautstärkeregler im Player unter der Haube auf 1.0 (100% Lautstärke) zurückgesetzt wurde, sobald der Playhead verschoben oder die Wiedergabe gestoppt wurde (bedingt durch die Neuinitialisierung des `AudioContext`). Die Master-Lautstärke wird nun dauerhaft im `AudioEngine` gespeichert und wiederhergestellt.
+- **ASIO-Treiber-Integration in den Einstellungen**: Integriert einen nativen Windows-Registry-Scanner im Hauptprozess (`systemIpc.ts`), der registrierte ASIO-Treiber unter `HKLM\Software\ASIO` und `HKLM\Software\WOW6432Node\ASIO` abfragt. Das Ausgabegerät-Dropdown zeigt nun dynamisch die tatsächlich installierten ASIO-Treiber (z. B. `GoXLR ASIO Driver`, `Realtek ASIO` usw.) an, wenn ASIO ausgewählt ist.
+- **Fehlende ASIO-Treiber-Warnmeldung**: Fügt eine schicke rote Warnmeldung in den Wiedergabe-Einstellungen hinzu, wenn „ASIO-Treiber“ ausgewählt ist, aber keine ASIO-Treiber auf dem System installiert sind. Die Meldung empfiehlt die Installation von Treibern wie **ASIO4ALL** oder interfacespezifischen Treibern wie **Steinberg/Yamaha ASIO**.
+
 ## [0.7.6] - 2026-05-31
 
 ### English
