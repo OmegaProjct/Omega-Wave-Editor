@@ -127,6 +127,31 @@ export function ManualModal({ onClose }: { onClose: () => void }) {
             </p>
           </section>
 
+          {/* 8. Audio-Einstellungen & VST-Plug-ins */}
+          <section>
+            <h2 className="text-xl font-bold text-omega-accent mb-4 border-b border-gray-800 pb-2">8. Audio-Einstellungen & VST-Plug-ins</h2>
+            <div className="space-y-4">
+              <div className="bg-black/20 p-4 rounded border border-gray-800">
+                <h4 className="font-bold text-white text-xs mb-1.5 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 bg-blue-500 rounded-sm inline-block"></span>
+                  Audiotreiberauswahl (ASIO, Direct-Sound, Wave)
+                </h4>
+                <p className="text-xs text-gray-400 leading-relaxed">
+                  Öffnen Sie das Einstellungsfenster (Reiter „Wiedergabe“). Hier können Sie Ihren bevorzugten Treibertyp festlegen. Nutzen Sie <strong>ASIO-Treiber</strong> für professionelle Hardware mit extrem geringer Latenz. Zusätzlich können Sie die Anzahl der Audiopuffer (Buffer Count) präzise anpassen, um Knackser und Aussetzer bei anspruchsvollen Projekten zu eliminieren.
+                </p>
+              </div>
+              <div className="bg-black/20 p-4 rounded border border-gray-800">
+                <h4 className="font-bold text-white text-xs mb-1.5 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 bg-blue-500 rounded-sm inline-block"></span>
+                  VST2- & VST3-Suchpfade verwalten
+                </h4>
+                <p className="text-xs text-gray-400 leading-relaxed">
+                  Über das Einstellungsfenster (Reiter „Ordner“) können Sie benutzerdefinierte VST-Plug-in-Pfade hinzufügen oder entfernen. Der interne Scanner durchsucht diese Ordner beim nächsten Start der Applikation automatisch und rekursiv nach VST2-Effekten (<code>.dll</code> / <code>.vst</code>) und VST3-Plug-ins (<code>.vst3</code>), um diese im rechten Effekte-Panel nutzbar zu machen.
+                </p>
+              </div>
+            </div>
+          </section>
+
         </div>
 
         {/* Footer */}
