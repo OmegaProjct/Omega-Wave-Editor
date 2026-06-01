@@ -63,6 +63,7 @@ const api = {
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   startUpdateDownload: (payload: { url: string, latestVersion: string }) => ipcRenderer.invoke('start-update-download', payload),
+  cancelUpdateDownload: () => ipcRenderer.invoke('cancel-update-download'),
   installUpdate: (payload: { installNow: boolean }) => ipcRenderer.invoke('install-update', payload),
 
   // Locales & Translations

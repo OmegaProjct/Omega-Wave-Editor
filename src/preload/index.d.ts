@@ -28,6 +28,7 @@ declare global {
       }>
       getAppVersion: () => Promise<string>
       startUpdateDownload: (payload: { url: string, latestVersion: string }) => Promise<{ success: boolean, error?: string, filePath?: string }>
+      cancelUpdateDownload: () => Promise<{ success: boolean }>
       installUpdate: (payload: { installNow: boolean }) => Promise<{ success: boolean, error?: string, deferred?: boolean }>
       confirmClose: () => void
       onDownloadProgress: (callback: (data: any) => void) => () => void
@@ -42,7 +43,20 @@ declare global {
       onOpenProjectFromAssociation: (callback: (filePath: string) => void) => () => void
       scanVstPlugins: () => Promise<any[]>
       openVstUi: (pluginPath: string) => Promise<VstUiOpenResult>
+      
+      // VST Bridge Pro (v0.8.0 / v0.8.9)
+      loadVstPlugin: (path: string) => Promise<{ name: string; vendor: string; numParams: number; numInputs: number; numOutputs: number; uniqueId: number; hasEditor: boolean }>
+      vstSetSharedBuffer: (inputSAB: SharedArrayBuffer, outputSAB: SharedArrayBuffer, midiSAB: SharedArrayBuffer) => Promise<{ success: boolean }>
+      vstStartAudio: (sampleRate: number, blockSize: number) => Promise<{ success: boolean }>
+      vstStopAudio: () => Promise<{ success: boolean }>
+      getVstParams: () => Promise<any[]>
       setVstParam: (index: number, value: number) => Promise<{ success: boolean }> | void
+      openVstEditor: () => Promise<{ success: boolean }>
+      closeVstEditor: () => Promise<{ success: boolean }>
+      unloadVstPlugin: () => Promise<{ success: boolean }>
+      onVstEditorClosed: (callback: () => void) => () => void
+      onVstNativeEditorClosed: (callback: () => void) => () => void
+      
       getAsioDrivers: () => Promise<any[]>
       saveRecording: (outputPath: string, arrayBuffer: ArrayBuffer) => Promise<any>
       getDiskSpace: (dirPath: string) => Promise<{ success: boolean, freeBytes: number }>
