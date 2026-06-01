@@ -2,6 +2,20 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.8.2] - 2026-06-01
+
+### English
+
+#### Added
+- **Curated VST Store Details Modal**: Implemented fully custom, high-fidelity responsive details dialogs for all curated free VST plugins, featuring an inline, CSS-simulated active interactive front-panel mockup (oscilloscopes, LFO graphs, operators, ADSR envelope lines, dials) to showcase features.
+- **Improved VST Store Sidebar Layout**: Swapped the screen-responsive columns with a dedicated single-column list that respects narrow sidebars, fully aligning all information and providing a prominent download status button at the far right.
+
+### Deutsch
+
+#### Hinzugefügt
+- **Details-Modals im VST-Store**: Integration von optisch beeindruckenden Details-Dialogen für alle kuratierten Gratis-VST-Plugins. Jedes Modal enthält ein interaktives, rein in CSS/Tailwind nachempfundenes Frontend-Interface-Mockup (Oszilloskope, ADSR-Kurven, 6-Operatoren-FM-Gitter, Frequenzbänder) zur Visualisierung.
+- **Verbessertes VST-Store Sidebar-Layout**: Ersetzung des responsive-Spalten-Racks durch eine saubere, einspaltige Liste für schmale DAW-Seitenleisten. Bietet perfekte Platzausnutzung und einen fest ausgerichteten Download-Button am rechten Ende.
+
 ## [0.8.1] - 2026-06-01
 
 ### English
