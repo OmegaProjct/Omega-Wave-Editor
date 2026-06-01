@@ -4,11 +4,12 @@
  * recording saving, and path validations.
  */
 
-import { ipcMain, shell, app } from 'electron'
+import { ipcMain, shell, app, BrowserWindow } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
 import { exec } from 'child_process'
+import { VstHost } from '../vstBridge/VstHostAddon'
 
 function isSafePath(filePath: any): boolean {
   if (typeof filePath !== 'string' || filePath.trim() === '') return false
@@ -330,4 +331,30 @@ export function registerSystemIpc() {
       });
     });
   });
+
+  ipcMain.on('resize-window', (event, { width, height }) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (win) {
+      win.setSize(width, height, true)
+    }
+  })
+
+  ipcMain.handle('get-asio-driver-details', async (_, driverName: string) => {
+    try {
+      return VstHost.getAsioDriverDetails(driverName)
+    } catch (err: any) {
+      console.error('IPC Error: get-asio-driver-details failed:', err)
+      throw err
+    }
+  })
+
+  ipcMain.handle('open-asio-control-panel', async (_, driverName: string) => {
+    try {
+      VstHost.openAsioControlPanel(driverName)
+      return { success: true }
+    } catch (err: any) {
+      console.error('IPC Error: open-asio-control-panel failed:', err)
+      throw err
+    }
+  })
 }

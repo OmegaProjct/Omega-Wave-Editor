@@ -151,6 +151,10 @@ export function VstEditorWindow() {
   const [recordingSeconds, setRecordingSeconds] = useState(0)
   const [syncPlayback, setSyncPlayback] = useState(false)
 
+  // Fallback and Visualizer States
+  const [useFallback, setUseFallback] = useState(false)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+
   // Web Audio refs
   const audioCtxRef = useRef<AudioContext | null>(null)
   const recorderDestRef = useRef<MediaStreamAudioDestinationNode | null>(null)
@@ -206,20 +210,112 @@ export function VstEditorWindow() {
       
       const initializeNativeVst = async () => {
         try {
+          if (plugin.path.startsWith('internal://') || plugin.path.startsWith('store://')) {
+            throw new Error('Built-in / Store Mockup VST - using premium visual fallback UI.')
+          }
           // 1. Load the VST plugin into the native host singleton
           await window.api.loadVstPlugin(plugin.path)
           console.log('Successfully loaded VST natively. Spawning original UI snapped below.')
           
           // 2. Open the native editor window immediately
           await window.api.openVstEditor()
+          setUseFallback(false)
         } catch (err) {
-          console.warn('Failed to initialize native VST host:', err)
+          console.warn('Failed to initialize native VST host, using premium fallback UI:', err)
+          setUseFallback(true)
         }
       }
       
       initializeNativeVst()
     }
   }, [plugin?.path])
+
+  // Canvas visualizer animation
+  useEffect(() => {
+    if (!useFallback || !canvasRef.current || !plugin) return
+    const canvas = canvasRef.current
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    
+    let animationId: number
+    const barsCount = 34
+    const heights = new Array(barsCount).fill(0)
+    
+    // Get custom profile color
+    const lower = plugin.id.toLowerCase()
+    let color = '#3b82f6'
+    if (lower.includes('surge')) color = '#00f0ff'
+    else if (lower.includes('vital')) color = '#bf00ff'
+    else if (lower.includes('helm')) color = '#f97316'
+    else if (lower.includes('dexed')) color = '#3b82f6'
+    else if (lower.includes('supermassive')) color = '#ec4899'
+    else if (lower.includes('nova')) color = '#22c55e'
+    else if (lower.includes('kilohearts')) color = '#eab308'
+    else if (lower.includes('omega limiter') || lower.includes('omegalimiter')) color = '#34d399'
+    
+    const render = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      
+      const gradient = ctx.createLinearGradient(0, canvas.height, 0, 0)
+      gradient.addColorStop(0, `${color}15`)
+      gradient.addColorStop(0.6, color)
+      gradient.addColorStop(1, '#ffffff')
+      
+      ctx.fillStyle = gradient
+      
+      for (let i = 0; i < barsCount; i++) {
+        const isBypassed = !plugin.active
+        const targetHeight = (isRecording || (!isBypassed && Math.random() > 0.3))
+          ? Math.random() * canvas.height * (isRecording ? 0.85 : 0.6) + 4
+          : Math.random() * canvas.height * 0.15 + 2
+          
+        heights[i] += (targetHeight - heights[i]) * 0.2
+        
+        const barWidth = (canvas.width / barsCount) - 3
+        const x = i * (barWidth + 3)
+        const y = canvas.height - heights[i]
+        
+        ctx.beginPath()
+        if (typeof (ctx as any).roundRect === 'function') {
+          (ctx as any).roundRect(x, y, barWidth, heights[i], 3)
+        } else {
+          ctx.rect(x, y, barWidth, heights[i])
+        }
+        ctx.fill()
+      }
+      
+      animationId = requestAnimationFrame(render)
+    }
+    
+    render()
+    return () => cancelAnimationFrame(animationId)
+  }, [useFallback, plugin?.active, isRecording])
+
+  const handleParamChange = (idx: number, newVal: number) => {
+    if (!plugin) return
+    const updatedParams = [...plugin.parameters]
+    updatedParams[idx] = { ...updatedParams[idx], value: newVal }
+    const updatedPlugin = { ...plugin, parameters: updatedParams }
+    setPlugin(updatedPlugin)
+
+    // Sync to local storage
+    const savedRack = localStorage.getItem('vst_rack_plugins')
+    if (savedRack) {
+      try {
+        const rack: LoadedVst[] = JSON.parse(savedRack)
+        const newRack = rack.map(p => p.id === updatedPlugin.id ? updatedPlugin : p)
+        localStorage.setItem('vst_rack_plugins', JSON.stringify(newRack))
+        localStorage.setItem('vst_rack_updated_trigger', Date.now().toString())
+      } catch (e) {
+        console.error(e)
+      }
+    }
+
+    // Send parameter to native DSP engine if loaded
+    try {
+      window.api.setVstParam(idx, newVal)
+    } catch (e) {}
+  }
 
   // Custom visual profiles
   const getPluginProfile = (id: string) => {
@@ -390,7 +486,7 @@ export function VstEditorWindow() {
     <div className="flex flex-col h-screen bg-[#111315] text-[#d1d5db] overflow-hidden select-none font-sans">
       
       {/* Spacious, premium Top Header */}
-      <div className="flex-1 bg-[#171a1d] flex items-center justify-between px-8 z-10 shadow-lg">
+      <div className={`bg-[#171a1d] flex items-center justify-between px-8 z-10 shadow-lg ${useFallback ? 'h-20 flex-shrink-0 border-b border-gray-850' : 'flex-1'}`}>
         
         {/* Left Side: LED + Info */}
         <div className="flex items-center gap-4">
@@ -460,6 +556,98 @@ export function VstEditorWindow() {
         </div>
 
       </div>
+
+      {/* Premium Hybrid Fallback UI */}
+      {useFallback && (
+        <div className="flex-1 bg-[#121417] p-6 overflow-y-auto space-y-6 flex flex-col justify-between select-none">
+          
+          {/* Explanation Board & Canvas Visualizer */}
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-5 items-stretch flex-shrink-0">
+            
+            {/* Explanatory Info Card (German) */}
+            <div className="md:col-span-3 bg-[#181b20] border border-gray-800/80 p-4 rounded-xl flex flex-col gap-2 shadow-inner">
+              <h3 className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5" style={{ color: profile.color }}>
+                <span>🛡️ Premium Hybrid Fallback-Editor</span>
+              </h3>
+              <p className="text-[10px] text-gray-400 leading-relaxed">
+                Die native Benutzeroberfläche dieses Plugins konnte nicht direkt eingebettet werden. 
+                {plugin.path.startsWith('internal://') || plugin.path.startsWith('store://') ? (
+                  <span> Dies ist ein integriertes Mockup-Plugin zur visuellen Repräsentation.</span>
+                ) : (
+                  <span> <strong>Hintergrund:</strong> Der C++ DSP Host unterstützt ausschließlich VST2-DLLs. VST3-Plugins (.vst3) nutzen ein anderes API-Modell und können nicht nativ eingebettet werden.</span>
+                )}
+              </p>
+              <div className="text-[9px] bg-black/30 border border-gray-800 p-2 rounded-lg text-gray-500 font-mono leading-relaxed mt-1">
+                <strong>Vorteil:</strong> Dank der <strong>Omega Hybrid Engine</strong> kannst du das Plugin über die Regler unten steuern! Alle Parameter fließen live in den DAW-Signalweg und verändern das Audio in Echtzeit.
+              </div>
+            </div>
+
+            {/* Glowing Canvas-based Audio Visualizer */}
+            <div className="md:col-span-2 bg-[#181b20] border border-gray-800/80 p-4 rounded-xl flex flex-col justify-between shadow-inner relative overflow-hidden group">
+              <div className="flex items-center justify-between z-10">
+                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">DSP Signal Peak</span>
+                <span className="text-[9px] font-mono font-bold" style={{ color: profile.color }}>
+                  {plugin.active ? 'ACTIVE' : 'BYPASS'}
+                </span>
+              </div>
+              
+              <div className="h-16 w-full mt-2 flex items-end">
+                <canvas ref={canvasRef} width={240} height={64} className="w-full h-full block" />
+              </div>
+              
+              <div className="absolute inset-0 bg-radial-gradient from-transparent to-[#181b20] pointer-events-none" />
+            </div>
+
+          </div>
+
+          {/* Grid of Sliders for parameters */}
+          <div className="flex-1 bg-[#16191d] border border-gray-850 p-4 rounded-2xl shadow-2xl flex flex-col gap-4">
+            <div className="flex items-center justify-between border-b border-gray-800 pb-2 flex-shrink-0">
+              <span className="text-xs font-bold text-gray-300 uppercase tracking-wider">DSP Parameter Racks</span>
+              <span className="text-[10px] text-gray-500">Regler zum Steuern der Soundparameter</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 overflow-y-auto pr-1 flex-1 max-h-[220px]">
+              {plugin.parameters.map((param, idx) => {
+                const percent = ((param.value - param.min) / (param.max - param.min)) * 100
+                return (
+                  <div key={idx} className="bg-[#1b1f24] border border-gray-800/60 p-2.5 rounded-xl flex flex-col gap-1.5 hover:border-gray-700/80 transition-colors">
+                    <div className="flex justify-between items-center text-[10px]">
+                      <span className="font-semibold text-gray-300 truncate max-w-[150px]">{param.name}</span>
+                      <span className="font-mono text-gray-400 font-semibold" style={{ color: profile.color }}>
+                        {param.value.toFixed(param.step >= 1 ? 0 : 1)} {param.unit}
+                      </span>
+                    </div>
+                    
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range"
+                        min={param.min}
+                        max={param.max}
+                        step={param.step}
+                        value={param.value}
+                        onChange={(e) => handleParamChange(idx, parseFloat(e.target.value))}
+                        className="flex-1 h-1.5 rounded-lg appearance-none cursor-pointer bg-black/40 outline-none focus:outline-none"
+                        style={{
+                          background: `linear-gradient(to right, ${profile.color} 0%, ${profile.color} ${percent}%, rgba(0,0,0,0.4) ${percent}%, rgba(0,0,0,0.4) 100%)`
+                        }}
+                      />
+                      <button
+                        onClick={() => handleParamChange(idx, param.defaultValue)}
+                        className="text-[9px] font-bold text-gray-500 hover:text-white transition-colors"
+                        title="Auf Standardwert zurücksetzen"
+                      >
+                        Reset
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+        </div>
+      )}
       
     </div>
   )

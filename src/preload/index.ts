@@ -33,6 +33,8 @@ const api = {
   scanVstPlugins: () => ipcRenderer.invoke('scan-vst-plugins'),
   openVstUi: (pluginPath: string) => ipcRenderer.invoke('open-vst-ui', pluginPath),
   getAsioDrivers: () => ipcRenderer.invoke('get-asio-drivers'),
+  getAsioDriverDetails: (driverName: string) => ipcRenderer.invoke('get-asio-driver-details', driverName),
+  openAsioControlPanel: (driverName: string) => ipcRenderer.invoke('open-asio-control-panel', driverName),
   loadVstPlugin: (path: string) => ipcRenderer.invoke('vst-load-plugin', path),
   vstSetSharedBuffer: (inputSAB: SharedArrayBuffer, outputSAB: SharedArrayBuffer, midiSAB: SharedArrayBuffer) => 
     ipcRenderer.invoke('vst-set-shared-buffer', inputSAB, outputSAB, midiSAB),
@@ -108,6 +110,9 @@ const api = {
   
   openPopoutWindow: (name: string, options?: { width?: number; height?: number; title?: string }) => 
     ipcRenderer.send('open-popout-window', { name, ...options }),
+  
+  resizeWindow: (width: number, height: number) => 
+    ipcRenderer.send('resize-window', { width, height }),
   
   onExportSettingsUpdated: (callback: (settings: any) => void) => {
     const sub = (_e: any, settings: any) => callback(settings)

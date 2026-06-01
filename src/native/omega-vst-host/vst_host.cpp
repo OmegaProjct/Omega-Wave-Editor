@@ -548,6 +548,222 @@ Napi::Value UnloadPlugin(const Napi::CallbackInfo& info) {
     return env.Undefined();
 }
 
+#ifdef _WIN32
+#include <unknwn.h>
+#include <objbase.h>
+
+// IASIO interface GUID: {564a8960-e5ad-11d1-ad81-00a024819696}
+static const IID IID_IASIO = { 0x564a8960, 0xe5ad, 0x11d1, { 0xad, 0x81, 0x00, 0xa0, 0x24, 0x81, 0x96, 0x96 } };
+
+interface IASIO : public IUnknown {
+    virtual long init(void* sysHandle) = 0;
+    virtual void getDriverName(char* name) = 0;
+    virtual long getDriverVersion() = 0;
+    virtual void getErrorMessage(char* string) = 0;
+    virtual long start() = 0;
+    virtual long stop() = 0;
+    virtual long getChannels(long* numInputChannels, long* numOutputChannels) = 0;
+    virtual long getLatencies(long* inputLatency, long* outputLatency) = 0;
+    virtual long getBufferSize(long* minSize, long* maxSize, long* preferredSize, long* granularity) = 0;
+    virtual long canSampleRate(double sampleRate) = 0;
+    virtual long getSampleRate(double* sampleRate) = 0;
+    virtual long setSampleRate(double sampleRate) = 0;
+    virtual long getClockSources(void* clocks, long* numSources) = 0;
+    virtual long setClockSource(long reference) = 0;
+    virtual long getSamplePosition(void* sPos, void* tStamp) = 0;
+    virtual long getChannelInfo(void* info) = 0;
+    virtual long createBuffers(void* bufferInfos, long numChannels, long bufferSize, void* callbacks) = 0;
+    virtual long disposeBuffers() = 0;
+    virtual long controlPanel() = 0;
+    virtual long future(long selector, void* opt) = 0;
+    virtual long outputReady() = 0;
+};
+
+struct ASIOChannelInfo {
+    long channel;
+    long isInput;
+    long isActive;
+    long channelGroup;
+    long type; // ASIOSampleType
+    char name[32];
+};
+
+bool GetAsioDriverCLSID(const std::string& driverName, CLSID& clsid) {
+    std::string subKey = "SOFTWARE\\ASIO\\" + driverName;
+    HKEY hkey;
+    if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, subKey.c_str(), 0, KEY_READ, &hkey) != ERROR_SUCCESS) {
+        subKey = "SOFTWARE\\WOW6432Node\\ASIO\\" + driverName;
+        if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, subKey.c_str(), 0, KEY_READ, &hkey) != ERROR_SUCCESS) {
+            return false;
+        }
+    }
+    
+    char clsidStr[128] = {0};
+    DWORD size = sizeof(clsidStr);
+    if (RegQueryValueExA(hkey, "clsid", NULL, NULL, (LPBYTE)clsidStr, &size) != ERROR_SUCCESS) {
+        RegCloseKey(hkey);
+        return false;
+    }
+    RegCloseKey(hkey);
+    
+    wchar_t wClsidStr[128];
+    MultiByteToWideChar(CP_ACP, 0, clsidStr, -1, wClsidStr, 128);
+    
+    if (CLSIDFromString(wClsidStr, &clsid) != NOERROR) {
+        return false;
+    }
+    
+    return true;
+}
+
+Napi::Value GetAsioDriverDetails(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    
+    if (info.Length() < 1 || !info[0].IsString()) {
+        Napi::TypeError::New(env, "String expected for driverName").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    
+    std::string driverName = info[0].As<Napi::String>().Utf8Value();
+    
+    CLSID clsid;
+    if (!GetAsioDriverCLSID(driverName, clsid)) {
+        Napi::Error::New(env, "ASIO Driver registry CLSID not found").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    
+    HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+    
+    void* pInterface = nullptr;
+    hr = CoCreateInstance(clsid, NULL, CLSCTX_INPROC_SERVER, IID_IASIO, &pInterface);
+    
+    if (FAILED(hr)) {
+        CoUninitialize();
+        Napi::Error::New(env, "Failed to instantiate ASIO driver COM object").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    
+    IASIO* iasio = static_cast<IASIO*>(pInterface);
+    
+    if (!iasio->init(NULL)) {
+        iasio->Release();
+        CoUninitialize();
+        Napi::Error::New(env, "Failed to initialize ASIO driver").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    
+    long numInputs = 0;
+    long numOutputs = 0;
+    iasio->getChannels(&numInputs, &numOutputs);
+    
+    long minSize = 0;
+    long maxSize = 0;
+    long preferredSize = 0;
+    long granularity = 0;
+    iasio->getBufferSize(&minSize, &maxSize, &preferredSize, &granularity);
+    
+    long inputLatency = 0;
+    long outputLatency = 0;
+    iasio->getLatencies(&inputLatency, &outputLatency);
+    
+    double sampleRate = 44100.0;
+    iasio->getSampleRate(&sampleRate);
+    
+    Napi::Array inputNames = Napi::Array::New(env);
+    Napi::Array outputNames = Napi::Array::New(env);
+    
+    for (int i = 0; i < numInputs; ++i) {
+        ASIOChannelInfo chanInfo = {0};
+        chanInfo.channel = i;
+        chanInfo.isInput = 1;
+        if (iasio->getChannelInfo(&chanInfo) == 0) {
+            inputNames.Set(i, Napi::String::New(env, chanInfo.name));
+        } else {
+            inputNames.Set(i, Napi::String::New(env, "Input " + std::to_string(i + 1)));
+        }
+    }
+    
+    for (int i = 0; i < numOutputs; ++i) {
+        ASIOChannelInfo chanInfo = {0};
+        chanInfo.channel = i;
+        chanInfo.isInput = 0;
+        if (iasio->getChannelInfo(&chanInfo) == 0) {
+            outputNames.Set(i, Napi::String::New(env, chanInfo.name));
+        } else {
+            outputNames.Set(i, Napi::String::New(env, "Output " + std::to_string(i + 1)));
+        }
+    }
+    
+    iasio->Release();
+    CoUninitialize();
+    
+    Napi::Object result = Napi::Object::New(env);
+    result.Set("name", Napi::String::New(env, driverName));
+    result.Set("inputsCount", Napi::Number::New(env, numInputs));
+    result.Set("outputsCount", Napi::Number::New(env, numOutputs));
+    result.Set("inputChannels", inputNames);
+    result.Set("outputChannels", outputNames);
+    result.Set("minBufferSize", Napi::Number::New(env, minSize));
+    result.Set("maxBufferSize", Napi::Number::New(env, maxSize));
+    result.Set("preferredBufferSize", Napi::Number::New(env, preferredSize));
+    result.Set("bufferSizeGranularity", Napi::Number::New(env, granularity));
+    result.Set("inputLatencySamples", Napi::Number::New(env, inputLatency));
+    result.Set("outputLatencySamples", Napi::Number::New(env, outputLatency));
+    result.Set("sampleRate", Napi::Number::New(env, sampleRate));
+    
+    return result;
+}
+
+Napi::Value OpenAsioControlPanel(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    
+    if (info.Length() < 1 || !info[0].IsString()) {
+        Napi::TypeError::New(env, "String expected for driverName").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    
+    std::string driverName = info[0].As<Napi::String>().Utf8Value();
+    
+    CLSID clsid;
+    if (!GetAsioDriverCLSID(driverName, clsid)) {
+        Napi::Error::New(env, "ASIO Driver registry CLSID not found").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    
+    HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+    void* pInterface = nullptr;
+    hr = CoCreateInstance(clsid, NULL, CLSCTX_INPROC_SERVER, IID_IASIO, &pInterface);
+    
+    if (FAILED(hr)) {
+        CoUninitialize();
+        Napi::Error::New(env, "Failed to instantiate ASIO driver COM object").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    
+    IASIO* iasio = static_cast<IASIO*>(pInterface);
+    
+    if (iasio->init(NULL)) {
+        iasio->controlPanel();
+    }
+    
+    iasio->Release();
+    CoUninitialize();
+    
+    return env.Undefined();
+}
+#else
+// Cross-platform stubs for macOS / Linux
+Napi::Value GetAsioDriverDetails(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    return env.Null();
+}
+
+Napi::Value OpenAsioControlPanel(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    return env.Undefined();
+}
+#endif
+
 Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set("loadPlugin", Napi::Function::New(env, LoadPlugin));
     exports.Set("setSharedBuffer", Napi::Function::New(env, SetSharedBuffer));
@@ -559,6 +775,10 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set("resizeEditor", Napi::Function::New(env, ResizeEditor));
     exports.Set("closeEditor", Napi::Function::New(env, CloseEditor));
     exports.Set("unloadPlugin", Napi::Function::New(env, UnloadPlugin));
+    
+    exports.Set("getAsioDriverDetails", Napi::Function::New(env, GetAsioDriverDetails));
+    exports.Set("openAsioControlPanel", Napi::Function::New(env, OpenAsioControlPanel));
+    
     return exports;
 }
 

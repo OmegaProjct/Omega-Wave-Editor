@@ -44,6 +44,30 @@ export function AudioRecordingModal({
       cleanup();
     };
   }, [isPopout]);
+
+  // Dynamically resize popout window to perfectly fit contents
+  useEffect(() => {
+    if (!isPopout) return;
+
+    const resizeToFit = () => {
+      const contentEl = document.getElementById('audio-recording-modal-content');
+      if (contentEl) {
+        const titleBarHeight = 40;
+        const contentHeight = contentEl.scrollHeight;
+        const totalHeight = titleBarHeight + contentHeight + 16; // 16px safety padding
+        console.log(`[AudioRecordingModal] Dynamic content sizing: title(40) + content(${contentHeight}) + pad(16) = ${totalHeight}px`);
+        try {
+          window.api.resizeWindow(560, Math.max(350, Math.min(800, totalHeight)));
+        } catch (e) {
+          console.warn('Failed to dynamically resize audio recorder window:', e);
+        }
+      }
+    };
+
+    // Run after DOM has settled
+    const timer = setTimeout(resizeToFit, 150);
+    return () => clearTimeout(timer);
+  }, [isPopout]);
   // Option States
   const [microphones, setMicrophones] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
@@ -495,7 +519,7 @@ export function AudioRecordingModal({
         </div>
 
         {/* Content */}
-        <div className="p-4 flex flex-col gap-4 text-xs">
+        <div id="audio-recording-modal-content" className="p-4 flex flex-col gap-4 text-xs">
           
           {/* Column 1: Audiotreiber */}
           <div className="flex gap-4">
@@ -721,14 +745,14 @@ export function AudioRecordingModal({
                   <button
                     onClick={handleStop}
                     disabled={!isRecording}
-                    className={`w-3.5 h-3.5 bg-gray-500 rounded-sm hover:bg-white active:scale-90 transition-all ${!isRecording ? 'opacity-30 cursor-default' : 'cursor-pointer'}`}
+                    className={`w-4 h-4 bg-gray-500 rounded-sm hover:bg-white active:scale-90 transition-all ${!isRecording ? 'opacity-30 cursor-default' : 'cursor-pointer'}`}
                     title={t('recording.stop_tooltip', { defaultValue: 'Aufnahme stoppen' })}
                   />
                   {/* Record button */}
                   <button
                     onClick={handleRecord}
                     disabled={isRecording}
-                    className={`w-4.5 h-4.5 rounded-full hover:brightness-125 active:scale-90 transition-all ${isRecording ? 'bg-red-500 animate-pulse cursor-default' : 'bg-[#e53935] cursor-pointer shadow-red-500/50 shadow'}`}
+                    className={`w-4 h-4 rounded-full hover:brightness-125 active:scale-90 transition-all ${isRecording ? 'bg-red-500 animate-pulse cursor-default' : 'bg-[#e53935] cursor-pointer shadow-red-500/50 shadow'}`}
                     title={t('recording.start_tooltip', { defaultValue: 'Aufnahme starten' })}
                   />
                 </div>

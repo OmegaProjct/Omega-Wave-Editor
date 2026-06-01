@@ -478,7 +478,7 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
               onDoubleClick={(e) => {
                 e.stopPropagation()
                 const width = 720
-                const height = 110
+                const height = 580
                 localStorage.setItem('popout_vst-editor_payload', JSON.stringify({ pluginId: plugin.id }))
                 window.api.openPopoutWindow('vst-editor', { width, height, title: 'Plugin Editor - ' + plugin.name })
               }}
