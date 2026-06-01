@@ -2,6 +2,28 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.8.9] - 2026-06-01
+
+### English
+
+#### Added
+- **Automatic Native VST UI Spawning**: Configured `VstEditorWindow.tsx` to automatically initialize the native VST C++ host and open the manufacturer's original editor interface immediately upon window mount.
+
+#### Changed
+- **Sleek SPACIOUS Control Bar**: Refactored the VST control header into a generous `110px` height strip with ample padding, large typography, and glowing dark styling.
+- **Unified Lifecycle Window Coupling**: Configured `vstBridgeIpc.ts` to automatically close the React parent control window when the native manufacturer's editor window is closed.
+- **Streamlined Layout (Zero-Clutter)**: Removed the parameters grid dials, keyboard, reactive oscilloscope, preset selection, and toggles to completely focus the workspace on the native VST3 interface.
+
+### Deutsch
+
+#### Hinzugefügt
+- **Automatischer nativer UI-Start**: Der VST Editor initialisiert beim Öffnen jetzt vollautomatisch das native C++ Backend und öffnet sofort die echte, fotorealistische Benutzeroberfläche des Plugin-Herstellers, ohne dass ein Knopfdruck nötig ist.
+
+#### Geändert
+- **Großzügige, elegante Kontrollleiste**: Umbau der React-Steuerleiste in eine spacious `110px` hohe Kontrollleiste mit edlem dunklen Glassmorphismus, glühendem LED Power-Button und optimaler Lesbarkeit.
+- **Gekoppelter Lebenszyklus**: Das Schließen des nativen Herstellerfensters schließt nun automatisch das darüberliegende React-Kontrollfenster mit, für eine nahtlose Desktop-Integration.
+- **Fokus auf das native Interface (Zero-Clutter)**: Komplette Entfernung der redundanten Slider, des Keyboards, des Oszilloskops und des Preset-Dropdowns, um den Bildschirmplatz optimal für das native VST3-Fenster zu nutzen.
+
 ## [0.8.8] - 2026-06-01
 
 ### English
