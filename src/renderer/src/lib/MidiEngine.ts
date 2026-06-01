@@ -1,6 +1,24 @@
 export interface MidiMapping {
-  action: 'transport_play' | 'transport_stop' | 'transport_record' | 'track_volume' | 'track_mute' | 'track_solo' | 'master_volume';
+  action:
+    | 'transport_play'
+    | 'transport_stop'
+    | 'transport_record'
+    | 'track_volume'
+    | 'track_mute'
+    | 'track_solo'
+    | 'master_volume'
+    | 'timeline_scroll'
+    | 'timeline_zoom'
+    | 'timeline_scrub'
+    | 'metronome_toggle';
   trackIndex?: number; // 0-basiert
+  type: 'note' | 'cc';
+  number: number;
+}
+
+export interface VstMidiMapping {
+  pluginId: string;
+  paramIndex: number;
   type: 'note' | 'cc';
   number: number;
 }
@@ -11,9 +29,13 @@ export class MidiEngineClass {
   private static instance: MidiEngineClass | null = null;
   private midiAccess: any = null;
   private activeInput: any = null;
+  private activeOutput: any = null;
   private midiInputDeviceId: string = '';
+  private midiOutputDeviceId: string = '';
   private midiChannel: number = 0; // 0 = Omni, 1-16 = spezifisch
   private midiMappings: MidiMapping[] = [];
+  private vstMidiMappings: VstMidiMapping[] = [];
+  private liveVstNode: any = null;
 
   private listeners: Map<MidiActionType, Set<(payload?: any) => void>> = new Map();
   private learnCallback: ((event: { type: 'note' | 'cc'; number: number }) => void) | null = null;
@@ -40,8 +62,10 @@ export class MidiEngineClass {
       const settings = await window.api.getSettings();
       if (settings) {
         this.midiInputDeviceId = settings.midiInputDeviceId || '';
+        this.midiOutputDeviceId = settings.midiOutputDeviceId || '';
         this.midiChannel = settings.midiChannel !== undefined ? settings.midiChannel : 0;
         this.midiMappings = settings.midiMappings || [];
+        this.vstMidiMappings = settings.vstMidiMappings || [];
       }
       
       const nav = navigator as any;
@@ -74,10 +98,19 @@ export class MidiEngineClass {
     return inputs;
   }
 
+  public getOutputs(): { id: string; name: string }[] {
+    if (!this.midiAccess) return [];
+    const outputs: { id: string; name: string }[] = [];
+    this.midiAccess.outputs.forEach((output: any) => {
+      outputs.push({ id: output.id, name: output.name || 'Unbekanntes Gerät' });
+    });
+    return outputs;
+  }
+
   private connectToDevice() {
     if (!this.midiAccess) return;
     
-    // Falls das aktive Eingabegerät nicht mehr existiert oder wir wechseln wollen
+    // Inputs connection
     if (this.activeInput) {
       this.activeInput.onmidimessage = null;
       this.activeInput = null;
@@ -90,7 +123,6 @@ export class MidiEngineClass {
       targetInput = inputs.get(this.midiInputDeviceId) || null;
     }
 
-    // Fallback: Wenn kein Gerät ausgewählt ist, nehmen wir das erste
     if (!targetInput && inputs.size > 0 && !this.midiInputDeviceId) {
       const firstInput = inputs.values().next().value;
       if (firstInput) {
@@ -105,6 +137,32 @@ export class MidiEngineClass {
     } else {
       console.log('No matching MIDI input device connected.');
     }
+
+    // Outputs connection
+    if (this.activeOutput) {
+      this.activeOutput = null;
+    }
+
+    const outputs = this.midiAccess.outputs;
+    let targetOutput: any = null;
+
+    if (this.midiOutputDeviceId) {
+      targetOutput = outputs.get(this.midiOutputDeviceId) || null;
+    }
+
+    if (!targetOutput && outputs.size > 0 && !this.midiOutputDeviceId) {
+      const firstOutput = outputs.values().next().value;
+      if (firstOutput) {
+        targetOutput = firstOutput;
+      }
+    }
+
+    if (targetOutput) {
+      this.activeOutput = targetOutput;
+      console.log(`Connected MIDI Output: ${targetOutput.name} (${targetOutput.id})`);
+    } else {
+      console.log('No matching MIDI output device connected.');
+    }
   }
 
   public updateSettings(settings: any) {
@@ -113,11 +171,18 @@ export class MidiEngineClass {
       this.midiInputDeviceId = settings.midiInputDeviceId;
       changed = true;
     }
+    if (settings.midiOutputDeviceId !== undefined && settings.midiOutputDeviceId !== this.midiOutputDeviceId) {
+      this.midiOutputDeviceId = settings.midiOutputDeviceId;
+      changed = true;
+    }
     if (settings.midiChannel !== undefined && settings.midiChannel !== this.midiChannel) {
       this.midiChannel = settings.midiChannel;
     }
     if (settings.midiMappings !== undefined) {
       this.midiMappings = settings.midiMappings;
+    }
+    if (settings.vstMidiMappings !== undefined) {
+      this.vstMidiMappings = settings.vstMidiMappings;
     }
     
     if (changed) {
@@ -131,6 +196,77 @@ export class MidiEngineClass {
 
   public stopLearnMode() {
     this.learnCallback = null;
+  }
+
+  public startVstLearn(pluginId: string, paramIndex: number) {
+    this.startLearnMode((event) => {
+      const currentMappings = [...(this.vstMidiMappings || [])];
+      const existingIdx = currentMappings.findIndex(
+        (m) => m.pluginId === pluginId && m.paramIndex === paramIndex
+      );
+
+      const newMapping: VstMidiMapping = {
+        pluginId,
+        paramIndex,
+        type: event.type,
+        number: event.number
+      };
+
+      if (existingIdx >= 0) {
+        currentMappings[existingIdx] = newMapping;
+      } else {
+        currentMappings.push(newMapping);
+      }
+
+      this.vstMidiMappings = currentMappings;
+
+      window.api.getSettings().then((settings) => {
+        const updatedSettings = {
+          ...settings,
+          vstMidiMappings: currentMappings
+        };
+        window.api.saveSettings(updatedSettings);
+        window.dispatchEvent(new CustomEvent('SETTINGS_UPDATED', { detail: updatedSettings }));
+      });
+
+      window.dispatchEvent(new CustomEvent('VST_MIDI_LEARNED', {
+        detail: { pluginId, paramIndex, type: event.type, number: event.number }
+      }));
+    });
+  }
+
+  public clearVstMapping(pluginId: string, paramIndex: number) {
+    const currentMappings = (this.vstMidiMappings || []).filter(
+      (m) => !(m.pluginId === pluginId && m.paramIndex === paramIndex)
+    );
+    this.vstMidiMappings = currentMappings;
+    window.api.getSettings().then((settings) => {
+      const updatedSettings = {
+        ...settings,
+        vstMidiMappings: currentMappings
+      };
+      window.api.saveSettings(updatedSettings);
+      window.dispatchEvent(new CustomEvent('SETTINGS_UPDATED', { detail: updatedSettings }));
+    });
+  }
+
+  public getVstMappings(): VstMidiMapping[] {
+    return this.vstMidiMappings || [];
+  }
+
+  public setLiveVstNode(node: any) {
+    this.liveVstNode = node;
+    console.log('MidiEngine: Live VSTi Synthesizer Node set:', !!node);
+  }
+
+  public sendMidiMessage(bytes: number[]) {
+    if (this.activeOutput) {
+      try {
+        this.activeOutput.send(bytes);
+      } catch (err) {
+        console.error('Failed to send MIDI message:', err);
+      }
+    }
   }
 
   public addListener(action: MidiActionType, callback: (payload?: any) => void) {
@@ -164,6 +300,16 @@ export class MidiEngineClass {
     const data1 = event.data[1];
     const data2 = event.data.length > 2 ? event.data[2] : 0;
 
+    // Route directly to live VST instrument (VSTi) if active
+    if (this.liveVstNode) {
+      this.liveVstNode.port.postMessage({
+        type: 'MIDI_EVENT',
+        status,
+        data1,
+        data2
+      });
+    }
+
     const cmd = status & 0xF0;
     const channel = (status & 0x0F) + 1; // 1-16
 
@@ -194,6 +340,21 @@ export class MidiEngineClass {
       return; // Kanal stimmt nicht überein
     }
 
+    // VST Mapping Triggering
+    const matchingVstMappings = (this.vstMidiMappings || []).filter(
+      (m) => m.type === type && m.number === number
+    );
+    matchingVstMappings.forEach((mapping) => {
+      const val = value / 127;
+      window.dispatchEvent(new CustomEvent('VST_PARAM_MIDI_CONTROL', {
+        detail: {
+          pluginId: mapping.pluginId,
+          paramIndex: mapping.paramIndex,
+          value: val
+        }
+      }));
+    });
+
     // Finde Mappings für dieses Event
     const matchingMappings = this.midiMappings.filter(
       (m) => m.type === type && m.number === number
@@ -202,7 +363,12 @@ export class MidiEngineClass {
     matchingMappings.forEach((mapping) => {
       const action = mapping.action;
       
-      if (action === 'transport_play' || action === 'transport_stop' || action === 'transport_record') {
+      if (
+        action === 'transport_play' || 
+        action === 'transport_stop' || 
+        action === 'transport_record' || 
+        action === 'metronome_toggle'
+      ) {
         this.triggerAction(action);
       } 
       else if (action === 'track_volume') {
@@ -221,8 +387,15 @@ export class MidiEngineClass {
         const vol = value / 127;
         this.triggerAction(action, { value: vol });
       }
+      else if (action === 'timeline_scroll' || action === 'timeline_zoom' || action === 'timeline_scrub') {
+        // Für Jog-Wheel / Scroll / Zoom Aktionen übergeben wir den direkten Wert oder den relativen Wert
+        // Wenn es ein CC-Event ist, übergeben wir den Wert. Falls Jog-Wheel relative Werte sendet, ist das nützlich
+        const valSign = type === 'cc' ? (value > 64 ? value - 128 : value) : 0;
+        this.triggerAction(action, { value: valSign, rawValue: value });
+      }
     });
   }
 }
 
 export const MidiEngine = MidiEngineClass.getInstance();
+

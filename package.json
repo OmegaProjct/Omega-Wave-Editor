@@ -1,6 +1,6 @@
 {
   "name": "omega-wave-editor",
-  "version": "0.7.14",
+  "version": "0.8.0",
   "description": "Omega Wave Editor",
   "main": "./out/main/index.js",
   "author": "Omega Projects <omegaproject1337@gmail.com>",
@@ -11,11 +11,13 @@
   "homepage": "https://github.com/OmegaProjct/Omega-Wave-Editor#readme",
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "electron-vite build",
+    "build:native": "node-gyp rebuild --directory src/native/omega-vst-host",
+    "build": "npm run build:native && electron-vite build",
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
     "typecheck": "tsc --noEmit",
-    "check": "npm run typecheck && npm run build"
+    "check": "npm run typecheck && npm run build",
+    "postinstall": "npm run build:native"
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -26,6 +28,7 @@
     "framer-motion": "^12.39.0",
     "i18next": "^23.11.3",
     "lucide-react": "^0.378.0",
+    "node-addon-api": "^8.8.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-i18next": "^14.1.1",
@@ -42,6 +45,7 @@
     "electron": "^30.0.6",
     "electron-builder": "^26.11.1",
     "electron-vite": "^2.3.0",
+    "node-gyp": "^12.3.0",
     "postcss": "^8.4.38",
     "tailwindcss": "^3.4.3",
     "typescript": "^5.4.5",

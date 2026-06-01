@@ -26,6 +26,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
     halfWaveform: false,
     midiMappings: [],
     midiInputDeviceId: '',
+    midiOutputDeviceId: '',
     midiChannel: 0,
     driverType: 'wave',
     bufferCount: 6,
@@ -35,6 +36,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
   const [capturingShortcut, setCapturingShortcut] = useState<ShortcutAction | null>(null)
 
   const [midiDevices, setMidiDevices] = useState<{ id: string; name: string }[]>([])
+  const [midiOutputDevices, setMidiOutputDevices] = useState<{ id: string; name: string }[]>([])
   const [learningAction, setLearningAction] = useState<{ action: string; trackIndex?: number } | null>(null)
 
   const [checkingUpdates, setCheckingUpdates] = useState(false)
@@ -101,6 +103,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
   useEffect(() => {
     const updateMidiDevices = () => {
       setMidiDevices(MidiEngine.getInputs())
+      setMidiOutputDevices(MidiEngine.getOutputs())
     }
 
     updateMidiDevices()
@@ -543,6 +546,10 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
       { action: 'transport_play', label: 'Transport: Wiedergabe' },
       { action: 'transport_stop', label: 'Transport: Stopp' },
       { action: 'transport_record', label: 'Transport: Aufnahme' },
+      { action: 'timeline_scroll', label: 'Timeline: Spulen (Jog-Wheel)' },
+      { action: 'timeline_zoom', label: 'Timeline: Zoom' },
+      { action: 'timeline_scrub', label: 'Timeline: Scrubben' },
+      { action: 'metronome_toggle', label: 'System: Metronom Umschalten' },
       { action: 'master_volume', label: 'Mixer: Master Lautstärke' },
       ...[0, 1, 2, 3, 4, 5, 6, 7].flatMap(idx => [
         { action: 'track_volume', trackIndex: idx, label: `Mixer: Spur ${idx + 1} Lautstärke` },
@@ -614,6 +621,19 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
             >
               <option value="">Kein Gerät ausgewählt</option>
               {midiDevices.map(d => (
+                <option key={d.id} value={d.id}>{d.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex-1">
+            <label className="block text-xs text-gray-400 mb-1">MIDI-Ausgangsgerät</label>
+            <select
+              value={settings.midiOutputDeviceId || ''}
+              onChange={(e) => setSettings({ ...settings, midiOutputDeviceId: e.target.value })}
+              className="w-full bg-[#1a1d21] border border-gray-750 rounded px-2 py-1 text-xs text-gray-200 outline-none focus:border-omega-accent"
+            >
+              <option value="">Kein Gerät ausgewählt</option>
+              {midiOutputDevices.map(d => (
                 <option key={d.id} value={d.id}>{d.name}</option>
               ))}
             </select>

@@ -77,9 +77,12 @@ A dedicated tool for restoring and enhancing low-quality or noisy recordings:
 * **Stereo FX**: Enhance stereo width, adjust pan balance, and create mono downmixes.
 * **Preset Export**: Save cleaning configurations as `.owepreset` files.
 
-### 4. Audio Plugin Scanner (Cross-Platform)
+### 4. VST2 & VSTi Plugin Host & Store (Windows Native, macOS/Linux Fallback)
 * **Plugin Scanner**: Automatically scans default installation paths on Windows, macOS, and Linux for VST2, VST3, AU, and LV2 audio plugins.
-* **Bridge Prototyping**: Native GUI windowing and audio routing (hosting) are not yet implemented in this prototype.
+* **VST2 & VSTi Host (Windows)**: Load and route VST2 effects (compressors, EQs, delays) and VST Instruments (synthesizers, samplers) in real-time. Zero-copy audio/MIDI routing via SharedArrayBuffer ring buffers and a dedicated high-priority native C++ audio thread. Opens native plugin GUI editors inside floating OS windows.
+* **MIDI Pro & Learn Integration**: Play VST instruments live with extremely low latency. Connect knobs/sliders of your MIDI controllers to VST parameters instantly via the built-in MIDI Learn toggle.
+* **Two-Way MIDI & DJ Navigation**: Support for active MIDI controller feedback (Midi Out). Map Jog-Wheels/dials to timeline scrolling, scrubbing, and horizontal zoom.
+* **Free VST Store**: Curated built-in shop in the side panel offering direct downloads and automated installation of free pro-quality VST effects and synths (Vital, Surge XT, Dexed, etc.).
 
 ### 5. Recording, Import & Export
 * **Built-in Recorder**: Record audio directly from your default mic or audio interface and insert it instantly into the timeline.
@@ -206,9 +209,12 @@ Ein dediziertes Werkzeug zur Restaurierung und Verbesserung problematischer Aufn
 * **Stereo FX**: Erweiterung der Stereobreite, Balance-Regler und Mono-Downmix.
 * **Profil-Export**: Speichern von Cleaning-Profilen als `.owepreset`.
 
-### 4. Audio-Plugin-Scanner (Cross-Platform)
+### 4. VST2 & VSTi Plugin-Host & Store (Windows Nativ, macOS/Linux Fallback)
 * **Plugin-Scanner**: Sucht automatisch in den Standardpfaden auf Windows, macOS und Linux nach installierten VST2-, VST3-, AU- und LV2-Audio-Plugins.
-* **Bridge-Prototyp**: Natives UI-Windowing und Audio-Routing (Hosting) sind in diesem Prototyp noch nicht implementiert.
+* **VST2 & VSTi Host (Windows)**: Laden und Routen von VST2-Effekten (Kompressoren, EQs, Delays) und VST-Instrumenten (Synthesizer, Sampler) in Echtzeit. Latenzfreies Audio/MIDI-Routing via SharedArrayBuffer-Ringpuffer und eigenem C++ High-Priority Audio-Thread. Öffnet native Plugin-Editoren in separaten Betriebssystem-Fenstern.
+* **MIDI Pro & Learn Integration**: Live-Spielen von Synthesizern über angeschlossene Keyboards. Verbinden von Hardware-Reglern mit VST-Parametern per einfachem MIDI-Learn Klick.
+* **Zwei-Wege-MIDI & DJ Navigation**: Unterstützung für aktives MIDI-Controller-Feedback (Midi Out). Mappen von Jog-Wheels/Drehrädern auf Timeline-Scrollen, Scrubben und horizontales Zoomen.
+* **Kostenloser VST Store**: Kuriertes In-App-Verzeichnis in der Seitenleiste für den direkten Download und automatischen Import exzellenter freier VSTs und Synths (Vital, Surge XT, Dexed etc.).
 
 ### 5. Aufnahme, Import & Export
 * **Integrierter Rekorder**: Audioaufnahmen direkt über Ihr Standard-Mikrofon oder -Interface aufnehmen und sofort in die Timeline einfügen.

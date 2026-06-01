@@ -153,6 +153,11 @@ type TrackNode = {
   delayGain: GainNode;
   deEsser: BiquadFilterNode;
   output: GainNode;
+  vstPluginInstanceId?: string;
+  vstNode?: AudioWorkletNode;
+  vstInputSAB?: SharedArrayBuffer;
+  vstOutputSAB?: SharedArrayBuffer;
+  vstMidiSAB?: SharedArrayBuffer;
 };
 
 type ActiveRegionNode = {
@@ -178,6 +183,7 @@ export class AudioEngine {
   private masterLimiter: DynamicsCompressorNode;
   private masterAnalyser: AnalyserNode;
   private tracks: Map<string, TrackNode> = new Map();
+  private vstWorkletLoaded = false;
   private buffers: Map<string, AudioBuffer> = new Map();
   public isPlaying: boolean = false;
   private startTime: number = 0;
@@ -1764,5 +1770,197 @@ export class AudioEngine {
     }
 
     return buffer;
+  }
+
+  public async mountVstPlugin(trackId: string, dllPath: string) {
+    const track = this.tracks.get(trackId);
+    if (!track) return;
+    
+    await this.unmountVstPlugin(trackId);
+    
+    try {
+      console.log(`Mounting VST plugin on track ${trackId}: ${dllPath}`);
+      const info = await window.api.loadVstPlugin(dllPath);
+      if (!info) throw new Error('Failed to load plugin');
+      
+      const capacity = 16380;
+      const midiCapacity = 1020;
+      
+      const inputSAB = new SharedArrayBuffer(16384 * 4);
+      const outputSAB = new SharedArrayBuffer(16384 * 4);
+      const midiSAB = new SharedArrayBuffer(1024 * 4 * 4);
+      
+      const inputArr = new Float32Array(inputSAB);
+      inputArr[0] = 0;
+      inputArr[1] = 0;
+      inputArr[2] = capacity;
+      
+      const outputArr = new Float32Array(outputSAB);
+      outputArr[0] = 0;
+      outputArr[1] = 0;
+      outputArr[2] = capacity;
+      
+      const midiArr = new Int32Array(midiSAB);
+      midiArr[0] = 0;
+      midiArr[1] = 0;
+      midiArr[2] = midiCapacity;
+      
+      await window.api.vstSetSharedBuffer(inputSAB, outputSAB, midiSAB);
+      await window.api.vstStartAudio(this.ctx.sampleRate, 128);
+      
+      if (!this.vstWorkletLoaded) {
+        const code = `
+class OmegaVstBridgeProcessor extends AudioWorkletProcessor {
+  constructor(options) {
+    super();
+    this.inputSAB = options.processorOptions.inputSAB;
+    this.outputSAB = options.processorOptions.outputSAB;
+    this.midiSAB = options.processorOptions.midiSAB;
+    this.inputArray = new Float32Array(this.inputSAB);
+    this.outputArray = new Float32Array(this.outputSAB);
+    this.midiArray = new Int32Array(this.midiSAB);
+    this.capacity = options.processorOptions.capacity;
+    this.midiCapacity = options.processorOptions.midiCapacity;
+    this.inputWritePtr = 0;
+    this.inputReadPtr = 1;
+    this.outputWritePtr = 0;
+    this.outputReadPtr = 1;
+    this.midiWritePtr = 0;
+    this.midiReadPtr = 1;
+    this.port.onmessage = (event) => {
+      if (event.data && event.data.type === 'MIDI_EVENT') {
+        this.writeMidiEvent(event.data.status, event.data.data1, event.data.data2);
+      }
+    };
+  }
+  writeMidiEvent(status, data1, data2) {
+    const w = Atomics.load(this.midiArray, this.midiWritePtr);
+    const r = Atomics.load(this.midiArray, this.midiReadPtr);
+    const nextW = (w + 1) % this.midiCapacity;
+    if (nextW === r) return;
+    const idx = 3 + w * 4;
+    this.midiArray[idx + 0] = 0;
+    this.midiArray[idx + 1] = status;
+    this.midiArray[idx + 2] = data1;
+    this.midiArray[idx + 3] = data2;
+    Atomics.store(this.midiArray, this.midiWritePtr, nextW);
+  }
+  process(inputs, outputs) {
+    const input = inputs[0];
+    const output = outputs[0];
+    if (!input || !input[0]) return true;
+    const numChannels = 2;
+    const blockSize = input[0].length;
+    const w = Atomics.load(this.inputArray, this.inputWritePtr);
+    const r = Atomics.load(this.inputArray, this.inputReadPtr);
+    let availableWrite = r - w - 1;
+    if (availableWrite < 0) availableWrite += this.capacity;
+    if (availableWrite >= blockSize * numChannels) {
+      let idx = w;
+      const cap = this.capacity;
+      const left = input[0];
+      const right = input[1] || input[0];
+      for (let i = 0; i < blockSize; ++i) {
+        this.inputArray[3 + idx] = left[i];
+        idx = (idx + 1) % cap;
+        this.inputArray[3 + idx] = right[i];
+        idx = (idx + 1) % cap;
+      }
+      Atomics.store(this.inputArray, this.inputWritePtr, idx);
+    }
+    const ow = Atomics.load(this.outputArray, this.outputWritePtr);
+    const or = Atomics.load(this.outputArray, this.outputReadPtr);
+    let availableRead = ow - or;
+    if (availableRead < 0) availableRead += this.capacity;
+    if (availableRead >= blockSize * numChannels) {
+      let idx = or;
+      const cap = this.capacity;
+      const leftOut = output[0];
+      const rightOut = output[1] || output[0];
+      for (let i = 0; i < blockSize; ++i) {
+        leftOut[i] = this.outputArray[3 + idx];
+        idx = (idx + 1) % cap;
+        rightOut[i] = this.outputArray[3 + idx];
+        idx = (idx + 1) % cap;
+      }
+      Atomics.store(this.outputArray, this.outputReadPtr, idx);
+    } else {
+      const left = input[0];
+      const right = input[1] || input[0];
+      const leftOut = output[0];
+      const rightOut = output[1] || output[0];
+      for (let i = 0; i < blockSize; ++i) {
+        leftOut[i] = left[i];
+        rightOut[i] = right[i];
+      }
+    }
+    return true;
+  }
+}
+registerProcessor('omega-vst-bridge', OmegaVstBridgeProcessor);
+        `;
+        const blob = new Blob([code], { type: 'application/javascript' });
+        const url = URL.createObjectURL(blob);
+        await this.ctx.audioWorklet.addModule(url);
+        this.vstWorkletLoaded = true;
+      }
+      
+      const vstNode = new AudioWorkletNode(this.ctx, 'omega-vst-bridge', {
+        numberOfInputs: 1,
+        numberOfOutputs: 1,
+        outputChannelCount: [2],
+        processorOptions: { inputSAB, outputSAB, midiSAB, capacity, midiCapacity }
+      });
+      
+      track.compressor.disconnect();
+      track.compressor.connect(vstNode);
+      vstNode.connect(track.output);
+      vstNode.connect(track.reverb);
+      vstNode.connect(track.delay);
+      
+      track.vstPluginInstanceId = dllPath;
+      track.vstNode = vstNode;
+      track.vstInputSAB = inputSAB;
+      track.vstOutputSAB = outputSAB;
+      track.vstMidiSAB = midiSAB;
+      
+      const { MidiEngine } = await import('./MidiEngine');
+      MidiEngine.setLiveVstNode(vstNode);
+      
+      console.log(`VST plugin ${dllPath} successfully mounted and routed on track ${trackId}`);
+    } catch (err) {
+      console.error(`Failed to mount VST plugin:`, err);
+    }
+  }
+
+  public async unmountVstPlugin(trackId: string) {
+    const track = this.tracks.get(trackId);
+    if (!track || !track.vstNode) return;
+    
+    try {
+      console.log(`Unmounting VST plugin on track ${trackId}`);
+      await window.api.vstStopAudio();
+      await window.api.unloadVstPlugin();
+      
+      track.compressor.disconnect();
+      track.vstNode.disconnect();
+      
+      track.compressor.connect(track.output);
+      track.compressor.connect(track.reverb);
+      track.compressor.connect(track.delay);
+      
+      track.vstNode = undefined;
+      track.vstPluginInstanceId = undefined;
+      track.vstInputSAB = undefined;
+      track.vstOutputSAB = undefined;
+      track.vstMidiSAB = undefined;
+      
+      const { MidiEngine } = await import('./MidiEngine');
+      MidiEngine.setLiveVstNode(null);
+      
+      console.log(`VST plugin successfully unmounted from track ${trackId}`);
+    } catch (err) {
+      console.error('Failed to unmount VST plugin:', err);
+    }
   }
 }

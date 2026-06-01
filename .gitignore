@@ -9,6 +9,7 @@ out/
 dist/
 .vite/
 dist-bin/
+src/native/omega-vst-host/build/
 
 # IDE and System files
 .DS_Store

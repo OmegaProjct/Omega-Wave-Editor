@@ -1,8 +1,9 @@
-import { app, BrowserWindow, protocol, ipcMain } from 'electron'
+import { app, BrowserWindow, protocol, ipcMain, session } from 'electron'
 import { join } from 'path'
 import { setupIpc, setStartupFile } from './ipc'
 import { setupSettingsIpc } from './settingsIpc'
 import { setupUpdateDownloader } from './updateDownloader'
+import { setupVstBridgeIpc } from './ipc/vstBridgeIpc'
 
 // Set custom AppData folder structure: AppData/Roaming/OmegaProjects/Omega Wave Editor
 const appDataPath = app.getPath('appData')
@@ -143,6 +144,19 @@ if (gotTheLock) {
     await installDevTools()
     setupIpc()
     setupSettingsIpc()
+    setupVstBridgeIpc()
+
+    // Register COOP/COEP headers for SharedArrayBuffer support
+    session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          'Cross-Origin-Opener-Policy': ['same-origin'],
+          'Cross-Origin-Embedder-Policy': ['require-corp']
+        }
+      })
+    })
+
     createWindow()
 
     // Initialize the auto updater downloader with our main window reference

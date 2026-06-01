@@ -29,10 +29,25 @@ const api = {
   transcodeExport: (tempWavPath: string, outputPath: string, options: any, id3Tags?: any) => ipcRenderer.invoke('transcode-export', tempWavPath, outputPath, options, id3Tags),
   getStartupFile: () => ipcRenderer.invoke('get-startup-file'),
   
-  // VST Bridge
+  // VST Bridge Pro (v0.8.0)
   scanVstPlugins: () => ipcRenderer.invoke('scan-vst-plugins'),
   openVstUi: (pluginPath: string) => ipcRenderer.invoke('open-vst-ui', pluginPath),
   getAsioDrivers: () => ipcRenderer.invoke('get-asio-drivers'),
+  loadVstPlugin: (path: string) => ipcRenderer.invoke('vst-load-plugin', path),
+  vstSetSharedBuffer: (inputSAB: SharedArrayBuffer, outputSAB: SharedArrayBuffer, midiSAB: SharedArrayBuffer) => 
+    ipcRenderer.invoke('vst-set-shared-buffer', inputSAB, outputSAB, midiSAB),
+  vstStartAudio: (sampleRate: number, blockSize: number) => ipcRenderer.invoke('vst-start-audio', sampleRate, blockSize),
+  vstStopAudio: () => ipcRenderer.invoke('vst-stop-audio'),
+  getVstParams: () => ipcRenderer.invoke('vst-get-params'),
+  setVstParam: (index: number, value: number) => ipcRenderer.invoke('vst-set-param', index, value),
+  openVstEditor: () => ipcRenderer.invoke('vst-open-editor'),
+  closeVstEditor: () => ipcRenderer.invoke('vst-close-editor'),
+  unloadVstPlugin: () => ipcRenderer.invoke('vst-unload-plugin'),
+  onVstEditorClosed: (callback: () => void) => {
+    const sub = () => callback()
+    ipcRenderer.on('vst-editor-closed', sub)
+    return () => { ipcRenderer.removeListener('vst-editor-closed', sub) }
+  },
 
   // Recording
   saveRecording: (outputPath: string, arrayBuffer: ArrayBuffer) => ipcRenderer.invoke('save-recording', outputPath, arrayBuffer),
