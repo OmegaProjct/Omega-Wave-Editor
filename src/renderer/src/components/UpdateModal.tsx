@@ -51,15 +51,15 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
     return `${mins}m ${secs}s`
   }
 
-  // HandBrake-style Markdown-Parser for changelogs
+  // HandBrake-style Markdown-Parser for changelogs with prominent text sizes
   const renderFormattedChangelog = (text: string) => {
-    if (!text) return <p className="text-xs text-gray-500 italic">Keine Details für dieses Update verfügbar.</p>;
+    if (!text) return <p className="text-sm text-gray-500 italic">Keine Details für dieses Update verfügbar.</p>;
     
     const lines = text.split('\n');
     return lines.map((line, idx) => {
       // Horizontal lines / separators between releases
       if (line.trim() === '---') {
-        return <div key={idx} className="border-t border-gray-800/80 my-5" />;
+        return <div key={idx} className="border-t border-gray-800/85 my-6" />;
       }
       
       // Headers (Level 1-6)
@@ -70,29 +70,29 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
         
         if (level === 2) {
           return (
-            <h3 key={idx} className="text-white font-extrabold text-sm mt-6 mb-3 first:mt-0 border-b border-gray-800/80 pb-2 select-none tracking-tight">
+            <h3 key={idx} className="text-white font-black text-lg mt-7 mb-4 first:mt-0 border-b border-gray-800/80 pb-2 select-none tracking-tight">
               {content}
             </h3>
           );
         }
         if (level === 3) {
           return (
-            <h4 key={idx} className="text-omega-accent font-bold text-xs uppercase tracking-wider mt-5 mb-2 flex items-center gap-1.5 select-none">
-              <span className="w-1.5 h-1.5 bg-omega-accent rounded-sm inline-block"></span>
+            <h4 key={idx} className="text-omega-accent font-extrabold text-sm uppercase tracking-wider mt-6 mb-3 flex items-center gap-1.5 select-none">
+              <span className="w-1.5 h-1.5 bg-omega-accent rounded-sm inline-block animate-pulse"></span>
               {content}
             </h4>
           );
         }
         if (level === 4) {
           return (
-            <h5 key={idx} className="text-gray-100 font-bold text-xs mt-3.5 mb-2 border-l-2 border-omega-accent/60 pl-2 select-none">
+            <h5 key={idx} className="text-gray-100 font-bold text-sm mt-4.5 mb-2.5 border-l-2 border-omega-accent/60 pl-2 select-none">
               {content}
             </h5>
           );
         }
         // Fallback for Level 1 or other levels
         return (
-          <h2 key={idx} className="text-white font-black text-base mt-6 mb-3 first:mt-0">
+          <h2 key={idx} className="text-white font-black text-xl mt-8 mb-4 first:mt-0">
             {content}
           </h2>
         );
@@ -105,18 +105,18 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
         
         if (categoryMatch) {
           return (
-            <li key={idx} className="list-none pl-4 relative text-xs text-gray-200 mb-2 leading-relaxed flex items-start gap-1">
-              <span className="text-omega-accent select-none mt-0.5 font-bold">•</span>
+            <li key={idx} className="list-none pl-4 relative text-sm text-gray-200 mb-2 leading-relaxed flex items-start gap-1.5">
+              <span className="text-omega-accent select-none mt-1.5 font-bold text-xs">•</span>
               <div>
-                <strong className="text-white font-bold">{categoryMatch[1]}:</strong> {categoryMatch[2]}
+                <strong className="text-white font-extrabold">{categoryMatch[1]}:</strong> {categoryMatch[2]}
               </div>
             </li>
           );
         }
         
         return (
-          <li key={idx} className="list-none pl-4 relative text-xs text-gray-200 mb-2 leading-relaxed flex items-start gap-1">
-            <span className="text-omega-accent select-none mt-0.5 font-bold">•</span>
+          <li key={idx} className="list-none pl-4 relative text-sm text-gray-200 mb-2 leading-relaxed flex items-start gap-1.5">
+            <span className="text-omega-accent select-none mt-1.5 font-bold text-xs">•</span>
             <span>{content}</span>
           </li>
         );
@@ -124,12 +124,12 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
       
       // Empty spaces
       if (line.trim() === '') {
-        return <div key={idx} className="h-2" />;
+        return <div key={idx} className="h-3" />;
       }
       
       // Default text lines
       return (
-        <p key={idx} className="text-xs text-gray-355 mb-2 leading-relaxed">
+        <p key={idx} className="text-sm text-gray-300 mb-2 leading-relaxed">
           {line}
         </p>
       );
@@ -220,30 +220,29 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
 
         {/* Content */}
         <div className="p-6 flex-1 flex flex-col items-center">
-          
           {step === 'prompt' && (
             <div className="flex flex-col items-center gap-4 w-full">
-              <div className="h-14 w-14 bg-omega-accent/10 rounded-full flex items-center justify-center text-omega-accent">
-                <Download size={28} />
+              <div className="h-16 w-16 bg-omega-accent/10 rounded-full flex items-center justify-center text-omega-accent shadow-lg shadow-omega-accent/5">
+                <Download size={32} />
               </div>
-              <div className="flex flex-col gap-1 text-center">
-                <h3 className="font-bold text-base text-white">Ein neues Update ist verfügbar!</h3>
-                <p className="text-xs text-gray-400">Omega Wave Editor {updateInfo.latestVersion.startsWith('v') ? updateInfo.latestVersion : `v${updateInfo.latestVersion}`}</p>
+              <div className="flex flex-col gap-1.5 text-center">
+                <h3 className="font-black text-xl text-white tracking-tight">Ein neues Update ist verfügbar!</h3>
+                <p className="text-sm text-gray-400 font-semibold">Omega Wave Editor {updateInfo.latestVersion.startsWith('v') ? updateInfo.latestVersion : `v${updateInfo.latestVersion}`}</p>
               </div>
 
               {/* Version overview and HandBrake changelog */}
-              <div className="w-full bg-[#16181b]/80 border border-gray-800/80 rounded-lg p-4.5 text-xs text-left text-gray-300 mt-2 flex flex-col gap-2.5 font-sans shadow-inner">
+              <div className="w-full bg-[#16181b]/80 border border-gray-800/80 rounded-lg p-5 text-sm text-left text-gray-305 mt-2 flex flex-col gap-3 font-sans shadow-inner">
                 <div className="flex justify-between items-center border-b border-gray-800/40 pb-2.5">
                   <span className="text-gray-400 font-semibold">Installierte Version:</span>
-                  <span className="font-mono text-white font-semibold">{updateInfo.currentVersion.startsWith('v') ? updateInfo.currentVersion : `v${updateInfo.currentVersion}`}</span>
+                  <span className="font-mono text-white font-bold">{updateInfo.currentVersion.startsWith('v') ? updateInfo.currentVersion : `v${updateInfo.currentVersion}`}</span>
                 </div>
                 <div className="flex justify-between items-center border-b border-gray-800/40 pb-2.5">
                   <span className="text-gray-400 font-semibold">Neueste Version:</span>
-                  <span className="font-mono text-green-400 font-semibold">{updateInfo.latestVersion.startsWith('v') ? updateInfo.latestVersion : `v${updateInfo.latestVersion}`}</span>
+                  <span className="font-mono text-green-400 font-extrabold">{updateInfo.latestVersion.startsWith('v') ? updateInfo.latestVersion : `v${updateInfo.latestVersion}`}</span>
                 </div>
                 
                 {/* Scrollable Changelog box */}
-                <div className="max-h-[380px] overflow-y-auto pr-1 leading-normal text-gray-200 custom-scrollbar select-text mt-1.5">
+                <div className="max-h-[380px] overflow-y-auto pr-2 leading-normal text-gray-200 custom-scrollbar select-text mt-2">
                   {renderFormattedChangelog(updateInfo.body || '')}
                 </div>
               </div>
@@ -308,21 +307,21 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
 
           {step === 'ready' && (
             <div className="flex flex-col items-center gap-4 w-full">
-              <div className="h-14 w-14 bg-green-500/10 rounded-full flex items-center justify-center text-green-400">
-                <CheckCircle size={28} />
+              <div className="h-16 w-16 bg-green-500/10 rounded-full flex items-center justify-center text-green-400 shadow-lg shadow-green-550/5">
+                <CheckCircle size={32} />
               </div>
-              <div className="flex flex-col gap-1 text-center">
-                <h3 className="font-bold text-base text-white">Download abgeschlossen!</h3>
-                <p className="text-xs text-gray-400">Das Update für {updateInfo.latestVersion.startsWith('v') ? updateInfo.latestVersion : `v${updateInfo.latestVersion}`} ist bereit zur Installation.</p>
+              <div className="flex flex-col gap-1.5 text-center">
+                <h3 className="font-black text-xl text-white tracking-tight">Download abgeschlossen!</h3>
+                <p className="text-sm text-gray-400 font-semibold">Das Update für {updateInfo.latestVersion.startsWith('v') ? updateInfo.latestVersion : `v${updateInfo.latestVersion}`} ist bereit zur Installation.</p>
               </div>
-              <p className="text-xs text-gray-355 px-4 leading-relaxed mt-1 text-center">
+              <p className="text-sm text-gray-300 px-4 leading-relaxed mt-1 text-center">
                 Möchtest du das Update jetzt installieren (die App wird sofort neu gestartet) oder soll die Installation erst beim nächsten Beenden der App ausgeführt werden?
               </p>
 
               {/* Changelog viewable in Ready step */}
               {updateInfo.body && (
-                <div className="w-full bg-[#16181b]/50 border border-gray-800/40 rounded-lg p-4 text-xs text-left text-gray-400 mt-3 flex flex-col gap-1.5 max-h-[220px] overflow-y-auto select-text shadow-inner">
-                  <div className="text-[9px] uppercase font-bold text-gray-500 border-b border-gray-800/40 pb-1 mb-1.5 select-none">Neue Features in diesem Update:</div>
+                <div className="w-full bg-[#16181b]/50 border border-gray-800/40 rounded-lg p-5 text-sm text-left text-gray-300 mt-3 flex flex-col gap-2 max-h-[220px] overflow-y-auto select-text shadow-inner">
+                  <div className="text-[10px] uppercase font-bold text-gray-500 border-b border-gray-800/40 pb-1 mb-2 select-none">Neue Features in diesem Update:</div>
                   {renderFormattedChangelog(updateInfo.body)}
                 </div>
               )}
@@ -331,14 +330,14 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
 
           {step === 'error' && (
             <div className="flex flex-col items-center gap-4 w-full">
-              <div className="h-14 w-14 bg-red-500/10 rounded-full flex items-center justify-center text-red-400">
-                <AlertTriangle size={28} />
+              <div className="h-16 w-16 bg-red-500/10 rounded-full flex items-center justify-center text-red-400 shadow-lg shadow-red-550/5">
+                <AlertTriangle size={32} />
               </div>
-              <div className="flex flex-col gap-1 text-center">
-                <h3 className="font-bold text-base text-white">Update fehlgeschlagen</h3>
-                <p className="text-xs text-gray-400">Fehler beim Downloaden des Updates.</p>
+              <div className="flex flex-col gap-1.5 text-center">
+                <h3 className="font-black text-xl text-white tracking-tight">Update fehlgeschlagen</h3>
+                <p className="text-sm text-gray-400 font-semibold">Fehler beim Downloaden des Updates.</p>
               </div>
-              <div className="w-full bg-[#1b1e22] border border-red-900/20 text-red-400 rounded-lg p-3.5 text-center mt-2 leading-relaxed font-mono text-[10px]">
+              <div className="w-full bg-[#1b1e22] border border-red-900/20 text-red-400 rounded-lg p-4 text-center mt-2 leading-relaxed font-mono text-xs shadow-inner">
                 {errorMessage}
               </div>
             </div>
@@ -352,13 +351,13 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
             <>
               <button 
                 onClick={() => onClose(false)} 
-                className="px-5 py-2 bg-gray-800 hover:bg-gray-700 text-white text-xs font-semibold rounded-lg border border-gray-700/50 shadow transition-all duration-150 active:scale-[0.98]"
+                className="px-6 py-2.5 bg-gray-800 hover:bg-gray-700 text-white text-xs font-semibold rounded-lg border border-gray-700/50 shadow transition-all duration-150 active:scale-[0.98]"
               >
                 Später
               </button>
               <button 
                 onClick={handleStartDownload} 
-                className="px-6 py-2 bg-omega-accent hover:bg-blue-500 text-white text-xs font-bold rounded-lg shadow-lg hover:shadow-omega-accent/20 transition-all duration-150 active:scale-[0.98]"
+                className="px-8 py-2.5 bg-omega-accent hover:bg-blue-500 text-white text-xs font-bold rounded-lg shadow-lg hover:shadow-omega-accent/20 transition-all duration-150 active:scale-[0.98]"
               >
                 Jetzt herunterladen
               </button>
@@ -366,20 +365,20 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
           )}
 
           {step === 'downloading' && (
-            <span className="text-[10px] text-gray-500 italic pr-2 flex items-center">Download läuft im Hintergrund...</span>
+            <span className="text-xs text-gray-500 italic pr-2 flex items-center">Download läuft im Hintergrund...</span>
           )}
 
           {step === 'ready' && (
             <>
               <button 
                 onClick={handleInstallLater} 
-                className="px-5 py-2 bg-gray-800 hover:bg-gray-700 text-white text-xs font-semibold rounded-lg border border-gray-700/50 shadow transition-all duration-150 active:scale-[0.98]"
+                className="px-6 py-2.5 bg-gray-800 hover:bg-gray-700 text-white text-xs font-semibold rounded-lg border border-gray-700/50 shadow transition-all duration-150 active:scale-[0.98]"
               >
                 Nach Neustart
               </button>
               <button 
                 onClick={handleInstallNow} 
-                className="px-6 py-2 bg-omega-accent hover:bg-blue-500 text-white text-xs font-bold rounded-lg shadow-lg hover:shadow-omega-accent/20 transition-all duration-150 active:scale-[0.98]"
+                className="px-8 py-2.5 bg-omega-accent hover:bg-blue-500 text-white text-xs font-bold rounded-lg shadow-lg hover:shadow-omega-accent/20 transition-all duration-150 active:scale-[0.98]"
               >
                 Jetzt installieren
               </button>
@@ -390,13 +389,13 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
             <>
               <button 
                 onClick={handleStartDownload} 
-                className="px-5 py-2 bg-omega-accent hover:bg-blue-500 text-white text-xs font-semibold rounded-lg shadow transition-all duration-150 active:scale-[0.98]"
+                className="px-6 py-2.5 bg-omega-accent hover:bg-blue-500 text-white text-xs font-semibold rounded-lg shadow transition-all duration-150 active:scale-[0.98]"
               >
                 Wiederholen
               </button>
               <button 
                 onClick={() => onClose(false)} 
-                className="px-5 py-2 bg-gray-800 hover:bg-gray-700 text-white text-xs font-semibold rounded-lg border border-gray-700/50 shadow transition-all duration-150 active:scale-[0.98]"
+                className="px-6 py-2.5 bg-gray-800 hover:bg-gray-700 text-white text-xs font-semibold rounded-lg border border-gray-700/50 shadow transition-all duration-150 active:scale-[0.98]"
               >
                 Schließen
               </button>

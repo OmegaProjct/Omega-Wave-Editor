@@ -18,6 +18,7 @@ interface Window {
     closeVstEditor: () => Promise<{ success: boolean }>;
     unloadVstPlugin: () => Promise<{ success: boolean }>;
     onVstEditorClosed: (callback: () => void) => () => void;
+    onVstNativeEditorClosed: (callback: () => void) => () => void;
     readFileBuffer: (path: string) => Promise<any>;
     getHomeDir: () => Promise<string>;
     fileExists: (filePath: string) => Promise<boolean>;
@@ -59,6 +60,8 @@ interface Window {
     installUpdate: (payload: { installNow: boolean }) => Promise<{ success: boolean; error?: string; deferred?: boolean }>;
     onDownloadProgress: (callback: (data: any) => void) => () => void;
     getPerformanceStats: () => Promise<{ cpuUsage: number, processRamBytes: number, systemRamPct: number, systemCpuPct: number }>;
+    getLocales: () => Promise<any>;
+    saveLocale: (lang: string, content: any) => Promise<{ success: boolean; error?: string }>;
     openExportSettings: (tracks: any, selection?: any, exportSettings?: any) => void;
     getExportTracks: () => Promise<{ tracks: any[]; selection: any; exportSettings: any } | null>;
     updateExportSettings: (settings: any) => void;

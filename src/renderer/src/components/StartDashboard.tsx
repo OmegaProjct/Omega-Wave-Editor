@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Plus, FolderOpen, FileText, Settings, X, Calendar, Music, HelpCircle } from 'lucide-react'
 import appIcon from '../assets/app_icon.png'
+import { useTranslation } from 'react-i18next'
 
 interface StartDashboardProps {
   onNewProject: (config: { projectName: string; sampleRate: number; tracksCount: number }) => void
@@ -17,6 +18,7 @@ export function StartDashboard({
   onClose,
   onOpenSettings
 }: StartDashboardProps) {
+  const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState<'new' | 'load'>('new')
   const [showAgain, setShowAgain] = useState(true)
   const [recentProjects, setRecentProjects] = useState<any[]>([])
@@ -65,7 +67,7 @@ export function StartDashboard({
     return fullPath
   }
 
-  // Deutsches relatives Datumsformatting exakt nach professionellem DAW-Stil
+  // Relative Date Formatting in DAW Style
   const formatGermanRelativeDate = (timestamp: number) => {
     if (!timestamp) return ''
     const now = Date.now()
@@ -82,17 +84,27 @@ export function StartDashboard({
     if (isToday) {
       if (diffMins < 60) {
         const mins = Math.max(1, diffMins)
-        return `Heute, vor ${mins}min, ${dateStr} um ${timeStr}`
+        return t('dashboard.relative_date.today_ago', { defaultValue: 'Heute, vor {{mins}}min, {{date}} um {{time}}', mins, date: dateStr, time: timeStr })
       }
-      return `Heute, ${dateStr} um ${timeStr}`
+      return t('dashboard.relative_date.today', { defaultValue: 'Heute, {{date}} um {{time}}', date: dateStr, time: timeStr })
     }
     
     const months = [
-      'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
-      'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'
+      t('months.january', { defaultValue: 'Januar' }),
+      t('months.february', { defaultValue: 'Februar' }),
+      t('months.march', { defaultValue: 'März' }),
+      t('months.april', { defaultValue: 'April' }),
+      t('months.may', { defaultValue: 'Mai' }),
+      t('months.june', { defaultValue: 'Juni' }),
+      t('months.july', { defaultValue: 'Juli' }),
+      t('months.august', { defaultValue: 'August' }),
+      t('months.september', { defaultValue: 'September' }),
+      t('months.october', { defaultValue: 'Oktober' }),
+      t('months.november', { defaultValue: 'November' }),
+      t('months.december', { defaultValue: 'Dezember' })
     ]
     const monthName = months[dateObj.getMonth()]
-    return `${monthName}, ${dateStr} um ${timeStr}`
+    return t('dashboard.relative_date.full', { defaultValue: '{{month}}, {{date}} um {{time}}', month: monthName, date: dateStr, time: timeStr })
   }
 
   const handleCreateProject = () => {
@@ -110,7 +122,9 @@ export function StartDashboard({
         {/* Title Bar (Branding analog zu professionellen DAWs) */}
         <div className="bg-[#1a1d21] h-10 px-4 border-b border-gray-800/80 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-2">
-            <span className="text-[14px] font-bold text-white tracking-wide">Omega Wave Editor Start Center</span>
+            <span className="text-[14px] font-bold text-white tracking-wide">
+              {t('dashboard.title', { defaultValue: 'Omega Wave Editor Start Center' })}
+            </span>
           </div>
           <button 
             onClick={onClose} 
@@ -137,7 +151,7 @@ export function StartDashboard({
                 }`}
               >
                 <Plus size={16} className={activeTab === 'new' ? 'text-omega-accent' : 'text-gray-400'} />
-                <span className="text-xs">Neues Projekt</span>
+                <span className="text-xs">{t('dashboard.new_project', { defaultValue: 'Neues Projekt' })}</span>
               </button>
 
               {/* Tab: Projekt laden */}
@@ -150,10 +164,8 @@ export function StartDashboard({
                 }`}
               >
                 <FolderOpen size={16} className={activeTab === 'load' ? 'text-omega-accent' : 'text-gray-400'} />
-                <span className="text-xs">Projekt laden</span>
+                <span className="text-xs">{t('dashboard.load_project', { defaultValue: 'Projekt laden' })}</span>
               </button>
-
-
 
             </div>
 
@@ -162,10 +174,12 @@ export function StartDashboard({
               <button 
                 onClick={onOpenSettings}
                 className="text-gray-500 hover:text-white p-1.5 rounded hover:bg-[#2d3136]/50 transition-colors flex items-center gap-2 group"
-                title="Programmeinstellungen öffnen"
+                title={t('dashboard.settings_tooltip', { defaultValue: 'Programmeinstellungen öffnen' })}
               >
                 <Settings size={16} className="group-hover:rotate-45 transition-transform duration-300" />
-                <span className="text-[10px] font-semibold text-gray-500 group-hover:text-gray-300">Einstellungen</span>
+                <span className="text-[10px] font-semibold text-gray-500 group-hover:text-gray-300">
+                  {t('dashboard.settings', { defaultValue: 'Einstellungen' })}
+                </span>
               </button>
               <span className="text-[8px] text-gray-600 font-mono">v0.2.2</span>
             </div>
@@ -179,14 +193,16 @@ export function StartDashboard({
             {activeTab === 'new' && (
               <div className="flex flex-col flex-1 overflow-hidden">
                 <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-700/40 pb-2 mb-4">
-                  Eigene Projekteinstellungen
+                  {t('dashboard.project_settings_title', { defaultValue: 'Eigene Projekteinstellungen' })}
                 </h3>
                 
                 <div className="flex flex-col gap-4 flex-1">
                   
                   {/* Name Input */}
                   <div className="flex items-center gap-4">
-                    <label className="text-xs font-medium text-gray-400 w-24 text-right">Projektname:</label>
+                    <label className="text-xs font-medium text-gray-400 w-24 text-right">
+                      {t('dashboard.project_name', { defaultValue: 'Projektname:' })}
+                    </label>
                     <input 
                       type="text" 
                       value={projectName}
@@ -197,7 +213,9 @@ export function StartDashboard({
 
                   {/* Sample Rate Dropdown */}
                   <div className="flex items-center gap-4">
-                    <label className="text-xs font-medium text-gray-400 w-24 text-right">Samplerate:</label>
+                    <label className="text-xs font-medium text-gray-400 w-24 text-right">
+                      {t('dashboard.sample_rate', { defaultValue: 'Samplerate:' })}
+                    </label>
                     <select 
                       value={sampleRate}
                       onChange={(e) => setSampleRate(Number(e.target.value))}
@@ -211,22 +229,26 @@ export function StartDashboard({
 
                   {/* Spurenanzahl Dropdown */}
                   <div className="flex items-center gap-4">
-                    <label className="text-xs font-medium text-gray-400 w-24 text-right">Spuren:</label>
+                    <label className="text-xs font-medium text-gray-400 w-24 text-right">
+                      {t('dashboard.tracks', { defaultValue: 'Spuren:' })}
+                    </label>
                     <select 
                       value={tracksCount}
                       onChange={(e) => setTracksCount(Number(e.target.value))}
                       className="w-[200px] px-2.5 py-1.5 bg-[#1a1d21] border border-gray-700/60 rounded text-xs text-white focus:outline-none focus:border-omega-accent"
                     >
-                      <option value={4}>4 Spuren</option>
-                      <option value={8}>8 Spuren</option>
-                      <option value={16}>16 Spuren</option>
-                      <option value={32}>32 Spuren</option>
+                      <option value={4}>{t('dashboard.tracks_count', { defaultValue: '{{count}} Spuren', count: 4 })}</option>
+                      <option value={8}>{t('dashboard.tracks_count', { defaultValue: '{{count}} Spuren', count: 8 })}</option>
+                      <option value={16}>{t('dashboard.tracks_count', { defaultValue: '{{count}} Spuren', count: 16 })}</option>
+                      <option value={32}>{t('dashboard.tracks_count', { defaultValue: '{{count}} Spuren', count: 32 })}</option>
                     </select>
                   </div>
 
                   {/* Projektordner Pfadanzeige */}
                   <div className="flex items-center gap-4 mt-2">
-                    <label className="text-xs font-medium text-gray-400 w-24 text-right">Projektordner:</label>
+                    <label className="text-xs font-medium text-gray-400 w-24 text-right">
+                      {t('dashboard.project_folder', { defaultValue: 'Projektordner:' })}
+                    </label>
                     <span className="text-[11px] text-gray-500 font-mono bg-[#1a1d21]/45 px-2 py-1 border border-gray-800 rounded select-text max-w-md truncate">
                       {defaultProjectsDir || 'C:\\Users\\Dave1\\Documents\\OmegaProjects\\Omega Wave Editor\\Projects'}
                     </span>
@@ -242,7 +264,7 @@ export function StartDashboard({
                         className="rounded border-gray-700 bg-[#1a1d21] text-omega-accent focus:ring-omega-accent/30 focus:ring-offset-0 focus:ring-1 h-3.5 w-3.5"
                       />
                       <span className="text-[11px] font-medium text-gray-400 hover:text-gray-200 transition-colors">
-                        Medien in Projektordner kopieren
+                        {t('dashboard.copy_media', { defaultValue: 'Medien in Projektordner kopieren' })}
                       </span>
                     </label>
                   </div>
@@ -255,7 +277,7 @@ export function StartDashboard({
                     onClick={handleCreateProject}
                     className="px-6 py-2 bg-omega-accent hover:bg-blue-500 text-white font-bold text-xs rounded transition-all duration-150 active:scale-[0.98] shadow-lg hover:shadow-omega-accent/15"
                   >
-                    Projekt erstellen
+                    {t('dashboard.create_project', { defaultValue: 'Projekt erstellen' })}
                   </button>
                 </div>
               </div>
@@ -268,21 +290,21 @@ export function StartDashboard({
                 {/* Vorhandenes Projekt Sektion */}
                 <div className="flex justify-between items-center border-b border-gray-700/40 pb-3 mb-4 flex-shrink-0">
                   <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">
-                    Vorhandenes Projekt öffnen
+                    {t('dashboard.open_existing_title', { defaultValue: 'Vorhandenes Projekt öffnen' })}
                   </h3>
                   <button 
                     onClick={onOpenProject}
                     className="px-4 py-1.5 bg-[#40454d] hover:bg-[#4d525c] border border-gray-600/45 text-white rounded text-xs font-semibold transition-colors flex items-center gap-2"
                   >
                     <FolderOpen size={12} className="text-omega-accent" />
-                    Öffnen...
+                    {t('dashboard.open_button', { defaultValue: 'Öffnen...' })}
                   </button>
                 </div>
 
                 {/* Zuletzt geöffnete Projekte */}
                 <div className="flex-1 overflow-hidden flex flex-col min-h-0">
                   <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">
-                    Zuletzt geöffnete Projekte
+                    {t('dashboard.recent_projects_title', { defaultValue: 'Zuletzt geöffnete Projekte' })}
                   </h4>
                   
                   {recentProjects.length === 0 ? (
@@ -291,8 +313,12 @@ export function StartDashboard({
                         <Music size={18} />
                       </div>
                       <div className="flex flex-col gap-0.5">
-                        <span className="text-xs font-semibold text-gray-400">Keine letzten Projekte</span>
-                        <span className="text-[10px] text-gray-500 max-w-[240px] leading-relaxed">Hier werden deine zuletzt bearbeiteten Audioprojekte angezeigt.</span>
+                        <span className="text-xs font-semibold text-gray-400">
+                          {t('dashboard.no_recent_projects', { defaultValue: 'Keine letzten Projekte' })}
+                        </span>
+                        <span className="text-[10px] text-gray-500 max-w-[240px] leading-relaxed">
+                          {t('dashboard.no_recent_projects_desc', { defaultValue: 'Hier werden deine zuletzt bearbeiteten Audioprojekte angezeigt.' })}
+                        </span>
                       </div>
                     </div>
                   ) : (
@@ -309,7 +335,7 @@ export function StartDashboard({
                             </div>
                             <div className="flex flex-col text-left overflow-hidden">
                               <span className="text-xs font-bold text-gray-200 group-hover:text-white transition-colors truncate">
-                                {proj.name || 'Unbenanntes Projekt'}
+                                {proj.name || t('dashboard.untitled_project', { defaultValue: 'Unbenanntes Projekt' })}
                               </span>
                               <span className="text-[9px] text-gray-500 mt-0.5 font-mono truncate select-text">
                                 {formatPath(proj.path)}
@@ -339,7 +365,7 @@ export function StartDashboard({
                   className="rounded border-gray-700 bg-[#1a1d21] text-omega-accent focus:ring-omega-accent/30 focus:ring-offset-0 focus:ring-1 h-3.5 w-3.5"
                 />
                 <span className="text-[11px] font-semibold text-gray-400 hover:text-gray-200 transition-colors">
-                  Beim Starten nicht noch einmal anzeigen
+                  {t('dashboard.dont_show_again', { defaultValue: 'Beim Starten nicht noch einmal anzeigen' })}
                 </span>
               </label>
 
@@ -347,7 +373,7 @@ export function StartDashboard({
                 onClick={onClose}
                 className="px-4 py-1.5 bg-[#2d3136] hover:bg-[#34383e] border border-gray-700/50 text-gray-300 hover:text-white rounded text-xs font-semibold transition-colors shadow"
               >
-                Überspringen
+                {t('dashboard.skip', { defaultValue: 'Überspringen' })}
               </button>
             </div>
 

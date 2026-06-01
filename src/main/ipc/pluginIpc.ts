@@ -316,7 +316,13 @@ export function launchNativeBridgeSubprocess(
     `;
 
     try {
-      const child = spawn(process.execPath || 'node', ['-e', bridgeScript]);
+      const exe = process.execPath || 'node';
+      const child = spawn(exe, ['-e', bridgeScript], {
+        env: {
+          ...process.env,
+          ELECTRON_RUN_AS_NODE: '1'
+        }
+      });
       let resolved = false;
 
       // Setup a timeout for the handshake

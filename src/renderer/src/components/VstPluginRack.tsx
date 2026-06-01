@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
-import { RotateCcw, Power, Trash2, Sliders, Play, Plus, Check, HelpCircle } from 'lucide-react'
+import { RotateCcw, Power, Trash2, Sliders, Play, Plus, Check, HelpCircle, ExternalLink, ChevronDown, ChevronRight } from 'lucide-react'
 import { MidiEngine } from '../lib/MidiEngine'
+import { useTranslation } from 'react-i18next'
 
 export interface VstParameter {
   name: string
@@ -52,31 +53,65 @@ const getInitialParams = (category: string): VstParameter[] => {
 }
 
 export function VstPluginRack({ scanList }: { scanList: any[] }) {
+  const { t } = useTranslation()
   const [rackPlugins, setRackPlugins] = useState<LoadedVst[]>([])
   const [selectedPluginToLoad, setSelectedPluginToLoad] = useState<string>('')
   const [learningParam, setLearningParam] = useState<{ pluginId: string; paramIndex: number } | null>(null)
   const [vstMappings, setVstMappings] = useState<any[]>([])
+  const [searchQuery, setSearchQuery] = useState<string>('')
+  const [collapsedPluginIds, setCollapsedPluginIds] = useState<Record<string, boolean>>({})
+
+  const handleTogglePluginCheckbox = (vst: any) => {
+    const isLoaded = rackPlugins.some(p => p.id === vst.id)
+    if (isLoaded) {
+      handleRemovePlugin(vst.id)
+    } else {
+      const newLoaded: LoadedVst = {
+        id: vst.id,
+        name: vst.name,
+        manufacturer: vst.manufacturer || 'Unbekannt',
+        format: vst.format || 'VST3',
+        category: vst.category || 'Effekt',
+        path: vst.path,
+        active: true,
+        parameters: getInitialParams(vst.category || 'Effekt')
+      }
+      saveRackState([...rackPlugins, newLoaded])
+    }
+  }
 
   // Lade Mappings & Rack-Plugins beim Mount
   useEffect(() => {
     setVstMappings(MidiEngine.getVstMappings())
 
-    const savedRack = localStorage.getItem('vst_rack_plugins')
-    if (savedRack) {
-      try {
-        setRackPlugins(JSON.parse(savedRack))
-      } catch (e) {
-        console.error('Failed to load VST rack state:', e)
+    const loadRackState = () => {
+      const savedRack = localStorage.getItem('vst_rack_plugins')
+      if (savedRack) {
+        try {
+          setRackPlugins(JSON.parse(savedRack))
+        } catch (e) {
+          console.error('Failed to load VST rack state:', e)
+        }
       }
     }
+
+    loadRackState()
 
     const handleSettingsUpdated = () => {
       setVstMappings(MidiEngine.getVstMappings())
     }
 
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'vst_rack_plugins' || e.key === 'vst_rack_updated_trigger') {
+        loadRackState()
+      }
+    }
+
     window.addEventListener('SETTINGS_UPDATED', handleSettingsUpdated)
+    window.addEventListener('storage', handleStorageChange)
     return () => {
       window.removeEventListener('SETTINGS_UPDATED', handleSettingsUpdated)
+      window.removeEventListener('storage', handleStorageChange)
     }
   }, [])
 
@@ -230,16 +265,156 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
     return vstMappings.find(m => m.pluginId === pluginId && m.paramIndex === paramIndex)
   }
 
+  const isPopout = new URLSearchParams(window.location.search).get('window') === 'vst-rack'
   const isScanningLoading = scanList.length === 0
+
+  if (!isPopout) {
+    const filteredPlugins = scanList.filter(vst =>
+      vst.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (vst.category || '').toLowerCase().includes(searchQuery.toLowerCase())
+    )
+
+    return (
+      <div className="flex flex-col h-full bg-[#1e2124] text-omega-text select-none overflow-hidden font-sans">
+        {/* Symmetrical 3-Part Header Toolbar */}
+        <div 
+          onDoubleClick={() => window.api.openPopoutWindow('vst-rack', { width: 900, height: 750, title: 'VST Rack - DSP Signal Chain' })}
+          className="p-3 border-b border-gray-700/80 bg-[#1a1d21]/60 flex items-center justify-between gap-3 flex-shrink-0 cursor-pointer hover:bg-[#1a1d21]/80 select-none transition-colors"
+          title="Doppelklick zum Ausdocken des VST Racks in ein separates Fenster"
+        >
+          {/* Left: Title */}
+          <div className="w-1/3 min-w-[150px]">
+            <h2 className="text-xs font-bold text-gray-200 uppercase tracking-wider flex items-center gap-1.5">
+              🎛️ VST Rack
+            </h2>
+            <p className="text-[9px] text-gray-500 mt-0.5">
+              Plugin-Verwaltung
+            </p>
+          </div>
+
+          {/* Center: Outdock Button */}
+          <div className="w-1/3 flex justify-center" onClick={e => e.stopPropagation()}>
+            <button
+              onClick={() => window.api.openPopoutWindow('vst-rack', { width: 900, height: 750, title: 'VST Rack - DSP Signal Chain' })}
+              className="h-8 px-3.5 bg-omega-accent/15 hover:bg-omega-accent hover:text-white border border-omega-accent/60 rounded-lg text-omega-accent font-extrabold text-[11px] flex items-center gap-1.5 transition-all shadow active:scale-[0.97] cursor-pointer"
+              title="VST-Rack im separaten Studio-Fenster öffnen"
+            >
+              <ExternalLink size={12} className="stroke-[2.5]" />
+              <span>Studio öffnen</span>
+            </button>
+          </div>
+
+          {/* Right: Search Input bar */}
+          <div className="w-1/3 flex justify-end" onClick={e => e.stopPropagation()}>
+            <div className="relative w-44 sm:w-56">
+              <input
+                type="text"
+                placeholder="Nach Plugins suchen..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full py-1.5 pl-8 pr-3 text-[11px] bg-[#101214] border border-gray-750 rounded-lg text-gray-250 outline-none focus:border-omega-accent transition-colors"
+              />
+              <span className="absolute left-2.5 top-2 text-[10px] text-gray-500">🔍</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Grid List of Checklist Plugins */}
+        <div className="flex-1 overflow-y-auto p-4 bg-[#141619] space-y-4">
+          {isScanningLoading ? (
+            <div className="flex flex-col items-center justify-center h-48 text-center">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-omega-accent mx-auto"></div>
+              <p className="text-xs text-gray-500 mt-3 uppercase tracking-wider font-semibold">Scanne VST-Datenbank...</p>
+            </div>
+          ) : filteredPlugins.length === 0 ? (
+            <div className="text-center p-8 border-2 border-dashed border-gray-800 rounded-2xl">
+              <p className="text-xs text-gray-500">Keine Plugins gefunden, die auf deine Suche passen.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              {filteredPlugins.map(vst => {
+                const isLoaded = rackPlugins.some(p => p.id === vst.id)
+                const isInstrument = vst.category?.toLowerCase().includes('instrument')
+
+                return (
+                  <div
+                    key={vst.id}
+                    onClick={() => handleTogglePluginCheckbox(vst)}
+                    className={`p-3.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all duration-300 ${
+                      isLoaded
+                        ? 'bg-omega-accent/10 border-omega-accent/70 shadow-[0_0_12px_rgba(0,122,204,0.12)]'
+                        : 'bg-[#1b1e22]/50 border-gray-800 hover:border-gray-700 hover:bg-[#1b1e22]/80'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      {/* Checkbox Icon */}
+                      <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${
+                        isLoaded
+                          ? 'bg-omega-accent border-omega-accent text-white shadow-[0_0_8px_rgba(0,122,204,0.4)]'
+                          : 'border-gray-700 bg-black/30'
+                      }`}>
+                        {isLoaded && <Check size={12} className="stroke-[3]" />}
+                      </div>
+
+                      {/* Info */}
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs font-bold truncate ${isLoaded ? 'text-omega-accent' : 'text-gray-200'}`}>
+                            {vst.name}
+                          </span>
+                          <span className="text-[7px] bg-gray-800 text-omega-accent font-bold px-1.5 py-0.5 rounded font-mono uppercase tracking-wider">
+                            {vst.format || 'VST3'}
+                          </span>
+                        </div>
+                        <span className="text-[9px] text-gray-500 font-mono block mt-0.5">
+                          {isInstrument ? '🎹' : '🔌'} {vst.category || 'Effekt'} von {vst.manufacturer || 'Dritthersteller'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="p-3 border-t border-gray-700 bg-[#1a1d21]/60 flex items-center justify-between text-[10px] text-gray-650 flex-shrink-0">
+          <div className="flex items-center gap-1.5">
+            <Sliders size={12} className="text-gray-500" />
+            <span>Aktive Plugins: {rackPlugins.length} im Signalweg geladen</span>
+          </div>
+          <span className="font-mono">Manager v0.8.7</span>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col h-full bg-[#1e2124] text-omega-text select-none overflow-hidden">
       
       {/* Top Controls Toolbar */}
-      <div className="p-4 border-b border-gray-700/80 bg-[#1a1d21]/60 flex flex-wrap gap-3 items-center justify-between flex-shrink-0">
+      <div 
+        onDoubleClick={() => {
+          if (!isPopout) {
+            window.api.openPopoutWindow('vst-rack', { width: 900, height: 750, title: 'VST Rack - DSP Signal Chain' })
+          }
+        }}
+        className="p-4 border-b border-gray-700/80 bg-[#1a1d21]/60 flex flex-wrap gap-3 items-center justify-between flex-shrink-0 cursor-pointer hover:bg-[#1a1d21]/80 select-none transition-colors"
+        title={!isPopout ? 'Doppelklick zum Ausdocken des VST Racks' : undefined}
+      >
         <div>
           <h2 className="text-sm font-bold text-gray-200 uppercase tracking-wider flex items-center gap-1.5">
             🎛️ VST Rack — DSP Signal Chain
+            {!isPopout && (
+              <button
+                onClick={() => window.api.openPopoutWindow('vst-rack', { width: 900, height: 750, title: 'VST Rack - DSP Signal Chain' })}
+                className="p-1 hover:bg-gray-800 rounded transition-colors text-omega-accent hover:text-white"
+                title="In separatem Fenster öffnen (Popout)"
+              >
+                <ExternalLink size={12} />
+              </button>
+            )}
           </h2>
           <p className="text-[10px] text-gray-500 mt-0.5">
             Verketten Sie Effekte & Synths. Mappen Sie Regler in Echtzeit über MIDI Learn.
@@ -254,7 +429,7 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
             disabled={isScanningLoading}
             className="py-1.5 px-3 text-xs bg-[#101214] border border-gray-600 outline-none rounded-lg text-omega-accent font-medium cursor-pointer focus:border-omega-accent transition-colors disabled:opacity-40"
           >
-            <option value="">+ Plugin in Rack laden...</option>
+            <option value="">+ {t('vst_rack.load_placeholder', { defaultValue: 'Plugin in Rack laden...' })}</option>
             {scanList.map(vst => (
               <option key={vst.id} value={vst.id}>
                 {vst.category?.toLowerCase().includes('instrument') ? '🎹' : '🔌'} {vst.name} ({vst.format})
@@ -267,7 +442,7 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
             className="h-8 px-3 bg-omega-accent hover:bg-blue-500 disabled:opacity-40 disabled:pointer-events-none rounded-lg text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-md active:scale-[0.97]"
           >
             <Plus size={13} />
-            <span>Hinzufügen</span>
+            <span>{t('vst_rack.add', { defaultValue: 'Hinzufügen' })}</span>
           </button>
         </div>
       </div>
@@ -280,14 +455,13 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
           <div className="flex flex-col items-center justify-center h-48 border-2 border-dashed border-gray-800 rounded-2xl text-center px-4 py-8">
             <span className="text-4xl filter grayscale opacity-40">🎛️</span>
             <h3 className="text-xs font-bold text-gray-400 mt-3 uppercase tracking-wider">
-              Das Rack ist leer
+              {t('vst_rack.empty_title', { defaultValue: 'Das Rack ist leer' })}
             </h3>
             <p className="text-[10px] text-gray-650 max-w-xs mt-1 leading-relaxed">
-              Wählen Sie oben ein gescanntes oder aus dem Store heruntergeladenes Plugin aus, um es dem DSP-Rack hinzuzufügen.
+              {t('vst_rack.empty_desc', { defaultValue: 'Wählen Sie oben ein gescanntes oder aus dem Store heruntergeladenes Plugin aus, um es dem DSP-Rack hinzuzufügen.' })}
             </p>
           </div>
         )}
-
         {/* Loaded Plugins List */}
         {rackPlugins.map((plugin) => (
           <div
@@ -297,13 +471,34 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
             }`}
           >
             {/* Module Header */}
-            <div className="bg-[#181a1d] px-4 py-3 border-b border-gray-750 flex items-center justify-between">
+            <div
+              onClick={() => {
+                setCollapsedPluginIds(prev => ({ ...prev, [plugin.id]: !prev[plugin.id] }))
+              }}
+              onDoubleClick={(e) => {
+                e.stopPropagation()
+                const isInst = plugin.category?.toLowerCase().includes('instrument')
+                const width = isInst ? 980 : 880
+                const height = isInst ? 640 : 440
+                localStorage.setItem('popout_vst-editor_payload', JSON.stringify({ pluginId: plugin.id }))
+                window.api.openPopoutWindow('vst-editor', { width, height, title: 'Plugin Editor - ' + plugin.name })
+              }}
+              className="bg-[#181a1d] px-4 py-3 border-b border-gray-750 flex items-center justify-between cursor-pointer hover:bg-[#1c1e22] transition-all select-none group/header animate-fade-in"
+              title={t('vst_rack.double_click_desc', { defaultValue: 'Einfacher Klick zum Ein-/Ausklappen. Doppelklick zum Öffnen des native VST-Editorfensters' })}
+            >
               <div className="flex items-center gap-3">
+                {/* Collapsible Arrow Chevron */}
+                <div className="text-gray-500 group-hover/header:text-omega-accent transition-colors mr-1">
+                  {collapsedPluginIds[plugin.id] ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                </div>
                 
                 {/* Power Switch Button with LED Glow */}
                 <button
-                  onClick={() => handleToggleActive(plugin.id)}
-                  title={plugin.active ? 'Bypass' : 'Aktivieren'}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleToggleActive(plugin.id);
+                  }}
+                  title={plugin.active ? t('vst_rack.bypass', { defaultValue: 'Bypass' }) : t('vst_rack.activate', { defaultValue: 'Aktivieren' })}
                   className={`p-2 rounded-full border transition-all duration-300 active:scale-[0.9] flex items-center justify-center ${
                     plugin.active
                       ? 'bg-omega-accent/15 border-omega-accent text-omega-accent shadow-[0_0_8px_rgba(0,122,204,0.4)]'
@@ -312,11 +507,11 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
                 >
                   <Power size={13} className="stroke-[2.5]" />
                 </button>
-
+ 
                 {/* Title */}
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-white tracking-wide">
+                    <span className="text-xs font-bold text-white tracking-wide group-hover/header:text-omega-accent transition-colors">
                       {plugin.name}
                     </span>
                     <span className="text-[8px] bg-gray-800 text-omega-accent font-bold px-1.5 py-0.5 rounded uppercase font-mono tracking-wider">
@@ -330,23 +525,22 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
               </div>
 
               {/* Header Right controls */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                 <button
-                  onClick={async () => {
-                    try {
-                      const res = await window.api.openVstUi(plugin.path)
-                      if (!res.success) alert(res.error || 'Native GUI konnte nicht geöffnet werden.')
-                    } catch (err: any) {
-                      alert('Fehler beim Öffnen: ' + err.message)
-                    }
+                  onClick={() => {
+                    const isInst = plugin.category?.toLowerCase().includes('instrument')
+                    const width = isInst ? 980 : 880
+                    const height = isInst ? 640 : 440
+                    localStorage.setItem('popout_vst-editor_payload', JSON.stringify({ pluginId: plugin.id }))
+                    window.api.openPopoutWindow('vst-editor', { width, height, title: 'Plugin Editor - ' + plugin.name })
                   }}
                   className="px-2.5 py-1 text-[10px] bg-gray-800 hover:bg-gray-700 rounded text-gray-300 font-semibold border border-gray-700/60 transition-colors"
                 >
-                  Native UI
+                  {t('vst_rack.open_ui', { defaultValue: 'Native UI' })}
                 </button>
                 <button
                   onClick={() => handleRemovePlugin(plugin.id)}
-                  title="Aus Rack löschen"
+                  title={t('vst_rack.delete_from_rack', { defaultValue: 'Aus Rack löschen' })}
                   className="p-1.5 bg-red-950/20 hover:bg-red-950/40 border border-red-900/30 text-red-400 rounded-lg transition-all"
                 >
                   <Trash2 size={13} />
@@ -355,7 +549,8 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
             </div>
 
             {/* Parameters Grid */}
-            <div className="p-4 bg-[#1e2124]/40 grid grid-cols-1 md:grid-cols-2 gap-4">
+            {!collapsedPluginIds[plugin.id] && (
+              <div className="p-4 bg-[#1e2124]/40 grid grid-cols-1 md:grid-cols-2 gap-4 animate-slide-down">
               {plugin.parameters.map((param, idx) => {
                 const mapping = getParamMapping(plugin.id, idx)
                 const isLearning = learningParam?.pluginId === plugin.id && learningParam?.paramIndex === idx
@@ -378,7 +573,7 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
                         {/* Reset Parameter */}
                         <button
                           onClick={() => handleParamReset(plugin.id, idx)}
-                          title="Parameter zurücksetzen"
+                          title={t('vst_rack.reset_parameter', { defaultValue: 'Parameter zurücksetzen' })}
                           className="p-1 bg-gray-850 hover:bg-gray-700 text-gray-400 hover:text-white rounded border border-gray-750 transition-all hover:rotate-[-90deg] duration-300"
                         >
                           <RotateCcw size={10} />
@@ -408,7 +603,7 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
                             </span>
                             <button
                               onClick={() => handleMidiClearClick(plugin.id, idx)}
-                              title="Mapping löschen"
+                              title={t('vst_rack.delete_mapping', { defaultValue: 'Mapping löschen' })}
                               className="px-1 py-0.5 bg-gray-800 hover:bg-gray-700 text-[8px] font-bold text-gray-400 hover:text-red-400 rounded transition-colors"
                             >
                               Reset
@@ -424,7 +619,7 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
                                 : 'bg-[#282b30] hover:bg-gray-700 text-gray-400 hover:text-omega-accent border-gray-700 disabled:opacity-30'
                             }`}
                           >
-                            {isLearning ? 'Lerne...' : 'Lernen'}
+                            {isLearning ? t('vst_rack.learning', { defaultValue: 'Lerne...' }) : t('vst_rack.learn', { defaultValue: 'Lernen' })}
                           </button>
                         )}
                       </div>
@@ -432,7 +627,8 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
                   </div>
                 )
               })}
-            </div>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -441,10 +637,55 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
       <div className="p-3 border-t border-gray-700 bg-[#1a1d21]/60 flex items-center justify-between text-[10px] text-gray-650 flex-shrink-0">
         <div className="flex items-center gap-1">
           <Sliders size={12} className="text-gray-500" />
-          <span>Der VST Signalweg ist post-cleaning, prä-fader auf den Arranger-Spuren geroutet.</span>
+          <span>{t('vst_rack.uninstall_desc', { defaultValue: 'Der VST Signalweg ist post-cleaning, prä-fader auf den Arranger-Spuren geroutet.' })}</span>
         </div>
         <span className="font-mono">DSP Host v0.8.0</span>
       </div>
+    </div>
+  )
+}
+
+export function VstPluginRackPopout() {
+  const [scanList, setScanList] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    window.api.scanVstPlugins().then((plugins: any[]) => {
+      const saved = localStorage.getItem('downloaded_vsts')
+      let downloadedList: any[] = []
+      if (saved) {
+        try {
+          downloadedList = JSON.parse(saved) || []
+        } catch (e) {}
+      }
+      const combined = [...plugins]
+      downloadedList.forEach(dl => {
+        if (!combined.some(p => p.name === dl.name)) {
+          combined.push(dl)
+        }
+      })
+      setScanList(combined.filter(p => !p.blocked))
+      setLoading(false)
+    }).catch(err => {
+      console.error(err)
+      setLoading(false)
+    })
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[#101214] text-gray-400 font-medium font-sans">
+        <div className="text-center space-y-2">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-omega-accent mx-auto"></div>
+          <p className="text-xs tracking-wide uppercase mt-4">Lade VST Rack...</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="h-screen w-screen overflow-hidden">
+      <VstPluginRack scanList={scanList} />
     </div>
   )
 }

@@ -23,10 +23,12 @@ import {
 } from './lib/keyboardShortcuts'
 import appIcon from './assets/app_icon.png'
 import { Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 function App(): JSX.Element {
+  const { i18n } = useTranslation()
   const [showSettings, setShowSettings] = useState(false)
-  const [settingsTab, setSettingsTab] = useState<'Wiedergabe' | 'Ordner' | 'Import/Audio' | 'System' | 'Tastaturkürzel' | 'Projekteinstellungen'>('Projekteinstellungen')
+  const [settingsTab, setSettingsTab] = useState<'Wiedergabe' | 'Ordner' | 'Import/Audio' | 'System' | 'Tastaturkürzel' | 'Projekteinstellungen' | 'Sprache & Anzeige'>('Projekteinstellungen')
   const [showExport, setShowExport] = useState(false)
   const [showManual, setShowManual] = useState(false)
   const [showAbout, setShowAbout] = useState(false)
@@ -73,13 +75,13 @@ function App(): JSX.Element {
     }
   }
 
-  const openSettings = (tab: 'Wiedergabe' | 'Ordner' | 'Import/Audio' | 'System' | 'Tastaturkürzel' | 'Projekteinstellungen' = 'Projekteinstellungen') => {
+  const openSettings = (tab: 'Wiedergabe' | 'Ordner' | 'Import/Audio' | 'System' | 'Tastaturkürzel' | 'Projekteinstellungen' | 'Sprache & Anzeige' = 'Projekteinstellungen') => {
     openModalPopoutOrInline('settings', () => {
       setSettingsTab(tab)
       setShowSettings(true)
     }, {
-      width: 760,
-      height: 720,
+      width: 900,
+      height: 725,
       title: 'Einstellungen',
       payload: { tab }
     });
@@ -116,6 +118,12 @@ function App(): JSX.Element {
             if (s.autoSaveInterval) setAutoSaveInterval(s.autoSaveInterval);
             setKeyboardShortcuts(normalizeKeyboardShortcuts(s.keyboardShortcuts));
             AudioEngine.getInstance().setAudioDriver(s.driverType || 'wave', s.bufferCount || 6);
+            if (s.language) {
+              i18n.changeLanguage(s.language);
+            }
+            if (s.textScale) {
+              document.documentElement.className = `text-scale-${s.textScale}`;
+            }
             window.dispatchEvent(new CustomEvent('SETTINGS_UPDATED', { detail: s }));
           }
         } catch (err) {
@@ -125,17 +133,64 @@ function App(): JSX.Element {
     };
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
+  }, [i18n]);
+
+  // Listen to live recordings made in the VST standalone popout editor
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'vst_live_record_finished' && e.newValue) {
+        try {
+          const { filePath, durationSec, startPos, pluginName } = JSON.parse(e.newValue)
+          const filename = filePath.split(/[\\/]/).pop() || `${pluginName}_recorded.wav`
+          const newRegion = {
+            id: 'vst_rec_' + Math.random().toString(36).substring(2, 9),
+            file: { name: filename, path: filePath, isDirectory: false },
+            startPos: typeof startPos === 'number' ? startPos : 0,
+            duration: durationSec,
+            fileDuration: durationSec,
+            sourceOffset: 0,
+            color: 'bg-cyan-500' // Neon cyan for VST recordings!
+          }
+          
+          const updated = tracks.map((t, i) => i === 0 ? { ...t, regions: [...t.regions, newRegion] } : t)
+          handleTracksUpdate(updated)
+          
+          // Preload in AudioEngine
+          AudioEngine.getInstance().loadFile(filePath).catch(err => console.error(err))
+          
+          // Show successful toast
+          triggerTimelineAction('SHOW_MODAL', {
+            type: 'info',
+            title: 'VST-Aufnahme importiert',
+            message: `Die Live-Aufnahme von "${pluginName}" (${durationSec.toFixed(1)}s) wurde erfolgreich als Audio-Clip auf Spur 1 importiert.`
+          })
+        } catch (err) {
+          console.error('Failed to parse VST recording payload:', err)
+        }
+      }
+    }
+    window.addEventListener('storage', handleStorageChange)
+    return () => window.removeEventListener('storage', handleStorageChange)
+  }, [tracks])
 
   useEffect(() => {
     const handleSettingsUpdated = (event: Event) => {
       const customEvent = event as CustomEvent<any>
-      setKeyboardShortcuts(normalizeKeyboardShortcuts(customEvent.detail?.keyboardShortcuts))
+      const s = customEvent.detail
+      if (s) {
+        setKeyboardShortcuts(normalizeKeyboardShortcuts(s.keyboardShortcuts))
+        if (s.language) {
+          i18n.changeLanguage(s.language)
+        }
+        if (s.textScale) {
+          document.documentElement.className = `text-scale-${s.textScale}`
+        }
+      }
     }
 
     window.addEventListener('SETTINGS_UPDATED', handleSettingsUpdated as EventListener)
     return () => window.removeEventListener('SETTINGS_UPDATED', handleSettingsUpdated as EventListener)
-  }, [])
+  }, [i18n])
 
   // Recent Projects updater utility
   const updateRecentProjects = async (filePath: string) => {
