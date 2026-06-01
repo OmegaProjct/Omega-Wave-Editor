@@ -430,9 +430,8 @@ export function EffectsPanel({
   }
 
   const handleOpenPlugin = (vst: any) => {
-    const isInst = vst.category?.toLowerCase().includes('instrument')
-    const width = isInst ? 980 : 880
-    const height = isInst ? 640 : 440
+    const width = 720
+    const height = 110
     localStorage.setItem('popout_vst-editor_payload', JSON.stringify({ pluginId: vst.id }))
     window.api.openPopoutWindow('vst-editor', { width, height, title: 'Plugin Editor - ' + vst.name })
   }

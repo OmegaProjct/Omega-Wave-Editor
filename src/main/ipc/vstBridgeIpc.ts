@@ -84,16 +84,16 @@ export function setupVstBridgeIpc(): void {
 
       const senderWindow = BrowserWindow.fromWebContents(event.sender)
       
-      // Auto-resize React window to compact height (95px)
-      let originalBounds = { width: 650, height: 620 }
+      // Auto-resize React window to compact height (110px)
+      let originalBounds = { width: 720, height: 110 }
       if (senderWindow) {
         const bounds = senderWindow.getBounds()
-        originalBounds = { width: bounds.width, height: 650 }
-        senderWindow.setSize(bounds.width, 95, false)
+        originalBounds = { width: bounds.width, height: bounds.height }
+        senderWindow.setSize(bounds.width, 110, false)
       }
 
       const [rx, ry] = senderWindow ? senderWindow.getPosition() : [100, 100]
-      const [rw, rh] = senderWindow ? senderWindow.getSize() : [650, 95]
+      const [rw, rh] = senderWindow ? senderWindow.getSize() : [720, 110]
 
       editorWindow = new BrowserWindow({
         width: rw,
@@ -165,13 +165,11 @@ export function setupVstBridgeIpc(): void {
         }
         editorWindow = null
 
-        // Cleanup magnetic listeners and restore React window size
+        // Cleanup magnetic listeners and close React control window as well
         if (senderWindow && !senderWindow.isDestroyed()) {
           senderWindow.off('move', syncFromSender)
           senderWindow.off('resize', syncFromSender)
-          senderWindow.setSize(originalBounds.width, originalBounds.height, true)
-          // Tell React that native editor was closed so it can exit Compact Mode
-          senderWindow.webContents.send('vst-native-editor-closed')
+          senderWindow.close()
         }
 
         // Notify the renderer that the editor window has been closed

@@ -477,9 +477,8 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
               }}
               onDoubleClick={(e) => {
                 e.stopPropagation()
-                const isInst = plugin.category?.toLowerCase().includes('instrument')
-                const width = isInst ? 980 : 880
-                const height = isInst ? 640 : 440
+                const width = 720
+                const height = 110
                 localStorage.setItem('popout_vst-editor_payload', JSON.stringify({ pluginId: plugin.id }))
                 window.api.openPopoutWindow('vst-editor', { width, height, title: 'Plugin Editor - ' + plugin.name })
               }}
@@ -528,9 +527,8 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
               <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                 <button
                   onClick={() => {
-                    const isInst = plugin.category?.toLowerCase().includes('instrument')
-                    const width = isInst ? 980 : 880
-                    const height = isInst ? 640 : 440
+                    const width = 720
+                    const height = 110
                     localStorage.setItem('popout_vst-editor_payload', JSON.stringify({ pluginId: plugin.id }))
                     window.api.openPopoutWindow('vst-editor', { width, height, title: 'Plugin Editor - ' + plugin.name })
                   }}
