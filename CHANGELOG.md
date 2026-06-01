@@ -2,7 +2,20 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.8.1] - 2026-06-01
+
+### English
+
+#### Fixed
+- **Updater Infinite Hang**: Replaced the experimental Node `fetch` downloader with a robust, native `https` module-based redirect-following stream writer, resolving the infinite hang at `0%` progress when downloading updates from GitHub releases (which redirect to S3).
+
+### Deutsch
+
+#### Behoben
+- **Updater-Hänger behoben**: Der experimentelle Node-`fetch`-Downloader wurde durch einen robusten, auf dem nativen `https`-Modul basierenden Stream-Writer mit Redirect-Unterstützung ersetzt. Dies behebt das unendliche Hängen bei `0%` Fortschritt beim Herunterladen von Updates von GitHub Releases (S3-Redirects).
+
 ## [0.8.0] - 2026-06-01
+
 
 ### English
 
