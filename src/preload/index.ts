@@ -48,6 +48,11 @@ const api = {
     ipcRenderer.on('vst-editor-closed', sub)
     return () => { ipcRenderer.removeListener('vst-editor-closed', sub) }
   },
+  onVstNativeEditorClosed: (callback: () => void) => {
+    const sub = () => callback()
+    ipcRenderer.on('vst-native-editor-closed', sub)
+    return () => { ipcRenderer.removeListener('vst-native-editor-closed', sub) }
+  },
 
   // Recording
   saveRecording: (outputPath: string, arrayBuffer: ArrayBuffer) => ipcRenderer.invoke('save-recording', outputPath, arrayBuffer),
@@ -59,6 +64,10 @@ const api = {
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   startUpdateDownload: (payload: { url: string, latestVersion: string }) => ipcRenderer.invoke('start-update-download', payload),
   installUpdate: (payload: { installNow: boolean }) => ipcRenderer.invoke('install-update', payload),
+
+  // Locales & Translations
+  getLocales: () => ipcRenderer.invoke('get-locales'),
+  saveLocale: (lang: string, content: any) => ipcRenderer.invoke('save-locale', { lang, content }),
 
   // Close Confirmation
   confirmClose: () => ipcRenderer.send('window-close-confirmed'),

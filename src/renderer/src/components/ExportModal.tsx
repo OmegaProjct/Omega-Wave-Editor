@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { Folder, Save, Tag } from 'lucide-react'
 import { AudioEngine } from '../lib/AudioEngine'
+import { useTranslation } from 'react-i18next'
 
 const ID3_FORMATS = ['MP3 (Lame Encoder)', 'M4A (AAC Audio)', 'OGG (Vorbis)', 'OPUS (Interactive)', 'FLAC (Free Lossless)']
 
@@ -13,6 +14,7 @@ const EXPORT_PHASES = [
 ]
 
 export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?: () => void; tracks?: any[] }) {
+  const { t } = useTranslation()
   const isPopout = new URLSearchParams(window.location.search).get('window') === 'export';
 
   const [tracks, setTracks] = useState<any[]>(initialTracks)
@@ -429,7 +431,7 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
     } catch (err: any) {
       console.error('Export error:', err)
       setStatus('error')
-      setErrorMsg(err.message || 'Export fehlgeschlagen')
+      setErrorMsg(err.message || t('export.failed', { defaultValue: 'Export fehlgeschlagen' }))
     } finally {
       setIsExporting(false)
       setIsBrowsing(false)
@@ -557,7 +559,7 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
                 <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="60" strokeDashoffset="40" />
               </svg>
               <span className="text-xs font-semibold text-gray-200">
-                {isExporting ? 'Master-Mixdown wird berechnet...' : 'Bitte warten...'}
+                {isExporting ? t('export.phases.mixdown', { defaultValue: 'Mixdown wird berechnet...' }) : t('common.please_wait', { defaultValue: 'Bitte warten...' })}
               </span>
             </div>
           </div>
@@ -575,7 +577,9 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
           
           {/* FORMAT */}
           <div className="border border-gray-700 p-3 rounded bg-black/5 relative">
-            <span className="absolute -top-2.5 left-4 bg-[#282b30] px-2 text-[10px] text-gray-400 uppercase tracking-widest font-bold">Export-Format</span>
+            <span className="absolute -top-2.5 left-4 bg-[#282b30] px-2 text-[10px] text-gray-400 uppercase tracking-widest font-bold">
+              {t('export.format_title', { defaultValue: 'Export-Format' })}
+            </span>
             <div className="flex items-center gap-3 mt-2">
               <select value={format} onChange={(e) => setFormat(e.target.value)} className="flex-1 py-1 px-2 text-xs bg-[#1a1d21] border border-gray-600 outline-none rounded" disabled={isExporting || isBrowsing}>
                 {formats.map(f => <option key={f} value={f}>{f}</option>)}
@@ -585,40 +589,50 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
 
           {/* EXPORTEINSTELLUNGEN */}
           <div className="border border-gray-700 p-3 rounded bg-black/5 relative">
-            <span className="absolute -top-2.5 left-4 bg-[#282b30] px-2 text-[10px] text-gray-400 uppercase tracking-widest font-bold">Exporteinstellungen</span>
+            <span className="absolute -top-2.5 left-4 bg-[#282b30] px-2 text-[10px] text-gray-400 uppercase tracking-widest font-bold">
+              {t('export.settings_title', { defaultValue: 'Exporteinstellungen' })}
+            </span>
             <div className="grid grid-cols-2 gap-x-6 gap-y-3 mt-2">
               <div className="flex flex-col gap-1">
-                <span className="text-[10px] text-gray-500 font-bold uppercase">Voreinstellung:</span>
+                <span className="text-[10px] text-gray-500 font-bold uppercase">
+                  {t('export.preset_label', { defaultValue: 'Voreinstellung:' })}
+                </span>
                 <select value={preset} onChange={(e) => setPresets(e.target.value)} className="flex-1 py-1 px-2 text-xs bg-[#1a1d21] border border-gray-600 outline-none rounded" disabled={isExporting || isBrowsing}>
-                  <option>Standard (48kHz, Stereo)</option>
-                  <option>Hohe Qualität (96kHz)</option>
-                  <option>Sprache (8kHz)</option>
+                  <option value="Standard (48kHz, Stereo)">{t('export.presets.standard', { defaultValue: 'Standard (48kHz, Stereo)' })}</option>
+                  <option value="Hohe Qualität (96kHz)">{t('export.presets.high', { defaultValue: 'Hohe Qualität (96kHz)' })}</option>
+                  <option value="Sprache (8kHz)">{t('export.presets.voice', { defaultValue: 'Sprache (8kHz)' })}</option>
                 </select>
               </div>
               <div className="flex flex-col gap-1">
-                <span className="text-[10px] text-gray-500 font-bold">SAMPLERATE (Hz):</span>
+                <span className="text-[10px] text-gray-500 font-bold">
+                  {t('export.samplerate_label', { defaultValue: 'SAMPLERATE (Hz):' })}
+                </span>
                 <select value={sampleRate} onChange={(e) => setSampleRate(e.target.value)} className="py-1 px-2 text-xs bg-[#1a1d21] border border-gray-600 outline-none rounded" disabled={isExporting || isBrowsing}>
                   {sampleRates.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
               </div>
               <div className="flex flex-col gap-1">
-                <span className="text-[10px] text-gray-500 font-bold">KANÄLE:</span>
+                <span className="text-[10px] text-gray-500 font-bold">
+                  {t('export.channels_label', { defaultValue: 'KANÄLE:' })}
+                </span>
                 <select value={channels} onChange={(e) => setChannels(e.target.value)} className="py-1 px-2 text-xs bg-[#1a1d21] border border-gray-600 outline-none rounded" disabled={isExporting || isBrowsing}>
-                  <option>Mono</option>
-                  <option>Stereo</option>
+                  <option value="Mono">{t('common.mono', { defaultValue: 'Mono' })}</option>
+                  <option value="Stereo">{t('common.stereo', { defaultValue: 'Stereo' })}</option>
                 </select>
               </div>
               <div className="flex flex-col gap-1">
-                <span className="text-[10px] text-gray-500 font-bold uppercase">{isCompressed ? 'Bitrate (kbits):' : 'Auflösung:'}</span>
+                <span className="text-[10px] text-gray-500 font-bold uppercase">
+                  {isCompressed ? t('export.bitrate_label', { defaultValue: 'Bitrate (kbits):' }) : t('export.resolution_label', { defaultValue: 'Auflösung:' })}
+                </span>
                 {isCompressed ? (
                   <select value={bitrate} onChange={(e) => setBitrate(e.target.value)} className="py-1 px-2 text-xs bg-[#1a1d21] border border-gray-600 outline-none rounded" disabled={isExporting || isBrowsing}>
                     {bitrates.map(b => <option key={b} value={b}>{b}</option>)}
                   </select>
                 ) : (
                   <select value={bitDepth} onChange={(e) => setBitDepth(e.target.value)} className="py-1 px-2 text-xs bg-[#1a1d21] border border-gray-600 outline-none rounded" disabled={isExporting || isBrowsing}>
-                    <option>16 Bit (CD)</option>
-                    <option>24 Bit (Studio)</option>
-                    <option>32 Bit Float</option>
+                    <option value="16 Bit">{t('export.res_16bit', { defaultValue: '16 Bit (CD)' })}</option>
+                    <option value="24 Bit">{t('export.res_24bit', { defaultValue: '24 Bit (Studio)' })}</option>
+                    <option value="32 Bit Float">{t('export.res_32bit', { defaultValue: '32 Bit Float' })}</option>
                   </select>
                 )}
               </div>
@@ -633,18 +647,18 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
                 onClick={() => !isExporting && !isBrowsing && setShowId3(s => !s)}
                 disabled={isExporting || isBrowsing}
               >
-                <span className="flex items-center gap-2"><Tag size={12} /> ID3-Tags / Metadaten</span>
+                <span className="flex items-center gap-2"><Tag size={12} /> {t('export.id3.title', { defaultValue: 'ID3-Tags / Metadaten' })}</span>
                 <span>{showId3 ? '▲' : '▼'}</span>
               </button>
               {showId3 && (
                 <div className="px-3 pb-3 grid grid-cols-2 gap-2">
                   {[
-                    ['Titel', id3Title, setId3Title],
-                    ['Künstler', id3Artist, setId3Artist],
-                    ['Album', id3Album, setId3Album],
-                    ['Jahr', id3Year, setId3Year],
-                    ['Genre', id3Genre, setId3Genre],
-                    ['Track-Nr.', id3Track, setId3Track],
+                    [t('export.id3.title_label', { defaultValue: 'Titel' }), id3Title, setId3Title],
+                    [t('export.id3.artist_label', { defaultValue: 'Künstler' }), id3Artist, setId3Artist],
+                    [t('export.id3.album_label', { defaultValue: 'Album' }), id3Album, setId3Album],
+                    [t('export.id3.year_label', { defaultValue: 'Jahr' }), id3Year, setId3Year],
+                    [t('export.id3.genre_label', { defaultValue: 'Genre' }), id3Genre, setId3Genre],
+                    [t('export.id3.track_label', { defaultValue: 'Track-Nr.' }), id3Track, setId3Track],
                   ].map(([label, val, setter]: any) => (
                     <div key={label} className="flex flex-col gap-1">
                       <span className="text-[10px] text-gray-500 font-bold uppercase">{label}:</span>
@@ -657,11 +671,11 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
                     </div>
                   ))}
                   <div className="col-span-2 flex flex-col gap-1">
-                    <span className="text-[10px] text-gray-500 font-bold uppercase">Kommentar:</span>
+                    <span className="text-[10px] text-gray-500 font-bold uppercase">{t('export.id3.comment_label', { defaultValue: 'Kommentar:' })}</span>
                     <input value={id3Comment} onChange={e => setId3Comment(e.target.value)} className="py-1 px-2 text-xs bg-[#1a1d21] border border-gray-600 outline-none focus:border-omega-accent text-white rounded font-sans" disabled={isExporting || isBrowsing} />
                   </div>
                   <div className="col-span-2 border-t border-gray-700/55 pt-3 mt-1 flex flex-col gap-2">
-                    <span className="text-[10px] text-gray-500 font-bold uppercase">Album-Cover:</span>
+                    <span className="text-[10px] text-gray-500 font-bold uppercase">{t('export.id3.cover_label', { defaultValue: 'Album-Cover:' })}</span>
                     <div className="flex gap-3 items-center">
                       {id3CoverPath ? (
                         <div className="w-16 h-16 border border-gray-600 rounded overflow-hidden flex-shrink-0 bg-black/40 flex items-center justify-center">
@@ -669,7 +683,7 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
                         </div>
                       ) : (
                         <div className="w-16 h-16 border border-gray-600 rounded flex-shrink-0 bg-black/40 flex items-center justify-center text-[9px] text-gray-500 font-semibold uppercase text-center p-1 leading-tight select-none">
-                          Kein Cover
+                          {t('export.id3.no_cover', { defaultValue: 'Kein Cover' })}
                         </div>
                       )}
                       <div className="flex flex-col gap-1.5">
@@ -679,9 +693,9 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
                             if (isExporting || isBrowsing) return
                             try {
                               const result = await window.api.showOpenDialog({
-                                title: 'Cover-Bild auswählen',
+                                title: t('export.id3.select_cover_title', { defaultValue: 'Cover-Bild auswählen' }),
                                 properties: ['openFile'],
-                                filters: [{ name: 'Bilder', extensions: ['jpg', 'jpeg', 'png'] }]
+                                filters: [{ name: t('export.id3.images_filter', { defaultValue: 'Bilder' }), extensions: ['jpg', 'jpeg', 'png'] }]
                               })
                               if (!result.canceled && result.filePaths && result.filePaths.length > 0) {
                                 setId3CoverPath(result.filePaths[0])
@@ -693,7 +707,7 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
                           className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs text-white font-semibold disabled:opacity-50"
                           disabled={isExporting || isBrowsing}
                         >
-                          Bild importieren...
+                          {t('export.id3.import_image', { defaultValue: 'Bild importieren...' })}
                         </button>
                         {id3CoverPath && (
                           <button
@@ -702,7 +716,7 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
                             className="px-3 py-1 bg-red-900/40 hover:bg-red-900/60 text-red-200 border border-red-800/40 rounded text-xs font-semibold disabled:opacity-50"
                             disabled={isExporting || isBrowsing}
                           >
-                            Entfernen
+                            {t('common.remove', { defaultValue: 'Entfernen' })}
                           </button>
                         )}
                       </div>
@@ -715,12 +729,14 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
 
           {/* SPEICHERORT */}
           <div className="border border-gray-700 p-3 rounded bg-black/5 relative">
-            <span className="absolute -top-2.5 left-4 bg-[#282b30] px-2 text-[10px] text-gray-400 uppercase tracking-widest font-bold">Speicherort und Dateiname</span>
+            <span className="absolute -top-2.5 left-4 bg-[#282b30] px-2 text-[10px] text-gray-400 uppercase tracking-widest font-bold">
+              {t('export.dest_title', { defaultValue: 'Speicherort und Dateiname' })}
+            </span>
             <div className="flex items-center gap-2 mt-2">
               <input type="text" value={path} onChange={(e) => setPath(e.target.value)} className="flex-1 bg-[#1a1d21] border border-gray-600 rounded px-2 py-1 text-xs outline-none focus:border-omega-accent text-white font-sans" disabled={isExporting || isBrowsing} />
-              <button onClick={handleBrowse} className="bg-gray-700 p-1.5 rounded hover:bg-gray-600 text-white disabled:opacity-50" disabled={isExporting || isBrowsing} title="Speicherort wählen"><Folder size={14} /></button>
+              <button onClick={handleBrowse} className="bg-gray-700 p-1.5 rounded hover:bg-gray-600 text-white disabled:opacity-50" disabled={isExporting || isBrowsing} title={t('export.select_dest_tooltip', { defaultValue: 'Speicherort wählen' })}><Folder size={14} /></button>
               <button onClick={handleOpenFolder} className="px-3 py-1 bg-gray-700 rounded text-xs hover:bg-gray-600 text-white font-semibold disabled:opacity-50 whitespace-nowrap" disabled={isExporting || isBrowsing || !path} title="Zielordner im Explorer öffnen">
-                Ordner öffnen
+                {t('export.open_folder', { defaultValue: 'Ordner öffnen' })}
               </button>
             </div>
             
@@ -733,7 +749,7 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
                   disabled={isExporting || isBrowsing}
                   className="rounded border-gray-600 bg-[#1a1d21] text-omega-accent focus:ring-0 focus:ring-offset-0 w-3.5 h-3.5"
                 />
-                Titel nach dem Export abspielen
+                {t('export.play_after', { defaultValue: 'Titel nach dem Export abspielen' })}
               </label>
 
               {firstSource && (
@@ -745,7 +761,7 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
                     disabled={isExporting || isBrowsing}
                     className="rounded border-gray-600 bg-[#1a1d21] text-omega-accent focus:ring-0 focus:ring-offset-0 w-3.5 h-3.5"
                   />
-                  Im Import-Ordner speichern
+                  {t('export.save_in_import_dir', { defaultValue: 'Im Import-Ordner speichern' })}
                 </label>
               )}
 
@@ -758,7 +774,7 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
                     disabled={isExporting || isBrowsing}
                     className="rounded border-gray-600 bg-[#1a1d21] text-omega-accent focus:ring-0 focus:ring-offset-0 w-3.5 h-3.5"
                   />
-                  Nur den markierten Bereich exportieren
+                  {t('export.selection_only', { defaultValue: 'Nur den markierten Bereich exportieren' })}
                 </label>
               )}
 
@@ -770,7 +786,7 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
                   disabled={isExporting || isBrowsing}
                   className="rounded border-gray-600 bg-[#1a1d21] text-omega-accent focus:ring-0 focus:ring-offset-0 w-3.5 h-3.5"
                 />
-                Fortlaufende Versionierung (v1, v2...)
+                {t('export.versioning', { defaultValue: 'Fortlaufende Versionierung (v1, v2...)' })}
               </label>
             </div>
           </div>
@@ -778,7 +794,9 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
           {/* EXPORT PROGRESS */}
           {(status === 'running' || status === 'done' || status === 'error') && (
             <div className="border border-gray-700 p-4 rounded bg-black/5 relative">
-              <span className="absolute -top-2.5 left-4 bg-[#282b30] px-2 text-[10px] text-gray-400 uppercase tracking-widest font-bold">Export-Fortschritt</span>
+              <span className="absolute -top-2.5 left-4 bg-[#282b30] px-2 text-[10px] text-gray-400 uppercase tracking-widest font-bold">
+                {t('export.progress_title', { defaultValue: 'Export-Fortschritt' })}
+              </span>
               <div className="mt-2 space-y-3">
                 {/* Phase steps */}
                 <div className="flex gap-1">
@@ -797,11 +815,17 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
                 {/* Phase label */}
                 <div className="text-[11px] text-gray-300">
                   {status === 'done' ? (
-                    <span className="text-green-400 font-semibold">✓ Export erfolgreich abgeschlossen!</span>
+                    <span className="text-green-400 font-semibold">{t('export.progress.success', { defaultValue: '✓ Export erfolgreich abgeschlossen!' })}</span>
                   ) : status === 'error' ? (
                     <span className="text-red-400">✗ {errorMsg}</span>
                   ) : (
-                    <span>{EXPORT_PHASES[exportPhase]}</span>
+                    <span>
+                      {exportPhase === 0 ? t('export.phases.analyzing', { defaultValue: 'Analysiere Spuren...' }) :
+                       exportPhase === 1 ? t('export.phases.mixdown', { defaultValue: 'Mixdown wird berechnet...' }) :
+                       exportPhase === 2 ? t('export.phases.encoding', { defaultValue: 'Encoding läuft...' }) :
+                       exportPhase === 3 ? t('export.phases.metadata', { defaultValue: 'Metadaten werden geschrieben...' }) :
+                       t('export.phases.finalizing', { defaultValue: 'Fertigstellen...' })}
+                    </span>
                   )}
                 </div>
                 {/* Progress bar */}
@@ -829,9 +853,11 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
                 <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="60" strokeDashoffset="40" />
               </svg>
             )}
-            {isExporting ? 'Exportiert...' : 'Export starten'}
+            {isExporting ? t('export.button_exporting', { defaultValue: 'Exportiert...' }) : t('export.button_start', { defaultValue: 'Export starten' })}
           </button>
-          <button onClick={handleClose} className="px-8 py-1.5 text-sm bg-gray-600 hover:bg-gray-500 rounded text-gray-300 transition-colors font-semibold" disabled={isExporting || isBrowsing}>Abbrechen</button>
+          <button onClick={handleClose} className="px-8 py-1.5 text-sm bg-gray-600 hover:bg-gray-500 rounded text-gray-300 transition-colors font-semibold" disabled={isExporting || isBrowsing}>
+            {t('common.cancel', { defaultValue: 'Abbrechen' })}
+          </button>
         </div>
 
       </div>
@@ -840,9 +866,9 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
       {showOverwriteConfirm && (
         <div className="absolute inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-[2200]">
           <div className="bg-[#1e2124] border border-gray-600 p-6 rounded shadow-2xl flex flex-col w-[380px] gap-4">
-            <span className="text-sm font-semibold text-white">Datei überschreiben?</span>
+            <span className="text-sm font-semibold text-white">{t('export.overwrite.title', { defaultValue: 'Datei überschreiben?' })}</span>
             <p className="text-xs text-gray-300 leading-relaxed">
-              Die Datei <span className="font-mono text-omega-accent break-all">{path.replace(/.*[\\\/]/, '')}</span> existiert bereits im Zielordner. Möchtest du sie überschreiben?
+              {t('export.overwrite.msg', { defaultValue: 'Die Datei {{filename}} existiert bereits im Zielordner. Möchtest du sie überschreiben?', filename: path.replace(/.*[\\\/]/, '') })}
             </p>
             <div className="flex justify-end gap-2 mt-2">
               <button
@@ -852,7 +878,7 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
                 }}
                 className="px-4 py-1.5 bg-red-600 hover:bg-red-500 rounded text-white text-xs font-semibold shadow transition-colors"
               >
-                Ja, überschreiben
+                {t('export.overwrite.confirm', { defaultValue: 'Ja, überschreiben' })}
               </button>
               <button
                 onClick={() => {
@@ -860,7 +886,7 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
                 }}
                 className="px-4 py-1.5 bg-gray-600 hover:bg-gray-500 rounded text-gray-300 text-xs font-semibold shadow transition-colors"
               >
-                Abbrechen
+                {t('common.cancel', { defaultValue: 'Abbrechen' })}
               </button>
             </div>
           </div>
@@ -871,10 +897,9 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
       {gapWarningInfo && (
         <div className="absolute inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-[2200]">
           <div className="bg-[#1e2124] border border-gray-600 p-6 rounded shadow-2xl flex flex-col w-[420px] gap-4">
-            <span className="text-sm font-semibold text-white">Leere Bereiche gefunden</span>
+            <span className="text-sm font-semibold text-white">{t('export.gaps.title', { defaultValue: 'Leere Bereiche gefunden' })}</span>
             <p className="text-xs text-gray-300 leading-relaxed">
-              Es wurden silent Gaps (Lücken von mehr als 0.05s Stille) im Projekt gefunden. 
-              Möchtest du diese leeren Bereiche ignorieren oder abbrechen?
+              {t('export.gaps.msg', { defaultValue: 'Es wurden silent Gaps (Lücken von mehr als 0.05s Stille) im Projekt gefunden. Möchtest du diese leeren Bereiche ignorieren oder abbrechen?' })}
             </p>
             
             <div className="flex items-center gap-2 mt-1">
@@ -885,7 +910,7 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
                   onChange={(e) => handleToggleDoNotShowAgain(e.target.checked)}
                   className="rounded border-gray-600 bg-[#1a1d21] text-omega-accent focus:ring-0 focus:ring-offset-0 w-3.5 h-3.5"
                 />
-                Diese Meldung nicht mehr anzeigen
+                {t('common.do_not_show_again', { defaultValue: 'Diese Meldung nicht mehr anzeigen' })}
               </label>
             </div>
 
@@ -894,19 +919,19 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
                 onClick={handleIgnoreWarning}
                 className="w-full py-1.5 bg-omega-accent hover:bg-blue-500 rounded text-white text-xs font-semibold shadow transition-colors"
               >
-                Ignorieren (Export fortsetzen)
+                {t('export.gaps.ignore', { defaultValue: 'Ignorieren (Export fortsetzen)' })}
               </button>
               <button
                 onClick={() => handleJumpToGap(gapWarningInfo.gaps[0].start)}
                 className="w-full py-1.5 bg-yellow-600 hover:bg-yellow-500 rounded text-white text-xs font-semibold shadow transition-colors"
               >
-                Zu leeren Bereich springen
+                {t('export.gaps.jump', { defaultValue: 'Zu leeren Bereich springen' })}
               </button>
               <button
                 onClick={handleCancelWarning}
                 className="w-full py-1.5 bg-gray-650 hover:bg-gray-600 rounded text-gray-300 text-xs font-semibold shadow transition-colors"
               >
-                Abbrechen
+                {t('common.cancel', { defaultValue: 'Abbrechen' })}
               </button>
             </div>
           </div>

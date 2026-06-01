@@ -510,6 +510,17 @@ export function FileExplorer() {
               draggable={!file.isDirectory} 
               onDragStart={(e) => onDragStart(e, file)} 
               onClick={() => navigateTo(file)} 
+              onContextMenu={(e) => {
+                if (file.isDirectory) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setContextMenu({
+                    x: e.clientX,
+                    y: e.clientY,
+                    path: file.path
+                  });
+                }
+              }}
               className={`flex items-center gap-2 p-1.5 px-3 hover:bg-omega-accent/25 cursor-pointer rounded-md group transition-colors ${
                 playingAudio === file.path ? 'bg-omega-accent/20 border-l-2 border-omega-accent' : ''
               }`}
@@ -743,19 +754,33 @@ export function FileExplorer() {
       {contextMenu && (
         <div 
           style={{ top: contextMenu.y, left: contextMenu.x }}
-          className="fixed bg-[#1e2124]/95 backdrop-blur-md border border-gray-700/60 rounded-lg shadow-xl py-1 z-[9999] min-w-[120px] select-none text-[11px]"
+          className="fixed bg-[#1e2124]/95 backdrop-blur-md border border-gray-700/60 rounded-lg shadow-xl py-1 z-[9999] min-w-[170px] select-none text-[11px]"
           onClick={(e) => e.stopPropagation()}
         >
-          <button
-            onClick={(e) => {
-              const ev = e as unknown as React.MouseEvent;
-              unpinFolder(contextMenu.path, ev);
-              setContextMenu(null);
-            }}
-            className="w-full text-left px-3 py-1.5 hover:bg-red-500 hover:text-white transition-colors text-red-400 flex items-center gap-1.5 font-medium"
-          >
-            <X size={10} /> Ordner entpinnen
-          </button>
+          {pinnedFolders.includes(contextMenu.path) ? (
+            <button
+              onClick={(e) => {
+                const ev = e as unknown as React.MouseEvent;
+                unpinFolder(contextMenu.path, ev);
+                setContextMenu(null);
+              }}
+              className="w-full text-left px-3 py-1.5 hover:bg-red-500 hover:text-white transition-colors text-red-400 flex items-center gap-1.5 font-medium"
+            >
+              <X size={10} /> Aus Seitenleiste entfernen
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                const updated = [...pinnedFolders, contextMenu.path]
+                setPinnedFolders(updated)
+                localStorage.setItem('pinnedFolders', JSON.stringify(updated))
+                setContextMenu(null);
+              }}
+              className="w-full text-left px-3 py-1.5 hover:bg-omega-accent hover:text-white transition-colors text-gray-200 flex items-center gap-1.5 font-medium"
+            >
+              <Folder size={10} className="text-omega-accent" /> An Seitenleiste hinzufügen
+            </button>
+          )}
         </div>
       )}
     </div>

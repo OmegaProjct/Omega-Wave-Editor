@@ -9,10 +9,12 @@ import {
   normalizeKeyboardShortcuts
 } from '../lib/keyboardShortcuts'
 import { MidiEngine } from '../lib/MidiEngine'
+import { useTranslation } from 'react-i18next'
 
-type Tab = 'Wiedergabe' | 'Ordner' | 'Import/Audio' | 'System' | 'Tastaturkürzel' | 'Projekteinstellungen' | 'MIDI'
+type Tab = 'Wiedergabe' | 'Ordner' | 'Import/Audio' | 'System' | 'Tastaturkürzel' | 'Projekteinstellungen' | 'MIDI' | 'Sprache & Anzeige'
 
 export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', onTriggerUpdate }: { onClose: () => void; initialTab?: Tab; onTriggerUpdate?: (info: any) => void }) {
+  const { t, i18n } = useTranslation()
   const [activeTab, setActiveTab] = useState<Tab>(initialTab)
   const [settings, setSettings] = useState<any>({
     defaultExplorerPath: '',
@@ -31,7 +33,9 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
     driverType: 'wave',
     bufferCount: 6,
     vstPaths: [],
-    keyboardShortcuts: DEFAULT_KEYBOARD_SHORTCUTS
+    keyboardShortcuts: DEFAULT_KEYBOARD_SHORTCUTS,
+    language: 'de',
+    textScale: 'normal'
   })
   const [capturingShortcut, setCapturingShortcut] = useState<ShortcutAction | null>(null)
 
@@ -44,22 +48,34 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
   const [updateInfo, setUpdateInfo] = useState<any | null>(null)
   const [currentVersion, setCurrentVersion] = useState<string>('0.1.0')
 
+  const [originalScale, setOriginalScale] = useState<string>('normal')
+  const [originalLanguage, setOriginalLanguage] = useState<string>('de')
+  const [availableLocales, setAvailableLocales] = useState<string[]>(['de', 'en'])
+
+  useEffect(() => {
+    window.api.getLocales().then((locs: any) => {
+      if (locs) {
+        setAvailableLocales(Object.keys(locs))
+      }
+    }).catch((e: any) => console.error('Failed to fetch locales in settings:', e))
+  }, [])
+
   const handleCheckForUpdates = async () => {
     setCheckingUpdates(true)
-    setUpdateStatus('Prüfe auf Updates...')
+    setUpdateStatus(t('settings.checking_updates', { defaultValue: 'Prüfe auf Updates...' }))
     setUpdateInfo(null)
     try {
       const result = await window.api.checkForUpdates()
       if (result.error) {
-        setUpdateStatus(`Fehler: ${result.error}`)
+        setUpdateStatus(`${t('common.error', { defaultValue: 'Fehler' })}: ${result.error}`)
       } else if (result.available) {
-        setUpdateStatus(`Update verfügbar: v${result.latestVersion}`)
+        setUpdateStatus(t('settings.update_available', { defaultValue: 'Update verfügbar: v{{version}}', version: result.latestVersion }))
         setUpdateInfo(result)
       } else {
-        setUpdateStatus(`App ist auf dem neuesten Stand (v${result.currentVersion}).`)
+        setUpdateStatus(t('settings.up_to_date', { defaultValue: 'App ist auf dem neuesten Stand (v{{version}}).', version: result.currentVersion }))
       }
     } catch (e: any) {
-      setUpdateStatus(`Fehler beim Update-Check: ${e.message}`)
+      setUpdateStatus(`${t('settings.update_error', { defaultValue: 'Fehler beim Update-Check' })}: ${e.message}`)
     } finally {
       setCheckingUpdates(false)
     }
@@ -73,9 +89,13 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
       setSettings((prev: any) => {
         const merged = {
           ...prev,
+          language: 'de',
+          textScale: 'normal',
           ...s,
           keyboardShortcuts: normalizeKeyboardShortcuts(s?.keyboardShortcuts)
         }
+        setOriginalScale(merged.textScale || 'normal')
+        setOriginalLanguage(merged.language || 'de')
         if (merged.activeDeviceId && merged.activeDeviceId !== 'default' && merged.driverType !== 'asio') {
           AudioEngine.getInstance().setOutputDevice(merged.activeDeviceId)
         }
@@ -132,14 +152,138 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
     onClose()
   }
 
+  const handleCancel = () => {
+    document.documentElement.className = `text-scale-${originalScale}`
+    if (i18n.language !== originalLanguage) {
+      i18n.changeLanguage(originalLanguage)
+    }
+    onClose()
+  }
+
+  const handleTextScaleChange = (scale: string) => {
+    setSettings((prev: any) => ({ ...prev, textScale: scale }))
+    document.documentElement.className = `text-scale-${scale}`
+  }
+
+  const handleLanguageChange = async (lang: string) => {
+    setSettings((prev: any) => ({ ...prev, language: lang }))
+    try {
+      i18n.changeLanguage(lang)
+    } catch (e) {
+      console.error('Failed to change language in real-time:', e)
+    }
+  }
+
+  const getLanguageLabel = (code: string) => {
+    switch (code) {
+      case 'de': return t('settings.lang_de', { defaultValue: 'Deutsch (Standard)' })
+      case 'en': return t('settings.lang_en', { defaultValue: 'English' })
+      default: return code.toUpperCase() + ' (Custom)'
+    }
+  }
+
+  const renderSpracheAnzeige = () => (
+    <div className="flex gap-4 h-full">
+      {/* Sprachauswahl & Locale-Pakete */}
+      <div className="flex-1 border border-gray-700 p-4 rounded bg-[#1e2124] flex flex-col justify-between">
+        <div>
+          <h3 className="text-center font-semibold mb-4 text-sm flex items-center gap-1.5 justify-center">
+            🌐 {t('settings.language', { defaultValue: 'Sprachauswahl' })}
+          </h3>
+          <div className="flex flex-col gap-4 text-sm">
+            <div className="flex justify-between items-center">
+              <span className="text-gray-400">{t('settings.language_active', { defaultValue: 'Aktive Sprache:' })}</span>
+              <select 
+                value={settings.language || 'de'} 
+                onChange={(e) => handleLanguageChange(e.target.value)}
+                className="bg-[#1a1d21] border border-gray-600 rounded px-2 py-1 w-44 outline-none text-xs text-white"
+              >
+                {availableLocales.map(code => (
+                  <option key={code} value={code}>
+                    {getLanguageLabel(code)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="mt-2 text-xs text-gray-400 border-t border-gray-700/50 pt-3 leading-relaxed">
+              <p className="font-semibold text-gray-300 mb-1">
+                ℹ️ {t('settings.custom_locales_info_title', { defaultValue: 'Eigene Sprachpakete' })}
+              </p>
+              <p className="text-[11px] text-gray-400 leading-normal">
+                {t('settings.custom_locales_info_body', { 
+                  defaultValue: 'Du kannst eigene Übersetzungsdateien (.json) im Locales-Ordner ablegen, um die App in andere Sprachen zu übersetzen oder Texte anzupassen. Sie werden beim App-Start automatisch geladen.' 
+                })}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <button 
+          onClick={async () => {
+            try {
+              const home = await window.api.getHomeDir();
+              const localesDir = `${home}\\Documents\\OmegaProjects\\Omega Wave Editor\\Locales`;
+              await window.api.openPath(localesDir);
+            } catch (e) {
+              console.error('Failed to open locales path:', e);
+            }
+          }}
+          className="w-full py-2 mt-4 bg-gray-750 hover:bg-gray-700 active:scale-[0.98] border border-gray-700 text-white rounded text-xs font-semibold tracking-wide transition-all shadow flex items-center justify-center gap-1.5"
+        >
+          <span>📁 {t('settings.open_locales_folder', { defaultValue: 'Locales-Ordner öffnen' })}</span>
+        </button>
+      </div>
+
+      {/* Skalierung der Benutzeroberfläche */}
+      <div className="flex-1 border border-gray-700 p-4 rounded bg-[#1e2124] flex flex-col justify-between">
+        <div>
+          <h3 className="text-center font-semibold mb-4 text-sm flex items-center gap-1.5 justify-center">
+            🔎 {t('settings.text_scale', { defaultValue: 'Schriftgröße' })}
+          </h3>
+          <div className="flex flex-col gap-4 text-sm">
+            <div className="flex justify-between items-center">
+              <span className="text-gray-400">{t('settings.text_size', { defaultValue: 'Schriftgröße:' })}</span>
+              <select 
+                value={settings.textScale || 'normal'} 
+                onChange={(e) => handleTextScaleChange(e.target.value)}
+                className="bg-[#1a1d21] border border-gray-600 rounded px-2 py-1 w-44 outline-none text-xs text-white"
+              >
+                <option value="normal">{t('settings.text_scale_normal', { defaultValue: 'Normal (100%)' })}</option>
+                <option value="medium">{t('settings.text_scale_medium', { defaultValue: 'Mittel (+10%)' })}</option>
+                <option value="large">{t('settings.text_scale_large', { defaultValue: 'Groß (+20%)' })}</option>
+                <option value="xlarge">{t('settings.text_scale_xlarge', { defaultValue: 'Sehr groß (+30%)' })}</option>
+              </select>
+            </div>
+
+            <div className="mt-2 text-xs text-gray-400 border-t border-gray-700/50 pt-3 leading-relaxed">
+              <p className="font-semibold text-gray-300 mb-1">
+                ⚡ {t('settings.scale_preview_title', { defaultValue: 'Echtzeit-Vorschau' })}
+              </p>
+              <p className="text-[11px] text-gray-400 leading-normal">
+                {t('settings.scale_preview_body', { 
+                  defaultValue: 'Die Skalierung wird sofort auf alle Menüs, Editor-Bereiche und Beschriftungen angewendet. So kannst du direkt prüfen, ob die Textgröße angenehm ist.' 
+                })}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-3 bg-[#131517] border border-gray-800 rounded-lg text-center text-xs text-omega-accent select-none animate-pulse">
+          Aa Bb Cc Dd Ee Ff Gg
+        </div>
+      </div>
+    </div>
+  )
+
   const renderWiedergabe = () => (
     <div className="flex gap-4 h-full">
       <div className="flex-1 border border-gray-700 p-4 rounded bg-[#1e2124]">
-        <h3 className="text-center font-semibold mb-4 text-sm">Audioausgabe</h3>
+        <h3 className="text-center font-semibold mb-4 text-sm">{t('settings.playback.audio_output', { defaultValue: 'Audioausgabe' })}</h3>
         <div className="flex flex-col gap-4 text-sm">
           {/* Treiberauswahl */}
           <div className="flex justify-between items-start gap-4">
-            <span className="text-gray-400">Treiberauswahl:</span>
+            <span className="text-gray-400">{t('settings.playback.driver_choice', { defaultValue: 'Treiberauswahl:' })}</span>
             <div className="flex flex-col gap-2 w-48">
               <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-200">
                 <input 
@@ -150,7 +294,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
                   onChange={() => setSettings({ ...settings, driverType: 'wave', activeDeviceId: 'default' })} 
                   className="text-omega-accent bg-[#1a1d21] border-gray-600 focus:ring-0 w-3.5 h-3.5"
                 />
-                Wave-Treiber
+                {t('settings.playback.driver_wave', { defaultValue: 'Wave-Treiber' })}
               </label>
               <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-200">
                 <input 
@@ -161,7 +305,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
                   onChange={() => setSettings({ ...settings, driverType: 'directsound', activeDeviceId: 'default' })} 
                   className="text-omega-accent bg-[#1a1d21] border-gray-600 focus:ring-0 w-3.5 h-3.5"
                 />
-                Direct-Sound
+                {t('settings.playback.driver_directsound', { defaultValue: 'Direct-Sound' })}
               </label>
               <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-200">
                 <input 
@@ -175,14 +319,14 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
                   }} 
                   className="text-omega-accent bg-[#1a1d21] border-gray-600 focus:ring-0 w-3.5 h-3.5"
                 />
-                ASIO-Treiber
+                {t('settings.playback.driver_asio', { defaultValue: 'ASIO-Treiber' })}
               </label>
             </div>
           </div>
 
           {settings.driverType === 'asio' && (
             <div className="flex justify-between items-center">
-              <span className="text-gray-400">ASIO-Treiber:</span>
+              <span className="text-gray-400">{t('settings.playback.driver_asio_label', { defaultValue: 'ASIO-Treiber:' })}</span>
               <select 
                 value={settings.asioDriver || (asioDrivers[0]?.name || 'default')} 
                 onChange={(e) => {
@@ -197,14 +341,14 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
                   </option>
                 ))}
                 {asioDrivers.length === 0 && (
-                  <option value="default">Kein ASIO Treiber gefunden</option>
+                  <option value="default">{t('settings.playback.no_asio_driver', { defaultValue: 'Kein ASIO Treiber gefunden' })}</option>
                 )}
               </select>
             </div>
           )}
 
           <div className="flex justify-between items-center">
-            <span className="text-gray-400">Ausgabegerät:</span>
+            <span className="text-gray-400">{t('settings.playback.output_device', { defaultValue: 'Ausgabegerät:' })}</span>
             <select 
               value={settings.activeDeviceId || 'default'} 
               onChange={async (e) => {
@@ -214,18 +358,18 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
               }}
               className="bg-[#1a1d21] border border-gray-600 rounded px-2 py-1 w-48 outline-none text-xs text-white"
             >
-              <option value="default">System (Standard)</option>
+              <option value="default">{t('settings.playback.system_default', { defaultValue: 'System (Standard)' })}</option>
               {devices.map(d => (
                 <option key={d.deviceId} value={d.deviceId}>
-                  {d.label || `Ausgabegerät (${d.deviceId.slice(0, 8)})`}
+                  {d.label || t('settings.playback.output_device_id', { defaultValue: 'Ausgabegerät ({{id}})', id: d.deviceId.slice(0, 8) })}
                 </option>
               ))}
             </select>
           </div>
           <div className="flex justify-between items-center mt-1">
-            <span className="text-gray-400">Audiopuffer:</span>
+            <span className="text-gray-400">{t('settings.playback.audio_buffer', { defaultValue: 'Audiopuffer:' })}</span>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500">Anzahl:</span>
+              <span className="text-xs text-gray-500">{t('common.count', { defaultValue: 'Anzahl:' })}</span>
               <input 
                 type="number" 
                 min={2}
@@ -239,29 +383,30 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
 
           {settings.driverType === 'asio' && asioDrivers.length === 0 && (
             <div className="mt-3 p-3 bg-red-950/20 border border-red-900/30 rounded text-red-450 text-[11px] leading-relaxed">
-              ⚠️ <strong className="text-red-400">Kein ASIO-Treiber vorhanden!</strong><br />
-              Es wurden keine ASIO-Treiber auf diesem System registriert.<br />
-              Bitte installiere einen passenden ASIO-Treiber (z. B. <strong>ASIO4ALL</strong> oder den offiziellen ASIO-Treiber deines Audio-Interfaces wie <strong>Steinberg/Yamaha ASIO</strong>), um diesen Modus zu nutzen.
+              ⚠️ <strong className="text-red-400">{t('settings.playback.no_asio_found_title', { defaultValue: 'Kein ASIO-Treiber vorhanden!' })}</strong><br />
+              {t('settings.playback.no_asio_found_body', { 
+                defaultValue: 'Es wurden keine ASIO-Treiber auf diesem System registriert. Bitte installiere einen passenden ASIO-Treiber (z. B. ASIO4ALL oder den offiziellen ASIO-Treiber deines Audio-Interfaces wie Steinberg/Yamaha ASIO), um diesen Modus zu nutzen.' 
+              })}
             </div>
           )}
         </div>
       </div>
       <div className="flex-1 border border-gray-700 p-4 rounded bg-[#1e2124]">
-        <h3 className="text-center font-semibold mb-4 text-sm">Arranger</h3>
+        <h3 className="text-center font-semibold mb-4 text-sm">{t('settings.playback.arranger', { defaultValue: 'Arranger' })}</h3>
         <div className="flex flex-col gap-4 text-sm">
            <div>
-             <span className="text-gray-400 block mb-2">Autoscroll während des Abspielens:</span>
+             <span className="text-gray-400 block mb-2">{t('settings.playback.autoscroll', { defaultValue: 'Autoscroll während des Abspielens:' })}</span>
              <div className="flex gap-4">
-              <label className="flex items-center gap-1 cursor-pointer"><input type="radio" name="scroll" checked={settings.autoScroll === 'Aus'} onChange={() => setSettings({...settings, autoScroll: 'Aus'})} /> Aus</label>
-              <label className="flex items-center gap-1 cursor-pointer"><input type="radio" name="scroll" checked={settings.autoScroll === 'Langsam'} onChange={() => setSettings({...settings, autoScroll: 'Langsam'})} /> Langsam</label>
-              <label className="flex items-center gap-1 cursor-pointer"><input type="radio" name="scroll" checked={settings.autoScroll === 'Schnell'} onChange={() => setSettings({...settings, autoScroll: 'Schnell'})} /> Schnell</label>
+              <label className="flex items-center gap-1 cursor-pointer"><input type="radio" name="scroll" checked={settings.autoScroll === 'Aus'} onChange={() => setSettings({...settings, autoScroll: 'Aus'})} /> {t('common.off', { defaultValue: 'Aus' })}</label>
+              <label className="flex items-center gap-1 cursor-pointer"><input type="radio" name="scroll" checked={settings.autoScroll === 'Langsam'} onChange={() => setSettings({...settings, autoScroll: 'Langsam'})} /> {t('common.slow', { defaultValue: 'Langsam' })}</label>
+              <label className="flex items-center gap-1 cursor-pointer"><input type="radio" name="scroll" checked={settings.autoScroll === 'Schnell'} onChange={() => setSettings({...settings, autoScroll: 'Schnell'})} /> {t('common.fast', { defaultValue: 'Schnell' })}</label>
              </div>
            </div>
            <div className="mt-4">
-             <span className="text-gray-400 block mb-2">Verhalten Leertaste:</span>
+             <span className="text-gray-400 block mb-2">{t('settings.playback.spacebar_behavior', { defaultValue: 'Verhalten Leertaste:' })}</span>
              <label className="flex items-center gap-2 cursor-pointer">
                <input type="checkbox" checked={settings.spacebarStops} onChange={(e) => setSettings({...settings, spacebarStops: e.target.checked})} />
-               Leertaste stoppt an aktueller Abspielposition
+               {t('settings.playback.spacebar_stops', { defaultValue: 'Leertaste stoppt an aktueller Abspielposition' })}
              </label>
            </div>
         </div>
@@ -271,14 +416,14 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
 
   const renderOrdner = () => (
     <div className="border border-gray-700 p-4 rounded bg-[#1e2124] h-full overflow-y-auto">
-      <h3 className="text-center font-semibold mb-6 text-sm">Ordnerpfade</h3>
+      <h3 className="text-center font-semibold mb-6 text-sm">{t('settings.folders.title', { defaultValue: 'Ordnerpfade' })}</h3>
       <div className="flex flex-col gap-3 text-sm">
         {[
-          { label: 'Projekte:', key: 'projPath' },
-          { label: 'Exporte:', key: 'expPath' },
-          { label: 'Import (Standard):', key: 'defaultExplorerPath' },
-          { label: 'Aufnahmen:', key: 'recPath' },
-          { label: 'Downloads:', key: 'dlPath' }
+          { label: t('settings.folders.projects', { defaultValue: 'Projekte:' }), key: 'projPath' },
+          { label: t('settings.folders.exports', { defaultValue: 'Exporte:' }), key: 'expPath' },
+          { label: t('settings.folders.import_default', { defaultValue: 'Import (Standard):' }), key: 'defaultExplorerPath' },
+          { label: t('settings.folders.recordings', { defaultValue: 'Aufnahmen:' }), key: 'recPath' },
+          { label: t('settings.folders.downloads', { defaultValue: 'Downloads:' }), key: 'dlPath' }
         ].map((f, i) => (
           <div key={i} className="flex justify-between items-center gap-4">
             <span className="text-gray-400 w-32">{f.label}</span>
@@ -298,9 +443,9 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
         
         {/* Zusätzliche VST Pfade */}
         <div className="mt-4 border-t border-gray-700/60 pt-4">
-          <span className="text-gray-400 block mb-2 font-bold uppercase text-[10px] tracking-wider">Zusätzliche VST2- & VST3-Suchpfade:</span>
+          <span className="text-gray-400 block mb-2 font-bold uppercase text-[10px] tracking-wider">{t('settings.folders.vst_paths', { defaultValue: 'Zusätzliche VST2- & VST3-Suchpfade:' })}</span>
           {(!settings.vstPaths || settings.vstPaths.length === 0) ? (
-            <div className="text-xs text-gray-500 italic mb-3">Keine zusätzlichen Pfade konfiguriert (es werden nur die System-Standardpfade gescannt).</div>
+            <div className="text-xs text-gray-500 italic mb-3">{t('settings.folders.no_vst_paths', { defaultValue: 'Keine zusätzlichen Pfade konfiguriert (es werden nur die System-Standardpfade gescannt).' })}</div>
           ) : (
             <div className="flex flex-col gap-2 mb-3 bg-[#1a1d21] p-2.5 rounded border border-gray-800">
               {(settings.vstPaths || []).map((path: string, idx: number) => (
@@ -314,7 +459,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
                     }}
                     className="text-red-400 hover:text-red-300 px-1.5 py-0.5 rounded bg-red-950/20 hover:bg-red-950/40 border border-red-900/30 text-[10px] transition-colors"
                   >
-                    Entfernen
+                    {t('common.remove', { defaultValue: 'Entfernen' })}
                   </button>
                 </div>
               ))}
@@ -325,7 +470,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
               type="button"
               className="bg-omega-accent hover:bg-blue-500 px-4 py-1.5 rounded text-xs text-white font-semibold flex items-center gap-1.5 transition-colors shadow" 
               onClick={async () => {
-                const res = await window.api.showOpenDialog({ properties: ['openDirectory'], title: 'VST Plug-in-Pfad auswählen' })
+                const res = await window.api.showOpenDialog({ properties: ['openDirectory'], title: t('settings.folders.select_vst_title', { defaultValue: 'VST Plug-in-Pfad auswählen' }) })
                 if (!res.canceled && res.filePaths.length > 0) {
                   const pathToAdd = res.filePaths[0]
                   const currentPaths = settings.vstPaths || []
@@ -333,12 +478,12 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
                     const updated = [...currentPaths, pathToAdd]
                     setSettings({ ...settings, vstPaths: updated })
                   } else {
-                    alert('Dieser Pfad wurde bereits hinzugefügt.')
+                    alert(t('settings.folders.path_already_added', { defaultValue: 'Dieser Pfad wurde bereits hinzugefügt.' }))
                   }
                 }
               }}
             >
-              <span>+ VST Plug-in-Pfad hinzufügen...</span>
+              <span>+ {t('settings.folders.add_vst_path', { defaultValue: 'VST Plug-in-Pfad hinzufügen...' })}</span>
             </button>
           </div>
         </div>
@@ -348,13 +493,13 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
 
   const renderVideoAudio = () => (
     <div className="border border-gray-700 p-4 rounded bg-[#1e2124] h-full">
-      <h3 className="text-center font-semibold mb-4 text-sm">Import Einstellungen</h3>
+      <h3 className="text-center font-semibold mb-4 text-sm">{t('settings.import.title', { defaultValue: 'Import Einstellungen' })}</h3>
       <div className="flex flex-col gap-3 text-sm">
          <label className="flex items-center gap-2 cursor-pointer">
-           <input type="checkbox" defaultChecked /> Video-Dateien importieren (Nur Audiospur wird geladen)
+           <input type="checkbox" defaultChecked /> {t('settings.import.video_import_audio_only', { defaultValue: 'Video-Dateien importieren (Nur Audiospur wird geladen)' })}
          </label>
          <label className="flex items-center gap-2 cursor-pointer">
-           <input type="checkbox" defaultChecked /> Wellenform beim Import automatisch erstellen
+           <input type="checkbox" defaultChecked /> {t('settings.import.auto_generate_waveform', { defaultValue: 'Wellenform beim Import automatisch erstellen' })}
          </label>
          <label className="flex items-center gap-2 cursor-pointer">
            <input 
@@ -362,7 +507,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
              checked={!!settings.halfWaveform} 
              onChange={(e) => setSettings({ ...settings, halfWaveform: e.target.checked })} 
            /> 
-           Halbe Wellenformdarstellung
+           {t('settings.import.half_waveform', { defaultValue: 'Halbe Wellenformdarstellung' })}
          </label>
       </div>
     </div>
@@ -377,8 +522,8 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
     window.dispatchEvent(new CustomEvent('SHOW_GLOBAL_MODAL', {
       detail: {
         type: 'info',
-        title: 'Erfolg',
-        message: 'Alle ausgeblendeten Warn- und Hinweisdialoge wurden wiederhergestellt.'
+        title: t('common.success', { defaultValue: 'Erfolg' }),
+        message: t('settings.system.warnings_restored', { defaultValue: 'Alle ausgeblendeten Warn- und Hinweisdialoge wurden wiederhergestellt.' })
       }
     }))
   }
@@ -387,35 +532,35 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
     <div className="flex gap-4 h-full">
       <div className="flex-1 flex flex-col gap-4">
         <div className="border border-gray-700 p-4 rounded bg-[#1e2124]">
-          <h3 className="text-center font-semibold mb-3 text-sm">Programmoberfläche</h3>
+          <h3 className="text-center font-semibold mb-3 text-sm">{t('settings.system.ui', { defaultValue: 'Programmoberfläche' })}</h3>
           <button 
             className="w-full py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors text-white" 
             onClick={handleReactivateWarnings}
           >
-            Hinweisdialoge reaktivieren
+            {t('settings.system.reactivate_warnings', { defaultValue: 'Hinweisdialoge reaktivieren' })}
           </button>
         </div>
       </div>
 
       <div className="flex-1 border border-gray-700 p-4 rounded bg-[#1e2124] h-full flex flex-col justify-between">
         <div>
-          <h3 className="text-center font-semibold mb-4 text-sm">Automatisches Speichern</h3>
+          <h3 className="text-center font-semibold mb-4 text-sm">{t('settings.system.autosave', { defaultValue: 'Automatisches Speichern' })}</h3>
           <div className="flex flex-col gap-3 text-sm">
             <label className="flex items-center gap-2 cursor-pointer">
-               <input type="checkbox" checked={settings.autoSave} onChange={(e) => setSettings({...settings, autoSave: e.target.checked})} /> Projekt wird automatisch gespeichert
+               <input type="checkbox" checked={settings.autoSave} onChange={(e) => setSettings({...settings, autoSave: e.target.checked})} /> {t('settings.system.autosave_enable', { defaultValue: 'Projekt wird automatisch gespeichert' })}
             </label>
             <div className="flex items-center gap-2 ml-6 text-gray-400">
-              <span>Speichern alle</span>
+              <span>{t('settings.system.autosave_interval_prefix', { defaultValue: 'Speichern alle' })}</span>
               <input type="number" value={settings.autoSaveInterval} onChange={(e) => setSettings({...settings, autoSaveInterval: parseInt(e.target.value) || 10})} className="w-12 bg-[#1a1d21] border border-gray-600 rounded px-1 text-center text-white outline-none" />
-              <span>Minuten</span>
+              <span>{t('settings.system.autosave_interval_suffix', { defaultValue: 'Minuten' })}</span>
             </div>
           </div>
         </div>
 
         <div className="border-t border-gray-750 pt-4 mt-2">
-          <h3 className="text-center font-semibold mb-3 text-sm">Undo-Verlauf</h3>
+          <h3 className="text-center font-semibold mb-3 text-sm">{t('settings.system.undo_history', { defaultValue: 'Undo-Verlauf' })}</h3>
           <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-400">Maximale Undo-Schritte:</span>
+            <span className="text-gray-400">{t('settings.system.max_undo', { defaultValue: 'Maximale Undo-Schritte:' })}</span>
             <div className="flex items-center gap-2">
               <input 
                 type="number" 
@@ -425,7 +570,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
                 onChange={(e) => setSettings({...settings, maxUndoSteps: parseInt(e.target.value) || 50})} 
                 className="w-16 bg-[#1a1d21] border border-gray-600 rounded px-2 py-0.5 text-center text-white outline-none focus:border-omega-accent" 
               />
-              <span className="text-xs text-gray-500">Schritte</span>
+              <span className="text-xs text-gray-500">{t('settings.system.undo_steps', { defaultValue: 'Schritte' })}</span>
             </div>
           </div>
         </div>
@@ -471,12 +616,12 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
     return (
       <div className="border border-gray-700 p-4 rounded bg-[#1e2124] h-full flex flex-col overflow-hidden">
         <div className="flex items-center justify-between mb-3 gap-3">
-          <h3 className="font-semibold text-sm text-gray-300">Tastaturkürzel</h3>
+          <h3 className="font-semibold text-sm text-gray-300">{t('settings.shortcuts.title', { defaultValue: 'Tastaturkürzel' })}</h3>
           <button
             className="px-3 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded"
             onClick={() => setSettings({ ...settings, keyboardShortcuts: DEFAULT_KEYBOARD_SHORTCUTS })}
           >
-            Standard wiederherstellen
+            {t('settings.shortcuts.restore_defaults', { defaultValue: 'Standard wiederherstellen' })}
           </button>
         </div>
         <div className="flex-1 overflow-y-auto pr-1 space-y-4">
@@ -496,13 +641,13 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
                       onClick={() => setCapturingShortcut(item.id)}
                       onKeyDown={(event) => handleShortcutKeyDown(event, item.id)}
                     >
-                      {capturingShortcut === item.id ? 'Taste drücken...' : formatShortcut(keyboardShortcuts[item.id])}
+                      {capturingShortcut === item.id ? t('settings.shortcuts.press_key', { defaultValue: 'Taste drücken...' }) : formatShortcut(keyboardShortcuts[item.id])}
                     </button>
                     <button
                       className="h-8 px-2 rounded bg-gray-700 hover:bg-gray-600 text-[11px] text-gray-200"
                       onClick={() => setShortcut(item.id, DEFAULT_KEYBOARD_SHORTCUTS[item.id])}
                     >
-                      Reset
+                      {t('common.reset', { defaultValue: 'Reset' })}
                     </button>
                   </div>
                 ))}
@@ -517,18 +662,18 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
   const renderFilmeinstellungen = () => (
     <div className="flex gap-4 h-full">
       <div className="flex-1 border border-gray-700 p-4 rounded bg-[#1e2124]">
-         <h3 className="text-center font-semibold mb-4 text-sm">Anzahl der Spuren</h3>
+         <h3 className="text-center font-semibold mb-4 text-sm">{t('settings.project.track_count', { defaultValue: 'Anzahl der Spuren' })}</h3>
          <div className="flex flex-col gap-2 text-sm pl-4">
            {[4, 16, 32, 64, 99, 200].map(num => (
              <label key={num} className="flex items-center gap-2 cursor-pointer">
                <input type="radio" name="tracks" checked={settings.tracksCount === num} onChange={() => setSettings({...settings, tracksCount: num})} />
-               {num} Spuren
+               {t('settings.project.tracks', { defaultValue: '{{num}} Spuren', num })}
              </label>
            ))}
          </div>
       </div>
       <div className="flex-1 border border-gray-700 p-4 rounded bg-[#1e2124]">
-         <h3 className="text-center font-semibold mb-4 text-sm">Audio-Samplerate</h3>
+         <h3 className="text-center font-semibold mb-4 text-sm">{t('settings.project.samplerate_title', { defaultValue: 'Audio-Samplerate' })}</h3>
          <div className="flex flex-col gap-2 text-sm pl-4">
            {[48000, 44100, 32000, 22050, 11025].map(rate => (
              <label key={rate} className="flex items-center gap-2 cursor-pointer">
@@ -543,18 +688,18 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
 
   const renderMidi = () => {
     const CONFIGURABLE_ACTIONS: { action: string; label: string; trackIndex?: number }[] = [
-      { action: 'transport_play', label: 'Transport: Wiedergabe' },
-      { action: 'transport_stop', label: 'Transport: Stopp' },
-      { action: 'transport_record', label: 'Transport: Aufnahme' },
-      { action: 'timeline_scroll', label: 'Timeline: Spulen (Jog-Wheel)' },
-      { action: 'timeline_zoom', label: 'Timeline: Zoom' },
-      { action: 'timeline_scrub', label: 'Timeline: Scrubben' },
-      { action: 'metronome_toggle', label: 'System: Metronom Umschalten' },
-      { action: 'master_volume', label: 'Mixer: Master Lautstärke' },
+      { action: 'transport_play', label: t('midi.actions.play', { defaultValue: 'Transport: Wiedergabe' }) },
+      { action: 'transport_stop', label: t('midi.actions.stop', { defaultValue: 'Transport: Stopp' }) },
+      { action: 'transport_record', label: t('midi.actions.record', { defaultValue: 'Transport: Aufnahme' }) },
+      { action: 'timeline_scroll', label: t('midi.actions.scroll', { defaultValue: 'Timeline: Spulen (Jog-Wheel)' }) },
+      { action: 'timeline_zoom', label: t('midi.actions.zoom', { defaultValue: 'Timeline: Zoom' }) },
+      { action: 'timeline_scrub', label: t('midi.actions.scrub', { defaultValue: 'Timeline: Scrubben' }) },
+      { action: 'metronome_toggle', label: t('midi.actions.metronome', { defaultValue: 'System: Metronom Umschalten' }) },
+      { action: 'master_volume', label: t('midi.actions.master_vol', { defaultValue: 'Mixer: Master Lautstärke' }) },
       ...[0, 1, 2, 3, 4, 5, 6, 7].flatMap(idx => [
-        { action: 'track_volume', trackIndex: idx, label: `Mixer: Spur ${idx + 1} Lautstärke` },
-        { action: 'track_mute', trackIndex: idx, label: `Mixer: Spur ${idx + 1} Mute` },
-        { action: 'track_solo', trackIndex: idx, label: `Mixer: Spur ${idx + 1} Solo` },
+        { action: 'track_volume', trackIndex: idx, label: t('midi.actions.track_vol', { defaultValue: 'Mixer: Spur {{num}} Lautstärke', num: idx + 1 }) },
+        { action: 'track_mute', trackIndex: idx, label: t('midi.actions.track_mute', { defaultValue: 'Mixer: Spur {{num}} Mute', num: idx + 1 }) },
+        { action: 'track_solo', trackIndex: idx, label: t('midi.actions.track_solo', { defaultValue: 'Mixer: Spur {{num}} Solo', num: idx + 1 }) },
       ])
     ];
 
@@ -613,55 +758,55 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
         {/* Device & Channel Selector */}
         <div className="flex gap-4 mb-4">
           <div className="flex-1">
-            <label className="block text-xs text-gray-400 mb-1">MIDI-Eingangsgerät</label>
+            <label className="block text-xs text-gray-400 mb-1">{t('settings.midi.input_device', { defaultValue: 'MIDI-Eingangsgerät' })}</label>
             <select
               value={settings.midiInputDeviceId || ''}
               onChange={(e) => setSettings({ ...settings, midiInputDeviceId: e.target.value })}
               className="w-full bg-[#1a1d21] border border-gray-750 rounded px-2 py-1 text-xs text-gray-200 outline-none focus:border-omega-accent"
             >
-              <option value="">Kein Gerät ausgewählt</option>
+              <option value="">{t('settings.midi.no_device', { defaultValue: 'Kein Gerät ausgewählt' })}</option>
               {midiDevices.map(d => (
                 <option key={d.id} value={d.id}>{d.name}</option>
               ))}
             </select>
           </div>
           <div className="flex-1">
-            <label className="block text-xs text-gray-400 mb-1">MIDI-Ausgangsgerät</label>
+            <label className="block text-xs text-gray-400 mb-1">{t('settings.midi.output_device', { defaultValue: 'MIDI-Ausgangsgerät' })}</label>
             <select
               value={settings.midiOutputDeviceId || ''}
               onChange={(e) => setSettings({ ...settings, midiOutputDeviceId: e.target.value })}
               className="w-full bg-[#1a1d21] border border-gray-750 rounded px-2 py-1 text-xs text-gray-200 outline-none focus:border-omega-accent"
             >
-              <option value="">Kein Gerät ausgewählt</option>
+              <option value="">{t('settings.midi.no_device', { defaultValue: 'Kein Gerät ausgewählt' })}</option>
               {midiOutputDevices.map(d => (
                 <option key={d.id} value={d.id}>{d.name}</option>
               ))}
             </select>
           </div>
           <div className="w-32">
-            <label className="block text-xs text-gray-400 mb-1">MIDI-Kanal</label>
+            <label className="block text-xs text-gray-400 mb-1">{t('settings.midi.channel', { defaultValue: 'MIDI-Kanal' })}</label>
             <select
               value={settings.midiChannel}
               onChange={(e) => setSettings({ ...settings, midiChannel: parseInt(e.target.value) })}
               className="w-full bg-[#1a1d21] border border-gray-750 rounded px-2 py-1 text-xs text-gray-200 outline-none focus:border-omega-accent"
             >
-              <option value={0}>Omni (Alle)</option>
+              <option value={0}>{t('settings.midi.omni', { defaultValue: 'Omni (Alle)' })}</option>
               {[...Array(16)].map((_, i) => (
-                <option key={i + 1} value={i + 1}>Kanal {i + 1}</option>
+                <option key={i + 1} value={i + 1}>{t('settings.midi.channel_n', { defaultValue: 'Kanal {{num}}', num: i + 1 })}</option>
               ))}
             </select>
           </div>
         </div>
 
         {/* Mappings Table */}
-        <h3 className="font-semibold text-xs text-gray-300 mb-2">MIDI-Aktionszuweisungen</h3>
+        <h3 className="font-semibold text-xs text-gray-300 mb-2">{t('settings.midi.mappings_title', { defaultValue: 'MIDI-Aktionszuweisungen' })}</h3>
         <div className="flex-1 overflow-y-auto border border-gray-750 rounded bg-[#1a1d21]">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="bg-[#202225] text-gray-400 border-b border-gray-750">
-                <th className="p-2 font-medium">Aktion</th>
-                <th className="p-2 font-medium">Zuweisung</th>
-                <th className="p-2 font-medium text-right">Optionen</th>
+                <th className="p-2 font-medium">{t('settings.midi.action', { defaultValue: 'Aktion' })}</th>
+                <th className="p-2 font-medium">{t('settings.midi.assignment', { defaultValue: 'Zuweisung' })}</th>
+                <th className="p-2 font-medium text-right">{t('settings.midi.options', { defaultValue: 'Optionen' })}</th>
               </tr>
             </thead>
             <tbody>
@@ -669,7 +814,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
                 const mapping = getMappingForAction(cfg.action, cfg.trackIndex);
                 const isLearning = learningAction?.action === cfg.action && learningAction?.trackIndex === cfg.trackIndex;
                 
-                let assignmentText = 'Nicht zugewiesen';
+                let assignmentText = t('settings.midi.not_assigned', { defaultValue: 'Nicht zugewiesen' });
                 if (mapping) {
                   const typeLabel = mapping.type === 'cc' ? 'Control Change' : (mapping.type === 'note' ? 'Note' : mapping.type.toUpperCase());
                   assignmentText = `${typeLabel} #${mapping.number}`;
@@ -680,7 +825,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
                     <td className="p-2 text-gray-300 font-medium">{cfg.label}</td>
                     <td className="p-2 text-gray-400">
                       {isLearning ? (
-                        <span className="text-omega-accent animate-pulse font-semibold">Lerne... (Bewege Regler / Drücke Taste)</span>
+                        <span className="text-omega-accent animate-pulse font-semibold">{t('settings.midi.learning', { defaultValue: 'Lerne... (Bewege Regler / Drücke Taste)' })}</span>
                       ) : (
                         <span className={mapping ? 'text-green-400 font-medium' : ''}>{assignmentText}</span>
                       )}
@@ -691,7 +836,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
                           onClick={stopLearn}
                           className="px-2.5 py-1 text-[11px] bg-red-600 hover:bg-red-500 rounded text-white font-medium shadow-sm transition-colors"
                         >
-                          Abbrechen
+                          {t('common.cancel', { defaultValue: 'Abbrechen' })}
                         </button>
                       ) : (
                         <>
@@ -699,14 +844,14 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
                             onClick={() => startLearn(cfg.action, cfg.trackIndex)}
                             className="px-2.5 py-1 text-[11px] bg-omega-accent hover:bg-blue-500 rounded text-white font-medium shadow-sm transition-colors"
                           >
-                            Lernen
+                            {t('settings.midi.learn', { defaultValue: 'Lernen' })}
                           </button>
                           {mapping && (
                             <button
                               onClick={() => clearMapping(cfg.action, cfg.trackIndex)}
                               className="px-2.5 py-1 text-[11px] bg-gray-750 hover:bg-gray-700 rounded text-gray-400 font-medium shadow-sm transition-colors"
                             >
-                              Löschen
+                              {t('common.delete', { defaultValue: 'Löschen' })}
                             </button>
                           )}
                         </>
@@ -722,15 +867,49 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
     );
   };
 
+  const handleApply = async () => {
+    const settingsToSave = {
+      ...settings,
+      keyboardShortcuts: normalizeKeyboardShortcuts(settings.keyboardShortcuts)
+    }
+    await window.api.saveSettings(settingsToSave)
+    AudioEngine.getInstance().setAudioDriver(settingsToSave.driverType || 'wave', settingsToSave.bufferCount || 6)
+    
+    // Write trigger to localStorage so other windows synchronize instantly
+    localStorage.setItem('settings_updated_trigger', JSON.stringify({ 
+      timestamp: Date.now(), 
+      settings: settingsToSave 
+    }))
 
-  const tabs: Tab[] = ['Projekteinstellungen', 'Wiedergabe', 'Ordner', 'Import/Audio', 'System', 'Tastaturkürzel', 'MIDI']
+    window.dispatchEvent(new CustomEvent('SETTINGS_UPDATED', { detail: settingsToSave }))
+    
+    // Update checkpoints for reversion in case Cancel is clicked *after* applying
+    setOriginalScale(settings.textScale || 'normal')
+    setOriginalLanguage(settings.language || 'de')
+  }
+
+  const tabs: Tab[] = ['Projekteinstellungen', 'Wiedergabe', 'Ordner', 'Import/Audio', 'System', 'Tastaturkürzel', 'MIDI', 'Sprache & Anzeige']
+
+  const getTabLabel = (tab: Tab) => {
+    switch (tab) {
+      case 'Projekteinstellungen': return t('settings.tabs.project', { defaultValue: 'Projekteinstellungen' })
+      case 'Wiedergabe': return t('settings.tabs.playback', { defaultValue: 'Wiedergabe' })
+      case 'Ordner': return t('settings.tabs.folders', { defaultValue: 'Ordner' })
+      case 'Import/Audio': return t('settings.tabs.import', { defaultValue: 'Import/Audio' })
+      case 'System': return t('settings.tabs.system', { defaultValue: 'System' })
+      case 'Tastaturkürzel': return t('settings.tabs.shortcuts', { defaultValue: 'Tastaturkürzel' })
+      case 'MIDI': return t('settings.tabs.midi', { defaultValue: 'MIDI' })
+      case 'Sprache & Anzeige': return t('settings.lang_display_tab', { defaultValue: 'Sprache & Anzeige' })
+      default: return tab
+    }
+  }
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[2000]" data-settings-modal="true">
-      <div className="bg-[#282b30] border border-gray-700 w-[750px] h-[700px] rounded shadow-2xl flex flex-col">
-        <div className="p-3 border-b border-gray-700 font-semibold flex justify-between items-center bg-[#1e2124] rounded-t">
-          <span>Programmeinstellungen</span>
-          <button onClick={onClose} className="hover:text-red-400">✖</button>
+      <div className="bg-[#282b30] border border-gray-700 w-[890px] h-[700px] rounded shadow-2xl flex flex-col">
+        <div className="p-3 border-b border-gray-700 font-semibold flex justify-between items-center bg-[#1e2124] rounded-t text-sm">
+          <span>{t('settings.title', { defaultValue: 'Programmeinstellungen' })}</span>
+          <button onClick={handleCancel} className="hover:text-red-400">✖</button>
         </div>
         
         {/* Tab Header */}
@@ -741,7 +920,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
               onClick={() => setActiveTab(tab)}
               className={`px-4 py-2 text-xs font-medium whitespace-nowrap border-b-2 transition-colors ${activeTab === tab ? 'border-omega-accent text-omega-accent bg-[#282b30]' : 'border-transparent text-gray-400 hover:text-white hover:bg-[#282b30]'}`}
             >
-              {tab}
+              {getTabLabel(tab)}
             </button>
           ))}
         </div>
@@ -755,13 +934,15 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
           {activeTab === 'Tastaturkürzel' && renderTastaturkuerzel()}
           {activeTab === 'Projekteinstellungen' && renderFilmeinstellungen()}
           {activeTab === 'MIDI' && renderMidi()}
+          {activeTab === 'Sprache & Anzeige' && renderSpracheAnzeige()}
         </div>
 
         {/* Footer Buttons */}
-        <div className="p-3 border-t border-gray-700 flex justify-end gap-2 bg-[#1e2124] rounded-b">
-          <button onClick={onClose} className="px-6 py-1.5 text-sm bg-gray-600 hover:bg-gray-500 rounded">Abbrechen</button>
-          <button onClick={handleSave} className="px-6 py-1.5 text-sm bg-omega-accent hover:bg-blue-500 rounded text-white shadow">OK</button>
-          <button className="px-6 py-1.5 text-sm bg-gray-600 hover:bg-gray-500 rounded ml-4" onClick={() => window.api.openExternal('https://github.com/OmegaProjct/Omega-Wave-Editor/issues')}>Hilfe</button>
+        <div className="p-3 border-t border-gray-700 flex justify-end gap-2 bg-[#1e2124] rounded-b text-sm">
+          <button onClick={handleCancel} className="px-6 py-1.5 text-xs bg-gray-600 hover:bg-gray-500 rounded text-white">{t('common.cancel', { defaultValue: 'Abbrechen' })}</button>
+          <button onClick={handleApply} className="px-6 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 rounded text-white font-semibold shadow-sm">{t('common.apply', { defaultValue: 'Übernehmen' })}</button>
+          <button onClick={handleSave} className="px-6 py-1.5 text-xs bg-omega-accent hover:bg-blue-500 rounded text-white shadow font-semibold">{t('common.ok', { defaultValue: 'OK' })}</button>
+          <button className="px-6 py-1.5 text-xs bg-gray-600 hover:bg-gray-500 rounded ml-4 text-white" onClick={() => window.api.openExternal('https://github.com/OmegaProjct/Omega-Wave-Editor/issues')}>{t('common.help', { defaultValue: 'Hilfe' })}</button>
         </div>
       </div>
     </div>

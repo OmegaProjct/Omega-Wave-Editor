@@ -84,8 +84,19 @@ export function setupVstBridgeIpc(): void {
 
       const senderWindow = BrowserWindow.fromWebContents(event.sender)
       
+      // Auto-resize React window to compact height (95px)
+      let originalBounds = { width: 650, height: 620 }
+      if (senderWindow) {
+        const bounds = senderWindow.getBounds()
+        originalBounds = { width: bounds.width, height: 650 }
+        senderWindow.setSize(bounds.width, 95, false)
+      }
+
+      const [rx, ry] = senderWindow ? senderWindow.getPosition() : [100, 100]
+      const [rw, rh] = senderWindow ? senderWindow.getSize() : [650, 95]
+
       editorWindow = new BrowserWindow({
-        width: 650,
+        width: rw,
         height: 450,
         parent: senderWindow || undefined,
         modal: false,
@@ -96,6 +107,8 @@ export function setupVstBridgeIpc(): void {
         maximizable: true,
         title: 'Plugin Editor',
         autoHideMenuBar: true,
+        x: rx,
+        y: ry + rh,
         webPreferences: {
           nodeIntegration: false,
           contextIsolation: true
@@ -113,6 +126,37 @@ export function setupVstBridgeIpc(): void {
       // Show immediately since VST fills it natively
       editorWindow.show()
 
+      // 🧲 BIDIRECTIONAL MAGNETIC LOCK (Unified Snapping)
+      const syncPositions = () => {
+        if (!editorWindow || !senderWindow || editorWindow.isDestroyed() || senderWindow.isDestroyed()) return
+        const bounds = editorWindow.getBounds()
+        const senderBounds = senderWindow.getBounds()
+        senderWindow.setBounds({
+          x: bounds.x,
+          y: bounds.y - senderBounds.height,
+          width: bounds.width,
+          height: senderBounds.height
+        }, false)
+      }
+
+      const syncFromSender = () => {
+        if (!editorWindow || !senderWindow || editorWindow.isDestroyed() || senderWindow.isDestroyed()) return
+        const bounds = senderWindow.getBounds()
+        editorWindow.setBounds({
+          x: bounds.x,
+          y: bounds.y + bounds.height,
+          width: bounds.width,
+          height: editorWindow.getBounds().height
+        }, false)
+      }
+
+      if (senderWindow) {
+        editorWindow.on('move', syncPositions)
+        editorWindow.on('resize', syncPositions)
+        senderWindow.on('move', syncFromSender)
+        senderWindow.on('resize', syncFromSender)
+      }
+
       editorWindow.on('closed', () => {
         try {
           VstHost.closeEditor()
@@ -120,6 +164,16 @@ export function setupVstBridgeIpc(): void {
           console.error('Failed to close VST editor native resources:', err)
         }
         editorWindow = null
+
+        // Cleanup magnetic listeners and restore React window size
+        if (senderWindow && !senderWindow.isDestroyed()) {
+          senderWindow.off('move', syncFromSender)
+          senderWindow.off('resize', syncFromSender)
+          senderWindow.setSize(originalBounds.width, originalBounds.height, true)
+          // Tell React that native editor was closed so it can exit Compact Mode
+          senderWindow.webContents.send('vst-native-editor-closed')
+        }
+
         // Notify the renderer that the editor window has been closed
         event.sender.send('vst-editor-closed')
       })

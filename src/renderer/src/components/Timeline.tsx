@@ -125,6 +125,10 @@ export function Timeline({
   const [isPlaying, setIsPlaying] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
   const [showAudioRecording, setShowAudioRecording] = useState(false)
+  const [vstRecording, setVstRecording] = useState<{ active: boolean; startTime: number; startPlayhead: number; pluginName: string } | null>(null);
+  const [vstRecordingDuration, setVstRecordingDuration] = useState(0);
+  const [audioRecording, setAudioRecording] = useState<{ active: boolean; startTime: number; startPlayhead: number } | null>(null);
+  const [audioRecordingDuration, setAudioRecordingDuration] = useState(0);
   const [selectionStart, setSelectionStart] = useState<number | null>(null)
   const [selectionEnd, setSelectionEnd] = useState<number | null>(null)
   const [exportSettings, setExportSettings] = useState<any>(null)
@@ -207,8 +211,6 @@ export function Timeline({
     };
   }, []);
 
-  // Ref to prevent feedback loop: when we call onTracksChange ourselves,
-  // the parent reflects it back via initialTracks – we must not re-apply it.
   const isInternalUpdateRef = useRef(false);
 
   const updateTracksWithHistory = (newTracks: Track[]) => {
@@ -217,7 +219,6 @@ export function Timeline({
     if (onTracksChange) {
       isInternalUpdateRef.current = true;
       onTracksChange(newTracks);
-      // Reset on the next microtask, after the state propagation settles
       Promise.resolve().then(() => { isInternalUpdateRef.current = false; });
     }
   }
@@ -499,10 +500,8 @@ export function Timeline({
     const updatedTracks = tracks.map(track => {
       if (track.regions.length === 0) return track;
       
-      // Sort regions by startPos
       const sortedRegions = [...track.regions].sort((a, b) => a.startPos - b.startPos);
       
-      // Pack them back-to-back starting at 0.0s
       let prevEnd = 0;
       const updatedRegions = sortedRegions.map((region) => {
         const newStart = prevEnd;
@@ -530,8 +529,6 @@ export function Timeline({
 
     updateTracksWithHistory(updatedTracks);
   }, [tracks, updateTracksWithHistory]);
-
-  // --- CORE FUNCTIONS (Defined early to avoid initialization errors) ---
 
   const togglePlayback = useCallback(() => {
     if (isPlaying) {
@@ -583,7 +580,6 @@ export function Timeline({
     setSelectedRegionId(newRegion.id);
   }, [clipboard, tracks, playheadPos, selectedRegionId]);
 
-  // Helper: delete all selected regions
   const deleteSelectedRegions = useCallback(() => {
     if (selectedRegionIds.size === 0) return;
     const newTracks = tracks.map(t => ({
@@ -594,7 +590,6 @@ export function Timeline({
     setSelectedRegionIds(new Set());
   }, [selectedRegionIds, tracks]);
 
-  // --- EXTERNAL ACTIONS HANDLER ---
   useEffect(() => {
     if (!externalAction) return;
 
@@ -697,7 +692,6 @@ export function Timeline({
     handleAction();
   }, [externalAction, tracks, onTracksChange, zoomLevel, playheadPos, selectedRegionId, exportSettings]);
 
-  // Listen to exportSettings updates from the export popup window and trigger dirty checking
   useEffect(() => {
     const unsubscribe = window.api.onExportSettingsUpdated((settings: any) => {
       setExportSettings(settings);
@@ -814,7 +808,6 @@ export function Timeline({
         e.preventDefault();
         const curPlayhead = playheadPosRef.current;
         
-        // 1. Alle Regionen ermitteln, die sich unter dem Playhead befinden
         const regionsUnderPlayhead: { region: Region; trackId: string }[] = [];
         tracks.forEach(t => {
           t.regions.forEach(r => {
@@ -826,7 +819,6 @@ export function Timeline({
 
         if (regionsUnderPlayhead.length === 0) return;
 
-        // 2. Prüfen, ob eine dieser Regionen unter dem Playhead ausgewählt ist
         const hasSelectionUnderPlayhead = regionsUnderPlayhead.some(item => selectedRegionIds.has(item.region.id));
 
         let tempProject: any = {
@@ -844,9 +836,6 @@ export function Timeline({
           const region = item.region;
           const trackId = item.trackId;
 
-          // Target-Bedingung: 
-          // Wenn eine Selektion unter dem Playhead aktiv ist, schneiden wir nur diese.
-          // Ansonsten schneiden wir alle Regionen unter dem Playhead.
           const isTarget = hasSelectionUnderPlayhead ? selectedRegionIds.has(region.id) : true;
 
           if (isTarget) {
@@ -875,7 +864,6 @@ export function Timeline({
         e.preventDefault();
         const curPlayhead = playheadPosRef.current;
         
-        // 1. Alle Regionen ermitteln, die sich unter dem Playhead befinden
         const regionsUnderPlayhead: { region: Region; trackId: string }[] = [];
         tracks.forEach(t => {
           t.regions.forEach(r => {
@@ -887,7 +875,6 @@ export function Timeline({
 
         if (regionsUnderPlayhead.length === 0) return;
 
-        // 2. Prüfen, ob eine dieser Regionen unter dem Playhead ausgewählt ist
         const hasSelectionUnderPlayhead = regionsUnderPlayhead.some(item => selectedRegionIds.has(item.region.id));
 
         const newTracks = tracks.map(t => {
@@ -921,7 +908,6 @@ export function Timeline({
         e.preventDefault();
         const curPlayhead = playheadPosRef.current;
         
-        // 1. Alle Regionen ermitteln, die sich unter dem Playhead befinden
         const regionsUnderPlayhead: { region: Region; trackId: string }[] = [];
         tracks.forEach(t => {
           t.regions.forEach(r => {
@@ -933,7 +919,6 @@ export function Timeline({
 
         if (regionsUnderPlayhead.length === 0) return;
 
-        // 2. Prüfen, ob eine dieser Regionen unter dem Playhead ausgewählt ist
         const hasSelectionUnderPlayhead = regionsUnderPlayhead.some(item => selectedRegionIds.has(item.region.id));
 
         const newTracks = tracks.map(t => {
@@ -967,15 +952,22 @@ export function Timeline({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [selectedRegionId, selectedRegionIds, deleteSelectedRegions, togglePlayback, tracks, handleCopy, handlePaste, activeShortcuts]);
 
-  // Playhead and VU update loop
   const [vuLevel, setVuLevel] = useState(0);
 
   useAnimationFrame(() => {
+    if (vstRecording && vstRecording.active) {
+      const elapsed = (Date.now() - vstRecording.startTime) / 1000;
+      setVstRecordingDuration(elapsed);
+    }
+    if (audioRecording && audioRecording.active) {
+      const elapsed = (Date.now() - audioRecording.startTime) / 1000;
+      setAudioRecordingDuration(elapsed);
+    }
+
     const current = engine.currentTime;
     if (engine.isPlaying && !isDraggingPlayheadRef.current) {
       playheadPosRef.current = current;
       
-      // Real-time Autoscroll implementation
       let currentScrollLeft = scrollLeft;
       if (tracksRef.current && autoScroll !== 'Aus') {
         const visibleWidth = tracksRef.current.clientWidth;
@@ -1001,16 +993,13 @@ export function Timeline({
       }
 
       playheadMotionX.set(128 + (current * pixelsPerSecond) - currentScrollLeft);
-      // (blue trailing bar removed – selection is independent)
       
-      // Throttle state updates for UI
       if (Math.floor(current * 10) % 2 === 0) {
          setPlayheadPos(current);
          setVuLevel(engine.getMasterLevels().left);
       }
     }
 
-    // Sende frame-genaues Status-Event für die Koppelung mit dem Player-Tab
     const allRegions = tracks.flatMap(t => t.regions);
     const projectEnd = allRegions.length > 0 ? Math.max(...allRegions.map(r => r.startPos + r.duration)) : 30;
     const projectDuration = Math.max(30, projectEnd);
@@ -1024,7 +1013,6 @@ export function Timeline({
     }));
   });
 
-  // Load initial settings and listen to live settings changes
   useEffect(() => {
     window.api.getSettings().then(s => {
       if (s) {
@@ -1064,7 +1052,6 @@ export function Timeline({
 
   useEffect(() => {
     if (!initialTracks) return;
-    // Skip if this update was triggered by our own onTracksChange call
     if (isInternalUpdateRef.current) return;
     setTracks(initialTracks);
   }, [initialTracks]);
@@ -1144,13 +1131,11 @@ export function Timeline({
   }, [engine.isPlaying, isPlaying]);
   
   useEffect(() => {
-    if (isPlaying) return; // Prevent fighting with useAnimationFrame during playback
+    if (isPlaying) return;
     playheadPosRef.current = playheadPos;
     playheadMotionX.set(128 + (playheadPos * pixelsPerSecond) - scrollLeft);
-    // (playheadRulerMotionWidth removed)
   }, [playheadPos, pixelsPerSecond, scrollLeft, isPlaying]);
 
-  // Eventbus Listener: Empfange Aktionen vom Player-Tab
   useEffect(() => {
     const handleActionPlay = () => {
       togglePlayback();
@@ -1188,7 +1173,6 @@ export function Timeline({
     setScrollTop(e.currentTarget.scrollTop)
   }
 
-  // Guard: wenn ein Doppelklick erkannt wird, ignoriert mouseDown das Setzen der Selektion
   const rulerDoubleClickPendingRef = useRef(false);
 
   const handleStripDoubleClick = (e: React.MouseEvent) => {
@@ -1197,7 +1181,6 @@ export function Timeline({
     rulerDoubleClickPendingRef.current = true;
     setSelectionStart(null);
     setSelectionEnd(null);
-    // Reset the guard after a short tick
     setTimeout(() => { rulerDoubleClickPendingRef.current = false; }, 300);
   };
 
@@ -1209,7 +1192,6 @@ export function Timeline({
     setEditorContextMenu(null);
     setZoomMenuOpen(false);
 
-    // Doppelklick hat Vorrang – Selektion löschen statt neue setzen
     if (rulerDoubleClickPendingRef.current) return;
 
     const stripEl = stripRef.current;
@@ -1222,24 +1204,20 @@ export function Timeline({
 
     if (!isSelectionPresent) {
       if (e.button === 0) {
-        // Linksklick: Erzeugt Selektion ab Klickpunkt bis zum absoluten Projektende
         const allRegions = tracks.flatMap(t => t.regions);
         const projectEnd = allRegions.length > 0 ? Math.max(...allRegions.map(r => r.startPos + r.duration)) : 30;
         setSelectionStart(clickedTime);
         setSelectionEnd(projectEnd);
       } else {
-        // Rechtsklick: Erzeugt Selektion ab Projektstart (0s) bis zum Klickpunkt
         setSelectionStart(0);
         setSelectionEnd(clickedTime);
       }
     } else {
       if (e.button === 0) {
-        // Linksklick bei vorhandenem Balken: Startpunkt (vorne) verschieben/kürzen
         const currentEnd = selectionEnd !== null ? selectionEnd : clickedTime;
         setSelectionStart(clickedTime);
         setSelectionEnd(currentEnd);
       } else {
-        // Rechtsklick bei vorhandenem Balken: Endpunkt (hinten) verschieben/kürzen
         const currentStart = selectionStart !== null ? selectionStart : 0;
         setSelectionStart(currentStart);
         setSelectionEnd(clickedTime);
@@ -1247,9 +1225,8 @@ export function Timeline({
     }
   };
   
-  // Stufenloses Greifen und Verschieben des Abspielkopfs (Playhead-Dragging)
   const handlePlayheadDragMouseDown = (e: React.MouseEvent) => {
-    if (e.button !== 0) return; // Nur primärer Linksklick
+    if (e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
     setContextMenu(null);
@@ -1284,7 +1261,6 @@ export function Timeline({
       
       isDraggingPlayheadRef.current = false;
       
-      // Wenn Wiedergabe aktiv war, an neuer Position nahtlos fortsetzen
       if (wasPlaying) {
         engine.play({ tracks }, playheadPosRef.current);
         setIsPlaying(true);
@@ -1310,8 +1286,8 @@ export function Timeline({
   const handleRegionContextMenu = (e: React.MouseEvent, regionId: string) => {
     e.preventDefault(); e.stopPropagation()
     setSelectedRegionId(regionId)
-    const menuWidth = 224; // w-56
-    const menuHeight = 380; // geschätzte Höhe
+    const menuWidth = 224;
+    const menuHeight = 380;
     const constrainedX = Math.max(0, Math.min(e.clientX, window.innerWidth - menuWidth));
     const constrainedY = Math.max(0, Math.min(e.clientY, window.innerHeight - menuHeight));
     setContextMenu({ x: constrainedX, y: constrainedY, regionId, submenu: null })
@@ -1352,7 +1328,6 @@ export function Timeline({
     updateTracksWithHistory(newTracks);
   }
 
-  // --- MIDI ENGINE INTEGRATION ---
   const tracksRefForMidi = useRef(tracks);
   useEffect(() => {
     tracksRefForMidi.current = tracks;
@@ -1362,6 +1337,94 @@ export function Timeline({
   useEffect(() => {
     isPlayingRefForMidi.current = isPlaying;
   }, [isPlaying]);
+
+  useEffect(() => {
+    const checkVstRecordingState = () => {
+      try {
+        const savedState = localStorage.getItem('vst_recording_state');
+        if (savedState) {
+          const parsed = JSON.parse(savedState);
+          if (parsed.active) {
+            setVstRecording(prev => {
+              if (prev?.active) return prev;
+              const currentPlayhead = playheadPosRef.current;
+              localStorage.setItem('vst_recording_start_playhead', currentPlayhead.toString());
+              return {
+                active: true,
+                startTime: parsed.startTime || Date.now(),
+                startPlayhead: currentPlayhead,
+                pluginName: parsed.pluginName || 'Plugin'
+              };
+            });
+          } else {
+            setVstRecording(null);
+            setVstRecordingDuration(0);
+          }
+        } else {
+          setVstRecording(null);
+          setVstRecordingDuration(0);
+        }
+      } catch (e) {
+        console.error('Failed to parse vst_recording_state:', e);
+      }
+    };
+
+    const checkAudioRecordingState = () => {
+      try {
+        const savedState = localStorage.getItem('audio_recording_state');
+        if (savedState) {
+          const parsed = JSON.parse(savedState);
+          if (parsed.active) {
+            setAudioRecording(prev => {
+              if (prev?.active) return prev;
+              const currentPlayhead = playheadPosRef.current;
+              localStorage.setItem('audio_recording_start_playhead', currentPlayhead.toString());
+              return {
+                active: true,
+                startTime: parsed.startTime || Date.now(),
+                startPlayhead: currentPlayhead
+              };
+            });
+          } else {
+            setAudioRecording(null);
+            setAudioRecordingDuration(0);
+          }
+        } else {
+          setAudioRecording(null);
+          setAudioRecordingDuration(0);
+        }
+      } catch (e) {
+        console.error('Failed to parse audio_recording_state:', e);
+      }
+    };
+
+    checkVstRecordingState();
+    checkAudioRecordingState();
+
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'vst_recording_state') {
+        checkVstRecordingState();
+      } else if (e.key === 'audio_recording_state') {
+        checkAudioRecordingState();
+      } else if (e.key === 'vst_recording_action' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (parsed.action === 'play_daw') {
+            if (!isPlayingRefForMidi.current) {
+              togglePlayback();
+            }
+          }
+        } catch (err) {
+          console.error('Failed to parse vst_recording_action:', err);
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, [togglePlayback]);
 
   useEffect(() => {
     const handleMidiPlay = () => {
@@ -1495,7 +1558,6 @@ export function Timeline({
     const region = tracks.flatMap(t => t.regions).find(r => r.id === regionId);
     if (!region) return;
     
-    // Ctrl+Click: Toggle region in/out of selection
     if (e.ctrlKey) {
       const next = new Set(selectedRegionIds);
       if (next.has(regionId)) {
@@ -1504,10 +1566,9 @@ export function Timeline({
         next.add(regionId);
       }
       setSelectedRegionIds(next);
-      return; // Don't start dragging on Ctrl+Click
+      return;
     }
     
-    // If clicking a region not in selection, replace selection
     if (!selectedRegionIds.has(regionId)) {
       setSelectedRegionIds(new Set([regionId]));
     }
@@ -1525,13 +1586,12 @@ export function Timeline({
     });
   }
 
-  // --- SNAP HELPER ---
   const snapPositionRef = useRef(snapEnabled);
   useEffect(() => { snapPositionRef.current = snapEnabled; }, [snapEnabled]);
 
   const applySnap = useCallback((newPos: number, dragRegionId: string, allTracks: typeof tracks): number => {
     if (!snapPositionRef.current) return newPos;
-    const SNAP_THRESHOLD_SEC = 10 / pixelsPerSecond; // 10px
+    const SNAP_THRESHOLD_SEC = 10 / pixelsPerSecond;
     let snapped = newPos;
     let bestDelta = SNAP_THRESHOLD_SEC;
     allTracks.forEach(t => {
@@ -1544,13 +1604,11 @@ export function Timeline({
         });
       });
     });
-    // Also snap to playhead
     const phDelta = Math.abs(newPos - playheadPosRef.current);
     if (phDelta < bestDelta) { snapped = playheadPosRef.current; }
     return snapped;
   }, [pixelsPerSecond]);
 
-  // --- GROUP HELPERS ---
   const groupSelected = useCallback(() => {
     if (selectedRegionIds.size < 2) return;
     const groupId = Math.random().toString(36).substr(2, 9);
@@ -1569,7 +1627,6 @@ export function Timeline({
     updateTracksWithHistory(newTracks);
   }, [selectedRegionIds, tracks]);
 
-  // --- GAIN DRAG ---
   useEffect(() => {
     if (!draggingGain) return;
     const onMove = (e: MouseEvent) => {
@@ -1578,10 +1635,8 @@ export function Timeline({
       
       let newGain = 1.0;
       if (yPercent >= 50) {
-        // scale from 100% (0.0) to 50% (1.0)
         newGain = (100 - yPercent) / 50;
       } else {
-        // scale from 50% (1.0) to 0% (4.0)
         newGain = 1.0 + ((50 - yPercent) / 50) * 3.0;
       }
       
@@ -1592,13 +1647,11 @@ export function Timeline({
         regions: t.regions.map(r => r.id === draggingGain.regionId ? { ...r, gain: newGain } : r)
       })));
 
-      // Echtzeit-Lautstärkenänderung an die Web-Audio-Engine übertragen
       engine.updateActiveRegionVolume(draggingGain.regionId, newGain);
     };
     const onUp = () => {
       setDraggingGain(null);
       setTracks(cur => { if (onTracksChange) onTracksChange(cur); return cur; });
-      // Verhindere, dass nach dem Draggen ein Klick-Event auf der Timeline ausgelöst wird
       justDraggedRef.current = true;
       setTimeout(() => { justDraggedRef.current = false; }, 50);
     };
@@ -1607,7 +1660,6 @@ export function Timeline({
     return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
   }, [draggingGain, onTracksChange]);
 
-  // --- FADE DRAG ---
   useEffect(() => {
     if (!draggingFade) return;
     const onMove = (e: MouseEvent) => {
@@ -1628,7 +1680,6 @@ export function Timeline({
     const onUp = () => {
       setDraggingFade(null);
       setTracks(cur => { if (onTracksChange) onTracksChange(cur); return cur; });
-      // Verhindere, dass nach dem Draggen ein Klick-Event auf der Timeline ausgelöst wird
       justDraggedRef.current = true;
       setTimeout(() => { justDraggedRef.current = false; }, 50);
     };
@@ -1660,7 +1711,6 @@ export function Timeline({
           const trackEl = elements.find(el => el.hasAttribute('data-track-id'));
           const hoverTrackId = trackEl ? trackEl.getAttribute('data-track-id') : null;
 
-          // Move grouped regions together
           const groupId = region.groupId;
           const deltaPos = newPos - draggingRegion.initialStartPos;
           const groupMoveOffsets: Map<string, number> = new Map();
@@ -1687,7 +1737,6 @@ export function Timeline({
               }
           }
 
-          // Apply grouped region movements
           if (groupMoveOffsets.size > 0) {
             newTracks = newTracks.map(t => ({
               ...t,
@@ -1697,7 +1746,6 @@ export function Timeline({
 
         } else if (draggingRegion.action === 'trimStart') {
           const pitchRate = draggingRegion.pitchRate || 1.0;
-          // Prevent dragging left edge before the file start (sourceOffset cannot be less than 0)
           const minPos = Math.max(0, draggingRegion.initialStartPos - (draggingRegion.initialSourceOffset / pitchRate));
           const maxDelta = (draggingRegion.initialDuration / pitchRate) - 0.1;
           const actualDelta = Math.min(deltaTime, maxDelta);
@@ -1715,7 +1763,6 @@ export function Timeline({
           }
         } else if (draggingRegion.action === 'trimEnd') {
           const pitchRate = draggingRegion.pitchRate || 1.0;
-          // Prevent dragging right edge beyond the actual physical file length
           const fileDur = draggingRegion.initialFileDuration;
           const srcOff = draggingRegion.initialSourceOffset;
           const maxDur = Math.max(0.1, fileDur - srcOff);
@@ -1736,7 +1783,6 @@ export function Timeline({
          if (onTracksChange) onTracksChange(current);
          return current;
       });
-      // Verhindere, dass nach dem Draggen ein Klick-Event auf der Timeline ausgelöst wird
       justDraggedRef.current = true;
       setTimeout(() => { justDraggedRef.current = false; }, 50);
     }
@@ -1770,7 +1816,6 @@ export function Timeline({
       const nextProject = projectCore.splitClip(tempProject, trackId, regionId, splitTime);
       updateTracksWithHistory(nextProject.tracks as any);
     } else if (!e.ctrlKey) {
-      // Plain click without Ctrl: select only this region (Ctrl+Click handled in MouseDown)
       if (!isLassoActiveRef.current) {
         setSelectedRegionIds(new Set([regionId]));
       }
@@ -1856,7 +1901,6 @@ export function Timeline({
           
           <div className="h-px bg-gray-300 my-1 mx-1"></div>
 
-          {/* Normalisieren */}
           <div className="relative" onMouseEnter={() => setNormalizeSubmenuOpen(true)} onMouseLeave={() => setNormalizeSubmenuOpen(false)}>
             <button className="w-full text-left px-4 py-1 hover:bg-blue-500 hover:text-white flex items-center justify-between">
               Normalisieren <span className="text-gray-400">▶</span>
@@ -1873,7 +1917,6 @@ export function Timeline({
             )}
           </div>
 
-          {/* Lautstärke setzen */}
           <div className="relative" onMouseEnter={() => setDbSubmenuOpen(true)} onMouseLeave={() => setDbSubmenuOpen(false)}>
             <button className="w-full text-left px-4 py-1 hover:bg-blue-500 hover:text-white flex items-center justify-between">
               Lautstärke setzen <span className="text-gray-400">▶</span>
@@ -1889,7 +1932,6 @@ export function Timeline({
             )}
           </div>
 
-          {/* Stereo Bearbeitung */}
           <div className="relative" onMouseEnter={() => setStereoSubmenuOpen(true)} onMouseLeave={() => setStereoSubmenuOpen(false)}>
             <button className="w-full text-left px-4 py-1 hover:bg-blue-500 hover:text-white flex items-center justify-between">
               Stereo-Objekt <span className="text-gray-400">▶</span>
@@ -1909,7 +1951,6 @@ export function Timeline({
             )}
           </div>
 
-          {/* Spurkurven */}
           <div className="relative" onMouseEnter={() => setResetSubmenuOpen(true)} onMouseLeave={() => setResetSubmenuOpen(false)}>
             <button className="w-full text-left px-4 py-1 hover:bg-blue-500 hover:text-white flex items-center justify-between">
               Spurkurven <span className="text-gray-400">▶</span>
@@ -1931,7 +1972,6 @@ export function Timeline({
             )}
           </div>
 
-          {/* Audioeffekte */}
           <div className="relative" onMouseEnter={() => setEffectsSubmenuOpen(true)} onMouseLeave={() => setEffectsSubmenuOpen(false)}>
             <button className="w-full text-left px-4 py-1 hover:bg-blue-500 hover:text-white flex items-center justify-between">
               Audioeffekte <span className="text-gray-400">▶</span>
@@ -1978,7 +2018,6 @@ export function Timeline({
           
           <div className="h-px bg-gray-300 my-1 mx-1"></div>
 
-          {/* Objektfarbe Untermenü */}
           <div className="relative" onMouseEnter={() => setColorSubmenuOpen(true)} onMouseLeave={() => setColorSubmenuOpen(false)}>
             <button className="w-full text-left px-4 py-1 hover:bg-blue-500 hover:text-white flex items-center justify-between">
               Objektfarbe <span className="text-gray-400">▶</span>
@@ -2038,7 +2077,6 @@ export function Timeline({
       )}
 
       <div className="h-10 border-b border-omega-border flex items-center bg-omega-panel px-2 gap-2 z-[150]">
-        {/* Tools */}
         <div className="flex gap-1 border-r border-gray-700 pr-2">
            <button title="Auswahlwerkzeug" className={`p-1.5 rounded ${toolMode === 'select' ? 'text-white bg-omega-accent' : 'hover:bg-gray-700 text-gray-400'}`} onClick={() => setToolMode('select')}>
              <MousePointer2 size={16} />
@@ -2047,11 +2085,17 @@ export function Timeline({
              <Scissors size={16} />
            </button>
         </div>
-        {/* Transport */}
         <div className="flex gap-1 text-gray-400 border-r border-gray-700 pr-2">
-           <button title="Aufnahme" className={`p-1.5 rounded ${showAudioRecording ? 'text-red-500 animate-pulse bg-red-500/20' : 'hover:bg-gray-700 text-gray-400'}`} onClick={() => setShowAudioRecording(true)}><Mic size={16} /></button>
+            <button 
+              title="Audioaufnahme (Popout)" 
+              className={`p-1.5 rounded transition-all ${audioRecording?.active ? 'text-red-500 animate-pulse bg-red-500/20 shadow-[0_0_8px_rgba(239,68,68,0.5)] border border-red-500/30' : 'hover:bg-gray-700 text-gray-400'}`} 
+              onClick={() => {
+                window.api.openPopoutWindow('audio-recorder', { width: 560, height: 520, title: '🔴 Audio-Aufnahme' });
+              }}
+            >
+              <Mic size={16} />
+            </button>
         </div>
-        {/* Edit buttons */}
         <div className="flex gap-1 text-gray-400 border-r border-gray-700 pr-2">
           <button title="Rückgängig (Strg+Z)" className="p-1.5 hover:bg-gray-700 rounded" onClick={() => { const prev = HistoryManager.undo(tracks); if (prev) { setTracks(prev); if (onTracksChange) { isInternalUpdateRef.current = true; onTracksChange(prev); Promise.resolve().then(() => { isInternalUpdateRef.current = false; }); } } }}>
             <RotateCcw size={16} />
@@ -2523,6 +2567,38 @@ export function Timeline({
                              </div>
                            );
                         })}
+                        {track.id === '1' && vstRecording && vstRecording.active && (
+                          <div
+                            className="absolute top-0.5 bottom-0.5 border rounded overflow-hidden flex flex-col shadow-lg pointer-events-none bg-red-950/40 border-red-500 text-red-400 animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.25)] z-20"
+                            style={{
+                              left: `${vstRecording.startPlayhead * pixelsPerSecond}px`,
+                              width: `${vstRecordingDuration * pixelsPerSecond}px`
+                            }}
+                          >
+                            <div className="h-[18px] bg-red-650 text-white font-bold select-none flex items-center px-2 text-[10px] truncate leading-none">
+                              🔴 LIVE-AUFNAHME ({vstRecording.pluginName})
+                            </div>
+                            <div className="flex-1 bg-red-950/20 relative flex items-center px-3 text-[10px] font-bold font-mono tracking-wider">
+                              {vstRecordingDuration.toFixed(1)}s aufgenommene Spieldauer
+                            </div>
+                          </div>
+                        )}
+                        {track.id === '1' && audioRecording && audioRecording.active && (
+                          <div
+                            className="absolute top-0.5 bottom-0.5 border rounded overflow-hidden flex flex-col shadow-lg pointer-events-none bg-red-950/40 border-red-500 text-red-400 animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.25)] z-20"
+                            style={{
+                              left: `${audioRecording.startPlayhead * pixelsPerSecond}px`,
+                              width: `${audioRecordingDuration * pixelsPerSecond}px`
+                            }}
+                          >
+                            <div className="h-[18px] bg-red-600 text-white font-bold select-none flex items-center px-2 text-[10px] truncate leading-none">
+                              🔴 AUDIO-AUFNAHME
+                            </div>
+                            <div className="flex-1 bg-red-950/20 relative flex items-center px-3 text-[10px] font-bold font-mono tracking-wider">
+                              {audioRecordingDuration.toFixed(1)}s aufgenommene Spieldauer
+                            </div>
+                          </div>
+                        )}
                      </div>
                   ))}
               </div>

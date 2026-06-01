@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react'
 import { Github, Heart, Info, X } from 'lucide-react'
 import appIcon from '../assets/app_icon.png'
+import { useTranslation } from 'react-i18next'
 
 interface AboutModalProps {
   onClose: () => void
 }
 
 export function AboutModal({ onClose }: AboutModalProps) {
+  const { t } = useTranslation()
   const [version, setVersion] = useState('0.7.5')
 
   useEffect(() => {
@@ -33,7 +35,9 @@ export function AboutModal({ onClose }: AboutModalProps) {
         <div className="bg-[#1a1d21]/60 px-5 py-3.5 border-b border-gray-800/80 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Info className="text-omega-accent" size={18} />
-            <span className="text-xs font-bold uppercase tracking-wider text-omega-accent">Über das Programm</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-omega-accent">
+              {t('about.title', { defaultValue: 'Über das Programm' })}
+            </span>
           </div>
           <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors">
             <X size={16} />
@@ -55,7 +59,7 @@ export function AboutModal({ onClose }: AboutModalProps) {
           </span>
 
           <p className="text-xs text-gray-300 leading-relaxed mb-6 px-3">
-            Ein verlustfreier, schneller Audio-Editor für professionelles Arrangieren, präzises Schneiden und effektives Spuren-Mischen.
+            {t('about.description', { defaultValue: 'Ein verlustfreier, schneller Audio-Editor für professionelles Arrangieren, präzises Schneiden und effektives Spuren-Mischen.' })}
           </p>
 
           {/* Links & Buttons */}
@@ -66,7 +70,7 @@ export function AboutModal({ onClose }: AboutModalProps) {
               className="w-full py-2 px-4 bg-[#16181b] hover:bg-gray-800 text-white text-xs rounded-lg border border-gray-800/80 shadow-md flex items-center justify-center gap-2 font-medium transition-all duration-150 active:scale-[0.98]"
             >
               <Github size={14} className="text-gray-300" />
-              <span>GitHub Repository öffnen</span>
+              <span>{t('about.open_github', { defaultValue: 'GitHub Repository öffnen' })}</span>
             </button>
 
             {/* Support PayPal Link */}
@@ -75,7 +79,7 @@ export function AboutModal({ onClose }: AboutModalProps) {
               className="w-full py-2 px-4 bg-[#1d273a] hover:bg-[#233149] text-blue-300 hover:text-blue-200 text-xs rounded-lg border border-[#2b3c58] shadow-md flex items-center justify-center gap-2 font-semibold transition-all duration-150 active:scale-[0.98]"
             >
               <Heart size={14} className="text-pink-400 fill-pink-500/20" />
-              <span>Projekt unterstützen (PayPal)</span>
+              <span>{t('about.support_paypal', { defaultValue: 'Projekt unterstützen (PayPal)' })}</span>
             </button>
           </div>
         </div>
@@ -84,7 +88,7 @@ export function AboutModal({ onClose }: AboutModalProps) {
         <div className="bg-[#1a1d21]/60 px-5 py-3.5 border-t border-gray-800/80 flex items-center justify-between text-[10px] text-gray-500 font-sans select-none">
           <span>© 2026 Omega Projects</span>
           <span className="hover:text-omega-accent cursor-pointer transition-colors" onClick={() => handleOpenLink('mailto:omegaproject1337@gmail.com')}>
-            Support kontaktieren
+            {t('about.contact_support', { defaultValue: 'Support kontaktieren' })}
           </span>
         </div>
 

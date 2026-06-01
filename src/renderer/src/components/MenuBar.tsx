@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { KeyboardShortcuts, formatShortcut, normalizeKeyboardShortcuts } from '../lib/keyboardShortcuts'
+import { useTranslation } from 'react-i18next'
 
 export function MenuBar({ 
   onOpenSettings, 
@@ -12,6 +13,7 @@ export function MenuBar({
   onFileAction: (type: string, payload?: any) => void,
   shortcuts?: KeyboardShortcuts
 }) {
+  const { t } = useTranslation()
   const [openMenu, setOpenMenu] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const activeShortcuts = normalizeKeyboardShortcuts(shortcuts)
@@ -52,7 +54,11 @@ export function MenuBar({
     
     if (action === 'vst_plugins') {
       const plugins = await window.api.scanVstPlugins()
-      onFileAction('SHOW_MODAL', { type: 'info', title: 'VST Scan', message: `VST Scan abgeschlossen. ${plugins.length} Plugins gefunden:\n\n${plugins.map((p: any) => `- ${p.name} (${p.format})`).join('\n')}` })
+      onFileAction('SHOW_MODAL', { 
+        type: 'info', 
+        title: 'VST Scan', 
+        message: t('menu.vst_scan_finished', { defaultValue: 'VST Scan abgeschlossen. {{count}} Plugins gefunden:\n\n', count: plugins.length }) + plugins.map((p: any) => `- ${p.name} (${p.format})`).join('\n')
+      })
       return
     }
 
@@ -60,7 +66,7 @@ export function MenuBar({
       onFileAction('SHOW_MODAL', { 
         type: 'info', 
         title: 'Updates', 
-        message: 'Prüfe auf Updates...\n\nBitte warten...' 
+        message: t('menu.checking_updates', { defaultValue: 'Prüfe auf Updates...\n\nBitte warten...' })
       })
       try {
         const updateInfo = await window.api.checkForUpdates()
@@ -69,7 +75,7 @@ export function MenuBar({
           onFileAction('SHOW_MODAL', {
             type: 'error',
             title: 'Updates',
-            message: `Fehler bei der Update-Prüfung:\n${updateInfo.error}`
+            message: t('menu.update_check_error', { defaultValue: 'Fehler bei der Update-Prüfung:\n{{error}}', error: updateInfo.error })
           })
           return
         }
@@ -100,7 +106,7 @@ export function MenuBar({
           onFileAction('SHOW_MODAL', {
             type: 'info',
             title: 'Updates',
-            message: `Deine Software ist auf dem neuesten Stand.\n\nInstallierte Version: ${cleanCurrent}\nNeueste Version: ${cleanLatest}`
+            message: t('menu.up_to_date', { defaultValue: 'Deine Software ist auf dem neuesten Stand.\n\nInstallierte Version: {{current}}\nNeueste Version: {{latest}}', current: cleanCurrent, latest: cleanLatest })
           })
         }
       } catch (err: any) {
@@ -108,7 +114,7 @@ export function MenuBar({
         onFileAction('SHOW_MODAL', {
           type: 'error',
           title: 'Updates',
-          message: `Fehler bei der Update-Prüfung: ${err.message}`
+          message: t('menu.update_check_error_msg', { defaultValue: 'Fehler bei der Update-Prüfung: {{message}}', message: err.message })
         })
       }
       return
@@ -121,12 +127,18 @@ export function MenuBar({
     if (action === 'help' || action === 'manual') return onFileAction('SHOW_MANUAL')
     
     if (action === 'audio_effects') {
-       // Just open the EffectsPanel conceptually, but it's always open on the right in this layout.
-       // We can show an info message or focus it.
-       return onFileAction('SHOW_MODAL', { type: 'info', title: 'Master-Effekte', message: 'Das Effekt-Panel auf der rechten Seite ist bereits aktiv und wendet Effekte in Echtzeit an.' })
+       return onFileAction('SHOW_MODAL', { 
+         type: 'info', 
+         title: t('menu.master_effects', { defaultValue: 'Master-Effekte' }), 
+         message: t('menu.effects_active', { defaultValue: 'Das Effekt-Panel auf der rechten Seite ist bereits aktiv und wendet Effekte in Echtzeit an.' }) 
+       })
     }
 
-    onFileAction('SHOW_MODAL', { type: 'warn', title: 'Hinweis', message: `Die Funktion "${action}" wird derzeit vorbereitet.` })
+    onFileAction('SHOW_MODAL', { 
+      type: 'warn', 
+      title: t('common.notice', { defaultValue: 'Hinweis' }), 
+      message: t('menu.feature_preparing', { defaultValue: 'Die Funktion "{{action}}" wird derzeit vorbereitet.', action }) 
+    })
   }
 
   const MenuItem = ({ label, shortcut, action, divider, isParent }: { label?: string, shortcut?: string, action?: string, divider?: boolean, isParent?: boolean }) => {
@@ -147,63 +159,63 @@ export function MenuBar({
     <div className="flex items-center h-full relative" ref={menuRef}>
       {/* Datei */}
       <div className="relative h-full flex items-center">
-        <span className={`mx-1 px-3 py-1 cursor-pointer hover:bg-gray-700 rounded transition-colors ${openMenu === 'file' ? 'bg-gray-700' : ''}`} onClick={() => handleMenuClick('file')}>Datei</span>
+        <span className={`mx-1 px-3 py-1 cursor-pointer hover:bg-gray-700 rounded transition-colors ${openMenu === 'file' ? 'bg-gray-700' : ''}`} onClick={() => handleMenuClick('file')}>{t('menu.file', { defaultValue: 'Datei' })}</span>
         {openMenu === 'file' && (
           <div className="absolute top-full left-0 bg-[#2b2d31] border border-gray-700 shadow-xl py-1 z-[1000] rounded text-omega-text">
-            <MenuItem label="Neues Projekt..." shortcut={formatShortcut(activeShortcuts.newProject)} action="new_project" />
-            <MenuItem label="Projekt Öffnen..." shortcut={formatShortcut(activeShortcuts.openProject)} action="open_project" />
+            <MenuItem label={t('menu.new_project', { defaultValue: 'Neues Projekt...' })} shortcut={formatShortcut(activeShortcuts.newProject)} action="new_project" />
+            <MenuItem label={t('menu.open_project', { defaultValue: 'Projekt Öffnen...' })} shortcut={formatShortcut(activeShortcuts.openProject)} action="open_project" />
             <MenuItem divider />
-            <MenuItem label="Projekt speichern" shortcut={formatShortcut(activeShortcuts.saveProject)} action="save_project" />
-            <MenuItem label="Projekt speichern unter..." shortcut={formatShortcut(activeShortcuts.saveProjectAs)} action="save_project_as" />
+            <MenuItem label={t('menu.save_project', { defaultValue: 'Projekt speichern' })} shortcut={formatShortcut(activeShortcuts.saveProject)} action="save_project" />
+            <MenuItem label={t('menu.save_project_as', { defaultValue: 'Projekt speichern unter...' })} shortcut={formatShortcut(activeShortcuts.saveProjectAs)} action="save_project_as" />
             <MenuItem divider />
-            <MenuItem label="Audio exportieren (Mixdown)..." shortcut={formatShortcut(activeShortcuts.exportAudio)} action="export" />
-            <MenuItem label="Arrangement exportieren (.owea)..." action="export_arrangement" />
-            <MenuItem label="Layer exportieren (.owel)..." action="export_layer" />
+            <MenuItem label={t('menu.export_audio', { defaultValue: 'Audio exportieren (Mixdown)...' })} shortcut={formatShortcut(activeShortcuts.exportAudio)} action="export" />
+            <MenuItem label={t('menu.export_arrangement', { defaultValue: 'Arrangement exportieren (.owea)...' })} action="export_arrangement" />
+            <MenuItem label={t('menu.export_layer', { defaultValue: 'Layer exportieren (.owel)...' })} action="export_layer" />
             <MenuItem divider />
-            <MenuItem label="Einstellungen" shortcut={formatShortcut(activeShortcuts.openSettings)} action="settings" />
+            <MenuItem label={t('menu.settings', { defaultValue: 'Einstellungen' })} shortcut={formatShortcut(activeShortcuts.openSettings)} action="settings" />
             <MenuItem divider />
-            <MenuItem label="Beenden" shortcut="Alt+F4" action="quit" />
+            <MenuItem label={t('menu.quit', { defaultValue: 'Beenden' })} shortcut="Alt+F4" action="quit" />
           </div>
         )}
       </div>
 
       {/* Bearbeiten */}
       <div className="relative h-full flex items-center">
-        <span className={`mx-1 px-3 py-1 cursor-pointer hover:bg-gray-700 rounded transition-colors ${openMenu === 'edit' ? 'bg-gray-700' : ''}`} onClick={() => handleMenuClick('edit')}>Bearbeiten</span>
+        <span className={`mx-1 px-3 py-1 cursor-pointer hover:bg-gray-700 rounded transition-colors ${openMenu === 'edit' ? 'bg-gray-700' : ''}`} onClick={() => handleMenuClick('edit')}>{t('menu.edit', { defaultValue: 'Bearbeiten' })}</span>
         {openMenu === 'edit' && (
           <div className="absolute top-full left-0 bg-[#2b2d31] border border-gray-700 shadow-xl py-1 z-[1000] rounded">
-            <MenuItem label="Rückgängig" shortcut={formatShortcut(activeShortcuts.undo)} action="undo" />
-            <MenuItem label="Wiederherstellen" shortcut={formatShortcut(activeShortcuts.redo)} action="redo" />
+            <MenuItem label={t('menu.undo', { defaultValue: 'Rückgängig' })} shortcut={formatShortcut(activeShortcuts.undo)} action="undo" />
+            <MenuItem label={t('menu.redo', { defaultValue: 'Wiederherstellen' })} shortcut={formatShortcut(activeShortcuts.redo)} action="redo" />
             <MenuItem divider />
-            <MenuItem label="Objekte ausschneiden" shortcut={formatShortcut(activeShortcuts.cut)} action="cut" />
-            <MenuItem label="Objekte kopieren" shortcut={formatShortcut(activeShortcuts.copy)} action="copy" />
-            <MenuItem label="Objekte einfügen" shortcut={formatShortcut(activeShortcuts.paste)} action="paste" />
-            <MenuItem label="Objekte löschen" shortcut={formatShortcut(activeShortcuts.deleteSelection)} action="delete" />
+            <MenuItem label={t('menu.cut', { defaultValue: 'Objekte ausschneiden' })} shortcut={formatShortcut(activeShortcuts.cut)} action="cut" />
+            <MenuItem label={t('menu.copy', { defaultValue: 'Objekte kopieren' })} shortcut={formatShortcut(activeShortcuts.copy)} action="copy" />
+            <MenuItem label={t('menu.paste', { defaultValue: 'Objekte einfügen' })} shortcut={formatShortcut(activeShortcuts.paste)} action="paste" />
+            <MenuItem label={t('menu.delete', { defaultValue: 'Objekte löschen' })} shortcut={formatShortcut(activeShortcuts.deleteSelection)} action="delete" />
           </div>
         )}
       </div>
 
       {/* Plugins */}
       <div className="relative h-full flex items-center">
-        <span className={`mx-1 px-3 py-1 cursor-pointer hover:bg-gray-700 rounded transition-colors ${openMenu === 'effects' ? 'bg-gray-700' : ''}`} onClick={() => handleMenuClick('effects')}>Plugins</span>
+        <span className={`mx-1 px-3 py-1 cursor-pointer hover:bg-gray-700 rounded transition-colors ${openMenu === 'effects' ? 'bg-gray-700' : ''}`} onClick={() => handleMenuClick('effects')}>{t('menu.plugins', { defaultValue: 'Plugins' })}</span>
         {openMenu === 'effects' && (
           <div className="absolute top-full left-0 bg-[#2b2d31] border border-gray-700 shadow-xl py-1 z-[1000] rounded">
-            <MenuItem label="VST Plugins laden/scannen..." action="vst_plugins" />
+            <MenuItem label={t('menu.scan_vst', { defaultValue: 'VST Plugins laden/scannen...' })} action="vst_plugins" />
           </div>
         )}
       </div>
 
       {/* Hilfe */}
       <div className="relative h-full flex items-center">
-        <span className={`mx-1 px-3 py-1 cursor-pointer hover:bg-gray-700 rounded transition-colors ${openMenu === 'help' ? 'bg-gray-700' : ''}`} onClick={() => handleMenuClick('help')}>Hilfe</span>
+        <span className={`mx-1 px-3 py-1 cursor-pointer hover:bg-gray-700 rounded transition-colors ${openMenu === 'help' ? 'bg-gray-700' : ''}`} onClick={() => handleMenuClick('help')}>{t('menu.help', { defaultValue: 'Hilfe' })}</span>
         {openMenu === 'help' && (
           <div className="absolute top-full left-0 bg-[#2b2d31] border border-gray-700 shadow-xl py-1 z-[1000] rounded">
-            <MenuItem label="Benutzerhandbuch" action="manual" />
+            <MenuItem label={t('menu.manual', { defaultValue: 'Benutzerhandbuch' })} action="manual" />
             <MenuItem divider />
-            <MenuItem label="Auf Updates prüfen..." action="updates" />
-            <MenuItem label="Über Omega Wave Editor..." action="about" />
+            <MenuItem label={t('menu.check_updates', { defaultValue: 'Auf Updates prüfen...' })} action="updates" />
+            <MenuItem label={t('menu.about', { defaultValue: 'Über Omega Wave Editor...' })} action="about" />
             <MenuItem divider />
-            <MenuItem label="❤️ Projekt unterstützen (PayPal)" action="paypal" />
+            <MenuItem label={t('menu.support_paypal', { defaultValue: '❤️ Projekt unterstützen (PayPal)' })} action="paypal" />
           </div>
         )}
       </div>

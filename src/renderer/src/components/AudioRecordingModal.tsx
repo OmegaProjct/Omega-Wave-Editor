@@ -2,11 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, Folder, Play, Square, AlertTriangle } from 'lucide-react';
 import { RecordingEngine, RecordingOptions } from '../lib/RecordingEngine';
 import { AdvancedRecordingSettingsModal, AdvancedSettings } from './AdvancedRecordingSettingsModal';
+import { useTranslation } from 'react-i18next';
 
 interface AudioRecordingModalProps {
-  onClose: () => void;
-  onSaveRecord: (filePath: string, durationSec: number) => void;
-  playheadPos: number;
+  onClose?: () => void;
+  onSaveRecord?: (filePath: string, durationSec: number) => void;
+  playheadPos?: number;
 }
 
 interface Preset {
@@ -28,6 +29,21 @@ export function AudioRecordingModal({
   onSaveRecord,
   playheadPos
 }: AudioRecordingModalProps) {
+  const { t } = useTranslation();
+  const isPopout = !onClose || !onSaveRecord;
+  const [syncPlayback, setSyncPlayback] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!isPopout) return;
+    const cleanup = () => {
+      localStorage.setItem('audio_recording_state', JSON.stringify({ active: false }));
+    };
+    window.addEventListener('beforeunload', cleanup);
+    return () => {
+      window.removeEventListener('beforeunload', cleanup);
+      cleanup();
+    };
+  }, [isPopout]);
   // Option States
   const [microphones, setMicrophones] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
@@ -82,7 +98,7 @@ export function AudioRecordingModal({
         setMicrophones(devs);
         if (devs.length > 0) {
           setSelectedDeviceId(devs[0].deviceId);
-          setMicrophoneLabel(devs[0].label || 'Standardmikrofon');
+          setMicrophoneLabel(devs[0].label || t('recording.default_mic', { defaultValue: 'Standardmikrofon' }));
         }
       } catch (err) {
         console.error('Fehler bei der Mikrofonabfrage:', err);
@@ -114,7 +130,7 @@ export function AudioRecordingModal({
   useEffect(() => {
     const mic = microphones.find(m => m.deviceId === selectedDeviceId);
     if (mic) {
-      setMicrophoneLabel(mic.label || 'Aktiviertes Mikrofon');
+      setMicrophoneLabel(mic.label || t('recording.active_mic', { defaultValue: 'Aktiviertes Mikrofon' }));
     }
   }, [selectedDeviceId, microphones]);
 
@@ -170,7 +186,7 @@ export function AudioRecordingModal({
         nextIndex = maxIndex + 1;
       } catch (err) {
         // Directory may not exist yet, which is fine
-        console.log('Zielverzeichnis existiert noch nicht oder konnte nicht gelesen werden.');
+        console.log(t('recording.dir_not_found', { defaultValue: 'Zielverzeichnis existiert noch nicht oder konnte nicht gelesen werden.' }));
       }
 
       if (active) {
@@ -254,6 +270,21 @@ export function AudioRecordingModal({
       setRecordingTimeMs(0);
       setIsRecording(true);
 
+      // Start state in localStorage for real-time growing block in timeline
+      localStorage.setItem('audio_recording_state', JSON.stringify({
+        active: true,
+        startTime: Date.now(),
+        filename: filename
+      }));
+
+      // Send action to play DAW if coupled
+      if (syncPlayback) {
+        localStorage.setItem('vst_recording_action', JSON.stringify({
+          action: 'play_daw',
+          timestamp: Date.now()
+        }));
+      }
+
       // Start Timer
       timerRef.current = setInterval(() => {
         setRecordingTimeMs(Date.now() - startTimeRef.current);
@@ -263,8 +294,8 @@ export function AudioRecordingModal({
       window.dispatchEvent(new CustomEvent('SHOW_GLOBAL_MODAL', {
         detail: {
           type: 'error',
-          title: 'Aufnahmefehler',
-          message: 'Aufnahme konnte nicht gestartet werden: ' + (err as Error).message
+          title: t('recording.error_title', { defaultValue: 'Aufnahmefehler' }),
+          message: t('recording.error_start', { defaultValue: 'Aufnahme konnte nicht gestartet werden: ' }) + (err as Error).message
         }
       }));
     }
@@ -279,6 +310,7 @@ export function AudioRecordingModal({
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
+    localStorage.setItem('audio_recording_state', JSON.stringify({ active: false }));
 
     try {
       const result = await engineRef.current.stopRecording();
@@ -288,8 +320,20 @@ export function AudioRecordingModal({
       const saveRes = await window.api.saveRecording(finalPath, result.arrayBuffer);
       
       if (saveRes && saveRes.success) {
-        // Send path and duration back to timeline to create the region
-        onSaveRecord(finalPath, result.durationSec);
+        if (isPopout) {
+          const dawStartPlayhead = parseFloat(localStorage.getItem('audio_recording_start_playhead') || '0');
+          const payload = {
+            filePath: finalPath,
+            durationSec: result.durationSec,
+            startPos: dawStartPlayhead,
+            filename: filename
+          };
+          localStorage.setItem('audio_recorded_finished', JSON.stringify(payload));
+          localStorage.removeItem('audio_recorded_finished'); // clear right after to trigger event
+          window.close();
+        } else if (onSaveRecord) {
+          onSaveRecord(finalPath, result.durationSec);
+        }
         
         // Trigger a fresh directory scan to increment the index for the next recording
         updateDiskSpace(saveDirectory);
@@ -308,8 +352,8 @@ export function AudioRecordingModal({
       window.dispatchEvent(new CustomEvent('SHOW_GLOBAL_MODAL', {
         detail: {
           type: 'error',
-          title: 'Fehler beim Speichern',
-          message: 'Die Aufnahme konnte nicht gespeichert werden: ' + (err as Error).message
+          title: t('recording.error_save_title', { defaultValue: 'Fehler beim Speichern' }),
+          message: t('recording.error_save', { defaultValue: 'Die Aufnahme konnte nicht gespeichert werden: ' }) + (err as Error).message
         }
       }));
     }
@@ -426,19 +470,25 @@ export function AudioRecordingModal({
   const getPresetByteRateString = (): string => {
     const byteRate = sampleRate * (mono ? 1 : 2) * 2;
     const kbps = byteRate / 1024;
-    return `${(sampleRate / 1000).toFixed(1)} kHz, ${mono ? 'Mono' : 'Stereo'}, ${kbps.toFixed(1)} Kilobyte/s`;
+    return t('recording.quality_description', {
+      defaultValue: '{{rate}} kHz, {{channels}}, {{kbps}} Kilobyte/s',
+      rate: (sampleRate / 1000).toFixed(1),
+      channels: mono ? t('common.mono', { defaultValue: 'Mono' }) : t('common.stereo', { defaultValue: 'Stereo' }),
+      kbps: kbps.toFixed(1)
+    });
   };
 
   return (
-    <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-[540px] bg-[#282b30] border border-[#3b3e45] text-[#d1d5db] font-sans shadow-2xl flex flex-col rounded-lg overflow-hidden select-none">
+    <div className={isPopout ? "h-screen w-screen bg-[#282b30] text-[#d1d5db] font-sans flex flex-col overflow-hidden select-none" : "fixed inset-0 z-[2000] flex items-center justify-center bg-black/60 backdrop-blur-sm"}>
+      <div className={isPopout ? "flex-1 flex flex-col bg-[#282b30] w-full h-full" : "w-[540px] bg-[#282b30] border border-[#3b3e45] text-[#d1d5db] font-sans shadow-2xl flex flex-col rounded-lg overflow-hidden select-none"}>
         
         {/* Title bar */}
-        <div className="h-10 bg-[#1e2124] border-b border-[#3b3e45] flex items-center justify-between px-3">
-          <span className="font-semibold text-sm text-white">Audioaufnahme</span>
+        <div className="h-10 bg-[#1e2124] border-b border-[#3b3e45] flex items-center justify-between px-3" style={{ WebkitAppRegion: isPopout ? 'drag' : 'no-drag' } as any}>
+          <span className="font-semibold text-sm text-white">{t('recording.title', { defaultValue: 'Audioaufnahme' })}</span>
           <button
-            onClick={isRecording ? handleStop : onClose}
+            onClick={isRecording ? handleStop : (onClose || (() => window.close()))}
             className="text-gray-400 hover:text-white transition-colors"
+            style={{ WebkitAppRegion: 'no-drag' } as any}
           >
             <X size={16} />
           </button>
@@ -451,7 +501,7 @@ export function AudioRecordingModal({
           <div className="flex gap-4">
             <div className="text-3xl font-bold text-gray-500/80 w-6 select-none flex justify-center items-start pt-1">1</div>
             <div className="flex-1 flex flex-col gap-2">
-              <span className="text-[#4da3ff] font-semibold">Audiotreiber:</span>
+              <span className="text-[#4da3ff] font-semibold">{t('recording.audio_driver', { defaultValue: 'Audiotreiber:' })}</span>
               <select
                 value={selectedDeviceId}
                 onChange={(e) => setSelectedDeviceId(e.target.value)}
@@ -464,7 +514,7 @@ export function AudioRecordingModal({
                   </option>
                 ))}
                 {microphones.length === 0 && (
-                  <option value="">Keine Mikrofone gefunden</option>
+                  <option value="">{t('recording.no_mics', { defaultValue: 'Keine Mikrofone gefunden' })}</option>
                 )}
               </select>
 
@@ -476,7 +526,7 @@ export function AudioRecordingModal({
                   disabled={isRecording}
                   className="w-3.5 h-3.5 accent-omega-accent cursor-pointer"
                 />
-                <span>Normalisieren nach der Aufnahme</span>
+                <span>{t('recording.normalize', { defaultValue: 'Normalisieren nach der Aufnahme' })}</span>
               </label>
             </div>
           </div>
@@ -487,7 +537,7 @@ export function AudioRecordingModal({
           <div className="flex gap-4">
             <div className="text-3xl font-bold text-gray-500/80 w-6 select-none flex justify-center items-start pt-1">2</div>
             <div className="flex-1 flex flex-col gap-2">
-              <span className="text-[#4da3ff] font-semibold">Audiodatei speichern als:</span>
+              <span className="text-[#4da3ff] font-semibold">{t('recording.save_as', { defaultValue: 'Audiodatei speichern als:' })}</span>
               <input
                 type="text"
                 value={filename}
@@ -496,7 +546,7 @@ export function AudioRecordingModal({
                 className="w-[200px] h-7 bg-[#1a1d21] border border-[#3b3e45] rounded text-white px-2 font-mono text-xs outline-none focus:border-omega-accent"
               />
 
-              <span className="text-[#4da3ff] font-semibold mt-1">In folgendem Ordner speichern:</span>
+              <span className="text-[#4da3ff] font-semibold mt-1">{t('recording.save_dir', { defaultValue: 'In folgendem Ordner speichern:' })}</span>
               <div className="flex gap-2 w-full">
                 <input
                   type="text"
@@ -508,7 +558,7 @@ export function AudioRecordingModal({
                   onClick={handleChooseFolder}
                   disabled={isRecording}
                   className="w-8 h-7 bg-[#4a4d52] hover:bg-[#5c5f66] disabled:opacity-40 text-white rounded flex items-center justify-center border border-[#3b3e45] active:scale-95 transition-all"
-                  title="Ordner auswählen"
+                  title={t('recording.choose_folder', { defaultValue: 'Ordner auswählen' })}
                 >
                   <Folder size={14} />
                 </button>
@@ -522,7 +572,7 @@ export function AudioRecordingModal({
           <div className="flex gap-4">
             <div className="text-3xl font-bold text-gray-500/80 w-6 select-none flex justify-center items-start pt-1">3</div>
             <div className="flex-1 flex flex-col gap-2">
-              <span className="text-[#4da3ff] font-semibold">Aufnahmequalität:</span>
+              <span className="text-[#4da3ff] font-semibold">{t('recording.quality', { defaultValue: 'Aufnahmequalität:' })}</span>
               
               <div className="flex gap-3 items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -550,14 +600,14 @@ export function AudioRecordingModal({
                     disabled={isRecording}
                     className="px-3 h-7 bg-[#4a4d52] hover:bg-[#5c5f66] disabled:opacity-40 text-[#d1d5db] font-semibold rounded border border-[#3b3e45] active:scale-95 transition-all"
                   >
-                    Zurücksetzen
+                    {t('common.reset', { defaultValue: 'Zurücksetzen' })}
                   </button>
                   <button
                     onClick={() => setShowAdvanced(true)}
                     disabled={isRecording}
                     className="px-3 h-7 bg-[#4a4d52] hover:bg-[#5c5f66] disabled:opacity-40 text-[#d1d5db] font-semibold rounded border border-[#3b3e45] active:scale-95 transition-all"
                   >
-                    Erweitert...
+                    {t('common.advanced', { defaultValue: 'Erweitert...' })}
                   </button>
                 </div>
               </div>
@@ -573,13 +623,13 @@ export function AudioRecordingModal({
                       disabled={isRecording}
                       className="w-3.5 h-3.5 accent-omega-accent cursor-pointer"
                     />
-                    <span>Abspielen während der Aufnahme</span>
+                    <span>{t('recording.play_through', { defaultValue: 'Abspielen während der Aufnahme' })}</span>
                   </label>
 
                   {playthrough && (
                     <div className="flex items-center gap-1 text-[10px] text-amber-500 pr-1 animate-pulse" title="Vorsicht: Kann Rückkopplung erzeugen! Verwenden Sie bitte Kopfhörer.">
                       <AlertTriangle size={12} />
-                      <span>Kopfhörer empfohlen</span>
+                      <span>{t('recording.headphones_recommended', { defaultValue: 'Kopfhörer empfohlen' })}</span>
                     </div>
                   )}
                 </div>
@@ -591,7 +641,7 @@ export function AudioRecordingModal({
                     onChange={(e) => setPegelAnzeigen(e.target.checked)}
                     className="w-3.5 h-3.5 accent-omega-accent cursor-pointer"
                   />
-                  <span>Aussteuerung anzeigen</span>
+                  <span>{t('recording.show_level_meter', { defaultValue: 'Aussteuerung anzeigen' })}</span>
                 </label>
               </div>
 
@@ -602,7 +652,7 @@ export function AudioRecordingModal({
                     disabled
                     className="w-24 h-6 bg-[#3b3e45]/50 border border-[#4a4d52]/50 text-gray-400 font-semibold rounded text-[10px] flex items-center justify-center"
                   >
-                    Aussteuerung...
+                    {t('recording.level_meter', { defaultValue: 'Aussteuerung...' })}
                   </button>
 
                   {/* Level Meters */}
@@ -634,14 +684,14 @@ export function AudioRecordingModal({
           <div className="flex justify-between items-end mt-1.5">
             {/* Info */}
             <div className="flex flex-col gap-1.5">
-              <span className="text-[#4da3ff] font-semibold">Aufnahmeinformationen:</span>
+              <span className="text-[#4da3ff] font-semibold">{t('recording.info', { defaultValue: 'Aufnahmeinformationen:' })}</span>
               <div className="flex flex-col gap-1 font-mono text-[11px] pl-1 text-gray-300">
                 <div className="flex gap-4">
-                  <span className="text-gray-400 w-24">Aufnahmezeit:</span>
+                  <span className="text-gray-400 w-24">{t('recording.time', { defaultValue: 'Aufnahmezeit:' })}</span>
                   <span className="text-white font-bold">{formatTime(recordingTimeMs)}</span>
                 </div>
                 <div className="flex gap-4">
-                  <span className="text-gray-400 w-24">Aufnahmekapazität:</span>
+                  <span className="text-gray-400 w-24">{t('recording.capacity', { defaultValue: 'Aufnahmekapazität:' })}</span>
                   <span className="text-white font-bold">{getCapacityText()}</span>
                 </div>
               </div>
@@ -649,31 +699,46 @@ export function AudioRecordingModal({
 
             {/* Transport Panel & Close */}
             <div className="flex items-center gap-6">
+              {/* DAW Sync coupling */}
               <div className="flex flex-col gap-1">
-                <span className="text-[#4da3ff] font-semibold text-center w-full block">Aufnahme:</span>
+                <span className="text-[#4da3ff] font-semibold block text-center">{t('recording.daw_sync', { defaultValue: 'DAW-Sync:' })}</span>
+                <label className="flex items-center gap-1.5 cursor-pointer text-[#d1d5db] py-1 select-none hover:text-white" title="Startet bei Klick auf Aufnahme automatisch die DAW-Wiedergabe synchron mit.">
+                  <input
+                    type="checkbox"
+                    checked={syncPlayback}
+                    onChange={(e) => setSyncPlayback(e.target.checked)}
+                    disabled={isRecording}
+                    className="w-3.5 h-3.5 rounded bg-gray-900 border-[#3b3e45] text-omega-accent focus:ring-0 cursor-pointer"
+                  />
+                  <span>{t('recording.sync_playback', { defaultValue: 'DAW mitstarten' })}</span>
+                </label>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <span className="text-[#4da3ff] font-semibold text-center w-full block">{t('recording.recording_label', { defaultValue: 'Aufnahme:' })}</span>
                 <div className="bg-[#1a1d21] border border-[#3b3e45] rounded px-3 py-1.5 flex gap-4 items-center justify-center w-24 h-9 shadow-inner">
                   {/* Stop button */}
                   <button
                     onClick={handleStop}
                     disabled={!isRecording}
                     className={`w-3.5 h-3.5 bg-gray-500 rounded-sm hover:bg-white active:scale-90 transition-all ${!isRecording ? 'opacity-30 cursor-default' : 'cursor-pointer'}`}
-                    title="Aufnahme stoppen"
+                    title={t('recording.stop_tooltip', { defaultValue: 'Aufnahme stoppen' })}
                   />
                   {/* Record button */}
                   <button
                     onClick={handleRecord}
                     disabled={isRecording}
                     className={`w-4.5 h-4.5 rounded-full hover:brightness-125 active:scale-90 transition-all ${isRecording ? 'bg-red-500 animate-pulse cursor-default' : 'bg-[#e53935] cursor-pointer shadow-red-500/50 shadow'}`}
-                    title="Aufnahme starten"
+                    title={t('recording.start_tooltip', { defaultValue: 'Aufnahme starten' })}
                   />
                 </div>
               </div>
 
               <button
-                onClick={isRecording ? handleStop : onClose}
+                onClick={isRecording ? handleStop : (onClose || (() => window.close()))}
                 className="px-6 h-8 bg-[#4a4d52] hover:bg-[#5c5f66] text-[#d1d5db] hover:text-white font-semibold rounded border border-[#3b3e45] active:scale-95 transition-all text-xs flex items-center justify-center"
               >
-                Schließen
+                {t('common.close', { defaultValue: 'Schließen' })}
               </button>
             </div>
           </div>
