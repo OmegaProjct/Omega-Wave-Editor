@@ -4,6 +4,8 @@ import * as path from 'path'
 import * as os from 'os'
 import { spawn } from 'child_process'
 import { Readable } from 'stream'
+import * as https from 'https'
+import { URL } from 'url'
 
 let downloadedInstallerPath: string | null = null
 let runInstallerOnQuit = false
@@ -72,72 +74,48 @@ export function setupUpdateDownloader(mainWindow: BrowserWindow) {
 
       console.log(`Starting download from ${downloadUrl} to ${tempFilePath}`)
 
-      // 2. Download starten
-      const fileResponse = await fetch(downloadUrl)
-      if (!fileResponse.ok) {
-        throw new Error(`Download-Anfrage fehlgeschlagen: ${fileResponse.statusText}`)
+      // Remove existing 0-byte or corrupt temporary installer files if any
+      if (fs.existsSync(tempFilePath)) {
+        try { fs.unlinkSync(tempFilePath) } catch {}
       }
 
-      const contentLength = fileResponse.headers.get('content-length')
-      const totalBytes = contentLength ? parseInt(contentLength, 10) : 0
-      let downloadedBytes = 0
-
-      const fileStream = fs.createWriteStream(tempFilePath)
-
-      if (!fileResponse.body) {
-        throw new Error('Response-Body ist leer')
-      }
-
-      const reader = Readable.fromWeb(fileResponse.body as any)
+      // 2. Download starten via robuster native https-Methode mit Redirect-Unterstützung
       const startTime = Date.now()
       let lastProgressSentTime = 0
 
-      return new Promise((resolve, reject) => {
-        reader.on('data', (chunk) => {
-          fileStream.write(chunk)
-          downloadedBytes += chunk.length
-          
-          const now = Date.now()
-          if (now - lastProgressSentTime > 200 || downloadedBytes === totalBytes) {
-            lastProgressSentTime = now
-            const percent = totalBytes > 0 ? Math.round((downloadedBytes / totalBytes) * 100) : 0
-            const elapsedSeconds = (now - startTime) / 1000
-            const speedBps = elapsedSeconds > 0 ? (downloadedBytes / elapsedSeconds) : 0
-            const remainingBytes = totalBytes - downloadedBytes
-            const remainingSeconds = speedBps > 0 ? (remainingBytes / speedBps) : 0
+      await downloadFileHttps(downloadUrl, tempFilePath, (percent, downloadedBytes, totalBytes) => {
+        const now = Date.now()
+        if (now - lastProgressSentTime > 150 || percent === 100) {
+          lastProgressSentTime = now
+          const elapsedSeconds = (now - startTime) / 1000
+          const speedBps = elapsedSeconds > 0 ? (downloadedBytes / elapsedSeconds) : 0
+          const remainingBytes = totalBytes - downloadedBytes
+          const remainingSeconds = speedBps > 0 ? (remainingBytes / speedBps) : 0
 
-            mainWindow.webContents.send('download-progress', {
-              percent,
-              status: 'downloading',
-              downloadedBytes,
-              totalBytes,
-              speedBps,
-              remainingSeconds
-            })
-          }
-        })
-
-        reader.on('end', () => {
-          fileStream.end()
-          downloadedInstallerPath = tempFilePath
-          console.log(`Download completed successfully: ${tempFilePath}`)
           mainWindow.webContents.send('download-progress', {
-            percent: 100,
-            status: 'completed',
-            downloadedBytes: totalBytes,
+            percent,
+            status: 'downloading',
+            downloadedBytes,
             totalBytes,
-            speedBps: 0,
-            remainingSeconds: 0
+            speedBps,
+            remainingSeconds
           })
-          resolve({ success: true, filePath: tempFilePath })
-        })
-
-        reader.on('error', (err) => {
-          fileStream.destroy()
-          reject(err)
-        })
+        }
       })
 
+      downloadedInstallerPath = tempFilePath
+      console.log(`Download completed successfully: ${tempFilePath}`)
+      
+      mainWindow.webContents.send('download-progress', {
+        percent: 100,
+        status: 'completed',
+        downloadedBytes: 198000000,
+        totalBytes: 198000000,
+        speedBps: 0,
+        remainingSeconds: 0
+      })
+
+      return { success: true, filePath: tempFilePath }
     } catch (error: any) {
       console.error('Fehler beim Download:', error)
       mainWindow.webContents.send('download-progress', { percent: 0, status: 'error', error: error.message })
@@ -201,3 +179,81 @@ function executeInstaller(filePath: string) {
     console.error('Fehler beim Ausführen des Installers:', err)
   }
 }
+
+function downloadFileHttps(
+  urlStr: string,
+  destPath: string,
+  onProgress: (percent: number, downloaded: number, total: number) => void
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    let fileStream: fs.WriteStream | null = null
+
+    function makeRequest(currentUrl: string) {
+      try {
+        const parsedUrl = new URL(currentUrl)
+        const options = {
+          hostname: parsedUrl.hostname,
+          path: parsedUrl.pathname + parsedUrl.search,
+          method: 'GET',
+          headers: {
+            'User-Agent': 'Omega-Wave-Editor-Updater',
+            'Accept': 'application/octet-stream'
+          }
+        }
+
+        const req = https.request(options, (res) => {
+          if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+            console.log(`Redirecting to: ${res.headers.location}`)
+            makeRequest(res.headers.location)
+            return
+          }
+
+          if (res.statusCode !== 200) {
+            reject(new Error(`Server returned status code ${res.statusCode}: ${res.statusMessage}`))
+            return
+          }
+
+          const totalBytes = parseInt(res.headers['content-length'] || '0', 10)
+          let downloadedBytes = 0
+
+          fileStream = fs.createWriteStream(destPath)
+
+          res.on('data', (chunk) => {
+            if (fileStream) {
+              fileStream.write(chunk)
+              downloadedBytes += chunk.length
+              const percent = totalBytes > 0 ? Math.round((downloadedBytes / totalBytes) * 100) : 0
+              onProgress(percent, downloadedBytes, totalBytes)
+            }
+          })
+
+          res.on('end', () => {
+            if (fileStream) {
+              fileStream.end()
+              resolve()
+            }
+          })
+
+          res.on('error', (err) => {
+            if (fileStream) {
+              fileStream.destroy()
+              fs.unlink(destPath, () => {})
+            }
+            reject(err)
+          })
+        })
+
+        req.on('error', (err) => {
+          reject(err)
+        })
+
+        req.end()
+      } catch (err) {
+        reject(err)
+      }
+    }
+
+    makeRequest(urlStr)
+  })
+}
+
