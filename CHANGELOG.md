@@ -2,6 +2,38 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.8.0] - 2026-06-01
+
+### English
+
+#### Added
+- **Real-Time VST2 Audio Effects Engine**: Load and route VST2 effects (compressors, equalizers, delays) on track level in real-time. Powered by a custom native C++ host and high-priority background audio thread.
+- **VST Instruments (VSTi) Support**: Play virtual synthesizers, samplers, and drum-machines live with zero latency. Integrates a custom low-overhead Shared-Memory-MIDI-Queue over SharedArrayBuffers.
+- **Two-Way MIDI Feedback (MIDI Out)**: Support for sending control surface signals back to physical MIDI controllers, powering motorized faders, LED rings, and illuminated buttons.
+- **Interactive VST MIDI-Learn**: Click parameters in the VstPluginRack to map sliders directly to knobs or faders on your physical MIDI hardware controller.
+- **Jog-Wheel & Timeline Navigation**: Map relative/absolute MIDI CC dials to timeline scrolling, zooming, and playhead scrubbing.
+- **Curated Free VST Store**: Integrated store in the side panel offering direct downloads and automated installation of free professional effects and synths (Vital, Surge XT, Dexed, Valhalla Supermassive, etc.).
+- **VstPluginRack UI**: Gorgeous dark modular interface for track insert effects with Bypass toggles, parameter sliders, reset triggers, and live MIDI control indicators.
+
+#### Changed
+- **Cross-Origin Isolation Headers**: Configured COOP/COEP headers on the Electron default session to safely enable low-latency SharedArrayBuffer communication.
+- **README & Project Description**: Updated target repository descriptions to announce the production-ready native VST/MIDI integration and retired the prototype notices.
+
+### Deutsch
+
+#### Hinzugefügt
+- **Echtzeit VST2 Audio-Effekt Engine**: Laden und Routen von VST2-Effekten (Kompressoren, EQs, Delays) auf Spurebene in Echtzeit. Angetrieben von einem nativen C++ Plugin-Host und einem dedizierten High-Priority Audio-Hintergrundthread.
+- **VST-Instrumenten-Support (VSTi)**: Live-Spielen von Synthesizern, Samplern und Drum-Machines. Bietet eine extrem latenzarme Shared-Memory-MIDI-Queue über SharedArrayBuffers.
+- **Zwei-Wege-MIDI-Feedback (MIDI Out)**: Senden von Signalen zurück an physische Controller zur Ansteuerung von Motorfadern, LED-Ringen und leuchtenden Buttons.
+- **Interaktives VST MIDI-Learn**: Einfaches Mappen von Reglern über MIDI Learn direkt im VstPluginRack, um Plugin-Parameter mit Hardware-Reglern zu koppeln.
+- **Jog-Wheel & Timeline-Navigation**: Verknüpfung von physischen Drehrädern mit Timeline-Aktionen wie Scrollen, Zoomen und Playhead-Scrubben.
+- **Kuriertes VST Store**: Integrierte Seitenleisten-Sektion mit Direkt-Downloads und automatisiertem Import von professionellen freien Plugins (Vital, Surge XT, Dexed, Valhalla Supermassive etc.).
+- **VstPluginRack UI**: Ästhetische modulare Rack-Oberfläche für Spureffekte mit Bypass-Schalter, Parameter-Schiebereglern, Resets und blinkenden Learn-Indikatoren.
+
+#### Geändert
+- **Cross-Origin Isolation Header**: Aktivierung von COOP/COEP-Sicherheitsheadern in Electron zur sicheren Freischaltung von SharedArrayBuffer für latenzfreies Audio.
+- **README & Projektdokumentation**: Aktualisierung der Repository-Beschreibungen zur Ankündigung der fertigen VST/MIDI Integration und vollständige Entfernung der Prototyp-Disclaimer.
+
 ## [0.7.14] - 2026-06-01
 
 ### English

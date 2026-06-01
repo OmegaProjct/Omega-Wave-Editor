@@ -102,19 +102,22 @@ export function ManualModal({ onClose }: { onClose: () => void }) {
 
           {/* 6. MIDI-Steuerung */}
           <section>
-            <h2 className="text-xl font-bold text-omega-accent mb-4 border-b border-gray-800 pb-2">6. MIDI-Steuerung & MIDI-Learn</h2>
+            <h2 className="text-xl font-bold text-omega-accent mb-4 border-b border-gray-800 pb-2">6. MIDI-Steuerung & MIDI-Learn Pro</h2>
             <p className="leading-relaxed text-gray-300 text-sm mb-4">
-              Steuern Sie den Omega Wave Editor bequem mit externer Hardware (Keyboards, Controller, Mischpulte) über die integrierte Web MIDI API:
+              Steuern Sie den Omega Wave Editor bequem mit externer Hardware (Keyboards, Pad-Controller, Mischpulte) über die integrierte Web MIDI API:
             </p>
             <ul className="space-y-3 bg-[#16181b]/90 p-5 rounded-lg border border-gray-800/80 font-sans text-xs">
               <li className="leading-relaxed">
-                <strong>Zuweisbare Funktionen:</strong> Steuern Sie Transport-Aktionen (Play, Stop, Record) oder Mixer-Züge (Lautstärke, Mute, Solo für die visuellen Kanäle 1 bis N).
+                <strong>Zuweisbare Funktionen:</strong> Neben klassischen Transport-Tasten und Kanal-Lautstärken können Sie nun auch die Timeline fernsteuern: <strong>Timeline Spulen (Jog-Wheel)</strong>, <strong>Timeline Zoom</strong>, <strong>Timeline Scrubbing</strong> sowie <strong>Metronom Ein/Aus</strong>.
               </li>
               <li className="leading-relaxed">
-                <strong>MIDI-Learn (Einfache Zuweisung):</strong> Öffnen Sie das Einstellungsfenster (Reiter „MIDI“). Klicken Sie neben einer Funktion auf den Button <strong>„Learn“</strong> (blinkt rot) und bewegen Sie einfach das gewünschte Rädchen, den Fader oder die Taste an Ihrem Hardware-Gerät. Die Zuweisung (Kanal, CC-Nummer oder Note) wird sofort automatisch erkannt und dauerhaft gespeichert.
+                <strong>MIDI-Ausgangsrouting:</strong> Im MIDI-Einstellungsmenü können Sie neben dem Eingang auch ein <strong>MIDI-Ausgangsgerät</strong> auswählen, um visuelles Feedback, Motorfader-Steuerungen oder MIDI-Clock Signale an Ihre Hardware zurückzugeben.
               </li>
               <li className="leading-relaxed">
-                <strong>Universal-Mappings:</strong> Da das Mixer-Mapping auf den visuellen Kanalzügen basiert, funktionieren Ihre Einstellungen in jedem Projekt universell – ganz gleich, welche Tracks geladen sind.
+                <strong>MIDI-Learn (Einfache Zuweisung):</strong> Öffnen Sie das Einstellungsfenster (Reiter „MIDI“). Klicken Sie neben einer Funktion auf den Button <strong>„Learn“</strong> (blinkt rot) und bewegen Sie einfach das gewünschte Rädchen, den Fader oder die Taste an Ihrem Hardware-Gerät. Die Zuweisung wird sofort erkannt und dauerhaft gespeichert.
+              </li>
+              <li className="leading-relaxed">
+                <strong>Echtzeit-Feedback:</strong> Alle Mappings arbeiten absolut verzögerungsfrei und spiegeln Ihre Handbewegungen präzise in der Benutzeroberfläche wider.
               </li>
             </ul>
           </section>
@@ -127,9 +130,9 @@ export function ManualModal({ onClose }: { onClose: () => void }) {
             </p>
           </section>
 
-          {/* 8. Audio-Einstellungen & VST-Plug-ins */}
+          {/* 8. Audio-Einstellungen, VST-Rack & VST-Store */}
           <section>
-            <h2 className="text-xl font-bold text-omega-accent mb-4 border-b border-gray-800 pb-2">8. Audio-Einstellungen & VST-Plug-ins</h2>
+            <h2 className="text-xl font-bold text-omega-accent mb-4 border-b border-gray-800 pb-2">8. Audio-Einstellungen, VST-Rack & VST-Store</h2>
             <div className="space-y-4">
               <div className="bg-black/20 p-4 rounded border border-gray-800">
                 <h4 className="font-bold text-white text-xs mb-1.5 flex items-center gap-2">
@@ -143,10 +146,19 @@ export function ManualModal({ onClose }: { onClose: () => void }) {
               <div className="bg-black/20 p-4 rounded border border-gray-800">
                 <h4 className="font-bold text-white text-xs mb-1.5 flex items-center gap-2">
                   <span className="w-1.5 h-1.5 bg-blue-500 rounded-sm inline-block"></span>
-                  VST2- & VST3-Suchpfade verwalten
+                  🎛️ VST Signal Chain & Parameter MIDI Learn
                 </h4>
                 <p className="text-xs text-gray-400 leading-relaxed">
-                  Über das Einstellungsfenster (Reiter „Ordner“) können Sie benutzerdefinierte VST-Plug-in-Pfade hinzufügen oder entfernen. Der interne Scanner durchsucht diese Ordner beim nächsten Start der Applikation automatisch und rekursiv nach VST2-Effekten (<code>.dll</code> / <code>.vst</code>) und VST3-Plug-ins (<code>.vst3</code>), um diese im rechten Effekte-Panel nutzbar zu machen.
+                  Über das neue <strong>VST Rack</strong> im rechten Effekte-Panel können Sie geladene Synthesizer und Mixing-Effekte in einer Signal-Chain verketten. Jeder Parameter (wie z. B. Cutoff, Resonance, Attack, Dry/Wet) besitzt einen eigenen <strong>„Lernen“ (MIDI Learn)</strong> Button. Klicken Sie darauf und bewegen Sie einen Regler an Ihrem Controller, um diesen Parameter in Echtzeit zu steuern! Fader-Bewegungen werden flüssig in der UI animiert. Ein Klick auf das Zurücksetzen-Symbol ↺ setzt den Parameter auf seinen Standardwert zurück.
+                </p>
+              </div>
+              <div className="bg-black/20 p-4 rounded border border-gray-800">
+                <h4 className="font-bold text-white text-xs mb-1.5 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 bg-blue-500 rounded-sm inline-block"></span>
+                  🏪 VST Store (Kuratierte Freeware)
+                </h4>
+                <p className="text-xs text-gray-400 leading-relaxed">
+                  Keine Plugins installiert? Kein Problem! Der integrierte <strong>VST Store</strong> bietet erstklassige, freie Synthesizer und Effekte wie <em>Surge XT</em>, <em>Vital</em>, <em>Helm</em>, <em>Dexed</em> oder <em>Valhalla Supermassive</em> mit einem einzigen Klick zum simulierten Download an. Nach dem Herunterladen werden sie vollautomatisch und sandboxed in Ihrer Plugin-Liste registriert und sind sofort im VST-Rack oder über die Sidebar spielbar!
                 </p>
               </div>
             </div>

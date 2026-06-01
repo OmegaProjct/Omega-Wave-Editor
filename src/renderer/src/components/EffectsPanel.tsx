@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { RotateCcw, ChevronDown, ChevronRight, Save, FolderOpen, Copy, Clipboard, RefreshCw } from 'lucide-react'
 import { AudioEngine } from '../lib/AudioEngine'
+import { VstPluginRack } from './VstPluginRack'
+import { VstPluginStore } from './VstPluginStore'
 
 // === Typen ===
 export type RegionEffects = {
@@ -173,12 +175,39 @@ export function EffectsPanel({
   const [effectsOpen, setEffectsOpen] = useState(true)
   const [vstOpen, setVstOpen] = useState(true)
   const [selectedItem, setSelectedItem] = useState<string>('eq')
+  const [activeView, setActiveView] = useState<'effects' | 'vst_rack' | 'vst_store'>('effects')
 
-  // Beim Start vorhandene Plugin-Registry laden
+  // Beim Start vorhandene Plugin-Registry laden und mit Store-Downloads mergen
   useEffect(() => {
-    window.api.scanVstPlugins().then((plugins: any[]) => {
-      setVstPlugins(plugins)
-    }).catch(() => {})
+    const loadPlugins = () => {
+      window.api.scanVstPlugins().then((plugins: any[]) => {
+        const saved = localStorage.getItem('downloaded_vsts')
+        let downloadedList: any[] = []
+        if (saved) {
+          try {
+            downloadedList = JSON.parse(saved) || []
+          } catch (e) {
+            downloadedList = []
+          }
+        }
+        
+        const combined = [...plugins]
+        downloadedList.forEach(dl => {
+          if (!combined.some(p => p.name === dl.name)) {
+            combined.push(dl)
+          }
+        })
+        
+        setVstPlugins(combined)
+      }).catch(() => {})
+    }
+
+    loadPlugins()
+
+    window.addEventListener('VST_PLUGIN_DOWNLOADED', loadPlugins)
+    return () => {
+      window.removeEventListener('VST_PLUGIN_DOWNLOADED', loadPlugins)
+    }
   }, [])
 
   // Standard-Effekte
@@ -366,7 +395,20 @@ export function EffectsPanel({
     setIsScanning(true)
     try {
       const plugins = await window.api.scanVstPlugins()
-      setVstPlugins(plugins)
+      const saved = localStorage.getItem('downloaded_vsts')
+      let downloadedList: any[] = []
+      if (saved) {
+        try {
+          downloadedList = JSON.parse(saved) || []
+        } catch (e) {}
+      }
+      const combined = [...plugins]
+      downloadedList.forEach(dl => {
+        if (!combined.some(p => p.name === dl.name)) {
+          combined.push(dl)
+        }
+      })
+      setVstPlugins(combined)
     } finally {
       setIsScanning(false)
     }
@@ -460,8 +502,11 @@ export function EffectsPanel({
                 key={item.id}
                 label={item.label}
                 icon={item.icon}
-                active={selectedItem === item.id}
-                onClick={() => setSelectedItem(item.id)}
+                active={selectedItem === item.id && activeView === 'effects'}
+                onClick={() => {
+                  setSelectedItem(item.id)
+                  setActiveView('effects')
+                }}
               />
             ))}
           </SidebarFolder>
@@ -487,8 +532,52 @@ export function EffectsPanel({
                     key={vst.id}
                     label={vst.name}
                     icon={isInstrument ? '🎹' : '🔌'}
-                    active={selectedItem === vst.id}
-                    onClick={() => setSelectedItem(vst.id)}
+                    active={selectedItem === vst.id && activeView === 'vst_rack'}
+                    onClick={() => {
+                      setSelectedItem(vst.id)
+                      setActiveView('vst_rack')
+                      
+                      // Auto-load into rack if clicked in sidebar
+                      const savedRack = localStorage.getItem('vst_rack_plugins')
+                      let rack: any[] = []
+                      if (savedRack) {
+                        try { rack = JSON.parse(savedRack) || [] } catch (e) {}
+                      }
+                      if (!rack.some(p => p.id === vst.id)) {
+                        const isInst = vst.category?.toLowerCase().includes('instrument')
+                        const newLoaded = {
+                          id: vst.id,
+                          name: vst.name,
+                          manufacturer: vst.manufacturer || 'Unbekannt',
+                          format: vst.format || 'VST3',
+                          category: vst.category || 'Effekt',
+                          path: vst.path,
+                          active: true,
+                          parameters: isInst ? [
+                            { name: 'Cutoff', min: 20, max: 20000, step: 1, value: 1200, defaultValue: 1200, unit: 'Hz' },
+                            { name: 'Resonance', min: 0, max: 100, step: 0.1, value: 15, defaultValue: 15, unit: '%' },
+                            { name: 'Attack', min: 0, max: 5000, step: 1, value: 10, defaultValue: 10, unit: 'ms' },
+                            { name: 'Decay', min: 1, max: 5000, step: 1, value: 350, defaultValue: 350, unit: 'ms' },
+                            { name: 'Sustain', min: 0, max: 100, step: 0.1, value: 80, defaultValue: 80, unit: '%' },
+                            { name: 'Release', min: 0, max: 10000, step: 1, value: 450, defaultValue: 450, unit: 'ms' },
+                            { name: 'Oscillator Mix', min: 0, max: 100, step: 1, value: 50, defaultValue: 50, unit: '%' },
+                            { name: 'Output Volume', min: -60, max: 6, step: 0.1, value: 0, defaultValue: 0, unit: 'dB' }
+                          ] : [
+                            { name: 'Input Gain', min: -24, max: 24, step: 0.1, value: 0, defaultValue: 0, unit: 'dB' },
+                            { name: 'Low EQ', min: -15, max: 15, step: 0.1, value: 0, defaultValue: 0, unit: 'dB' },
+                            { name: 'Mid EQ', min: -15, max: 15, step: 0.1, value: 0, defaultValue: 0, unit: 'dB' },
+                            { name: 'High EQ', min: -15, max: 15, step: 0.1, value: 0, defaultValue: 0, unit: 'dB' },
+                            { name: 'Threshold', min: -60, max: 0, step: 0.5, value: -20, defaultValue: -20, unit: 'dB' },
+                            { name: 'Ratio', min: 1, max: 20, step: 0.1, value: 4, defaultValue: 4, unit: ':1' },
+                            { name: 'Release Time', min: 10, max: 2500, step: 1, value: 200, defaultValue: 200, unit: 'ms' },
+                            { name: 'Mix / Wet', min: 0, max: 100, step: 1, value: 100, defaultValue: 100, unit: '%' }
+                          ]
+                        }
+                        rack.push(newLoaded)
+                        localStorage.setItem('vst_rack_plugins', JSON.stringify(rack))
+                        window.dispatchEvent(new CustomEvent('SETTINGS_UPDATED', { detail: {} }))
+                      }
+                    }}
                     badge={vst.format}
                   />
                 )
@@ -504,19 +593,57 @@ export function EffectsPanel({
               {isScanning ? 'Scannt...' : 'Scannen...'}
             </button>
           </SidebarFolder>
+
+          {/* Trennlinie */}
+          <div className="h-px bg-gray-700/60 mx-2 my-1" />
+
+          {/* VST Store Sidebar Link */}
+          <button
+            onClick={() => {
+              setActiveView('vst_store')
+              setSelectedItem('')
+            }}
+            className={`w-full flex items-center gap-2 pl-6 pr-2 py-2 text-xs transition-colors select-none font-semibold ${
+              activeView === 'vst_store'
+                ? 'bg-omega-accent text-white font-medium'
+                : 'text-gray-400 hover:text-gray-200 hover:bg-[#282b30]'
+            }`}
+          >
+            <span className="text-sm">🏪</span>
+            <span className="flex-1 text-left">VST Store</span>
+          </button>
+
+          {/* VST Rack Sidebar Link */}
+          <button
+            onClick={() => {
+              setActiveView('vst_rack')
+              setSelectedItem('')
+            }}
+            className={`w-full flex items-center gap-2 pl-6 pr-2 py-2 text-xs transition-colors select-none font-semibold ${
+              activeView === 'vst_rack' && selectedItem === ''
+                ? 'bg-omega-accent text-white font-medium'
+                : 'text-gray-400 hover:text-gray-200 hover:bg-[#282b30]'
+            }`}
+          >
+            <span className="text-sm">🎛️</span>
+            <span className="flex-1 text-left">VST Rack</span>
+          </button>
         </div>
 
         {/* ══ RECHTER INHALTSBEREICH ══ */}
-        <div className="flex-1 overflow-y-auto bg-[#25282c]">
-
-          {/* Hinweis wenn kein Clip */}
-          {!hasClip && selectedItem !== '' && !selectedVst && (
-            <div className="mx-4 mt-3 px-3 py-2 text-[10px] text-amber-400/80 bg-amber-950/10 border border-amber-900/20 rounded flex items-center gap-1.5">
-              ⚠️ Clip in der Timeline auswählen, um Effekte anzuwenden.
-            </div>
-          )}
-
-          <div className="p-4">
+        <div className="flex-1 bg-[#25282c] overflow-hidden flex flex-col h-full">
+          {activeView === 'vst_rack' ? (
+            <VstPluginRack scanList={activePlugins} />
+          ) : activeView === 'vst_store' ? (
+            <VstPluginStore />
+          ) : (
+            <div className="flex-1 overflow-y-auto p-4">
+              {/* Hinweis wenn kein Clip */}
+              {!hasClip && selectedItem !== '' && (
+                <div className="mx-4 mt-3 px-3 py-2 text-[10px] text-amber-400/80 bg-amber-950/10 border border-amber-900/20 rounded flex items-center gap-1.5">
+                  ⚠️ Clip in der Timeline auswählen, um Effekte anzuwenden.
+                </div>
+              )}
 
             {/* ── EQUALIZER ── */}
             {selectedItem === 'eq' && (
@@ -722,7 +849,8 @@ export function EffectsPanel({
             )}
 
           </div>
-        </div>
+        )}
+      </div>
       </div>
 
       {/* ── Footer ── */}

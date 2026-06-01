@@ -8,6 +8,16 @@ interface Window {
     scanVstPlugins: () => Promise<any[]>;
     openVstUi: (path: string) => Promise<VstUiOpenResult>;
     getAsioDrivers: () => Promise<any[]>;
+    loadVstPlugin: (path: string) => Promise<any>;
+    vstSetSharedBuffer: (inputSAB: SharedArrayBuffer, outputSAB: SharedArrayBuffer, midiSAB: SharedArrayBuffer) => Promise<{ success: boolean }>;
+    vstStartAudio: (sampleRate: number, blockSize: number) => Promise<{ success: boolean }>;
+    vstStopAudio: () => Promise<{ success: boolean }>;
+    getVstParams: () => Promise<any[]>;
+    setVstParam: (index: number, value: number) => Promise<{ success: boolean }>;
+    openVstEditor: () => Promise<{ success: boolean }>;
+    closeVstEditor: () => Promise<{ success: boolean }>;
+    unloadVstPlugin: () => Promise<{ success: boolean }>;
+    onVstEditorClosed: (callback: () => void) => () => void;
     readFileBuffer: (path: string) => Promise<any>;
     getHomeDir: () => Promise<string>;
     fileExists: (filePath: string) => Promise<boolean>;
