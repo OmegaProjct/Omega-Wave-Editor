@@ -170,12 +170,34 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
         latestVersion: updateInfo.latestVersion
       })
       if (!res.success) {
-        setStep('error')
-        setErrorMessage(res.error || 'Der Download konnte nicht gestartet werden.')
+        if (res.error === 'Canceled') {
+          setStep('prompt')
+        } else {
+          setStep('error')
+          setErrorMessage(res.error || 'Der Download konnte nicht gestartet werden.')
+        }
       }
     } catch (err: any) {
-      setStep('error')
-      setErrorMessage(err.message || 'Verbindungsfehler beim Download.')
+      if (err.message === 'Canceled') {
+        setStep('prompt')
+      } else {
+        setStep('error')
+        setErrorMessage(err.message || 'Verbindungsfehler beim Download.')
+      }
+    }
+  }
+
+  const handleCancelDownload = async () => {
+    try {
+      await window.api.cancelUpdateDownload()
+      setStep('prompt')
+      setProgress(0)
+      setDownloadedBytes(null)
+      setTotalBytes(null)
+      setSpeedBps(null)
+      setRemainingSeconds(null)
+    } catch (err) {
+      console.error('Failed to cancel update download:', err)
     }
   }
 
@@ -365,7 +387,15 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
           )}
 
           {step === 'downloading' && (
-            <span className="text-xs text-gray-500 italic pr-2 flex items-center">Download läuft im Hintergrund...</span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-gray-500 italic flex items-center">Download läuft im Hintergrund...</span>
+              <button 
+                onClick={handleCancelDownload}
+                className="px-5 py-2 bg-red-950/40 border border-red-500/35 hover:bg-red-900/30 text-red-400 text-xs font-bold rounded-lg transition-all duration-150 active:scale-[0.98] cursor-pointer"
+              >
+                Abbrechen
+              </button>
+            </div>
           )}
 
           {step === 'ready' && (

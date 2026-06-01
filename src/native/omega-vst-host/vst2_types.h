@@ -113,4 +113,11 @@ struct VstEvents {
     VstMidiEvent* events[256];
 };
 
+struct ERect {
+    int16_t top;
+    int16_t left;
+    int16_t bottom;
+    int16_t right;
+};
+
 #endif

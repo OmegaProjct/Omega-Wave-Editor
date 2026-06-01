@@ -117,7 +117,17 @@ export function setupVstBridgeIpc(): void {
 
       // We call openEditor, passing the raw native window pointer buffer (HWND on Windows)
       const nativeHandle = editorWindow.getNativeWindowHandle()
-      VstHost.openEditor(nativeHandle)
+      const preferredSize = VstHost.openEditor(nativeHandle)
+      
+      let preferredWidth = rw
+      let preferredHeight = 450
+      if (preferredSize) {
+        preferredWidth = preferredSize.width
+        preferredHeight = preferredSize.height
+        console.log(`[IPC] Resizing VST container to preferred bounds: ${preferredWidth}x${preferredHeight}`)
+      }
+      
+      editorWindow.setContentSize(preferredWidth, preferredHeight, false)
 
       editorWindow.once('ready-to-show', () => {
         editorWindow?.show()
@@ -137,6 +147,14 @@ export function setupVstBridgeIpc(): void {
           width: bounds.width,
           height: senderBounds.height
         }, false)
+        
+        // Smoothly resize the embedded native VST editor child window
+        try {
+          const contentBounds = editorWindow.getContentBounds()
+          VstHost.resizeEditor(contentBounds.width, contentBounds.height)
+        } catch (err) {
+          console.warn('Failed to resize VST native editor:', err)
+        }
       }
 
       const syncFromSender = () => {
@@ -155,6 +173,13 @@ export function setupVstBridgeIpc(): void {
         editorWindow.on('resize', syncPositions)
         senderWindow.on('move', syncFromSender)
         senderWindow.on('resize', syncFromSender)
+        
+        // Close VST editor child if the React controller window is closed by the user
+        senderWindow.on('closed', () => {
+          if (editorWindow && !editorWindow.isDestroyed()) {
+            editorWindow.close()
+          }
+        })
       }
 
       editorWindow.on('closed', () => {

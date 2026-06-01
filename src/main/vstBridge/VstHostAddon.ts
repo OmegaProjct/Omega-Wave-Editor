@@ -89,9 +89,14 @@ export class VstHostAddon {
     this.addon.setParam(index, value)
   }
 
-  public openEditor(parentHwnd: Buffer): void {
+  public openEditor(parentHwnd: Buffer): { width: number; height: number } | undefined {
+    if (!this.addon) return undefined
+    return this.addon.openEditor(parentHwnd)
+  }
+
+  public resizeEditor(width: number, height: number): void {
     if (!this.addon) return
-    this.addon.openEditor(parentHwnd)
+    this.addon.resizeEditor(width, height)
   }
 
   public closeEditor(): void {

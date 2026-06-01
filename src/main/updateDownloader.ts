@@ -5,14 +5,21 @@ import * as os from 'os'
 import { spawn } from 'child_process'
 import { Readable } from 'stream'
 import * as https from 'https'
+import * as http from 'http'
 import { URL } from 'url'
 
 let downloadedInstallerPath: string | null = null
 let runInstallerOnQuit = false
 
+let activeDownloadRequest: http.ClientRequest | null = null
+let activeFileStream: fs.WriteStream | null = null
+let isDownloadCancelled = false
+
 export function setupUpdateDownloader(mainWindow: BrowserWindow) {
   ipcMain.handle('start-update-download', async (_, { url, latestVersion }) => {
     try {
+      isDownloadCancelled = false
+      
       // 1. Suche nach dem passenden Release-Asset auf GitHub
       // Wir holen die Details über das neueste Release von der GitHub API
       const response = await fetch('https://api.github.com/repos/OmegaProjct/Omega-Wave-Editor/releases/latest', {
@@ -71,6 +78,7 @@ export function setupUpdateDownloader(mainWindow: BrowserWindow) {
         fs.mkdirSync(downloadsDir, { recursive: true })
       }
       const tempFilePath = path.join(downloadsDir, assetName)
+      downloadedInstallerPath = tempFilePath // Set early so cancel can delete it
 
       console.log(`Starting download from ${downloadUrl} to ${tempFilePath}`)
 
@@ -84,6 +92,9 @@ export function setupUpdateDownloader(mainWindow: BrowserWindow) {
       let lastProgressSentTime = 0
 
       await downloadFileHttps(downloadUrl, tempFilePath, (percent, downloadedBytes, totalBytes) => {
+        if (isDownloadCancelled) {
+          throw new Error('Canceled')
+        }
         const now = Date.now()
         if (now - lastProgressSentTime > 150 || percent === 100) {
           lastProgressSentTime = now
@@ -103,6 +114,10 @@ export function setupUpdateDownloader(mainWindow: BrowserWindow) {
         }
       })
 
+      if (isDownloadCancelled) {
+        throw new Error('Canceled')
+      }
+
       downloadedInstallerPath = tempFilePath
       console.log(`Download completed successfully: ${tempFilePath}`)
       
@@ -118,9 +133,43 @@ export function setupUpdateDownloader(mainWindow: BrowserWindow) {
       return { success: true, filePath: tempFilePath }
     } catch (error: any) {
       console.error('Fehler beim Download:', error)
-      mainWindow.webContents.send('download-progress', { percent: 0, status: 'error', error: error.message })
+      const isCanceled = isDownloadCancelled || error.message === 'Canceled'
+      mainWindow.webContents.send('download-progress', { 
+        percent: 0, 
+        status: isCanceled ? 'cancelled' : 'error', 
+        error: isCanceled ? 'Canceled' : error.message 
+      })
       return { success: false, error: error.message }
     }
+  })
+
+  // Cancel Update Download Handler
+  ipcMain.handle('cancel-update-download', async () => {
+    console.log('IPC Request: cancel-update-download')
+    isDownloadCancelled = true
+    
+    if (activeDownloadRequest) {
+      try { activeDownloadRequest.destroy() } catch {}
+      activeDownloadRequest = null
+    }
+    
+    if (activeFileStream) {
+      try { activeFileStream.destroy() } catch {}
+      activeFileStream = null
+    }
+
+    // Clean up partial installer file on disk
+    if (downloadedInstallerPath && fs.existsSync(downloadedInstallerPath)) {
+      try {
+        fs.unlinkSync(downloadedInstallerPath)
+        console.log(`Cleaned up cancelled partial installer: ${downloadedInstallerPath}`)
+      } catch (err) {
+        console.warn('Failed to delete partial installer file during cancel:', err)
+      }
+    }
+    
+    downloadedInstallerPath = null
+    return { success: true }
   })
 
   ipcMain.handle('install-update', (_, { installNow }) => {

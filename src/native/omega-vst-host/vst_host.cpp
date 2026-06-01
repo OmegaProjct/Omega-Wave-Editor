@@ -368,6 +368,9 @@ Napi::Value SetParam(const Napi::CallbackInfo& info) {
 Napi::Value OpenEditor(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
     
+    int preferredWidth = 650;
+    int preferredHeight = 450;
+    
     #ifdef _WIN32
     if (info.Length() < 1 || !info[0].IsBuffer()) {
         Napi::TypeError::New(env, "Buffer expected for parentHwnd").ThrowAsJavaScriptException();
@@ -384,10 +387,123 @@ Napi::Value OpenEditor(const Napi::CallbackInfo& info) {
     g_state.parentWindowHandle = parentHwnd;
     
     if (g_state.effect && (g_state.effect->flags & effFlagsHasEditor)) {
+        // 1. Get preferred editor size from VST plugin
+        ERect* rectPtr = nullptr;
+        g_state.effect->dispatcher(g_state.effect, effEditGetRect, 0, 0, &rectPtr, 0.0f);
+        if (rectPtr) {
+            preferredWidth = rectPtr->right - rectPtr->left;
+            preferredHeight = rectPtr->bottom - rectPtr->top;
+            std::cout << "[VST HOST] VST preferred rect: " << preferredWidth << "x" << preferredHeight << std::endl;
+        }
+        
+        // 2. Open the VST editor within the parent window HWND
         g_state.effect->dispatcher(g_state.effect, effEditOpen, 0, 0, parentHwnd, 0.0f);
         
-        // Trigger resize message
-        // VST might have resized the parent window, but Electron BrowserWindow container does it.
+        // 3. Enumerate and manage child windows to resolve Z-order occlusion by Chromium compositor
+        struct EnumData {
+            HWND parent;
+            HWND vstChild = nullptr;
+            HWND chromeChild = nullptr;
+        };
+        
+        auto enumProc = [](HWND hwnd, LPARAM lParam) -> BOOL {
+            EnumData* data = reinterpret_cast<EnumData*>(lParam);
+            char className[256];
+            if (GetClassNameA(hwnd, className, sizeof(className))) {
+                std::string name(className);
+                if (name.find("Chrome") != std::string::npos || 
+                    name.find("Intermediate") != std::string::npos || 
+                    name.find("Widget") != std::string::npos ||
+                    name.find("Render") != std::string::npos) {
+                    data->chromeChild = hwnd;
+                    ShowWindow(hwnd, SW_HIDE); // Hide Chrome composition area so VST is visible
+                } else {
+                    data->vstChild = hwnd;
+                }
+            }
+            return TRUE;
+        };
+        
+        EnumData data;
+        data.parent = parentHwnd;
+        EnumChildWindows(parentHwnd, enumProc, reinterpret_cast<LPARAM>(&data));
+        
+        if (data.vstChild) {
+            // Apply WS_CHILD | WS_VISIBLE styles and remove POPUP style
+            LONG_PTR style = GetWindowLongPtr(data.vstChild, GWL_STYLE);
+            style |= WS_CHILD | WS_VISIBLE;
+            style &= ~WS_POPUP;
+            SetWindowLongPtr(data.vstChild, GWL_STYLE, style);
+            
+            // Re-parent explicitly
+            SetParent(data.vstChild, parentHwnd);
+            
+            // Size to fill parent's client area initially
+            RECT rect;
+            GetClientRect(parentHwnd, &rect);
+            int w = rect.right - rect.left;
+            int h = rect.bottom - rect.top;
+            if (w <= 0 || h <= 0) {
+                w = preferredWidth;
+                h = preferredHeight;
+            }
+            SetWindowPos(data.vstChild, HWND_TOP, 0, 0, w, h, SWP_SHOWWINDOW | SWP_NOACTIVATE);
+            ShowWindow(data.vstChild, SW_SHOW);
+            UpdateWindow(data.vstChild);
+        }
+    }
+    #endif
+    
+    Napi::Object result = Napi::Object::New(env);
+    result.Set("width", Napi::Number::New(env, preferredWidth));
+    result.Set("height", Napi::Number::New(env, preferredHeight));
+    return result;
+}
+
+Napi::Value ResizeEditor(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    
+    #ifdef _WIN32
+    if (info.Length() < 2 || !info[0].IsNumber() || !info[1].IsNumber()) {
+        Napi::TypeError::New(env, "Numbers expected for width and height").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    
+    int w = info[0].As<Napi::Number>().Int32Value();
+    int h = info[1].As<Napi::Number>().Int32Value();
+    
+    HWND parentHwnd = static_cast<HWND>(g_state.parentWindowHandle);
+    if (parentHwnd) {
+        struct EnumData {
+            HWND parent;
+            HWND vstChild = nullptr;
+        };
+        
+        auto enumProc = [](HWND hwnd, LPARAM lParam) -> BOOL {
+            EnumData* data = reinterpret_cast<EnumData*>(lParam);
+            char className[256];
+            if (GetClassNameA(hwnd, className, sizeof(className))) {
+                std::string name(className);
+                if (name.find("Chrome") == std::string::npos && 
+                    name.find("Intermediate") == std::string::npos && 
+                    name.find("Widget") == std::string::npos &&
+                    name.find("Render") == std::string::npos) {
+                    data->vstChild = hwnd;
+                    return FALSE; // Stop enumerating
+                }
+            }
+            return TRUE;
+        };
+        
+        EnumData data;
+        data.parent = parentHwnd;
+        EnumChildWindows(parentHwnd, enumProc, reinterpret_cast<LPARAM>(&data));
+        
+        if (data.vstChild) {
+            SetWindowPos(data.vstChild, HWND_TOP, 0, 0, w, h, SWP_NOZORDER | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+            ShowWindow(data.vstChild, SW_SHOW);
+            UpdateWindow(data.vstChild);
+        }
     }
     #endif
     
@@ -440,6 +556,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set("getParams", Napi::Function::New(env, GetParams));
     exports.Set("setParam", Napi::Function::New(env, SetParam));
     exports.Set("openEditor", Napi::Function::New(env, OpenEditor));
+    exports.Set("resizeEditor", Napi::Function::New(env, ResizeEditor));
     exports.Set("closeEditor", Napi::Function::New(env, CloseEditor));
     exports.Set("unloadPlugin", Napi::Function::New(env, UnloadPlugin));
     return exports;

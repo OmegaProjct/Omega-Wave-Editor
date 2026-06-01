@@ -57,6 +57,7 @@ interface Window {
     }>;
     getAppVersion: () => Promise<string>;
     startUpdateDownload: (payload: { url: string; latestVersion: string }) => Promise<{ success: boolean; error?: string; filePath?: string }>;
+    cancelUpdateDownload: () => Promise<{ success: boolean }>;
     installUpdate: (payload: { installNow: boolean }) => Promise<{ success: boolean; error?: string; deferred?: boolean }>;
     onDownloadProgress: (callback: (data: any) => void) => () => void;
     getPerformanceStats: () => Promise<{ cpuUsage: number, processRamBytes: number, systemRamPct: number, systemCpuPct: number }>;
