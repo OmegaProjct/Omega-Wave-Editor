@@ -2,6 +2,32 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.8.10] - 2026-06-01
+
+### English
+
+#### Added
+- **Updater Cancel Button**: Integrated a sleek, glassmorphic red "Cancel" ("Abbrechen") button into `UpdateModal.tsx` during active update downloads.
+- **Asynchronous Download Abort**: Implemented robust ClientRequest and WriteStream interruption handlers in `updateDownloader.ts` to abort update downloads, close file descriptors, and cleanly delete partial packages.
+
+#### Fixed
+- **Win32 Native VST UI Snapping & Occlusion**: Configured `vst_host.cpp` to recursively scan all Win32 child window handles inside the BrowserWindow, programmatically concealing Chromium renderer/compositor viewports (`SW_HIDE`) to resolve Z-order collision and ensure the native plugin UI renders with perfect visibility.
+- **Dynamic VST Bounds Scaling**: Configured the C++ engine to retrieve the plugin's preferred size via `effEditGetRect` and return it to Electron, automatically resizing `editorWindow` to match the exact plugin UI bounds.
+- **Responsive Native UI Resizing**: Implemented a C++ Win32 child resizer linked to the Electron window resize events for smooth real-time rendering.
+- **Bidirectional Lifecycle Coupling**: Linked the closing event of the React control strip to automatically close the native VST editor window and vice-versa.
+
+### Deutsch
+
+#### Hinzugefügt
+- **Update-Abbrechen-Schaltfläche**: Einbau eines edlen, glassmorphic gestalteten roten „Abbrechen“-Buttons in der Update-Download-Ansicht (`UpdateModal.tsx`).
+- **Asynchroner Download-Abbruch**: Implementierung einer robusten Request-Abbruch-Logik in `updateDownloader.ts`, die laufende HTTPS-Anfragen stoppt, Dateihandles schließt und unvollständige Setup-Pakete rückstandslos vom Datenträger tilgt.
+
+#### Behoben
+- **Win32 Native VST-GUI Darstellungsfehler**: Anpassung von `vst_host.cpp` zur Rekursion aller Win32-Kindfenster-Handles, wodurch Chromium-Rendering-Flächen programmatisch ausgeblendet (`SW_HIDE`) und Z-Order-Konflikte (Übermalen des VSTs) dauerhaft gelöst werden.
+- **Dynamische VST-Fenstergröße**: Auslesen der idealen Originalgröße des Plugins via `effEditGetRect` in C++ und automatische Skalierung des Electron-Fensters auf diese preferred Bounds.
+- **Flüssiges VST-Resizing**: Entwicklung eines Win32-Kind-Resizers, der Größenänderungen des Electron-Hostfensters direkt auf die native VST-Zeichenfläche spiegelt.
+- **Bidirektionale Lifecycle-Koppelung**: Automatisches synchronisiertes Schließen des nativen Herstellerfensters beim Beenden der React-Steuerleiste und umgekehrt.
+
 ## [0.8.9] - 2026-06-01
 
 ### English
