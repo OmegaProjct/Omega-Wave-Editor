@@ -2,6 +2,30 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.8.11] - 2026-06-01
+
+### English
+
+#### Added
+- **Native C++ ASIO Integration**: Implemented a fully functional native COM client to query and interact with registered system ASIO drivers (e.g. Yamaha Steinberg, Realtek, ASIO4ALL). Features dynamic output channel selection, sample size parameter configurations constrained to hardware-safe boundaries, real-time millisecond and sample latency reporting, and native control panel triggering.
+- **Premium Hybrid Fallback VST Editor**: Configured `VstEditorWindow.tsx` to automatically trigger a visual fallback interface when a mockup or a VST3 plugin is loaded. Features high-fidelity interactive parameter sliders synced with localStorage/DAW state and a real-time glowing canvas audio visualizer.
+- **Dynamic Window Resizing API**: Exposed `resizeWindow` via preload script to allow popout windows to dynamically adjust their sizes to match their natural content heights.
+
+#### Fixed
+- **Invisible Audio Recording Button**: Standardized button dimensions in `AudioRecordingModal.tsx` to standard spacing classes (`w-4 h-4`), fixing the unrecognized Tailwind class (`w-4.5`) which collapsed the button to 0x0 pixels.
+- **Recording Modal Sizing**: Configured the audio recording popout to automatically measure its inner scrollHeight and dynamically resize the window to fit perfectly with zero scrollbars.
+
+### Deutsch
+
+#### Hinzugefügt
+- **Native C++ ASIO-Integration**: Vollständig funktionaler, nicht-gemockter nativer COM-Client zur Interaktion mit registrierten Windows ASIO-Treibern (z. B. ASIO4ALL, Steinberg, Realtek). Bietet reaktive Stereo-Ausgangskanalpaarung, Puffergrößen-Begrenzung auf Basis der tatsächlichen Hardwaregrenzen, Live-Latenzanzeige für Eingang, Ausgang und Roundtrip in Millisekunden und Samples, sowie direkte Ansteuerung des herstellereigenen Einstellungs-Panels.
+- **Premium Hybrid Fallback VST-Editor**: Integration eines edlen Ausweich-Interfaces in `VstEditorWindow.tsx`, wenn Mockup- oder VST3-Plugins geladen werden. Bietet hochauflösende Parameterregler mit Echtzeit-Synchronisation in den DAW-Audiosignalweg und einen flüssigen, glühenden Canvas-Audio-Visualizer.
+- **Dynamisches Resizing API**: Einbau einer `resizeWindow` Schnittstelle im Preload-Skript, wodurch sich Popout-Fenster selbstständig an die exakte Höhe ihres Inhalts anpassen können.
+
+#### Behoben
+- **Unsichtbarer Audioaufnahme-Button**: Standardisierung der Button-Dimensionen in `AudioRecordingModal.tsx` auf konforme Klassen (`w-4 h-4`), wodurch der Ladefehler des Aufnahme-Buttons (zuvor fehlerhafte Klasse `w-4.5`) behoben wurde.
+- **Aufnahmedialog-Skalierung**: Automatisches Ausmessen der inneren Höhe (`scrollHeight`) im Aufnahme-Popout und dynamische Fensteranpassung für eine scrollbarfreie Ansicht.
+
 ## [0.8.10] - 2026-06-01
 
 ### English

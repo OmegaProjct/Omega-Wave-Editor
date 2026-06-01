@@ -58,6 +58,21 @@ declare global {
       onVstNativeEditorClosed: (callback: () => void) => () => void
       
       getAsioDrivers: () => Promise<any[]>
+      getAsioDriverDetails: (driverName: string) => Promise<{
+        name: string
+        inputsCount: number
+        outputsCount: number
+        inputChannels: string[]
+        outputChannels: string[]
+        minBufferSize: number
+        maxBufferSize: number
+        preferredBufferSize: number
+        bufferSizeGranularity: number
+        inputLatencySamples: number
+        outputLatencySamples: number
+        sampleRate: number
+      } | null>
+      openAsioControlPanel: (driverName: string) => Promise<{ success: boolean }>
       saveRecording: (outputPath: string, arrayBuffer: ArrayBuffer) => Promise<any>
       getDiskSpace: (dirPath: string) => Promise<{ success: boolean, freeBytes: number }>
       getPerformanceStats: () => Promise<{ cpuUsage: number, processRamBytes: number, systemRamPct: number, systemCpuPct: number }>
@@ -78,6 +93,7 @@ declare global {
       onLockMainWindow: (callback: (locked: boolean) => void) => () => void
       onSeekTimeline: (callback: (position: number) => void) => () => void
       openPopoutWindow: (name: string, options?: { width?: number; height?: number; title?: string }) => void
+      resizeWindow: (width: number, height: number) => void
     }
   }
 }

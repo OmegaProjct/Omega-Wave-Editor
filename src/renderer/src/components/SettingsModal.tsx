@@ -52,6 +52,36 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
   const [originalLanguage, setOriginalLanguage] = useState<string>('de')
   const [availableLocales, setAvailableLocales] = useState<string[]>(['de', 'en'])
 
+  const [asioDetails, setAsioDetails] = useState<any | null>(null)
+  const [loadingAsio, setLoadingAsio] = useState(false)
+  const [asioError, setAsioError] = useState<string | null>(null)
+
+  const fetchAsioDetails = (driverName: string) => {
+    if (!driverName || driverName === 'default') {
+      setAsioDetails(null)
+      return
+    }
+    setLoadingAsio(true)
+    setAsioError(null)
+    window.api.getAsioDriverDetails(driverName).then((details) => {
+      setAsioDetails(details)
+      setLoadingAsio(false)
+    }).catch((err) => {
+      console.error(`Failed to fetch details for ASIO driver ${driverName}:`, err)
+      setAsioError(err.message || 'Fehler beim Laden der ASIO-Details')
+      setAsioDetails(null)
+      setLoadingAsio(false)
+    })
+  }
+
+  useEffect(() => {
+    if (settings.driverType === 'asio' && settings.asioDriver) {
+      fetchAsioDetails(settings.asioDriver)
+    } else {
+      setAsioDetails(null)
+    }
+  }, [settings.driverType, settings.asioDriver])
+
   useEffect(() => {
     window.api.getLocales().then((locs: any) => {
       if (locs) {
@@ -347,39 +377,188 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
             </div>
           )}
 
-          <div className="flex justify-between items-center">
-            <span className="text-gray-400">{t('settings.playback.output_device', { defaultValue: 'Ausgabegerät:' })}</span>
-            <select 
-              value={settings.activeDeviceId || 'default'} 
-              onChange={async (e) => {
-                const deviceId = e.target.value
-                setSettings({ ...settings, activeDeviceId: deviceId })
-                await AudioEngine.getInstance().setOutputDevice(deviceId)
-              }}
-              className="bg-[#1a1d21] border border-gray-600 rounded px-2 py-1 w-48 outline-none text-xs text-white"
-            >
-              <option value="default">{t('settings.playback.system_default', { defaultValue: 'System (Standard)' })}</option>
-              {devices.map(d => (
-                <option key={d.deviceId} value={d.deviceId}>
-                  {d.label || t('settings.playback.output_device_id', { defaultValue: 'Ausgabegerät ({{id}})', id: d.deviceId.slice(0, 8) })}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex justify-between items-center mt-1">
-            <span className="text-gray-400">{t('settings.playback.audio_buffer', { defaultValue: 'Audiopuffer:' })}</span>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500">{t('common.count', { defaultValue: 'Anzahl:' })}</span>
-              <input 
-                type="number" 
-                min={2}
-                max={64}
-                value={settings.bufferCount !== undefined ? settings.bufferCount : 6} 
-                onChange={(e) => setSettings({ ...settings, bufferCount: parseInt(e.target.value) || 6 })}
-                className="w-12 bg-[#1a1d21] border border-gray-600 rounded px-1.5 py-0.5 text-center text-xs text-white outline-none focus:border-omega-accent" 
-              />
+          {settings.driverType === 'asio' ? (
+            <>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-400">{t('settings.playback.asio_channel', { defaultValue: 'Ausgangskanal (Stereo):' })}</span>
+                <select 
+                  value={settings.asioOutputChannel || 'default'} 
+                  onChange={(e) => {
+                    setSettings({ ...settings, asioOutputChannel: e.target.value })
+                  }}
+                  className="bg-[#1a1d21] border border-gray-600 rounded px-2 py-1 w-48 outline-none text-xs text-white"
+                  disabled={!asioDetails || asioDetails.outputChannels.length === 0}
+                >
+                  <option value="default">{t('settings.playback.asio_default_channel', { defaultValue: 'Kanal 1 & 2 (Standard)' })}</option>
+                  {asioDetails && asioDetails.outputChannels.length > 0 && (
+                    (() => {
+                      const pairs: { label: string; value: string }[] = [];
+                      for (let i = 0; i < asioDetails.outputChannels.length; i += 2) {
+                        const ch1 = asioDetails.outputChannels[i];
+                        const ch2 = asioDetails.outputChannels[i + 1] || 'Stereo R';
+                        pairs.push({
+                          label: `${ch1} + ${ch2}`,
+                          value: `${i}`
+                        });
+                      }
+                      return pairs.map(p => (
+                        <option key={p.value} value={p.value}>
+                          {p.label}
+                        </option>
+                      ));
+                    })()
+                  )}
+                </select>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <span className="text-gray-400">{t('settings.playback.asio_buffer_size', { defaultValue: 'Puffergröße:' })}</span>
+                <select 
+                  value={settings.asioBufferSize || '512'} 
+                  onChange={(e) => {
+                    setSettings({ ...settings, asioBufferSize: parseInt(e.target.value) })
+                  }}
+                  className="bg-[#1a1d21] border border-gray-600 rounded px-2 py-1 w-48 outline-none text-xs text-white"
+                >
+                  {[64, 128, 256, 512, 1024, 2048].map(size => {
+                    let infoStr = '';
+                    if (asioDetails) {
+                      if (size < asioDetails.minBufferSize || size > asioDetails.maxBufferSize) {
+                        return null; // Skip if out of range for this driver
+                      }
+                      if (size === asioDetails.preferredBufferSize) {
+                        infoStr = ' (Bevorzugt)';
+                      }
+                    }
+                    return (
+                      <option key={size} value={size}>
+                        {size} Samples{infoStr}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              {settings.asioDriver && (
+                <div className="flex justify-between items-center mt-1">
+                  <span className="text-gray-400 text-xs">{t('settings.playback.asio_control_panel_label', { defaultValue: 'Hersteller-Einstellungen:' })}</span>
+                  <button 
+                    onClick={async () => {
+                      if (settings.asioDriver) {
+                        await window.api.openAsioControlPanel(settings.asioDriver)
+                        // Refresh driver details after delay
+                        setTimeout(() => {
+                          fetchAsioDetails(settings.asioDriver)
+                        }, 2000)
+                      }
+                    }}
+                    className="bg-omega-accent/15 border border-omega-accent/30 hover:bg-omega-accent/25 text-omega-accent hover:text-white px-3 py-1 rounded text-xs font-semibold transition-all shadow-sm active:scale-[0.98]"
+                  >
+                    ⚙️ {t('settings.playback.open_control_panel', { defaultValue: 'Control Panel öffnen' })}
+                  </button>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-400">{t('settings.playback.output_device', { defaultValue: 'Ausgabegerät:' })}</span>
+                <select 
+                  value={settings.activeDeviceId || 'default'} 
+                  onChange={async (e) => {
+                    const deviceId = e.target.value
+                    setSettings({ ...settings, activeDeviceId: deviceId })
+                    await AudioEngine.getInstance().setOutputDevice(deviceId)
+                  }}
+                  className="bg-[#1a1d21] border border-gray-600 rounded px-2 py-1 w-48 outline-none text-xs text-white"
+                >
+                  <option value="default">{t('settings.playback.system_default', { defaultValue: 'System (Standard)' })}</option>
+                  {devices.map(d => (
+                    <option key={d.deviceId} value={d.deviceId}>
+                      {d.label || t('settings.playback.output_device_id', { defaultValue: 'Ausgabegerät ({{id}})', id: d.deviceId.slice(0, 8) })}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex justify-between items-center mt-1">
+                <span className="text-gray-400">{t('settings.playback.audio_buffer', { defaultValue: 'Audiopuffer:' })}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500">{t('common.count', { defaultValue: 'Anzahl:' })}</span>
+                  <input 
+                    type="number" 
+                    min={2}
+                    max={64}
+                    value={settings.bufferCount !== undefined ? settings.bufferCount : 6} 
+                    onChange={(e) => setSettings({ ...settings, bufferCount: parseInt(e.target.value) || 6 })}
+                    className="w-12 bg-[#1a1d21] border border-gray-600 rounded px-1.5 py-0.5 text-center text-xs text-white outline-none focus:border-omega-accent" 
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
+          {settings.driverType === 'asio' && loadingAsio && (
+            <div className="mt-4 py-4 text-center text-xs text-gray-500 flex items-center justify-center gap-2">
+              <div className="w-3.5 h-3.5 border-2 border-omega-accent/60 border-t-transparent rounded-full animate-spin"></div>
+              <span>Lade ASIO-Details...</span>
             </div>
-          </div>
+          )}
+
+          {settings.driverType === 'asio' && asioError && !loadingAsio && (
+            <div className="mt-4 p-3 bg-red-950/20 border border-red-900/30 rounded text-red-400 text-xs">
+              ❌ {asioError}
+            </div>
+          )}
+
+          {settings.driverType === 'asio' && asioDetails && !loadingAsio && (
+            <div className="mt-4 border border-gray-700/60 rounded bg-[#16181b] p-3 text-xs leading-relaxed">
+              <div className="flex justify-between items-center mb-2 border-b border-gray-800 pb-1.5">
+                <span className="font-semibold text-omega-accent flex items-center gap-1">
+                  ⚡ ASIO Latenz-Übersicht
+                </span>
+                <span className="text-[10px] text-gray-500 font-mono">
+                  SR: {asioDetails.sampleRate} Hz
+                </span>
+              </div>
+              
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="bg-[#1e2124] border border-gray-800/40 p-2 rounded">
+                  <div className="text-gray-400 text-[10px] uppercase tracking-wider mb-0.5">Eingang</div>
+                  <div className="font-bold text-gray-200">
+                    {((asioDetails.inputLatencySamples / asioDetails.sampleRate) * 1000).toFixed(3)} ms
+                  </div>
+                  <div className="text-[9px] text-gray-500 font-mono">
+                    {asioDetails.inputLatencySamples} Spls
+                  </div>
+                </div>
+
+                <div className="bg-[#1e2124] border border-gray-800/40 p-2 rounded">
+                  <div className="text-gray-400 text-[10px] uppercase tracking-wider mb-0.5">Ausgang</div>
+                  <div className="font-bold text-gray-200">
+                    {((asioDetails.outputLatencySamples / asioDetails.sampleRate) * 1000).toFixed(3)} ms
+                  </div>
+                  <div className="text-[9px] text-gray-500 font-mono">
+                    {asioDetails.outputLatencySamples} Spls
+                  </div>
+                </div>
+
+                <div className="bg-[#1e2124]/80 border border-omega-accent/25 p-2 rounded shadow-inner">
+                  <div className="text-omega-accent text-[10px] uppercase tracking-wider mb-0.5 font-semibold">Roundtrip</div>
+                  <div className="font-bold text-omega-accent animate-pulse">
+                    {(((asioDetails.inputLatencySamples + asioDetails.outputLatencySamples) / asioDetails.sampleRate) * 1000).toFixed(3)} ms
+                  </div>
+                  <div className="text-[9px] text-omega-accent/70 font-mono">
+                    {asioDetails.inputLatencySamples + asioDetails.outputLatencySamples} Spls
+                  </div>
+                </div>
+              </div>
+              
+              <div className="mt-2 text-[10px] text-gray-400 flex items-center justify-between">
+                <span>Kanäle: {asioDetails.inputsCount} in / {asioDetails.outputsCount} out</span>
+                <span className="text-gray-500 italic text-[9px]">Live-Werte direkt vom COM-Client</span>
+              </div>
+            </div>
+          )}
 
           {settings.driverType === 'asio' && asioDrivers.length === 0 && (
             <div className="mt-3 p-3 bg-red-950/20 border border-red-900/30 rounded text-red-450 text-[11px] leading-relaxed">

@@ -108,6 +108,27 @@ export class VstHostAddon {
     if (!this.addon) return
     this.addon.unloadPlugin()
   }
+
+  public getAsioDriverDetails(driverName: string): any {
+    if (!this.addon || process.platform !== 'win32') {
+      return null
+    }
+    try {
+      return this.addon.getAsioDriverDetails(driverName)
+    } catch (err) {
+      console.error(`Failed to get details for ASIO driver ${driverName}:`, err)
+      return null
+    }
+  }
+
+  public openAsioControlPanel(driverName: string): void {
+    if (!this.addon || process.platform !== 'win32') return
+    try {
+      this.addon.openAsioControlPanel(driverName)
+    } catch (err) {
+      console.error(`Failed to open control panel for ASIO driver ${driverName}:`, err)
+    }
+  }
 }
 
 export const VstHost = new VstHostAddon()
