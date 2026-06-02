@@ -1,0 +1,21 @@
+{
+  "goal": "Mache die verbleibende VST-Editor-Benutzerfuehrung ehrlicher. Der Renderer darf fuer reale externe Plugins nicht mehr blind 'Native UI' versprechen, wenn die App den eingebetteten Hersteller-Editor nicht scanseitig sicher belegen kann. Passe nur die Renderer-Texte, Labels und Guardrails an, ohne den Host, die Singleton-Logik oder das Laden mehrerer Plugins neu zu bauen.",
+  "workspace": "C:\\Users\\Dave1\\Coding\\Omega Wave Editor",
+  "constraints": [
+    "Bearbeite nur den Omega Wave Editor Workspace.",
+    "Nutze vorhandene bestehende Guardrails weiter, besonders das Singleton-Limit fuer reale externe Plugins.",
+    "Keine Mockups, keine Platzhalterbehauptungen, keine neuen Fake-Capabilities.",
+    "Kein Eingriff in den nativen C++ Host, keine neue VST3-Hostarchitektur, keine neuen Instanzsysteme.",
+    "Kein Revert anderer vorhandener Benutzer-Aenderungen.",
+    "Falls Typen erweitert werden, nur minimal und ehrlich.",
+    "Die Aenderung soll sich auf Renderer- und gegebenenfalls gemeinsame Typen beschraenken, wenn noetig.",
+    "Fuehre am Ende mindestens den TypeScript-Typecheck aus, wenn moeglich."
+  ],
+  "success_criteria": [
+    "Im VstPluginRack wird die aktuelle Schaltflaeche fuer reale externe Plugins nicht mehr als sichere 'Native UI' verkauft, sondern in einer ehrlicheren Form beschriftet.",
+    "Doppelklick-Hinweise, Titel oder Empty-State-Texte in VstPluginRack und VstEditorWindow behaupten keine garantierte native Herstelleroberflaeche mehr, wenn diese nicht scanseitig gesichert bekannt ist.",
+    "Store- und internal-Pfade bleiben weiterhin klar ausgeschlossen.",
+    "Bestehende Singleton- und Hostability-Guardrails bleiben funktional erhalten.",
+    "Die Aenderung bleibt klein, lokal und typecheck-stabil."
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "goal": "Mache den bereinigten VST-Store ehrlicher gegenueber der aktuellen Host-Realitaet. Der Store soll fuer die verbliebenen echten Hersteller-Eintraege deutlich kennzeichnen, ob sie mit dem aktuellen Omega-Host auf diesem System voraussichtlich nutzbar sind oder nicht. Es geht nur um klare UI-Einordnung im Store, nicht um Download-Automation, keinen neuen Host und keine neuen Fake-Capabilities.",
+  "workspace": "C:\\Users\\Dave1\\Coding\\Omega Wave Editor",
+  "allow_write": true,
+  "constraints": [
+    "Bearbeite nur Omega Wave Editor.",
+    "Keine neue Hostarchitektur, keine VST3-Implementierung und kein echter Installer.",
+    "Keine Mockups, keine Platzhalter, keine verdeckten Behauptungen ueber Funktionalitaet.",
+    "Der Store bleibt ein reiner Katalog-Browser mit echten Hersteller-Links.",
+    "Nutze die bereits vorhandene ehrliche Linie im Projekt weiter: aktueller Windows-Host unterstuetzt real nur VST2.",
+    "Keine Reverts fremder vorhandener Aenderungen.",
+    "Wenn moeglich, halte die Aenderung lokal auf Store-UI und kleine Hilfslogik begrenzt.",
+    "Fuehre am Ende mindestens den TypeScript-Typecheck aus, wenn moeglich."
+  ],
+  "success_criteria": [
+    "Im VstPluginStore ist fuer Benutzer klar erkennbar, ob ein Katalogeintrag mit dem aktuellen Omega-Host auf Windows voraussichtlich kompatibel ist oder derzeit nicht.",
+    "Plugins, die nur VST3/AU/CLAP anbieten und mit dem aktuellen Host nicht laufen koennen, werden im Store sichtbar ehrlich markiert statt neutral wie direkt nutzbare Kandidaten zu wirken.",
+    "Die Darstellung bleibt rein informativ; es werden keine neuen Download-, Installations- oder Host-Funktionen vorgetaeuscht.",
+    "Die Aenderung bleibt klein, lokal und typecheck-stabil."
+  ]
+}

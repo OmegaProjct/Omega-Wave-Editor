@@ -116,6 +116,8 @@ export interface PluginDescriptor {
   crashCount?: number
   blocked?: boolean
   error?: string
+  hostable?: boolean
+  unsupportedReason?: string
 }
 
 export interface Session {

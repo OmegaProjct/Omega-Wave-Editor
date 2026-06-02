@@ -1,12 +1,6 @@
-type VstUiOpenResult = {
-  success: boolean;
-  error?: string;
-};
-
 interface Window {
   api: {
     scanVstPlugins: () => Promise<any[]>;
-    openVstUi: (path: string) => Promise<VstUiOpenResult>;
     getAsioDrivers: () => Promise<any[]>;
     getAsioDriverDetails: (driverName: string) => Promise<{
       name: string;
