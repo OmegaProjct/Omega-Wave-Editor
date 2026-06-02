@@ -136,7 +136,7 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
                 let modified = false
 
                 if (!scanned) {
-                  // Plugin fehlt beim Scan -> active=false, Guardrail-Flags setzen
+                  // Plugin fehlt beim Scan -> active=false, missingFromScan=true setzen (notHostable=false)
                   if (updatedP.active !== false) {
                     updatedP.active = false
                     modified = true
@@ -145,18 +145,19 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
                     updatedP.missingFromScan = true
                     modified = true
                   }
-                  if (updatedP.notHostable !== true) {
-                    updatedP.notHostable = true
+                  if (updatedP.notHostable !== false) {
+                    updatedP.notHostable = false
                     modified = true
                   }
-                  if (updatedP.unsupportedReason !== 'Plugin fehlt beim aktuellen Scan') {
-                    updatedP.unsupportedReason = 'Plugin fehlt beim aktuellen Scan'
+                  if (updatedP.unsupportedReason !== undefined) {
+                    delete updatedP.unsupportedReason
                     modified = true
                   }
                 } else {
                   // Plugin gefunden -> prüfen ob hostbar
                   const isHostable = scanned.hostable !== false
                   if (!isHostable) {
+                    // Nicht hostbar -> active=false, notHostable=true setzen (missingFromScan=false)
                     if (updatedP.active !== false) {
                       updatedP.active = false
                       modified = true
@@ -176,11 +177,11 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
                     }
                   } else {
                     // Hostbar und vorhanden -> Guardrail-Flags zurücksetzen
-                    if (updatedP.missingFromScan === true) {
+                    if (updatedP.missingFromScan !== false) {
                       updatedP.missingFromScan = false
                       modified = true
                     }
-                    if (updatedP.notHostable === true) {
+                    if (updatedP.notHostable !== false) {
                       updatedP.notHostable = false
                       modified = true
                     }
@@ -747,12 +748,14 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
                         ? t('vst_rack.bypass', { defaultValue: 'Bypass' })
                         : t('vst_rack.activate', { defaultValue: 'Aktivieren' })
                     }
-                    className={`p-2 rounded-full border transition-all duration-300 active:scale-[0.9] flex items-center justify-center ${
+                    className={`p-2 rounded-full border transition-all duration-300 flex items-center justify-center ${
                       isOfflineOrIncompatible
-                        ? 'bg-red-950/20 border-red-900/40 text-red-500/50 cursor-not-allowed opacity-55'
-                        : plugin.active
-                        ? 'bg-omega-accent/15 border-omega-accent text-omega-accent shadow-[0_0_8px_rgba(0,122,204,0.4)]'
-                        : 'bg-gray-800/40 border-gray-750 text-gray-500'
+                        ? 'bg-gray-800/10 border-gray-800/50 text-gray-650 cursor-not-allowed opacity-40'
+                        : `active:scale-[0.9] ${
+                            plugin.active
+                              ? 'bg-omega-accent/15 border-omega-accent text-omega-accent shadow-[0_0_8px_rgba(0,122,204,0.4)] hover:bg-omega-accent/25'
+                              : 'bg-gray-800/40 border-gray-750 text-gray-500 hover:bg-gray-800/70 hover:text-gray-400'
+                          }`
                     }`}
                   >
                     <Power size={13} className="stroke-[2.5]" />
