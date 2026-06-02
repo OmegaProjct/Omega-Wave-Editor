@@ -253,8 +253,6 @@ export function EffectsPanel({
   const [vstOpen, setVstOpen] = useState(true)
   const [selectedItem, setSelectedItem] = useState<string>('eq')
   const [activeView, setActiveView] = useState<'effects' | 'vst_rack' | 'vst_store'>('effects')
-  const [rackTrigger, setRackTrigger] = useState(0)
-
   // Beim Start vorhandene Plugin-Registry laden und filtern
   useEffect(() => {
     const loadPlugins = () => {
@@ -270,22 +268,16 @@ export function EffectsPanel({
     const handleStorage = (e: StorageEvent) => {
       if (e.key === 'vst_rack_updated_trigger' || e.key === 'vst_rack_plugins') {
         loadPlugins()
-        setRackTrigger(prev => prev + 1)
       }
     }
 
     const handleSettingsUpdated = () => {
       checkRackForRealPlugin()
-      setRackTrigger(prev => prev + 1)
     }
 
-    window.addEventListener('VST_PLUGIN_DOWNLOADED', loadPlugins)
-    window.addEventListener('VST_PLUGIN_UNINSTALLED', loadPlugins)
     window.addEventListener('storage', handleStorage)
     window.addEventListener('SETTINGS_UPDATED', handleSettingsUpdated)
     return () => {
-      window.removeEventListener('VST_PLUGIN_DOWNLOADED', loadPlugins)
-      window.removeEventListener('VST_PLUGIN_UNINSTALLED', loadPlugins)
       window.removeEventListener('storage', handleStorage)
       window.removeEventListener('SETTINGS_UPDATED', handleSettingsUpdated)
     }
@@ -1061,7 +1053,7 @@ export function EffectsPanel({
                           ? 'text-amber-400'
                           : 'text-blue-400'
                       }`}>
-                        {selectedVst.category || t('effects.vst.effect', { defaultValue: 'Effekt' })}
+                        {selectedVst.category || t('effects.vst.effect', { defaultValue: 'Plugin' })}
                       </span>
                     </div>
                     <div>
