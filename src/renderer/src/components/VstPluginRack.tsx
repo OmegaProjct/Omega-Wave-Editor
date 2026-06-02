@@ -11,6 +11,7 @@ export interface VstParameter {
   value: number
   defaultValue: number
   unit: string
+  index?: number
 }
 
 export interface LoadedVst {
@@ -25,7 +26,7 @@ export interface LoadedVst {
 }
 
 // Hilfsfunktion zur Generierung von Parametern für ein VST
-const getInitialParams = (category: string): VstParameter[] => {
+export const getInitialParams = (category: string): VstParameter[] => {
   const isInstrument = category.toLowerCase().includes('instrument')
   if (isInstrument) {
     return [
@@ -66,6 +67,7 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
     if (isLoaded) {
       handleRemovePlugin(vst.id)
     } else {
+      const isPlaceholder = vst.path?.startsWith('store://') || vst.path?.startsWith('internal://')
       const newLoaded: LoadedVst = {
         id: vst.id,
         name: vst.name,
@@ -74,7 +76,7 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
         category: vst.category || 'Effekt',
         path: vst.path,
         active: true,
-        parameters: getInitialParams(vst.category || 'Effekt')
+        parameters: isPlaceholder ? getInitialParams(vst.category || 'Effekt') : []
       }
       saveRackState([...rackPlugins, newLoaded])
     }
@@ -88,7 +90,14 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
       const savedRack = localStorage.getItem('vst_rack_plugins')
       if (savedRack) {
         try {
-          setRackPlugins(JSON.parse(savedRack))
+          const parsed = JSON.parse(savedRack)
+          if (Array.isArray(parsed)) {
+            const filtered = parsed.filter((p: any) => p && p.path && !p.path.startsWith('store://') && !p.path.startsWith('internal://'))
+            setRackPlugins(filtered)
+            if (filtered.length !== parsed.length) {
+              localStorage.setItem('vst_rack_plugins', JSON.stringify(filtered))
+            }
+          }
         } catch (e) {
           console.error('Failed to load VST rack state:', e)
         }
@@ -183,6 +192,7 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
       return
     }
 
+    const isPlaceholder = pluginToAdd.path?.startsWith('store://') || pluginToAdd.path?.startsWith('internal://')
     const newLoaded: LoadedVst = {
       id: pluginToAdd.id,
       name: pluginToAdd.name,
@@ -191,7 +201,7 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
       category: pluginToAdd.category || 'Effekt',
       path: pluginToAdd.path,
       active: true,
-      parameters: getInitialParams(pluginToAdd.category || 'Effekt')
+      parameters: isPlaceholder ? getInitialParams(pluginToAdd.category || 'Effekt') : []
     }
 
     saveRackState([...rackPlugins, newLoaded])
@@ -224,6 +234,7 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
   const handleParamChange = (pluginId: string, paramIndex: number, val: number) => {
     const updated = rackPlugins.map(plugin => {
       if (plugin.id !== pluginId) return plugin
+      if (!plugin.parameters || !plugin.parameters[paramIndex]) return plugin
       const updatedParams = [...plugin.parameters]
       updatedParams[paramIndex] = { ...updatedParams[paramIndex], value: val }
       return { ...plugin, parameters: updatedParams }
@@ -235,6 +246,7 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
   const handleParamReset = (pluginId: string, paramIndex: number) => {
     const updated = rackPlugins.map(plugin => {
       if (plugin.id !== pluginId) return plugin
+      if (!plugin.parameters || !plugin.parameters[paramIndex]) return plugin
       const updatedParams = [...plugin.parameters]
       const param = updatedParams[paramIndex]
       updatedParams[paramIndex] = { ...param, value: param.defaultValue }
@@ -477,6 +489,9 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
               }}
               onDoubleClick={(e) => {
                 e.stopPropagation()
+                if (plugin.path?.startsWith('store://') || plugin.path?.startsWith('internal://')) {
+                  return
+                }
                 const width = 720
                 const height = 580
                 localStorage.setItem('popout_vst-editor_payload', JSON.stringify({ pluginId: plugin.id }))
@@ -525,17 +540,19 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
 
               {/* Header Right controls */}
               <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                <button
-                  onClick={() => {
-                    const width = 720
-                    const height = 110
-                    localStorage.setItem('popout_vst-editor_payload', JSON.stringify({ pluginId: plugin.id }))
-                    window.api.openPopoutWindow('vst-editor', { width, height, title: 'Plugin Editor - ' + plugin.name })
-                  }}
-                  className="px-2.5 py-1 text-[10px] bg-gray-800 hover:bg-gray-700 rounded text-gray-300 font-semibold border border-gray-700/60 transition-colors"
-                >
-                  {t('vst_rack.open_ui', { defaultValue: 'Native UI' })}
-                </button>
+                {!(plugin.path?.startsWith('store://') || plugin.path?.startsWith('internal://')) && (
+                  <button
+                    onClick={() => {
+                      const width = 720
+                      const height = 110
+                      localStorage.setItem('popout_vst-editor_payload', JSON.stringify({ pluginId: plugin.id }))
+                      window.api.openPopoutWindow('vst-editor', { width, height, title: 'Plugin Editor - ' + plugin.name })
+                    }}
+                    className="px-2.5 py-1 text-[10px] bg-gray-800 hover:bg-gray-700 rounded text-gray-300 font-semibold border border-gray-700/60 transition-colors"
+                  >
+                    {t('vst_rack.open_ui', { defaultValue: 'Native UI' })}
+                  </button>
+                )}
                 <button
                   onClick={() => handleRemovePlugin(plugin.id)}
                   title={t('vst_rack.delete_from_rack', { defaultValue: 'Aus Rack löschen' })}
@@ -549,82 +566,94 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
             {/* Parameters Grid */}
             {!collapsedPluginIds[plugin.id] && (
               <div className="p-4 bg-[#1e2124]/40 grid grid-cols-1 md:grid-cols-2 gap-4 animate-slide-down">
-              {plugin.parameters.map((param, idx) => {
-                const mapping = getParamMapping(plugin.id, idx)
-                const isLearning = learningParam?.pluginId === plugin.id && learningParam?.paramIndex === idx
+                {(!plugin.parameters || plugin.parameters.length === 0) ? (
+                  <div className="col-span-full py-6 px-4 bg-[#17191c]/45 border border-gray-700/40 rounded-xl text-center">
+                    <Sliders size={18} className="mx-auto text-gray-600 mb-2 opacity-60" />
+                    <p className="text-xs font-semibold text-gray-400">
+                      Keine Host-Parameter initialisiert
+                    </p>
+                    <p className="text-[10px] text-gray-500 mt-1 max-w-md mx-auto leading-relaxed">
+                      Für dieses externe Plugin wurden keine fiktiven Regler erzeugt. Sie können das native VST-Interface (Klick auf &bdquo;Native UI&ldquo; oder Doppelklick auf den Header) verwenden, um alle Parameter direkt zu steuern.
+                    </p>
+                  </div>
+                ) : (
+                  plugin.parameters.map((param, idx) => {
+                    const mapping = getParamMapping(plugin.id, idx)
+                    const isLearning = learningParam?.pluginId === plugin.id && learningParam?.paramIndex === idx
 
-                return (
-                  <div
-                    key={idx}
-                    className="flex flex-col gap-1.5 p-3 rounded-xl bg-[#17191c]/60 border border-gray-700/50 hover:border-gray-600/50 transition-all duration-300"
-                  >
-                    <div className="flex justify-between items-center text-xs">
-                      {/* Name & value */}
-                      <span className="text-gray-300 font-bold tracking-wide">
-                        {param.name}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[11px] text-omega-accent font-mono font-semibold bg-black/20 px-2 py-0.5 rounded border border-gray-800">
-                          {param.value.toFixed(1)} {param.unit}
-                        </span>
-                        
-                        {/* Reset Parameter */}
-                        <button
-                          onClick={() => handleParamReset(plugin.id, idx)}
-                          title={t('vst_rack.reset_parameter', { defaultValue: 'Parameter zurücksetzen' })}
-                          className="p-1 bg-gray-850 hover:bg-gray-700 text-gray-400 hover:text-white rounded border border-gray-750 transition-all hover:rotate-[-90deg] duration-300"
-                        >
-                          <RotateCcw size={10} />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Slider and MIDI Learn */}
-                    <div className="flex items-center gap-2.5">
-                      <input
-                        type="range"
-                        min={param.min}
-                        max={param.max}
-                        step={param.step}
-                        value={param.value}
-                        onChange={e => handleParamChange(plugin.id, idx, parseFloat(e.target.value))}
-                        disabled={!plugin.active}
-                        className="flex-1 h-1.5 bg-gray-850 rounded-lg appearance-none cursor-pointer accent-omega-accent disabled:opacity-40 disabled:cursor-not-allowed"
-                      />
-
-                      {/* MIDI learn Button */}
-                      <div className="flex items-center gap-1">
-                        {mapping ? (
-                          <div className="flex items-center gap-1">
-                            <span className="px-1.5 py-0.5 bg-green-950 border border-green-900 text-green-400 text-[9px] font-mono font-bold rounded">
-                              {mapping.type === 'cc' ? 'CC' : 'Note'} {mapping.number}
+                    return (
+                      <div
+                        key={idx}
+                        className="flex flex-col gap-1.5 p-3 rounded-xl bg-[#17191c]/60 border border-gray-700/50 hover:border-gray-600/50 transition-all duration-300"
+                      >
+                        <div className="flex justify-between items-center text-xs">
+                          {/* Name & value */}
+                          <span className="text-gray-300 font-bold tracking-wide">
+                            {param.name}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] text-omega-accent font-mono font-semibold bg-black/20 px-2 py-0.5 rounded border border-gray-800">
+                              {param.value.toFixed(1)} {param.unit}
                             </span>
+                            
+                            {/* Reset Parameter */}
                             <button
-                              onClick={() => handleMidiClearClick(plugin.id, idx)}
-                              title={t('vst_rack.delete_mapping', { defaultValue: 'Mapping löschen' })}
-                              className="px-1 py-0.5 bg-gray-800 hover:bg-gray-700 text-[8px] font-bold text-gray-400 hover:text-red-400 rounded transition-colors"
+                              onClick={() => handleParamReset(plugin.id, idx)}
+                              title={t('vst_rack.reset_parameter', { defaultValue: 'Parameter zurücksetzen' })}
+                              className="p-1 bg-gray-850 hover:bg-gray-700 text-gray-400 hover:text-white rounded border border-gray-750 transition-all hover:rotate-[-90deg] duration-300"
                             >
-                              Reset
+                              <RotateCcw size={10} />
                             </button>
                           </div>
-                        ) : (
-                          <button
-                            onClick={() => handleMidiLearnClick(plugin.id, idx)}
+                        </div>
+
+                        {/* Slider and MIDI Learn */}
+                        <div className="flex items-center gap-2.5">
+                          <input
+                            type="range"
+                            min={param.min}
+                            max={param.max}
+                            step={param.step}
+                            value={param.value}
+                            onChange={e => handleParamChange(plugin.id, idx, parseFloat(e.target.value))}
                             disabled={!plugin.active}
-                            className={`px-2 py-0.5 text-[9px] font-bold rounded-md border shadow transition-all duration-300 ${
-                              isLearning
-                                ? 'bg-red-650 hover:bg-red-500 text-white border-red-500 animate-pulse font-semibold'
-                                : 'bg-[#282b30] hover:bg-gray-700 text-gray-400 hover:text-omega-accent border-gray-700 disabled:opacity-30'
-                            }`}
-                          >
-                            {isLearning ? t('vst_rack.learning', { defaultValue: 'Lerne...' }) : t('vst_rack.learn', { defaultValue: 'Lernen' })}
-                          </button>
-                        )}
+                            className="flex-1 h-1.5 bg-gray-850 rounded-lg appearance-none cursor-pointer accent-omega-accent disabled:opacity-40 disabled:cursor-not-allowed"
+                          />
+
+                          {/* MIDI learn Button */}
+                          <div className="flex items-center gap-1">
+                            {mapping ? (
+                              <div className="flex items-center gap-1">
+                                <span className="px-1.5 py-0.5 bg-green-950 border border-green-900 text-green-400 text-[9px] font-mono font-bold rounded">
+                                  {mapping.type === 'cc' ? 'CC' : 'Note'} {mapping.number}
+                                </span>
+                                <button
+                                  onClick={() => handleMidiClearClick(plugin.id, idx)}
+                                  title={t('vst_rack.delete_mapping', { defaultValue: 'Mapping löschen' })}
+                                  className="px-1 py-0.5 bg-gray-800 hover:bg-gray-700 text-[8px] font-bold text-gray-400 hover:text-red-400 rounded transition-colors"
+                                >
+                                  Reset
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => handleMidiLearnClick(plugin.id, idx)}
+                                disabled={!plugin.active}
+                                className={`px-2 py-0.5 text-[9px] font-bold rounded-md border shadow transition-all duration-300 ${
+                                  isLearning
+                                    ? 'bg-red-650 hover:bg-red-500 text-white border-red-500 animate-pulse font-semibold'
+                                    : 'bg-[#282b30] hover:bg-gray-700 text-gray-400 hover:text-omega-accent border-gray-700 disabled:opacity-30'
+                                }`}
+                              >
+                                {isLearning ? t('vst_rack.learning', { defaultValue: 'Lerne...' }) : t('vst_rack.learn', { defaultValue: 'Lernen' })}
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                )
-              })}
+                    )
+                  })
+                )}
               </div>
             )}
           </div>
@@ -649,20 +678,8 @@ export function VstPluginRackPopout() {
 
   useEffect(() => {
     window.api.scanVstPlugins().then((plugins: any[]) => {
-      const saved = localStorage.getItem('downloaded_vsts')
-      let downloadedList: any[] = []
-      if (saved) {
-        try {
-          downloadedList = JSON.parse(saved) || []
-        } catch (e) {}
-      }
-      const combined = [...plugins]
-      downloadedList.forEach(dl => {
-        if (!combined.some(p => p.name === dl.name)) {
-          combined.push(dl)
-        }
-      })
-      setScanList(combined.filter(p => !p.blocked))
+      const filtered = plugins.filter((p: any) => p && p.path && !p.path.startsWith('store://') && !p.path.startsWith('internal://'))
+      setScanList(filtered.filter(p => !p.blocked))
       setLoading(false)
     }).catch(err => {
       console.error(err)

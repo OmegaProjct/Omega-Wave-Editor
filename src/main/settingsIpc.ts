@@ -213,20 +213,21 @@ export function setupSettingsIpc() {
 
     const deContent = {
       "vst_store": {
-        "title": "VST & VSTi Store — Kuratierte Freeware",
-        "subtitle": "Laden Sie professionelle, kostenlose Synthesizer und Effekte direkt in Ihr VST-Rack.",
-        "sandboxed": "Direkt sandboxed & betriebsbereit",
-        "load": "Laden",
-        "installed": "Installiert",
-        "uninstall": "Deinstallieren",
+        "title": "VST & VSTi Plugin-Katalog — Freeware-Browser",
+        "subtitle": "Kuratierte Freeware-Bibliothek. Plugins müssen manuell vom Hersteller geladen und installiert werden.",
+        "sandboxed": "Reiner Katalog-Browser",
+        "load": "Zum Hersteller",
+        "installed": "Gelistet",
+        "uninstall": "Ausblenden",
         "size": "Größe",
         "formats": "Formate",
         "platforms": "Plattformen",
-        "manufacturer_site": "Herstellerseite öffnen",
-        "activate": "Dieses Plugin aktivieren",
+        "manufacturer_site": "Herstellerseite öffnen (Download)",
+        "activate": "Herstellerseite im Browser öffnen",
         "features": "Features & Details",
         "tech_specs": "Technische Spezifikationen",
-        "disclaimer": "Alle Plugins sind Open-Source oder Freeware, virengeprüft und vollständig digital signiert."
+        "disclaimer": "Hinweis: Dies ist ein reines Verzeichnis empfehlenswerter kostenloser Plugins. Ein direkter Download oder eine automatische Installation im Editor erfolgt nicht. Alle Plugins müssen manuell auf Ihrem System installiert werden.",
+        "disclaimer_short": "Kein direkter In-App-Download"
       },
       "settings": {
         "title": "Programmeinstellungen",
@@ -287,20 +288,21 @@ export function setupSettingsIpc() {
 
     const enContent = {
       "vst_store": {
-        "title": "VST & VSTi Store — Curated Freeware",
-        "subtitle": "Download professional, free synthesizers and effects directly into your VST rack.",
-        "sandboxed": "Directly sandboxed & ready to run",
-        "load": "Download",
-        "installed": "Installed",
-        "uninstall": "Uninstall",
+        "title": "VST & VSTi Plugin Catalog — Freeware Browser",
+        "subtitle": "Curated library of recommended free plugins. Manual download from developer site is required.",
+        "sandboxed": "Catalog Browser Only",
+        "load": "To Developer",
+        "installed": "Listed",
+        "uninstall": "Hide",
         "size": "Size",
         "formats": "Formats",
         "platforms": "Platforms",
-        "manufacturer_site": "Open manufacturer site",
-        "activate": "Download & activate this plugin",
+        "manufacturer_site": "Open developer website (Download)",
+        "activate": "Open developer website in browser",
         "features": "Features & Details",
         "tech_specs": "Technical Specifications",
-        "disclaimer": "All plugins are open-source or freeware, virus-checked and fully digitally signed."
+        "disclaimer": "Note: This is a curated catalog of recommended free plugins. Direct download or automatic in-app installation is not supported. All plugins must be manually downloaded and installed on your system.",
+        "disclaimer_short": "No direct in-app download"
       },
       "settings": {
         "title": "Program Settings",
@@ -365,7 +367,12 @@ export function setupSettingsIpc() {
       Object.keys(defaults).forEach(key => {
         if (existing[key] !== undefined) {
           if (typeof existing[key] === 'object' && existing[key] !== null && defaults[key]) {
-            merged[key] = { ...defaults[key], ...existing[key] };
+            if (key === 'vst_store') {
+              // Special case: force override vst_store to sanitize copywriting
+              merged[key] = { ...defaults[key] };
+            } else {
+              merged[key] = { ...defaults[key], ...existing[key] };
+            }
           } else {
             merged[key] = existing[key];
           }

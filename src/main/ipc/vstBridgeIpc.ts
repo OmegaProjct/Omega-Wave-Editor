@@ -115,6 +115,11 @@ export function setupVstBridgeIpc(): void {
         }
       })
 
+      // Load a blank page and wait a small duration for Chromium's native widgets to instantiate.
+      // This ensures the C++ EnumChildWindows call will successfully find and hide the Chrome widgets.
+      await editorWindow.loadURL('about:blank')
+      await new Promise(resolve => setTimeout(resolve, 150))
+
       // We call openEditor, passing the raw native window pointer buffer (HWND on Windows)
       const nativeHandle = editorWindow.getNativeWindowHandle()
       const preferredSize = VstHost.openEditor(nativeHandle)
