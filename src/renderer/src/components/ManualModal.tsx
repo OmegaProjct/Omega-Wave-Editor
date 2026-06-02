@@ -194,7 +194,7 @@ export function ManualModal({ onClose }: { onClose: () => void }) {
                   {t('manual.sec8_block3_title', { defaultValue: '🏪 VST Store (Kuratierte Freeware)' })}
                 </h4>
                 <p className="text-xs text-gray-400 leading-relaxed">
-                  {t('manual.sec8_block3_desc', { defaultValue: 'Keine Plugins installiert? Der integrierte VST-Katalog bietet eine Übersicht erstklassiger, kostenloser Synthesizer und Effekte. Da der aktuelle Windows-Host von Omega Wave Editor real ausschließlich 64-Bit VST2-Plugins unterstützt, kennzeichnet der Katalog jedes Plugin ehrlich nach seiner Kompatibilität. Sie können über die direkten Hersteller-Links zum Entwickler navigieren, um die passenden 64-Bit VST2-Plugins herunterzuladen und manuell auf Ihrem System zu installieren.' })}
+                  {t('manual.sec8_block3_desc', { defaultValue: 'Keine Plugins installiert? Der integrierte VST-Katalog zeigt empfohlene kostenlose Plugins mit ehrlicher Kompatibilitätsanzeige. Downloads und Installationen laufen nicht in der App, sondern manuell über die verlinkten Herstellerseiten.' })}
                 </p>
               </div>
             </div>

@@ -2,20 +2,6 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
-## [0.8.15] - 2026-06-02
-
-### English
-
-#### Added
-- **Honest Compatibility Explanations**: Added a detailed, transparent and native-feeling German explanation area within the VST Plugin Catalog detail modal to inform users explicitly why a plugin cannot be loaded on Windows if it lacks a VST2 build.
-- **Honest Manual Context**: Updated the integrated user manual to align with the honest VST catalog browser behavior (removes automated fake installer mentions and clarifies real VST2 host constraints).
-
-### Deutsch
-
-#### Hinzugefügt
-- **Ehrliche Kompatibilitätserklärungen**: Einbau eines detaillierten, transparenten und unmissverständlichen Erklärungstextes zur Host-Kompatibilität im Detail-Modal des VST-Katalogs, welcher ehrlich über die VST2-Formatlimitierung des aktuellen Windows-Hosts aufklärt.
-- **Ehrliche Handbuch-Beschreibung**: Aktualisierung der VST-Store-Beschreibung im integrierten Benutzerhandbuch, um dem ehrlichen Katalog-Browser-Verhalten zu entsprechen (Verweis auf manuelle Hersteller-Downloads statt falscher simulierter In-App-Automationen).
-
 ## [0.8.14] - 2026-06-02
 
 ### English
