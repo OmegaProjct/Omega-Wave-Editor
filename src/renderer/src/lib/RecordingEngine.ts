@@ -63,9 +63,14 @@ export class RecordingEngine {
     if (this.isRecording) return;
     this.options = options;
 
-    // 1. Mikrofon-Stream abfragen (mit genauer Device-ID)
+    // 1. Mikrofon-Stream abfragen mit Studio-Qualitäts-Constraints (rohes Signal ohne Filter)
     const constraints: MediaStreamConstraints = {
-      audio: options.deviceId ? { deviceId: { exact: options.deviceId } } : true
+      audio: {
+        deviceId: options.deviceId ? { exact: options.deviceId } : undefined,
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false
+      }
     };
     
     this.mediaStream = await navigator.mediaDevices.getUserMedia(constraints);

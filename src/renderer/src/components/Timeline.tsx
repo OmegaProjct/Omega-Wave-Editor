@@ -1413,9 +1413,33 @@ export function Timeline({
             if (!isPlayingRefForMidi.current) {
               togglePlayback();
             }
+          } else if (parsed.action === 'stop_daw') {
+            if (isPlayingRefForMidi.current) {
+              togglePlayback();
+            }
           }
         } catch (err) {
           console.error('Failed to parse vst_recording_action:', err);
+        }
+      } else if (e.key === 'audio_recorded_finished' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (parsed.filePath && parsed.durationSec) {
+            const filename = parsed.filePath.split(/[\\/]/).pop() || 'Aufnahme.wav';
+            const newRegion: Region = {
+              id: Math.random().toString(36).substr(2, 9),
+              file: { name: filename, path: parsed.filePath, isDirectory: false },
+              startPos: parsed.startPos || playheadPosRef.current,
+              duration: parsed.durationSec,
+              fileDuration: parsed.durationSec,
+              sourceOffset: 0,
+              color: 'bg-red-600'
+            };
+            updateTracksWithHistory(tracks.map((t, i) => i === 0 ? { ...t, regions: [...t.regions, newRegion] } : t));
+            console.log('[Timeline] Imported recording from popout:', parsed.filePath);
+          }
+        } catch (err) {
+          console.error('Failed to parse audio_recorded_finished:', err);
         }
       }
     };
@@ -2090,7 +2114,7 @@ export function Timeline({
               title="Audioaufnahme (Popout)" 
               className={`p-1.5 rounded transition-all ${audioRecording?.active ? 'text-red-500 animate-pulse bg-red-500/20 shadow-[0_0_8px_rgba(239,68,68,0.5)] border border-red-500/30' : 'hover:bg-gray-700 text-gray-400'}`} 
               onClick={() => {
-                window.api.openPopoutWindow('audio-recorder', { width: 560, height: 520, title: '🔴 Audio-Aufnahme' });
+                window.api.openPopoutWindow('audio-recorder', { width: 600, height: 520, title: '🔴 Audio-Aufnahme' });
               }}
             >
               <Mic size={16} />
@@ -2292,6 +2316,9 @@ export function Timeline({
                  window.removeEventListener('mousemove', onMouseMove);
                  window.removeEventListener('mouseup', onMouseUp);
                  if (isLassoActiveRef.current && lassoStartRef.current && tracksRef.current) {
+                   justDraggedRef.current = true;
+                   setTimeout(() => { justDraggedRef.current = false; }, 50);
+
                    // Compute lasso rect in timeline-local coords
                    setLassoRect(prev => {
                      if (!prev || !tracksRef.current) return null;
@@ -2359,6 +2386,7 @@ export function Timeline({
                        onDrop={(e) => { e.stopPropagation(); onDrop(e, track.id); }} 
                        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
                        onClick={(e) => {
+                          if (justDraggedRef.current) return;
                           if (!(e.target as HTMLElement).closest('[data-region-id]')) {
                             setSelectedRegionIds(new Set());
                             setEditorContextMenu(null);
@@ -2569,23 +2597,37 @@ export function Timeline({
                         })}
                         {track.id === '1' && vstRecording && vstRecording.active && (
                           <div
-                            className="absolute top-0.5 bottom-0.5 border rounded overflow-hidden flex flex-col shadow-lg pointer-events-none bg-red-950/40 border-red-500 text-red-400 animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.25)] z-20"
+                            className="absolute top-0.5 bottom-0.5 border rounded overflow-hidden flex flex-col shadow-lg pointer-events-none bg-red-950/40 border-red-500/60 text-red-400 z-20"
                             style={{
                               left: `${vstRecording.startPlayhead * pixelsPerSecond}px`,
                               width: `${vstRecordingDuration * pixelsPerSecond}px`
                             }}
                           >
-                            <div className="h-[18px] bg-red-650 text-white font-bold select-none flex items-center px-2 text-[10px] truncate leading-none">
+                            <div className="h-[18px] bg-red-600 text-white font-bold select-none flex items-center px-2 text-[10px] truncate leading-none">
                               🔴 LIVE-AUFNAHME ({vstRecording.pluginName})
                             </div>
-                            <div className="flex-1 bg-red-950/20 relative flex items-center px-3 text-[10px] font-bold font-mono tracking-wider">
-                              {vstRecordingDuration.toFixed(1)}s aufgenommene Spieldauer
+                            <div className="flex-1 bg-red-950/30 relative overflow-hidden">
+                              <div className="absolute inset-0 flex items-center">
+                                {(() => {
+                                  const clipW = vstRecordingDuration * pixelsPerSecond;
+                                  const barW = 2;
+                                  const gap = 1;
+                                  const count = Math.min(Math.floor(clipW / (barW + gap)), 600);
+                                  const bars = [];
+                                  for (let i = 0; i < count; i++) {
+                                    const seed = Math.abs(Math.sin(i * 0.15)) * 0.55 + Math.abs(Math.cos(i * 0.05)) * 0.35;
+                                    const h = Math.max(10, seed * 80);
+                                    bars.push(<div key={i} style={{ width: barW, height: `${h}%`, marginRight: gap, flexShrink: 0 }} className="bg-red-500/70 rounded-sm" />);
+                                  }
+                                  return bars;
+                                })()}
+                              </div>
                             </div>
                           </div>
                         )}
                         {track.id === '1' && audioRecording && audioRecording.active && (
                           <div
-                            className="absolute top-0.5 bottom-0.5 border rounded overflow-hidden flex flex-col shadow-lg pointer-events-none bg-red-950/40 border-red-500 text-red-400 animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.25)] z-20"
+                            className="absolute top-0.5 bottom-0.5 border rounded overflow-hidden flex flex-col shadow-lg pointer-events-none bg-red-950/40 border-red-500/60 text-red-400 z-20"
                             style={{
                               left: `${audioRecording.startPlayhead * pixelsPerSecond}px`,
                               width: `${audioRecordingDuration * pixelsPerSecond}px`
@@ -2594,8 +2636,22 @@ export function Timeline({
                             <div className="h-[18px] bg-red-600 text-white font-bold select-none flex items-center px-2 text-[10px] truncate leading-none">
                               🔴 AUDIO-AUFNAHME
                             </div>
-                            <div className="flex-1 bg-red-950/20 relative flex items-center px-3 text-[10px] font-bold font-mono tracking-wider">
-                              {audioRecordingDuration.toFixed(1)}s aufgenommene Spieldauer
+                            <div className="flex-1 bg-red-950/30 relative overflow-hidden">
+                              <div className="absolute inset-0 flex items-center">
+                                {(() => {
+                                  const clipW = audioRecordingDuration * pixelsPerSecond;
+                                  const barW = 2;
+                                  const gap = 1;
+                                  const count = Math.min(Math.floor(clipW / (barW + gap)), 600);
+                                  const bars = [];
+                                  for (let i = 0; i < count; i++) {
+                                    const seed = Math.abs(Math.sin(i * 0.15)) * 0.55 + Math.abs(Math.cos(i * 0.05)) * 0.35;
+                                    const h = Math.max(10, seed * 80);
+                                    bars.push(<div key={i} style={{ width: barW, height: `${h}%`, marginRight: gap, flexShrink: 0 }} className="bg-red-500/70 rounded-sm" />);
+                                  }
+                                  return bars;
+                                })()}
+                              </div>
                             </div>
                           </div>
                         )}

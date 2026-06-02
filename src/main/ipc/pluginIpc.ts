@@ -194,23 +194,6 @@ export function registerPluginIpc() {
       }
     }
 
-    // 3. Built-in Fallbacks if no plugins are found
-    if (foundPlugins.length === 0) {
-      const internalId = generatePluginId('internal://limiter', 'Omega Limiter (Built-in)')
-      foundPlugins.push({
-        id: internalId,
-        name: 'Omega Limiter (Built-in)',
-        manufacturer: 'Omega Projects',
-        version: '1.0',
-        format: 'VST3',
-        path: 'internal://limiter',
-        category: 'Limiter/Effekt',
-        scanStatus: 'scanned',
-        crashCount: 0,
-        blocked: false
-      })
-    }
-
     // Write updated registry to disk
     writeRegistry(currentRegistry)
 

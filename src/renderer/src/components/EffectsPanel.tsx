@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { RotateCcw, ChevronDown, ChevronRight, Save, FolderOpen, Copy, Clipboard, RefreshCw } from 'lucide-react'
 import { AudioEngine } from '../lib/AudioEngine'
-import { VstPluginRack } from './VstPluginRack'
+import { VstPluginRack, getInitialParams } from './VstPluginRack'
 import { VstPluginStore } from './VstPluginStore'
 
 // === Typen ===
@@ -182,28 +182,12 @@ export function EffectsPanel({
   const [selectedItem, setSelectedItem] = useState<string>('eq')
   const [activeView, setActiveView] = useState<'effects' | 'vst_rack' | 'vst_store'>('effects')
 
-  // Beim Start vorhandene Plugin-Registry laden und mit Store-Downloads mergen
+  // Beim Start vorhandene Plugin-Registry laden und filtern
   useEffect(() => {
     const loadPlugins = () => {
       window.api.scanVstPlugins().then((plugins: any[]) => {
-        const saved = localStorage.getItem('downloaded_vsts')
-        let downloadedList: any[] = []
-        if (saved) {
-          try {
-            downloadedList = JSON.parse(saved) || []
-          } catch (e) {
-            downloadedList = []
-          }
-        }
-        
-        const combined = [...plugins]
-        downloadedList.forEach(dl => {
-          if (!combined.some(p => p.name === dl.name)) {
-            combined.push(dl)
-          }
-        })
-        
-        setVstPlugins(combined)
+        const filtered = plugins.filter((p: any) => p && p.path && !p.path.startsWith('store://') && !p.path.startsWith('internal://'))
+        setVstPlugins(filtered)
       }).catch(() => {})
     }
 
@@ -410,20 +394,8 @@ export function EffectsPanel({
     setIsScanning(true)
     try {
       const plugins = await window.api.scanVstPlugins()
-      const saved = localStorage.getItem('downloaded_vsts')
-      let downloadedList: any[] = []
-      if (saved) {
-        try {
-          downloadedList = JSON.parse(saved) || []
-        } catch (e) {}
-      }
-      const combined = [...plugins]
-      downloadedList.forEach(dl => {
-        if (!combined.some(p => p.name === dl.name)) {
-          combined.push(dl)
-        }
-      })
-      setVstPlugins(combined)
+      const filtered = plugins.filter((p: any) => p && p.path && !p.path.startsWith('store://') && !p.path.startsWith('internal://'))
+      setVstPlugins(filtered)
     } finally {
       setIsScanning(false)
     }
@@ -551,10 +523,15 @@ export function EffectsPanel({
                       const savedRack = localStorage.getItem('vst_rack_plugins')
                       let rack: any[] = []
                       if (savedRack) {
-                        try { rack = JSON.parse(savedRack) || [] } catch (e) {}
+                        try {
+                          const parsed = JSON.parse(savedRack)
+                          if (Array.isArray(parsed)) {
+                            rack = parsed.filter((p: any) => p && p.path && !p.path.startsWith('store://') && !p.path.startsWith('internal://'))
+                          }
+                        } catch (e) {}
                       }
                       if (!rack.some(p => p.id === vst.id)) {
-                        const isInst = vst.category?.toLowerCase().includes('instrument')
+                        const isPlaceholder = vst.path?.startsWith('store://') || vst.path?.startsWith('internal://')
                         const newLoaded = {
                           id: vst.id,
                           name: vst.name,
@@ -563,25 +540,7 @@ export function EffectsPanel({
                           category: vst.category || 'Effekt',
                           path: vst.path,
                           active: true,
-                          parameters: isInst ? [
-                            { name: 'Cutoff', min: 20, max: 20000, step: 1, value: 1200, defaultValue: 1200, unit: 'Hz' },
-                            { name: 'Resonance', min: 0, max: 100, step: 0.1, value: 15, defaultValue: 15, unit: '%' },
-                            { name: 'Attack', min: 0, max: 5000, step: 1, value: 10, defaultValue: 10, unit: 'ms' },
-                            { name: 'Decay', min: 1, max: 5000, step: 1, value: 350, defaultValue: 350, unit: 'ms' },
-                            { name: 'Sustain', min: 0, max: 100, step: 0.1, value: 80, defaultValue: 80, unit: '%' },
-                            { name: 'Release', min: 0, max: 10000, step: 1, value: 450, defaultValue: 450, unit: 'ms' },
-                            { name: 'Oscillator Mix', min: 0, max: 100, step: 1, value: 50, defaultValue: 50, unit: '%' },
-                            { name: 'Output Volume', min: -60, max: 6, step: 0.1, value: 0, defaultValue: 0, unit: 'dB' }
-                          ] : [
-                            { name: 'Input Gain', min: -24, max: 24, step: 0.1, value: 0, defaultValue: 0, unit: 'dB' },
-                            { name: 'Low EQ', min: -15, max: 15, step: 0.1, value: 0, defaultValue: 0, unit: 'dB' },
-                            { name: 'Mid EQ', min: -15, max: 15, step: 0.1, value: 0, defaultValue: 0, unit: 'dB' },
-                            { name: 'High EQ', min: -15, max: 15, step: 0.1, value: 0, defaultValue: 0, unit: 'dB' },
-                            { name: 'Threshold', min: -60, max: 0, step: 0.5, value: -20, defaultValue: -20, unit: 'dB' },
-                            { name: 'Ratio', min: 1, max: 20, step: 0.1, value: 4, defaultValue: 4, unit: ':1' },
-                            { name: 'Release Time', min: 10, max: 2500, step: 1, value: 200, defaultValue: 200, unit: 'ms' },
-                            { name: 'Mix / Wet', min: 0, max: 100, step: 1, value: 100, defaultValue: 100, unit: '%' }
-                          ]
+                          parameters: isPlaceholder ? getInitialParams(vst.category || 'Effekt') : []
                         }
                         rack.push(newLoaded)
                         localStorage.setItem('vst_rack_plugins', JSON.stringify(rack))

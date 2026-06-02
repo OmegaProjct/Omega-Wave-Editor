@@ -567,10 +567,33 @@ export class AudioEngine {
     return curve;
   }
 
-  public play(project: { tracks: any[] }, startTime: number = 0) {
-    this.stop(); // Always destroy previous state to prevent layering
-    if (this.ctx.state === 'suspended') this.ctx.resume();
+  public async play(project: { tracks: any[] }, startTime: number = 0) {
+    if (this.ctx.state === 'suspended') await this.ctx.resume();
 
+    // 1. Preload any unloaded regions currently overlapping with the starting playhead area
+    const filesToLoad: string[] = [];
+    project.tracks.forEach(t => {
+      t.regions.forEach((r: any) => {
+        if (r.file && r.file.path && !this.buffers.has(r.file.path)) {
+          const regionStart = r.startPos;
+          const regionEnd = r.startPos + r.duration;
+          // Preload files within play window (starting 2s before to 5s after the current playhead)
+          const isNeededNow = startTime >= regionStart - 2 && startTime <= regionEnd + 5;
+          if (isNeededNow) {
+            filesToLoad.push(r.file.path);
+          }
+        }
+      });
+    });
+
+    if (filesToLoad.length > 0) {
+      console.log(`[AudioEngine] Immediate preloading ${filesToLoad.length} files to prevent silence:`, filesToLoad);
+      await Promise.all(filesToLoad.map(fp => this.loadFile(fp).catch(err => {
+        console.warn(`[AudioEngine] Immediate preloading failed for ${fp}:`, err.message);
+      })));
+    }
+
+    this.stop(); // Always destroy previous state to prevent layering
     this.currentProject = project;
     this.startTime = this.ctx.currentTime - startTime;
     this.pauseTime = startTime;
