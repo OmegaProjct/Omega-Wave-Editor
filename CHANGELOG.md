@@ -2,6 +2,18 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.8.13] - 2026-06-02
+
+### English
+
+#### Fixed
+- **Automatic Fake Parameter Cleanup**: Implemented an automated cleanup routine within `VstPluginRack.tsx` (`loadRackState`), `VstEditorWindow.tsx` (`loadPluginFromStorage`), and `EffectsPanel.tsx` (sidebar click handler) that filters loaded real plugins for invented parameters (defined by the absence of an index property) and resets their parameter lists to prevent outdated fake parameters from seeding controls.
+
+### Deutsch
+
+#### Behoben
+- **Automatische Bereinigung fiktiver Parameter**: Integration einer automatischen Reinigungslogik in `VstPluginRack.tsx` (`loadRackState`), `VstEditorWindow.tsx` (`loadPluginFromStorage`) und `EffectsPanel.tsx` (Sidebar-Klick-Handler), um geladene reale Plugins auf fiktive Parameter (gekennzeichnet durch das Fehlen einer `index`-Eigenschaft) zu prüfen und deren Parameterliste zurückzusetzen, wodurch verbleibende fiktive Parameter aus älteren Sessions automatisch aus dem LocalStorage entfernt werden.
+
 ## [0.8.12] - 2026-06-02
 
 ### English
