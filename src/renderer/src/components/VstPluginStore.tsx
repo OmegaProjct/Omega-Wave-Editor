@@ -682,19 +682,29 @@ export function VstPluginStore({ isPopout: propIsPopout }: { isPopout?: boolean,
 
               {/* Kompatibilitätshinweis */}
               {isPluginCompatible(selectedPlugin) ? (
-                <div className="p-3 bg-emerald-950/20 border border-emerald-900/30 rounded-xl text-[10px] text-emerald-350 leading-relaxed flex items-start gap-2.5 shadow-sm">
-                  <Check size={14} className="text-emerald-400 mt-0.5 flex-shrink-0 animate-pulse" />
+                <div className="p-4 bg-emerald-950/20 border border-emerald-800/40 rounded-xl text-[11px] text-emerald-300 leading-relaxed flex items-start gap-3 shadow-md">
+                  <Check size={16} className="text-emerald-400 mt-0.5 flex-shrink-0" />
                   <div>
-                    <span className="font-extrabold text-emerald-300 block mb-0.5">Voraussichtlich kompatibel</span>
-                    <span>Dieses Plugin bietet das VST2-Format an. Da der aktuelle Windows-Host von Omega Wave Editor ausschließlich VST2 unterstützt, ist dieses Plugin voraussichtlich nutzbar.</span>
+                    <span className="font-extrabold text-emerald-200 block mb-1">Voraussichtlich kompatibel (bietet VST2)</span>
+                    <p className="mb-1.5">
+                      Dieses Plugin bietet das benötigte <strong>VST2-Format</strong> an und ist daher mit dem aktuellen Windows-Host voraussichtlich nutzbar.
+                    </p>
+                    <p className="text-[10px] text-emerald-350/90 leading-normal">
+                      <strong>Hinweis zur Installation:</strong> Da der Host unter Windows ausschließlich 64-Bit VST2-Plugins laden kann, müssen Sie bei der manuellen Installation des Herstellers darauf achten, dass die 64-Bit VST2-Version (oft als .dll-Datei) in Ihren System-Plugin-Pfad installiert wird.
+                    </p>
                   </div>
                 </div>
               ) : (
-                <div className="p-3 bg-rose-950/10 border border-rose-900/30 rounded-xl text-[10px] text-rose-350 leading-relaxed flex items-start gap-2.5 shadow-sm">
-                  <ShieldAlert size={14} className="text-rose-400 mt-0.5 flex-shrink-0" />
+                <div className="p-4 bg-rose-950/20 border border-rose-800/40 rounded-xl text-[11px] text-rose-350 leading-relaxed flex items-start gap-3 shadow-md">
+                  <ShieldAlert size={16} className="text-rose-400 mt-0.5 flex-shrink-0" />
                   <div>
-                    <span className="font-extrabold text-rose-400 block mb-0.5">Nicht kompatibel mit aktuellem Host</span>
-                    <span>Dieses Plugin bietet <strong>kein VST2-Format</strong> (unterstützt nur {selectedPlugin.formats.join(', ')}). Da der aktuelle Windows-Host von Omega Wave Editor real ausschließlich VST2-Plugins unterstützt, kann dieses Plugin auf diesem System <strong>nicht geladen werden</strong>.</span>
+                    <span className="font-extrabold text-rose-200 block mb-1">Nicht kompatibel mit dem aktuellen Windows-Host</span>
+                    <p className="mb-1.5">
+                      Dieses Plugin unterstützt die Formate <strong>{selectedPlugin.formats.join(', ')}</strong>, bietet jedoch <strong>keine VST2-Version</strong> an.
+                    </p>
+                    <p className="text-[10px] text-rose-350/90 leading-normal">
+                      <strong>Technische Erklärung:</strong> Der integrierte Windows-Audiomotor von Omega Wave Editor unterstützt derzeit ausschließlich das ältere <strong>VST2-Format (64-Bit)</strong>. Neuere Schnittstellen wie VST3 oder CLAP können von diesem Host real noch nicht geladen und verarbeitet werden. Da dieses Plugin kein VST2 anbietet, kann es auf diesem System im aktuellen Editor nicht geladen werden.
+                    </p>
                   </div>
                 </div>
               )}
