@@ -522,16 +522,30 @@ export function EffectsPanel({
                       // Auto-load into rack if clicked in sidebar
                       const savedRack = localStorage.getItem('vst_rack_plugins')
                       let rack: any[] = []
+                      let hasAnyCleaned = false
                       if (savedRack) {
                         try {
                           const parsed = JSON.parse(savedRack)
                           if (Array.isArray(parsed)) {
-                            rack = parsed.filter((p: any) => p && p.path && !p.path.startsWith('store://') && !p.path.startsWith('internal://'))
+                            const filtered = parsed.filter((p: any) => p && p.path && !p.path.startsWith('store://') && !p.path.startsWith('internal://'))
+                            rack = filtered.map((p: any) => {
+                              if (p.parameters && p.parameters.length > 0) {
+                                const hasFakeParams = p.parameters.some((param: any) => param.index === undefined)
+                                if (hasFakeParams) {
+                                  hasAnyCleaned = true
+                                  return { ...p, parameters: [] }
+                                }
+                              }
+                              return p
+                            })
                           }
                         } catch (e) {}
                       }
-                      if (!rack.some(p => p.id === vst.id)) {
-                        const isPlaceholder = vst.path?.startsWith('store://') || vst.path?.startsWith('internal://')
+                      
+                      const isPlaceholder = vst.path?.startsWith('store://') || vst.path?.startsWith('internal://')
+                      const existingIndex = rack.findIndex(p => p.id === vst.id)
+                      
+                      if (existingIndex === -1) {
                         const newLoaded = {
                           id: vst.id,
                           name: vst.name,
@@ -543,6 +557,9 @@ export function EffectsPanel({
                           parameters: isPlaceholder ? getInitialParams(vst.category || 'Effekt') : []
                         }
                         rack.push(newLoaded)
+                        localStorage.setItem('vst_rack_plugins', JSON.stringify(rack))
+                        window.dispatchEvent(new CustomEvent('SETTINGS_UPDATED', { detail: {} }))
+                      } else if (hasAnyCleaned) {
                         localStorage.setItem('vst_rack_plugins', JSON.stringify(rack))
                         window.dispatchEvent(new CustomEvent('SETTINGS_UPDATED', { detail: {} }))
                       }

@@ -181,12 +181,27 @@ export function VstEditorWindow() {
         const parsed = JSON.parse(savedRack)
         if (Array.isArray(parsed)) {
           const filtered = parsed.filter((p: any) => p && p.path && !p.path.startsWith('store://') && !p.path.startsWith('internal://'))
-          const found = filtered.find(p => p.id === pluginId)
+          
+          // Automatische Saeuberung fiktiver Parameter bei realen Plugins (ohne 'index'-Property)
+          let hasAnyCleaned = false
+          const cleaned = filtered.map((p: any) => {
+            if (p.parameters && p.parameters.length > 0) {
+              const hasFakeParams = p.parameters.some((param: any) => param.index === undefined)
+              if (hasFakeParams) {
+                hasAnyCleaned = true
+                return { ...p, parameters: [] }
+              }
+            }
+            return p
+          })
+
+          const found = cleaned.find(p => p.id === pluginId)
           if (found) {
             setPlugin(found)
           }
-          if (filtered.length !== parsed.length) {
-            localStorage.setItem('vst_rack_plugins', JSON.stringify(filtered))
+
+          if (hasAnyCleaned || filtered.length !== parsed.length) {
+            localStorage.setItem('vst_rack_plugins', JSON.stringify(cleaned))
           }
         }
       }
