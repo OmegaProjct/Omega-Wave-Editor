@@ -2,6 +2,20 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.8.14] - 2026-06-02
+
+### English
+
+#### Added
+- **Ehrliche UI-Erklärung**: Integrated a precise, native-feeling German description in the Premium Hybrid Fallback VST Editor when `hasEditor === false` to transparently explain that the plugin does not feature a native GUI by design.
+- **Robust Parameter Flow**: Enhanced `VstEditorWindow.tsx` parameter dispatching to ensure parameter sliders communicate flawlessly with the C++ Native Host for GUI-less VST2 plugins even while fallback UI is active.
+
+### Deutsch
+
+#### Hinzugefügt
+- **Ehrliche UI-Erklärung**: Einbau einer verständlichen und präzisen deutschen Erklärung im Premium Hybrid Fallback-Editor für GUI-lose Plugins (`hasEditor === false`), um transparent zu verdeutlichen, dass das Plugin konstruktionsbedingt über keine herstellereigene grafische Benutzeroberfläche verfügt.
+- **Robuste Parameter-Steuerung**: Anpassung der Parameter-Weiterleitung in `VstEditorWindow.tsx`, sodass Regler-Änderungen im Fallback-Editor für echte GUI-lose VST2-Plugins live und verlustfrei an den C++ Singleton-Host übertragen werden.
+
 ## [0.8.13] - 2026-06-02
 
 ### English

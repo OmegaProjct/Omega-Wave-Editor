@@ -1,10 +1,5 @@
 import { FileEntry } from './index'
 
-type VstUiOpenResult = {
-  success: boolean
-  error?: string
-}
-
 declare global {
   interface Window {
     api: {
@@ -42,7 +37,6 @@ declare global {
       getStartupFile: () => Promise<string | null>
       onOpenProjectFromAssociation: (callback: (filePath: string) => void) => () => void
       scanVstPlugins: () => Promise<any[]>
-      openVstUi: (pluginPath: string) => Promise<VstUiOpenResult>
       
       // VST Bridge Pro (v0.8.0 / v0.8.9)
       loadVstPlugin: (path: string) => Promise<{ name: string; vendor: string; numParams: number; numInputs: number; numOutputs: number; uniqueId: number; hasEditor: boolean }>

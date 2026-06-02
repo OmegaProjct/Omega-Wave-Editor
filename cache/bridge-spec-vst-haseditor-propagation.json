@@ -1,0 +1,20 @@
+{
+  "goal": "Verbessere den ehrlichen VST-Editor-Flow, indem die bereits vorhandene hasEditor-Information aus loadVstPlugin im Renderer wirklich genutzt wird. Wenn ein reales Plugin beim Laden meldet, dass es keinen nativen Editor hat, soll die App das sauber im Zustand merken, keinen sinnlosen openVstEditor-Versuch machen und dem Benutzer eine ehrliche Erklaerung bzw. UI-Anzeige geben.",
+  "workspace": "C:\\Users\\Dave1\\Coding\\Omega Wave Editor",
+  "allow_write": true,
+  "constraints": [
+    "Bearbeite nur Omega Wave Editor.",
+    "Keine neue Hostarchitektur, keine VST3-Implementierung, keine Scanner-Probe fuer alle Plugins.",
+    "Bestehende Singleton-Guardrails und Hostability-Checks muessen erhalten bleiben.",
+    "Keine Fake-Behauptungen und keine neuen Platzhalter-Funktionen.",
+    "Aendere nur minimal noetige Typen und Renderer-Logik; Main/Preload nur dann, wenn wirklich noetig.",
+    "Kein Revert fremder vorhandener Aenderungen."
+  ],
+  "success_criteria": [
+    "Die vorhandene hasEditor-Information aus window.api.loadVstPlugin(...) wird im Renderer nicht mehr ignoriert.",
+    "Wenn ein reales Plugin hasEditor === false meldet, wird openVstEditor nicht blind aufgerufen.",
+    "Der Benutzer bekommt in VstEditorWindow eine ehrliche, klare Erklaerung, dass dieses Plugin laut Host keinen nativen Editor meldet.",
+    "Falls sinnvoll und mit kleinem Eingriff moeglich, wird der geladene Rack-Zustand fuer dieses Plugin so erweitert, dass die UI spaeter ehrlicher reagieren kann.",
+    "TypeScript-Typecheck bleibt grün."
+  ]
+}

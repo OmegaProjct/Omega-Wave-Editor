@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { Check, Star, ShieldAlert, Cpu, X, ExternalLink, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -19,104 +19,254 @@ export interface StorePlugin {
   features: string[]
 }
 
-const CATALOG_URL = 'https://raw.githubusercontent.com/OmegaProjct/Omega-Wave-Editor/main/vst_store_catalog.json'
+/**
+ * Hilfsfunktion zur Überprüfung der VST2-Kompatibilität mit dem aktuellen Windows-Host.
+ * Gibt true zurück, wenn 'VST2' in den unterstützten Formaten enthalten ist.
+ */
+export function isPluginCompatible(plugin: { formats: string[] }): boolean {
+  return plugin.formats.includes('VST2');
+}
 
 const COMPACT_PLUGINS = [
-  // 1. Synthesizer & Instrumente (17)
-  { id: 'store_surge_xt', name: 'Surge XT', mfg: 'Surge Synth Team', cat: 'Instrument', sub: 'Synthesizer', size: '112 MB', r: 4.9, desc: 'Mächtiger hybrider Wavetable-Synthesizer.', url: 'https://surge-synth-team.org' },
-  { id: 'store_vital', name: 'Vital (Free)', mfg: 'Matt Tytel', cat: 'Instrument', sub: 'Synthesizer', size: '185 MB', r: 4.8, desc: 'Spektral-verzerrender Wavetable-Synthesizer.', url: 'https://vital.audio' },
-  { id: 'store_helm', name: 'Helm Synth', mfg: 'Matt Tytel', cat: 'Instrument', sub: 'Synthesizer', size: '34 MB', r: 4.6, desc: 'Einsteigerfreundlicher polyphoner Synthesizer.', url: 'https://tytel.org/helm/' },
-  { id: 'store_dexed', name: 'Dexed FM', mfg: 'Digital Suburban', cat: 'Instrument', sub: 'Synthesizer', size: '18 MB', r: 4.7, desc: 'Ultimativer DX7 FM-Synthesizer-Klon.', url: 'https://asb2m10.github.io/dexed/' },
-  { id: 'store_tyrell_n6', name: 'u-he Tyrell N6', mfg: 'u-he', cat: 'Instrument', sub: 'Synthesizer', size: '24 MB', r: 4.8, desc: 'Klassischer Analog-Synth für warme Roland-Sounds.', url: 'https://u-he.com/products/tyrelln6.shtml' },
-  { id: 'store_pg_8x', name: 'Nilsschutz PG-8X', mfg: 'Nilsschutz', cat: 'Instrument', sub: 'Synthesizer', size: '12 MB', r: 4.7, desc: 'Emulation des legendären Roland JX-8P Synthesizers.' },
-  { id: 'store_ob_xd', name: 'OB-Xd Synth', mfg: 'discoDSP', cat: 'Instrument', sub: 'Synthesizer', size: '15 MB', r: 4.6, desc: 'Berühmte Oberheim OB-Xa Analog-Emulation.' },
-  { id: 'store_odin_2', name: 'Odin 2', mfg: 'The Wavewarden', cat: 'Instrument', sub: 'Synthesizer', size: '85 MB', r: 4.9, desc: 'Brachialer 24-stimmiger Hybrid-Synthesizer.' },
-  { id: 'store_synth1', name: 'Synth1', mfg: 'Daichi', cat: 'Instrument', sub: 'Synthesizer', size: '5 MB', r: 4.5, desc: 'Kultiger subtraktiver Synthesizer im Nord Lead Stil.' },
-  { id: 'store_zebralette', name: 'Zebralette', mfg: 'u-he', cat: 'Instrument', sub: 'Synthesizer', size: '14 MB', r: 4.7, desc: 'Einzell-Oszillator Vorstufe des berühmten Zebra-Synths.' },
-  { id: 'store_mono_fury', name: 'Full Bucket Mono/Fury', mfg: 'Full Bucket Music', cat: 'Instrument', sub: 'Synthesizer', size: '8 MB', r: 4.6, desc: 'Korg Mono/Poly Synthesizer-Simulation.' },
-  { id: 'store_fb_3300', name: 'Full Bucket FB-3300', mfg: 'Full Bucket Music', cat: 'Instrument', sub: 'Synthesizer', size: '9 MB', r: 4.8, desc: 'Emulation des Korg PS-3300 Analog-Synths.' },
-  { id: 'store_fb_3100', name: 'Full Bucket FB-3100', mfg: 'Full Bucket Music', cat: 'Instrument', sub: 'Synthesizer', size: '7 MB', r: 4.5, desc: 'Emulation des historischen Korg PS-3100 Synths.' },
-  { id: 'store_deputy', name: 'The Deputy Mark II', mfg: 'Full Bucket Music', cat: 'Instrument', sub: 'Synthesizer', size: '10 MB', r: 4.6, desc: 'Klassischer String-Synthesizer für 70er Strings.' },
-  { id: 'store_vcv_rack', name: 'VCV Rack (Free)', mfg: 'VCV', cat: 'Instrument', sub: 'Synthesizer', size: '280 MB', r: 4.9, desc: 'Virtueller offener Eurorack-Modular-Synthesizer.', url: 'https://vcvrack.com/' },
-  { id: 'store_sitala', name: 'Sitala Drum Sampler', mfg: 'Decomposer', cat: 'Instrument', sub: 'Drums', size: '12 MB', r: 4.7, desc: 'Minimalistischer, intuitiver Drum-Sampler.' },
-  { id: 'store_slate_drums', name: 'SSD 5.5 Free', mfg: 'Steven Slate Drums', cat: 'Instrument', sub: 'Drums', size: '2.1 GB', r: 4.8, desc: 'Weltklasse akustische Drums & Deluxe Kits.' },
+  // 1. Synthesizer & Instrumente (5)
+  {
+    id: 'store_surge_xt',
+    name: 'Surge XT',
+    mfg: 'Surge Synth Team',
+    cat: 'Instrument',
+    sub: 'Synthesizer',
+    size: '112 MB',
+    r: 4.9,
+    desc: 'Mächtiger hybrider Wavetable-Synthesizer.',
+    url: 'https://surge-synth-team.org',
+    formats: ['VST3', 'CLAP'],
+    platforms: ['win', 'mac', 'linux'] as ('win' | 'mac' | 'linux')[],
+    longDesc: 'Surge XT ist ein hochentwickelter Open-Source-Synthesizer mit einer extrem flexiblen Klangerzeugung. Er bietet eine Vielzahl von Oszillator-Algorithmen (Wavetable, FM, VA, Physical Modeling), flexiblen Filtern und weitreichenden Modulationsmöglichkeiten.',
+    features: [
+      'Vielseitige Syntheseformen (Wavetable, FM, VA, Physical Modeling)',
+      'Vollständiger Open-Source-Quellcode und aktiv von einer Community gepflegt',
+      'Unterstützung für MPE (MIDI Polyphonic Expression) und das moderne CLAP-Format'
+    ]
+  },
+  {
+    id: 'store_vital',
+    name: 'Vital (Free)',
+    mfg: 'Matt Tytel',
+    cat: 'Instrument',
+    sub: 'Synthesizer',
+    size: '185 MB',
+    r: 4.8,
+    desc: 'Spektral-verzerrender Wavetable-Synthesizer.',
+    url: 'https://vital.audio',
+    formats: ['VST3', 'CLAP'],
+    platforms: ['win', 'mac', 'linux'] as ('win' | 'mac' | 'linux')[],
+    longDesc: 'Vital ist ein moderner Wavetable-Synthesizer, der besonders für seine visuelle Feedback-Steuerung und spektrale Klangmanipulation bekannt ist. Die kostenfreie Version gewährt vollen Zugriff auf die Klangerzeugungs-Engine, enthält jedoch ein im Vergleich zur Pro-Version kleineres Preset- und Wavetable-Paket.',
+    features: [
+      'Grafischer Wavetable-Synthesizer mit Echtzeit-Visualisierung aller Modulationen',
+      'Einfache Zuweisung von Modulatoren per Drag-and-Drop',
+      'Inklusive 75 Presets und 25 vielseitigen Wavetables in der Free-Edition'
+    ]
+  },
+  {
+    id: 'store_helm',
+    name: 'Helm Synth',
+    mfg: 'Matt Tytel',
+    cat: 'Instrument',
+    sub: 'Synthesizer',
+    size: '34 MB',
+    r: 4.6,
+    desc: 'Einsteigerfreundlicher polyphoner Synthesizer.',
+    url: 'https://tytel.org/helm/',
+    formats: ['VST3', 'AU'],
+    platforms: ['win', 'mac', 'linux'] as ('win' | 'mac' | 'linux')[],
+    longDesc: 'Helm ist ein freier, modular aufgebauter polyphoner Synthesizer, der sich hervorragend für Musiker eignet, die die Grundlagen der subtraktiven Synthese erlernen möchten. Das übersichtliche visuelle Feedback erleichtert das Verständnis der Signalwege und Modulationsverknüpfungen.',
+    features: [
+      'Einsteigerfreundlicher, visuell gestalteter subtraktiver Synthesizer',
+      'Open-Source-Lizenz ermöglicht freie Anpassungen',
+      'Integrierter Step-Sequenzer und vielseitige Modulationsquellen'
+    ]
+  },
+  {
+    id: 'store_dexed',
+    name: 'Dexed FM',
+    mfg: 'Digital Suburban',
+    cat: 'Instrument',
+    sub: 'Synthesizer',
+    size: '18 MB',
+    r: 4.7,
+    desc: 'Ultimativer DX7 FM-Synthesizer-Klon.',
+    url: 'https://asb2m10.github.io/dexed/',
+    formats: ['VST2', 'VST3', 'AU'],
+    platforms: ['win', 'mac', 'linux'] as ('win' | 'mac' | 'linux')[],
+    longDesc: 'Dexed ist eine detailgetreue Nachbildung des legendären Yamaha DX7 FM-Synthesizers aus den 1980ern. Neben der Klangerzeugung auf dem Computer kann das Plugin auch als MIDI-Editor und Programmverwalter für originale DX7-Hardware-Synthesizer verwendet werden.',
+    features: [
+      'Hervorragende Emulation des klassischen FM-Synthese-Chips',
+      'Kann als SysEx-Editor und Bibliothekar für echte DX7-Hardware dienen',
+      'Kompatibel mit zehntausenden frei verfügbaren DX7-Patches im Netz'
+    ]
+  },
+  {
+    id: 'store_tyrell_n6',
+    name: 'u-he Tyrell N6',
+    mfg: 'u-he',
+    cat: 'Instrument',
+    sub: 'Synthesizer',
+    size: '24 MB',
+    r: 4.8,
+    desc: 'Klassischer Analog-Synth für warme Roland-Sounds.',
+    url: 'https://u-he.com/products/tyrelln6.shtml',
+    formats: ['VST2', 'VST3', 'AU'],
+    platforms: ['win', 'mac'] as ('win' | 'mac' | 'linux')[],
+    longDesc: 'Der Tyrell N6 ist ein kompakter Analog-Modell-Synthesizer, der von u-he im Auftrag des deutschen Musikportals Amazona.de entwickelt wurde. Er orientiert sich an klassischen subtraktiven Synthesizern und liefert den typischen analogen, warmen Grundsound ohne komplizierte Struktur.',
+    features: [
+      'Klassisch-analoge Synthesizer-Architektur',
+      'Zwei Oszillatoren mit Rauschgenerator und Ringmodulator',
+      'Entwickelt von u-he im Auftrag des Musikmagazins Amazona.de'
+    ]
+  },
 
-  // 2. Akustische & Sampler-Instrumente (7)
-  { id: 'store_decent_sampler', name: 'Decent Sampler', mfg: 'Decent Samples', cat: 'Instrument', sub: 'Sampler', size: '15 MB', r: 4.8, desc: 'Sehr flexibler Sample-Player für freie Libraries.', url: 'https://www.decentsamples.com/product/decent-sampler-plugin/' },
-  { id: 'store_spitfire_labs', name: 'LABS Soft Piano', mfg: 'Spitfire Audio', cat: 'Instrument', sub: 'Sampler', size: '1.2 GB', r: 5.0, desc: 'Das legendärste und wärmste Soft Piano der Welt.', url: 'https://labs.spitfireaudio.com/' },
-  { id: 'store_labs_strings', name: 'LABS Strings', mfg: 'Spitfire Audio', cat: 'Instrument', sub: 'Sampler', size: '1.8 GB', r: 4.9, desc: 'Wunderschöne echte, intime Orchesterstreicher.', url: 'https://labs.spitfireaudio.com/' },
-  { id: 'store_labs_drums', name: 'LABS Drums', mfg: 'Spitfire Audio', cat: 'Instrument', sub: 'Drums', size: '950 MB', r: 4.7, desc: 'Perfekt aufgenommene, dynamische Akustik-Drums.', url: 'https://labs.spitfireaudio.com/' },
-  { id: 'store_labs_choir', name: 'LABS Choir', mfg: 'Spitfire Audio', cat: 'Instrument', sub: 'Sampler', size: '1.1 GB', r: 4.8, desc: 'Äußerst ausdrucksstarker, epischer Vokal-Chor.', url: 'https://labs.spitfireaudio.com/' },
-  { id: 'store_labs_handbells', name: 'LABS Hand Bells', mfg: 'Spitfire Audio', cat: 'Instrument', sub: 'Sampler', size: '400 MB', r: 4.6, desc: 'Glasklare, atmosphärische Handglocken.', url: 'https://labs.spitfireaudio.com/' },
-  { id: 'store_labs_guitar', name: 'LABS Peel Guitar', mfg: 'Spitfire Audio', cat: 'Instrument', sub: 'Sampler', size: '820 MB', r: 4.8, desc: 'Wunderschöne E-Gitarre mit Tremolo und Charakter.', url: 'https://labs.spitfireaudio.com/' },
+  // 2. Akustische & Sampler-Instrumente (1)
+  {
+    id: 'store_decent_sampler',
+    name: 'Decent Sampler',
+    mfg: 'Decent Samples',
+    cat: 'Instrument',
+    sub: 'Sampler',
+    size: '15 MB',
+    r: 4.8,
+    desc: 'Sehr flexibler Sample-Player für freie Libraries.',
+    url: 'https://www.decentsamples.com/product/decent-sampler-plugin/',
+    formats: ['VST3', 'AU'],
+    platforms: ['win', 'mac', 'linux'] as ('win' | 'mac' | 'linux')[],
+    longDesc: 'Decent Sampler ist ein schlanker Sample-Player, der speziell als kostenlose Plattform für freie Sample-Bibliotheken entwickelt wurde. Über eine einfache, XML-basierte Struktur können Sounddesigner zudem leicht eigene Sample-Instrumente entwerfen.',
+    features: [
+      'Ressourcenschonender Player für das weit verbreitete DecentSampler-Format',
+      'Riesige Auswahl an kostenlosen und kostenpflichtigen Bibliotheken im Internet',
+      'Einfache Erstellung eigener Sample-Instrumente mit Text- und XML-Dateien'
+    ]
+  },
 
-  // 3. Reverb & Space (6)
-  { id: 'store_valhalla_supermassive', name: 'Valhalla Supermassive', mfg: 'Valhalla DSP', cat: 'Effekt', sub: 'Hall & Delay', size: '8 MB', r: 5.0, desc: 'Gigantische Reverbs und unendliche Spacig-Echos.', url: 'https://valhalladsp.com/shop/reverbs/valhalla-supermassive/' },
-  { id: 'store_tal_reverb', name: 'TAL-Reverb-4', mfg: 'TAL Software', cat: 'Effekt', sub: 'Hall & Delay', size: '6 MB', r: 4.8, desc: 'Lush Vintage-Plate-Hall der 80er Jahre.', url: 'https://tal-software.com/products/tal-reverb-4' },
-  { id: 'store_melda_mdelay', name: 'MDelay (Free)', mfg: 'MeldaProduction', cat: 'Effekt', sub: 'Hall & Delay', size: '15 MB', r: 4.5, desc: 'Vielseitiges Delay mit Modulations-Modul.' },
-  { id: 'store_kilohearts_delay', name: 'Kilohearts Delay', mfg: 'Kilohearts', cat: 'Effekt', sub: 'Hall & Delay', size: '3 MB', r: 4.6, desc: 'CPU-schonendes, extrem präzises Echo/Delay.' },
-  { id: 'store_tal_chorus', name: 'TAL-Chorus-LX', mfg: 'TAL Software', cat: 'Effekt', sub: 'Modulation', size: '5 MB', r: 4.9, desc: 'Der legendäre Chorus aus dem Roland Juno-60.' },
-  { id: 'store_kilohearts_reverb', name: 'Kilohearts Reverb', mfg: 'Kilohearts', cat: 'Effekt', sub: 'Hall & Delay', size: '4 MB', r: 4.7, desc: 'Schnelles, hochqualitatives Raumhall-Modul.' },
+  // 3. Reverb & Space (2)
+  {
+    id: 'store_valhalla_supermassive',
+    name: 'Valhalla Supermassive',
+    mfg: 'Valhalla DSP',
+    cat: 'Effekt',
+    sub: 'Hall & Delay',
+    size: '8 MB',
+    r: 5.0,
+    desc: 'Gigantische Reverbs und unendliche Spacig-Echos.',
+    url: 'https://valhalladsp.com/shop/reverbs/valhalla-supermassive/',
+    formats: ['VST3', 'AU'],
+    platforms: ['win', 'mac'] as ('win' | 'mac' | 'linux')[],
+    longDesc: 'Valhalla Supermassive ist ein hochentwickeltes Reverb- und Delay-Effektplugin, das speziell für riesige, dichte Raumklänge und sich entwickelnde Echos konzipiert wurde. Mit einer Reihe von Oszillator- und Modulationsmodulen lassen sich dichte Soundscapes für Sound-Design und Ambient erstellen.',
+    features: [
+      'Kombination aus massivem Hall und komplexen Delay-Feedbackschleifen',
+      'Mehrere einzigartige Hall-Algorithmen (z. B. Gemini, Sagittarius, Lyra)',
+      'Hervorragend geeignet für Ambient, experimentelle Soundscapes und Filmvertonung'
+    ]
+  },
+  {
+    id: 'store_tal_reverb',
+    name: 'TAL-Reverb-4',
+    mfg: 'TAL Software',
+    cat: 'Effekt',
+    sub: 'Hall & Delay',
+    size: '6 MB',
+    r: 4.8,
+    desc: 'Lush Vintage-Plate-Hall der 80er Jahre.',
+    url: 'https://tal-software.com/products/tal-reverb-4',
+    formats: ['VST2', 'VST3', 'AU'],
+    platforms: ['win', 'mac', 'linux'] as ('win' | 'mac' | 'linux')[],
+    longDesc: 'TAL-Reverb-4 ist ein klassischer Vintage-Hall-Effekt von TAL Software mit dem Sound der 1980er Jahre. Er erzeugt einen dichten, modulierten Plattenhall-Charakter, der Gesang oder Synthesizer-Spuren eine edle Räumlichkeit verleiht, ohne das Signal zu verwaschen.',
+    features: [
+      'Klassischer Vintage-Plate-Reverb mit dem charakteristischen 80er-Jahre-Sound',
+      'Äußerst einfache Bedienung mit wenigen, aber sehr effektiven Parametern',
+      'Integrierter EQ- und Dämpfungsbereich zur optimalen Einbettung im Mix'
+    ]
+  },
 
-  // 4. Equalizer & Filter (6)
-  { id: 'store_tdr_nova', name: 'TDR Nova', mfg: 'Tokyo Dawn Labs', cat: 'Effekt', sub: 'EQ & Filter', size: '14 MB', r: 4.8, desc: 'Präziser paralleler dynamischer Equalizer.', url: 'https://www.tokyodawn.net/tdr-nova/' },
-  { id: 'store_tdr_slickeq', name: 'TDR VOS SlickEQ', mfg: 'Tokyo Dawn Labs', cat: 'Effekt', sub: 'EQ & Filter', size: '12 MB', r: 4.7, desc: 'Hervorragender semi-parametrischer Vintage-EQ.' },
-  { id: 'store_melda_mequalizer', name: 'MEqualizer', mfg: 'MeldaProduction', cat: 'Effekt', sub: 'EQ & Filter', size: '18 MB', r: 4.6, desc: 'Umfangreicher 6-Band Parametrischer EQ.' },
-  { id: 'store_melda_mfreeformeq', name: 'MFreeformEQ', mfg: 'MeldaProduction', cat: 'Effekt', sub: 'EQ & Filter', size: '14 MB', r: 4.7, desc: 'Freihand-Equalizer zum freien Kurvenzeichnen.' },
-  { id: 'store_kilohearts_3bandeq', name: 'Kilohearts 3-Band EQ', mfg: 'Kilohearts', cat: 'Effekt', sub: 'EQ & Filter', size: '2 MB', r: 4.4, desc: 'Schneller Dreiband-Equalizer fürs Mixing.' },
-  { id: 'store_tal_filter_2', name: 'TAL-Filter-2', mfg: 'TAL Software', cat: 'Effekt', sub: 'EQ & Filter', size: '5 MB', r: 4.6, desc: 'Volume- & Filter-LFO.' },
+  // 4. Equalizer & Filter (1)
+  {
+    id: 'store_tdr_nova',
+    name: 'TDR Nova',
+    mfg: 'Tokyo Dawn Labs',
+    cat: 'Effekt',
+    sub: 'EQ & Filter',
+    size: '14 MB',
+    r: 4.8,
+    desc: 'Präziser paralleler dynamischer Equalizer.',
+    url: 'https://www.tokyodawn.net/tdr-nova/',
+    formats: ['VST3', 'AU'],
+    platforms: ['win', 'mac'] as ('win' | 'mac' | 'linux')[],
+    longDesc: 'TDR Nova ist ein präziser paralleler dynamischer Equalizer von Tokyo Dawn Labs. Jedes Band kann separat auch als frequenzselektiver Kompressor oder Expander agieren. Damit eignet sich das Plugin hervorragend für komplexe Reparaturarbeiten im Frequenzband und anspruchsvolle Mischungen.',
+    features: [
+      'Paralleler dynamischer Equalizer mit vier Bändern und zusätzlichen Filtern',
+      'Präziser integrierter Spektralanalysator für exzellente visuelle Kontrolle',
+      'Vielseitig einsetzbar: Frequenzkorrektur, dynamische Kompression und Mastering'
+    ]
+  },
 
-  // 5. Kompression & Dynamics (5)
-  { id: 'store_analog_obsession_lala', name: 'AO LALA Compressor', mfg: 'Analog Obsession', cat: 'Effekt', sub: 'Kompression & Dynamik', size: '10 MB', r: 4.9, desc: 'LA-2A Röhren-Optokompressor-Klon.' },
-  { id: 'store_tdr_kotelnikov', name: 'TDR Kotelnikov', mfg: 'Tokyo Dawn Labs', cat: 'Effekt', sub: 'Kompression & Dynamik', size: '13 MB', r: 4.8, desc: 'Transparenter Mastering-Kompressor.' },
-  { id: 'store_kilohearts_limiter', name: 'Kilohearts Limiter', mfg: 'Kilohearts', cat: 'Effekt', sub: 'Kompression & Dynamik', size: '3 MB', r: 4.7, desc: 'CPU-schonender Brickwall-Limiter.' },
-  { id: 'store_melda_mcompressor', name: 'MCompressor', mfg: 'MeldaProduction', cat: 'Effekt', sub: 'Kompression & Dynamik', size: '16 MB', r: 4.5, desc: 'Vollwertiges Kompressions-Werkzeug.' },
-  { id: 'store_kilohearts_gate', name: 'Kilohearts Gate', mfg: 'Kilohearts', cat: 'Effekt', sub: 'Kompression & Dynamik', size: '2 MB', r: 4.5, desc: 'Rausch-Gate zur Störgeräusch-Entfernung.' },
+  // 5. Pitch & Autotune (1)
+  {
+    id: 'store_graillon_2',
+    name: 'Graillon 2 (Free)',
+    mfg: 'Auburn Sounds',
+    cat: 'Effekt',
+    sub: 'Pitch & Autotune',
+    size: '9 MB',
+    r: 4.8,
+    desc: 'Legendäre Pitch-Shift Vocals & Autotune.',
+    url: 'https://www.auburnsounds.com/products/Graillon.html',
+    formats: ['VST3', 'AU'],
+    platforms: ['win', 'mac', 'linux'] as ('win' | 'mac' | 'linux')[],
+    longDesc: 'Graillon 2 ist ein Gesangseffekt-Plugin für Echtzeit-Tonhöhenkorrektur. In der kostenfreien Version bietet es eine vollwertige Pitch-Shift-Engine und eine Tonhöhenkorrektur zur Begradigung von Vocal-Aufnahmen, während fortgeschrittenere Module der Vollversion vorbehalten sind.',
+    features: [
+      'Tonhöhenkorrektur (Autotune-Effekt) in Echtzeit für Gesangsspuren',
+      'Hocheffektiver Pitch-Shifter zur einfachen Transponierung von Audio',
+      'Freie Edition enthält alle Kernfunktionen für eine saubere Tonhöhenkorrektur'
+    ]
+  },
 
-  // 6. Sättigung & Röhren-Distortion (4)
-  { id: 'store_softube_satknob', name: 'Saturation Knob', mfg: 'Softube', cat: 'Effekt', sub: 'Sättigung & Distortion', size: '11 MB', r: 4.9, desc: 'Kultiger, extrem simpler One-Knob Verzerrer.', url: 'https://www.softube.com/saturationknob' },
-  { id: 'store_klanghelm_ivgi', name: 'Klanghelm IVGI', mfg: 'Klanghelm', cat: 'Effekt', sub: 'Sättigung & Distortion', size: '8 MB', r: 4.8, desc: 'Analoge Röhrensättigung & Tape-Glow.' },
-  { id: 'store_ao_britchannel', name: 'AO BritChannel', mfg: 'Analog Obsession', cat: 'Effekt', sub: 'Sättigung & Distortion', size: '12 MB', r: 4.7, desc: 'Klassischer Konsolen-Vorverstärker.' },
-  { id: 'store_kilohearts_dist', name: 'Kilohearts Distortion', mfg: 'Kilohearts', cat: 'Effekt', sub: 'Sättigung & Distortion', size: '3 MB', r: 4.6, desc: 'Röhren- und Dioden-Zerrer-Modul.' },
-
-  // 7. Pitch & Autotune (3)
-  { id: 'store_graillon_2', name: 'Graillon 2 (Free)', mfg: 'Auburn Sounds', cat: 'Effekt', sub: 'Pitch & Autotune', size: '9 MB', r: 4.8, desc: 'Legendäre Pitch-Shift Vocals & Autotune.', url: 'https://www.auburnsounds.com/products/Graillon.html' },
-  { id: 'store_kilohearts_pitch', name: 'Kilohearts Pitch Shifter', mfg: 'Kilohearts', cat: 'Effekt', sub: 'Pitch & Autotune', size: '3 MB', r: 4.5, desc: 'Frequenz- und Pitch-Shifter.' },
-  { id: 'store_melda_mpitch', name: 'MPitch', mfg: 'MeldaProduction', cat: 'Effekt', sub: 'Pitch & Autotune', size: '14 MB', r: 4.4, desc: 'Echtzeit-Tonhöhenkorrektur für Vocals.' },
-
-  // 8. Modulation (5)
-  { id: 'store_kilohearts_chorus', name: 'Kilohearts Chorus', mfg: 'Kilohearts', cat: 'Effekt', sub: 'Modulation', size: '2 MB', r: 4.6, desc: 'Klassischer Stereo-Chorus.' },
-  { id: 'store_kilohearts_flanger', name: 'Kilohearts Flanger', mfg: 'Kilohearts', cat: 'Effekt', sub: 'Modulation', size: '3 MB', r: 4.5, desc: 'Flanger-Effekt für Drums & Synths.' },
-  { id: 'store_kilohearts_phaser', name: 'Kilohearts Phaser', mfg: 'Kilohearts', cat: 'Effekt', sub: 'Modulation', size: '3 MB', r: 4.4, desc: 'Space-Phaser mit LFO-Modulation.' },
-  { id: 'store_valhalla_spacemod', name: 'Valhalla SpaceModulator', mfg: 'Valhalla DSP', cat: 'Effekt', sub: 'Modulation', size: '5 MB', r: 4.8, desc: 'Abgefahrener Flanger & Frequenzmodulator.' },
-  { id: 'store_melda_mtremolo', name: 'MTremolo', mfg: 'MeldaProduction', cat: 'Effekt', sub: 'Modulation', size: '15 MB', r: 4.5, desc: 'Klassischer Amplituden-Tremolo.' },
-
-  // 9. Pegelanalyse & Tools (3)
-  { id: 'store_voxengo_span', name: 'Voxengo SPAN', mfg: 'Voxengo', cat: 'Effekt', sub: 'Pegelanalyse & Tools', size: '14 MB', r: 4.9, desc: 'FFT-Spektralanalyse für Frequenzen.', url: 'https://www.voxengo.com/product/span/' },
-  { id: 'store_ozone_imager', name: 'Ozone Imager V2', mfg: 'iZotope', cat: 'Effekt', sub: 'Pegelanalyse & Tools', size: '18 MB', r: 4.9, desc: 'Stereo-Widening & vectorscope Analyse.' },
-  { id: 'store_youlean_loudness', name: 'Youlean Loudness Meter', mfg: 'Youlean', cat: 'Effekt', sub: 'Pegelanalyse & Tools', size: '16 MB', r: 5.0, desc: 'Präzise LUFS-Lautheitsmessung.', url: 'https://youlean.co/youlean-loudness-meter/' },
-
-  // 10. Gitarren-Amps & Cabinets (3)
-  { id: 'store_ignite_emissary', name: 'Emissary Tube Amp', mfg: 'Ignite Amps', cat: 'Effekt', sub: 'Gitarrenverstärker', size: '24 MB', r: 4.9, desc: 'High-Gain Gitarren-Röhrenverstärker.' },
-  { id: 'store_ignite_nadir', name: 'NadIR Cab Sim', mfg: 'Ignite Amps', cat: 'Effekt', sub: 'Gitarrenverstärker', size: '18 MB', r: 4.8, desc: 'Impulsantworten-Loader für Gitarrenboxen.' },
-  { id: 'store_ace_amp', name: 'Ace Vintage Amp', mfg: 'Shattered Glass Audio', cat: 'Effekt', sub: 'Gitarrenverstärker', size: '12 MB', r: 4.6, desc: 'Vintage Röhrenamp aus den 1950ern.' },
-
-  // 11. Kilohearts Utility-Plugins (20+)
-  { id: 'store_kilohearts_dynamics', name: 'Kilohearts Dynamics', mfg: 'Kilohearts', cat: 'Effekt', sub: 'Kompression & Dynamik', size: '3 MB', r: 4.5, desc: 'Up- & Downward Kompressor.' },
-  { id: 'store_kilohearts_gain', name: 'Kilohearts Gain', mfg: 'Kilohearts', cat: 'Effekt', sub: 'Pegelanalyse & Tools', size: '1 MB', r: 4.4, desc: 'Minimalistischer Lautstärkeregler.' },
-  { id: 'store_kilohearts_haas', name: 'Kilohearts Haas', mfg: 'Kilohearts', cat: 'Effekt', sub: 'Pegelanalyse & Tools', size: '2 MB', r: 4.5, desc: 'Stereo-Verzögerer nach Haas-Effekt.' },
-  { id: 'store_kilohearts_resonator', name: 'Kilohearts Resonator', mfg: 'Kilohearts', cat: 'Effekt', sub: 'Modulation', size: '3 MB', r: 4.4, desc: 'Resonanz-Kammfilter für Obertöne.' },
-  { id: 'store_kilohearts_ringmod', name: 'Kilohearts Ring Mod', mfg: 'Kilohearts', cat: 'Effekt', sub: 'Modulation', size: '2 MB', r: 4.5, desc: 'Kreativer Ringmodulator für FM.' },
-  { id: 'store_kilohearts_stereo', name: 'Kilohearts Stereo', mfg: 'Kilohearts', cat: 'Effekt', sub: 'Pegelanalyse & Tools', size: '2 MB', r: 4.5, desc: 'Phasen- und Stereo-Breitenregler.' },
-  { id: 'store_kilohearts_tapestop', name: 'Kilohearts Tape Stop', mfg: 'Kilohearts', cat: 'Effekt', sub: 'Sättigung & Distortion', size: '3 MB', r: 4.7, desc: 'Kultiger analoger Bandstopp-Effekt.' },
-  { id: 'store_kilohearts_trancegate', name: 'Kilohearts Trance Gate', mfg: 'Kilohearts', cat: 'Effekt', sub: 'Modulation', size: '3 MB', r: 4.6, desc: 'Rhythmischer Gate-Slicing-Effekt.' },
-  { id: 'store_kilohearts_filter', name: 'Kilohearts Filter', mfg: 'Kilohearts', cat: 'Effekt', sub: 'EQ & Filter', size: '2 MB', r: 4.5, desc: 'CPU-schonendes Multimode-Filter.' },
-  { id: 'store_kilohearts_bitcrush', name: 'Kilohearts Bitcrush', mfg: 'Kilohearts', cat: 'Effekt', sub: 'Sättigung & Distortion', size: '2 MB', r: 4.6, desc: 'Fieser Vintage-LoFi-Dezimalreduzierer.' },
-  { id: 'store_kilohearts_comb', name: 'Kilohearts Comb Filter', mfg: 'Kilohearts', cat: 'Effekt', sub: 'EQ & Filter', size: '2 MB', r: 4.3, desc: 'Kammfilter-Spezialeffekt.' },
-  { id: 'store_kilohearts_compressor', name: 'Kilohearts Compressor', mfg: 'Kilohearts', cat: 'Effekt', sub: 'Kompression & Dynamik', size: '2 MB', r: 4.5, desc: 'Minimalistischer Audio-Kompressor.' },
-  { id: 'store_kilohearts_convolver', name: 'Kilohearts Convolver', mfg: 'Kilohearts', cat: 'Effekt', sub: 'Hall & Delay', size: '12 MB', r: 4.7, desc: 'Faltungshall für lebensechte Räume.' },
-  { id: 'store_kilohearts_freqshift', name: 'Kilohearts Freq Shifter', mfg: 'Kilohearts', cat: 'Effekt', sub: 'Modulation', size: '2 MB', r: 4.4, desc: 'Kreativer Frequenz-Frequenzschieber.' },
-  { id: 'store_kilohearts_nonlinear', name: 'Kilohearts Non-linear Filter', mfg: 'Kilohearts', cat: 'Effekt', sub: 'EQ & Filter', size: '3 MB', r: 4.6, desc: 'Analoger Filter mit warmer Sättigung.' }
+  // 6. Pegelanalyse & Tools (2)
+  {
+    id: 'store_voxengo_span',
+    name: 'Voxengo SPAN',
+    mfg: 'Voxengo',
+    cat: 'Effekt',
+    sub: 'Pegelanalyse & Tools',
+    size: '14 MB',
+    r: 4.9,
+    desc: 'FFT-Spektralanalyse für Frequenzen.',
+    url: 'https://www.voxengo.com/product/span/',
+    formats: ['VST3', 'AU'],
+    platforms: ['win', 'mac'] as ('win' | 'mac' | 'linux')[],
+    longDesc: 'Voxengo SPAN ist ein professioneller Echtzeit-Frequenzanalysator. Mit seiner detailreichen Spektraldarstellung hilft er dabei, Frequenzkonflikte im Mix aufzudecken. Er bietet umfassende Konfigurationsmöglichkeiten für Blockgröße, Überlappung und diverse Metering-Standards.',
+    features: [
+      'Echtzeit-FFT-Audiospektrumanalysator für präzise Frequenzanalyse',
+      'Umfangreiche Anpassungsoptionen für Blockgröße, Überlappung und Glättung',
+      'Integrierte Pegelmessung (K-System, RMS, True Peak)'
+    ]
+  },
+  {
+    id: 'store_youlean_loudness',
+    name: 'Youlean Loudness Meter',
+    mfg: 'Youlean',
+    cat: 'Effekt',
+    sub: 'Pegelanalyse & Tools',
+    size: '16 MB',
+    r: 5.0,
+    desc: 'Präzise LUFS-Lautheitsmessung.',
+    url: 'https://youlean.co/youlean-loudness-meter/',
+    formats: ['VST3', 'AU'],
+    platforms: ['win', 'mac'] as ('win' | 'mac' | 'linux')[],
+    longDesc: 'Das Youlean Loudness Meter ist das Standardwerkzeug für präzise Lautheitsmessung. Es hilft Musikproduzenten und Broadcast-Engineers dabei, die strengen Lautheitsvorgaben (z. B. LUFS-Standards für Spotify, Apple Music, YouTube oder EBU R128) einzuhalten.',
+    features: [
+      'Präzise Messung der integrierten, kurzfristigen und momentanen Lautheit (LUFS)',
+      'True-Peak-Pegelmessung zur sicheren Vermeidung von digitaler Verzerrung',
+      'Kostenfreie Version deckt wichtige EBU R128 und ITU-R BS.1770 Standards ab'
+    ]
+  }
 ]
 
 const BUILTIN_PLUGINS: StorePlugin[] = COMPACT_PLUGINS.map(p => ({
@@ -126,41 +276,31 @@ const BUILTIN_PLUGINS: StorePlugin[] = COMPACT_PLUGINS.map(p => ({
   category: p.cat as 'Instrument' | 'Effekt',
   subCategory: p.sub,
   description: p.desc,
-  longDescription: `${p.name} von ${p.mfg} ist ein erstklassiges, extrem populäres VST-Plugin der Kategorie "${p.sub}". Es bietet professionelle Audioqualität, ist vollkommen CPU-optimiert und kann nach dem Download beim Hersteller als VST3 in jedem gängigen Host geladen werden.`,
+  longDescription: p.longDesc,
   rating: p.r,
   reviews: Math.floor(p.r * 250) + 74,
   size: p.size,
-  formats: p.cat === 'Instrument' ? ['VST3', 'CLAP'] : ['VST3', 'AU'],
-  downloadUrl: 'url' in p ? (p as any).url : '',
-  platforms: ['win', 'mac'],
-  features: [
-    `Professionelle, hochpräzise DSP-Engine von ${p.mfg}`,
-    `Sehr CPU-schonend, ideal für moderne Musikproduktion`,
-    `Frei verfügbare Vollversion (Freeware)`,
-    `Individuelle Konfiguration über die Benutzeroberfläche des Herstellers`
-  ]
+  formats: p.formats,
+  downloadUrl: p.url,
+  platforms: p.platforms,
+  features: p.features
 }))
 
 const RACK_CATEGORIES = [
   'Alle',
   'Synthesizer',
   'Sampler',
-  'Drums',
   'Hall & Delay',
   'EQ & Filter',
-  'Kompression & Dynamik',
-  'Sättigung & Distortion',
   'Pitch & Autotune',
-  'Modulation',
-  'Pegelanalyse & Tools',
-  'Gitarrenverstärker'
+  'Pegelanalyse & Tools'
 ]
 
 export function VstPluginStore({ isPopout: propIsPopout }: { isPopout?: boolean, onInstalledChange?: () => void }) {
   const { t } = useTranslation()
   const isPopout = propIsPopout ?? (new URLSearchParams(window.location.search).get('window') === 'vst-store')
   
-  const [storeCatalog, setStoreCatalog] = useState<StorePlugin[]>(BUILTIN_PLUGINS)
+  const [storeCatalog] = useState<StorePlugin[]>(BUILTIN_PLUGINS)
   
   // Filtering & Search
   const [activeCategory, setActiveCategory] = useState<string>('Alle')
@@ -168,28 +308,6 @@ export function VstPluginStore({ isPopout: propIsPopout }: { isPopout?: boolean,
 
   // Katalog-Auswahl-State
   const [selectedPlugin, setSelectedPlugin] = useState<StorePlugin | null>(null)
-
-  // 1. Live Online Sync (honest catalog fetch, no local storage downloaded_vsts sync)
-  useEffect(() => {
-    // Dynamisches Online JSON Fetching
-    fetch(CATALOG_URL)
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data) && data.length > 0) {
-          setStoreCatalog(data)
-          localStorage.setItem('cached_vst_store_catalog', JSON.stringify(data))
-        }
-      })
-      .catch(err => {
-        console.log('Verwende Offline/Built-In VST Katalog:', err)
-        const cached = localStorage.getItem('cached_vst_store_catalog')
-        if (cached) {
-          try {
-            setStoreCatalog(JSON.parse(cached))
-          } catch (e) {}
-        }
-      })
-  }, [])
 
   // Filter Catalog
   const filteredCatalog = storeCatalog.filter(plugin => {
@@ -249,6 +367,15 @@ export function VstPluginStore({ isPopout: propIsPopout }: { isPopout?: boolean,
           </div>
         </div>
 
+        {/* Prominenter Disclaimer-Banner für Docked-Modus */}
+        <div className="mx-4 mt-3 p-2.5 bg-blue-950/25 border border-blue-900/35 rounded-xl text-[10px] text-blue-300 flex items-start gap-2 flex-shrink-0 shadow-sm">
+          <ShieldAlert size={13} className="text-blue-400 mt-0.5 flex-shrink-0" />
+          <div>
+            <span className="font-extrabold text-white block mb-0.5">Reiner Katalog-Browser</span>
+            <span>Verzeichnis empfehlenswerter kostenloser Plugins. Kein direkter In-App-Download. Manuelle Installation vom Hersteller erforderlich.</span>
+          </div>
+        </div>
+
         {/* Library Catalog List */}
         <div className="flex-1 overflow-y-auto p-4 bg-[#141619] space-y-4">
           <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">
@@ -277,8 +404,8 @@ export function VstPluginStore({ isPopout: propIsPopout }: { isPopout?: boolean,
                     }}
                     className="p-3.5 bg-[#1b1e22]/60 border border-gray-800 hover:border-omega-accent/50 rounded-xl flex items-center justify-between shadow-md cursor-pointer transition-colors hover:bg-[#1a1d21]/80"
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${
+                    <div className="flex items-center gap-3 min-w-0 mr-2">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0 ${
                         isInstrument ? 'bg-purple-950/40 text-purple-400' : 'bg-blue-950/40 text-blue-400'
                       }`}>
                         {isInstrument ? '🎹' : '🔌'}
@@ -286,27 +413,36 @@ export function VstPluginStore({ isPopout: propIsPopout }: { isPopout?: boolean,
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-bold text-white truncate">{plugin.name}</span>
-                          <span className="text-[7px] bg-gray-800 text-omega-accent font-bold px-1.5 py-0.5 rounded font-mono uppercase tracking-wider">
-                            {plugin.formats[0]}
+                          <span className="text-[7px] bg-gray-850 text-omega-accent font-bold px-1.5 py-0.5 rounded font-mono uppercase tracking-wider flex-shrink-0" title={`Verfügbare Formate: ${plugin.formats.join(', ')}`}>
+                            {plugin.formats.join('/')}
+                          </span>
+                          <span className={`text-[7px] font-black uppercase tracking-wider px-1 py-0.5 rounded border flex-shrink-0 ${
+                            isPluginCompatible(plugin)
+                              ? 'bg-emerald-950/50 text-emerald-350 border-emerald-900/30'
+                              : 'bg-rose-950/50 text-rose-350 border-rose-900/30'
+                          }`}>
+                            {isPluginCompatible(plugin) ? '✓ Kompatibel' : '✗ Inkompatibel'}
                           </span>
                         </div>
-                        <span className="text-[9px] text-gray-500 block">
+                        <span className="text-[9px] text-gray-500 block truncate">
                           von {plugin.manufacturer} • {plugin.size}
                         </span>
                       </div>
                     </div>
                     
                     {plugin.downloadUrl ? (
-                      <a
-                        href={plugin.downloadUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        onClick={e => e.stopPropagation()}
-                        title="Herstellerseite öffnen"
-                        className="p-1.5 bg-omega-accent/10 hover:bg-omega-accent/30 border border-omega-accent/30 text-omega-accent rounded-lg transition-colors hover:scale-105 active:scale-95 flex-shrink-0"
-                      >
-                        <ExternalLink size={12} />
-                      </a>
+                      <div onClick={e => e.stopPropagation()} className="flex-shrink-0">
+                        <a
+                          href={plugin.downloadUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          title={t('vst_store.manufacturer_site', { defaultValue: 'Herstellerseite öffnen (Download)' })}
+                          className="flex items-center gap-1 px-2.5 py-1.5 bg-omega-accent/15 hover:bg-omega-accent/30 border border-omega-accent/40 hover:border-omega-accent text-omega-accent hover:text-white rounded-lg transition-colors hover:scale-105 active:scale-95 text-[10px] font-bold"
+                        >
+                          <ExternalLink size={10} className="stroke-[2.5]" />
+                          <span>{t('vst_store.load', { defaultValue: 'Zum Hersteller' })}</span>
+                        </a>
+                      </div>
                     ) : null}
                   </div>
                 )
@@ -358,6 +494,15 @@ export function VstPluginStore({ isPopout: propIsPopout }: { isPopout?: boolean,
             className="w-full py-2 pl-9 pr-4 text-xs bg-[#101214] border border-gray-750 rounded-xl text-gray-250 outline-none focus:border-omega-accent transition-colors"
           />
           <span className="absolute left-3.5 top-2.5 text-gray-500 text-xs">🔍</span>
+        </div>
+      </div>
+
+      {/* Prominenter Disclaimer-Banner für Popout-Modus */}
+      <div className="mx-4 mt-3 p-3.5 bg-blue-950/20 border border-blue-900/30 rounded-xl text-xs text-blue-300 flex items-start gap-3 shadow-md flex-shrink-0">
+        <ShieldAlert size={16} className="text-blue-400 mt-0.5 flex-shrink-0" />
+        <div>
+          <span className="font-extrabold text-white block mb-0.5">Reiner Katalog-Browser — Keine In-App-Downloads</span>
+          <span>Dies ist ein reines Verzeichnis empfehlenswerter kostenloser Plugins. Es werden keine automatischen In-App-Installationen oder verdeckten Downloads durchgeführt. Alle VSTs müssen manuell über die verifizierten Hersteller-Links beim Entwickler geladen und auf Ihrem System installiert werden.</span>
         </div>
       </div>
 
@@ -422,6 +567,13 @@ export function VstPluginStore({ isPopout: propIsPopout }: { isPopout?: boolean,
                             : 'bg-blue-950/50 text-blue-300 border-blue-800/30'
                         }`}>
                           {plugin.category}
+                        </span>
+                        <span className={`text-[7px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-[4px] border ${
+                          isPluginCompatible(plugin)
+                            ? 'bg-emerald-950/50 text-emerald-300 border-emerald-800/30'
+                            : 'bg-rose-950/50 text-rose-300 border-rose-800/30'
+                        }`}>
+                          {isPluginCompatible(plugin) ? 'Kompatibel (VST2)' : 'Inkompatibel (Host nur VST2)'}
                         </span>
                       </div>
                     </div>
@@ -527,6 +679,25 @@ export function VstPluginStore({ isPopout: propIsPopout }: { isPopout?: boolean,
               <p className="text-[11px] text-gray-300 leading-relaxed bg-[#171a1d] p-3 rounded-xl border border-gray-800/50">
                 {selectedPlugin.longDescription}
               </p>
+
+              {/* Kompatibilitätshinweis */}
+              {isPluginCompatible(selectedPlugin) ? (
+                <div className="p-3 bg-emerald-950/20 border border-emerald-900/30 rounded-xl text-[10px] text-emerald-350 leading-relaxed flex items-start gap-2.5 shadow-sm">
+                  <Check size={14} className="text-emerald-400 mt-0.5 flex-shrink-0 animate-pulse" />
+                  <div>
+                    <span className="font-extrabold text-emerald-300 block mb-0.5">Voraussichtlich kompatibel</span>
+                    <span>Dieses Plugin bietet das VST2-Format an. Da der aktuelle Windows-Host von Omega Wave Editor ausschließlich VST2 unterstützt, ist dieses Plugin voraussichtlich nutzbar.</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 bg-rose-950/10 border border-rose-900/30 rounded-xl text-[10px] text-rose-350 leading-relaxed flex items-start gap-2.5 shadow-sm">
+                  <ShieldAlert size={14} className="text-rose-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <span className="font-extrabold text-rose-400 block mb-0.5">Nicht kompatibel mit aktuellem Host</span>
+                    <span>Dieses Plugin bietet <strong>kein VST2-Format</strong> (unterstützt nur {selectedPlugin.formats.join(', ')}). Da der aktuelle Windows-Host von Omega Wave Editor real ausschließlich VST2-Plugins unterstützt, kann dieses Plugin auf diesem System <strong>nicht geladen werden</strong>.</span>
+                  </div>
+                </div>
+              )}
 
               <div className="p-3 bg-blue-950/20 border border-blue-900/30 rounded-xl text-[10px] text-blue-300 leading-relaxed flex items-start gap-2.5">
                 <ShieldAlert size={14} className="text-blue-405 mt-0.5 flex-shrink-0" />

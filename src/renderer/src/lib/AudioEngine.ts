@@ -206,6 +206,9 @@ export class AudioEngine {
   // Keep track of all active playing region nodes for real-time DSP parameter updates
   private activeRegions: Map<string, ActiveRegionNode[]> = new Map();
   
+  // Serializing promise to prevent concurrent VST loads/unloads in global host singleton
+  private vstOperationPromise: Promise<any> = Promise.resolve();
+  
   // Track parameters state to apply on play
   private trackParams: Map<string, any> = new Map();
   private originalMasterVolume: number = 1.0;
@@ -1796,12 +1799,39 @@ export class AudioEngine {
   }
 
   public async mountVstPlugin(trackId: string, dllPath: string) {
-    const track = this.tracks.get(trackId);
-    if (!track) return;
-    
-    await this.unmountVstPlugin(trackId);
-    
+    const currentPromise = this.vstOperationPromise;
+    let resolveLock: () => void = () => {};
+    this.vstOperationPromise = new Promise<void>((resolve) => {
+      resolveLock = resolve;
+    });
+
     try {
+      await currentPromise;
+    } catch (e) {
+      console.warn('Vorherige VST-Operation fehlgeschlagen, fahre fort:', e);
+    }
+
+    try {
+      const track = this.tracks.get(trackId);
+      if (!track) return;
+
+      // 1. Zuerst alle anderen Spuren nach geladenen realen VST-Plugins durchsuchen
+      // und diese sauber entladen (Global Singleton Guardrail).
+      for (const [otherTrackId, otherTrack] of this.tracks.entries()) {
+        if (otherTrackId !== trackId && otherTrack.vstPluginInstanceId) {
+          console.warn(`[AudioEngine] Globales Singleton-Limit: Entlade VST von Spur ${otherTrackId} vor dem Laden auf Spur ${trackId}`);
+          try {
+            await this.executeUnmount(otherTrackId);
+          } catch (err) {
+            console.error(`[AudioEngine] Fehler beim Entladen des VSTs von Spur ${otherTrackId}:`, err);
+          }
+        }
+      }
+
+      // 2. Das Plugin auf der aktuellen Spur entladen, falls bereits eines geladen war.
+      await this.executeUnmount(trackId);
+
+      // 3. Jetzt das neue Plugin laden.
       console.log(`Mounting VST plugin on track ${trackId}: ${dllPath}`);
       const info = await window.api.loadVstPlugin(dllPath);
       if (!info) throw new Error('Failed to load plugin');
@@ -1953,10 +1983,32 @@ registerProcessor('omega-vst-bridge', OmegaVstBridgeProcessor);
       console.log(`VST plugin ${dllPath} successfully mounted and routed on track ${trackId}`);
     } catch (err) {
       console.error(`Failed to mount VST plugin:`, err);
+    } finally {
+      resolveLock();
     }
   }
 
   public async unmountVstPlugin(trackId: string) {
+    const currentPromise = this.vstOperationPromise;
+    let resolveLock: () => void = () => {};
+    this.vstOperationPromise = new Promise<void>((resolve) => {
+      resolveLock = resolve;
+    });
+
+    try {
+      await currentPromise;
+    } catch (e) {
+      console.warn('Vorherige VST-Operation fehlgeschlagen, fahre fort:', e);
+    }
+
+    try {
+      await this.executeUnmount(trackId);
+    } finally {
+      resolveLock();
+    }
+  }
+
+  private async executeUnmount(trackId: string) {
     const track = this.tracks.get(trackId);
     if (!track || !track.vstNode) return;
     

@@ -31,7 +31,6 @@ const api = {
   
   // VST Bridge Pro (v0.8.0)
   scanVstPlugins: () => ipcRenderer.invoke('scan-vst-plugins'),
-  openVstUi: (pluginPath: string) => ipcRenderer.invoke('open-vst-ui', pluginPath),
   getAsioDrivers: () => ipcRenderer.invoke('get-asio-drivers'),
   getAsioDriverDetails: (driverName: string) => ipcRenderer.invoke('get-asio-driver-details', driverName),
   openAsioControlPanel: (driverName: string) => ipcRenderer.invoke('open-asio-control-panel', driverName),

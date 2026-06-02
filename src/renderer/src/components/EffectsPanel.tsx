@@ -109,7 +109,7 @@ function SidebarFolder({
 
 // === Linke Sidebar: Einzel-Eintrag ===
 function SidebarItem({
-  label, icon, active, onClick, onDoubleClick, badge
+  label, icon, active, onClick, onDoubleClick, badge, disabled, title
 }: {
   label: string
   icon: string
@@ -117,21 +117,32 @@ function SidebarItem({
   onClick: () => void
   onDoubleClick?: () => void
   badge?: string
+  disabled?: boolean
+  title?: string
 }) {
   return (
     <button
       onClick={onClick}
       onDoubleClick={onDoubleClick}
+      title={title}
       className={`w-full flex items-center gap-2 pl-6 pr-2 py-1.5 text-xs transition-colors select-none truncate ${
-        active
+        disabled
+          ? 'text-gray-650 opacity-40 cursor-not-allowed'
+          : active
           ? 'bg-omega-accent text-white font-medium'
           : 'text-gray-400 hover:text-gray-200 hover:bg-[#282b30]'
       }`}
     >
       <span className="text-sm flex-shrink-0">{icon}</span>
-      <span className="flex-1 text-left truncate">{label}</span>
+      <span className={`flex-1 text-left truncate ${disabled ? 'line-through text-red-400/80' : ''}`}>{label}</span>
       {badge && (
-        <span className={`text-[9px] px-1 py-0.5 rounded flex-shrink-0 ${active ? 'bg-white/20 text-white' : 'bg-gray-700 text-gray-400'}`}>
+        <span className={`text-[9px] px-1 py-0.5 rounded flex-shrink-0 ${
+          disabled
+            ? 'bg-red-950/20 text-red-400 border border-red-900/10'
+            : active
+            ? 'bg-white/20 text-white'
+            : 'bg-gray-700 text-gray-400'
+        }`}>
           {badge}
         </span>
       )}
@@ -175,6 +186,46 @@ export function EffectsPanel({
   // VST
   const [vstPlugins, setVstPlugins] = useState<any[]>([])
   const [isScanning, setIsScanning] = useState(false)
+  const [hasRealPluginInRack, setHasRealPluginInRack] = useState(false)
+
+  // Funktion zur Überprüfung, ob bereits ein reales externes VST-Plugin im Rack geladen ist
+  const checkRackForRealPlugin = () => {
+    const savedRack = localStorage.getItem('vst_rack_plugins')
+    if (savedRack) {
+      try {
+        const parsed = JSON.parse(savedRack)
+        if (Array.isArray(parsed)) {
+          const hasReal = parsed.some((p: any) => p && p.path && !p.path.startsWith('store://') && !p.path.startsWith('internal://'))
+          setHasRealPluginInRack(hasReal)
+          return
+        }
+      } catch (e) {}
+    }
+    setHasRealPluginInRack(false)
+  }
+
+  // Zentrale Hilfsfunktion zur Ermittlung, ob ein echtes externes VST-Plugin durch das Singleton-Limit blockiert ist
+  const isVstBlockedBySingleton = (vst: any): boolean => {
+    if (!vst || !vst.path) return false
+    const isReal = !vst.path.startsWith('store://') && !vst.path.startsWith('internal://')
+    if (!isReal) return false
+
+    let hasReal = false
+    let isAlreadyLoaded = false
+
+    const savedRack = localStorage.getItem('vst_rack_plugins')
+    if (savedRack) {
+      try {
+        const parsed = JSON.parse(savedRack)
+        if (Array.isArray(parsed)) {
+          hasReal = parsed.some((p: any) => p && p.path && !p.path.startsWith('store://') && !p.path.startsWith('internal://'))
+          isAlreadyLoaded = parsed.some((p: any) => p && p.id === vst.id)
+        }
+      } catch (e) {}
+    }
+
+    return hasReal && !isAlreadyLoaded
+  }
 
   // Sidebar-Zustände
   const [effectsOpen, setEffectsOpen] = useState(true)
@@ -189,12 +240,13 @@ export function EffectsPanel({
         const filtered = plugins.filter((p: any) => p && p.path && !p.path.startsWith('store://') && !p.path.startsWith('internal://'))
         setVstPlugins(filtered)
       }).catch(() => {})
+      checkRackForRealPlugin()
     }
 
     loadPlugins()
 
     const handleStorage = (e: StorageEvent) => {
-      if (e.key === 'downloaded_vsts' || e.key === 'vst_rack_updated_trigger') {
+      if (e.key === 'downloaded_vsts' || e.key === 'vst_rack_updated_trigger' || e.key === 'vst_rack_plugins') {
         loadPlugins()
       }
     }
@@ -202,10 +254,12 @@ export function EffectsPanel({
     window.addEventListener('VST_PLUGIN_DOWNLOADED', loadPlugins)
     window.addEventListener('VST_PLUGIN_UNINSTALLED', loadPlugins)
     window.addEventListener('storage', handleStorage)
+    window.addEventListener('SETTINGS_UPDATED', checkRackForRealPlugin)
     return () => {
       window.removeEventListener('VST_PLUGIN_DOWNLOADED', loadPlugins)
       window.removeEventListener('VST_PLUGIN_UNINSTALLED', loadPlugins)
       window.removeEventListener('storage', handleStorage)
+      window.removeEventListener('SETTINGS_UPDATED', checkRackForRealPlugin)
     }
   }, [])
 
@@ -402,8 +456,34 @@ export function EffectsPanel({
   }
 
   const handleOpenPlugin = (vst: any) => {
+    if (vst.hostable === false) {
+      alert(`Aktion abgewiesen: Dieses Plugin ist inkompatibel und kann nicht geladen werden (${vst.unsupportedReason || 'Inkompatibel'}).`)
+      return
+    }
+    if (isVstBlockedBySingleton(vst)) {
+      alert('Aktion abgewiesen: Der native VST-Host unterstützt aus Stabilitätsgründen maximal ein aktives reales externes VST-Plugin gleichzeitig (Singleton-Beschränkung).')
+      return
+    }
+
+    // Check if the plugin has hasEditor === false stored in the rack state in localStorage
+    let hasEditor = true
+    try {
+      const savedRack = localStorage.getItem('vst_rack_plugins')
+      if (savedRack) {
+        const rack = JSON.parse(savedRack)
+        if (Array.isArray(rack)) {
+          const found = rack.find((p: any) => p && p.id === vst.id)
+          if (found && found.hasEditor === false) {
+            hasEditor = false
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to check hasEditor from local storage:', e)
+    }
+
     const width = 720
-    const height = 110
+    const height = hasEditor === false ? 580 : 110
     localStorage.setItem('popout_vst-editor_payload', JSON.stringify({ pluginId: vst.id }))
     window.api.openPopoutWindow('vst-editor', { width, height, title: 'Plugin Editor - ' + vst.name })
   }
@@ -509,13 +589,55 @@ export function EffectsPanel({
             ) : (
               activePlugins.map(vst => {
                 const isInstrument = vst.category?.toLowerCase().includes('instrument')
+                const isPluginCategory = vst.category?.toLowerCase() === 'plugin'
+                const isHostable = vst.hostable !== false
+                
+                // Prüfen, ob dieses Plugin bereits im Rack geladen ist
+                const isAlreadyLoaded = (() => {
+                  const savedRack = localStorage.getItem('vst_rack_plugins')
+                  if (savedRack) {
+                    try {
+                      const parsed = JSON.parse(savedRack)
+                      if (Array.isArray(parsed)) {
+                        return parsed.some((p: any) => p && p.id === vst.id)
+                      }
+                    } catch (e) {}
+                  }
+                  return false
+                })()
+
+                // Reales Plugin deaktivieren, wenn ein anderes reales Plugin geladen ist
+                const isDisabledReal = isVstBlockedBySingleton(vst)
+                const isDisabled = !isHostable || isDisabledReal
+
+                // Ehrlicher Tooltip/Grund
+                const tooltipReason = !isHostable
+                  ? `Nicht unterstützt: ${vst.unsupportedReason || 'Inkompatibel'}`
+                  : isDisabledReal
+                  ? 'Native Host-Singleton-Beschränkung: Es kann maximal ein reales externes VST-Plugin gleichzeitig geladen werden.'
+                  : undefined
+
+                const handleDisabledAction = () => {
+                  if (!isHostable) {
+                    alert(`Aktion abgewiesen: Dieses Plugin ist inkompatibel und kann nicht geladen werden (${vst.unsupportedReason || 'Inkompatibel'}).`)
+                  } else if (isDisabledReal) {
+                    alert('Aktion abgewiesen: Der native VST-Host unterstützt aus Stabilitätsgründen maximal ein aktives reales externes VST-Plugin gleichzeitig (Singleton-Beschränkung).')
+                  }
+                }
+
                 return (
                   <SidebarItem
                     key={vst.id}
                     label={vst.name}
-                    icon={isInstrument ? '🎹' : '🔌'}
+                    icon={isInstrument ? '🎹' : isPluginCategory ? '🧩' : '🔌'}
                     active={selectedItem === vst.id && activeView === 'vst_rack'}
+                    disabled={isDisabled}
+                    title={tooltipReason}
                     onClick={() => {
+                      if (isDisabled) {
+                        handleDisabledAction()
+                        return
+                      }
                       setSelectedItem(vst.id)
                       setActiveView('vst_rack')
                       
@@ -565,7 +687,13 @@ export function EffectsPanel({
                       }
                     }}
                     badge={vst.format}
-                    onDoubleClick={() => handleOpenPlugin(vst)}
+                    onDoubleClick={() => {
+                      if (isDisabled) {
+                        handleDisabledAction()
+                        return
+                      }
+                      handleOpenPlugin(vst)
+                    }}
                   />
                 )
               })
@@ -801,7 +929,7 @@ export function EffectsPanel({
             {selectedVst && (
               <div className="flex flex-col gap-4">
                 <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wider">
-                  {selectedVst.category?.toLowerCase().includes('instrument') ? '🎹' : '🔌'} {selectedVst.name}
+                  {selectedVst.category?.toLowerCase().includes('instrument') ? '🎹' : selectedVst.category?.toLowerCase() === 'plugin' ? '🧩' : '🔌'} {selectedVst.name}
                 </h3>
                 <div className="bg-[#1a1d21] border border-gray-700/80 rounded-xl p-4 flex flex-col gap-3">
                   <div className="grid grid-cols-2 gap-2 text-[10px]">
@@ -811,7 +939,13 @@ export function EffectsPanel({
                     </div>
                     <div>
                       <span className="text-gray-600 uppercase tracking-wider font-bold block">{t('effects.vst.type', { defaultValue: 'Typ' })}</span>
-                      <span className={`font-medium ${selectedVst.category?.toLowerCase().includes('instrument') ? 'text-purple-400' : 'text-blue-400'}`}>
+                      <span className={`font-medium ${
+                        selectedVst.category?.toLowerCase().includes('instrument')
+                          ? 'text-purple-400'
+                          : selectedVst.category?.toLowerCase() === 'plugin'
+                          ? 'text-amber-400'
+                          : 'text-blue-400'
+                      }`}>
                         {selectedVst.category || t('effects.vst.effect', { defaultValue: 'Effekt' })}
                       </span>
                     </div>
@@ -821,15 +955,30 @@ export function EffectsPanel({
                     </div>
                     <div>
                       <span className="text-gray-600 uppercase tracking-wider font-bold block">{t('effects.vst.status', { defaultValue: 'Status' })}</span>
-                      <span className="text-green-400">{t('effects.vst.scanned', { defaultValue: '✓ Gescannt' })}</span>
+                      {selectedVst.hostable !== false ? (
+                        <span className="text-green-400">{t('effects.vst.scanned', { defaultValue: '✓ Gescannt' })}</span>
+                      ) : (
+                        <span className="text-red-400 font-bold">{t('effects.vst.unsupported', { defaultValue: 'Nicht unterstützt' })}</span>
+                      )}
                     </div>
                   </div>
-                  <div className="text-[9px] text-gray-600 break-all font-mono bg-black/20 p-2 rounded">
+                  {selectedVst.hostable === false && selectedVst.unsupportedReason && (
+                    <div className="text-[10px] text-red-400 bg-red-950/20 border border-red-900/30 p-2.5 rounded-lg font-medium leading-relaxed">
+                      ⚠️ {selectedVst.unsupportedReason}
+                    </div>
+                  )}
+                  {isVstBlockedBySingleton(selectedVst) && (
+                    <div className="text-[10px] text-blue-400 bg-blue-950/20 border border-blue-900/30 p-2.5 rounded-lg font-medium leading-relaxed">
+                      ⚠️ Singleton-Limit erreicht: Es ist bereits ein anderes reales externes VST-Plugin im Rack geladen.
+                    </div>
+                  )}
+                  <div className="text-[9px] text-gray-650 break-all font-mono bg-black/20 p-2 rounded">
                     {selectedVst.path}
                   </div>
                   <button
                     onClick={() => handleOpenPlugin(selectedVst)}
-                    className="w-full bg-omega-accent hover:bg-blue-500 text-white py-2 rounded-lg text-xs font-semibold transition-colors"
+                    disabled={selectedVst.hostable === false || isVstBlockedBySingleton(selectedVst)}
+                    className="w-full bg-omega-accent hover:bg-blue-500 text-white py-2 rounded-lg text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-omega-accent"
                   >
                     {t('effects.vst.open_interface', { defaultValue: 'Plugin-Interface öffnen' })}
                   </button>
