@@ -2,6 +2,24 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.8.12] - 2026-06-02
+
+### English
+
+#### Added
+- **Parameters Grid Loading Placeholder**: Render a dynamic and elegant loading placeholder within the VST parameters fallback grid in `VstEditorWindow.tsx` when parameters have not yet been populated by the host.
+
+#### Fixed
+- **Empty VST Parameter Safeguards**: Integrated robust boundary guards inside `VstEditorWindow.tsx` (e.g. within `handleParamChange`) to securely prevent UI crashes when external scanned plugins possess temporary empty parameter arrays.
+
+### Deutsch
+
+#### Hinzugefügt
+- **Parameter-Grid-Ladeplatzhalter**: Einbau eines dynamischen und eleganten Lade-Platzhalters im VST-Ausweich-Parametergrid von `VstEditorWindow.tsx`, solange noch keine Parameter vom Host geladen wurden.
+
+#### Behoben
+- **Absicherung leerer VST-Parameterlisten**: Implementierung robuster Guards in `VstEditorWindow.tsx` (u.a. in `handleParamChange`), um UI-Abstürze bei temporär leeren Parameterlisten gescannter externer Plugins zuverlässig zu verhindern.
+
 ## [0.8.11] - 2026-06-01
 
 ### English
