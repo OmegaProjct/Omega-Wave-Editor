@@ -1812,6 +1812,13 @@ export class AudioEngine {
     }
 
     try {
+      if (!dllPath || dllPath.trim() === '') {
+        throw new Error('Plugin-Pfad darf nicht leer sein oder nur aus Leerzeichen bestehen.');
+      }
+      if (!dllPath.toLowerCase().endsWith('.dll')) {
+        throw new Error(`Plugin-Datei '${dllPath}' wird unter Windows nicht unterstützt (nur '.dll' erlaubt).`);
+      }
+
       const track = this.tracks.get(trackId);
       if (!track) return;
 
