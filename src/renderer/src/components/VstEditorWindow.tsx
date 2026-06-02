@@ -832,7 +832,7 @@ export function VstEditorWindow() {
 
       </div>
 
-      {/* Premium Hybrid Fallback UI */}
+      {/* Standard fallback parameter UI */}
       {useFallback && (
         <div className="flex-1 bg-[#121417] p-6 overflow-y-auto space-y-6 flex flex-col justify-between select-none">
           
@@ -842,18 +842,18 @@ export function VstEditorWindow() {
             {/* Explanatory Info Card (German) */}
             <div className="md:col-span-3 bg-[#181b20] border border-gray-800/80 p-4 rounded-xl flex flex-col gap-2 shadow-inner">
               <h3 className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5" style={{ color: profile.color }}>
-                <span>🛡️ Premium Hybrid Fallback-Editor</span>
+                <span>🛡️ Standard-Parameteransicht</span>
               </h3>
               <p className="text-[10px] text-gray-400 leading-relaxed">
                 {plugin.hasEditor === false ? (
                   <span>
-                    <strong>Konstruktionsbedingt kein Grafik-Interface:</strong> Dieses VST-Plugin verfügt über keine herstellereigene grafische Benutzeroberfläche (GUI-loses Plugin). Die <strong>Omega Hybrid Engine</strong> stellt daher automatisch diese vollwertige Ersatz-Bedienoberfläche bereit, über die alle verfügbaren Parameter direkt und verlustfrei gesteuert werden können.
+                    <strong>Kein Grafik-Interface vorhanden:</strong> Dieses VST-Plugin hat keine herstellereigene grafische Benutzeroberfläche. Die verfügbaren Host-Parameter werden deshalb hier in einer generischen Parameteransicht angezeigt.
                   </span>
                 ) : (
                   <>
                     Die herstellereigene native Benutzeroberfläche dieses Plugins konnte nicht direkt eingebettet werden (das Laden des Original-Editors ist ein experimenteller Ladeversuch und kann nicht garantiert werden). 
                     {plugin.path.startsWith('internal://') || plugin.path.startsWith('store://') ? (
-                      <span> Dies ist ein veralteter Platzhalter-Eintrag (Stale Placeholder) aus einer früheren Installation oder dem Store, der lokal nicht verfügbar ist.</span>
+                      <span> Dies ist ein veralteter Platzhalter-Eintrag aus einer früheren Installation oder einem alten Store-Zustand. Lokal ist dafür kein echtes Plugin verfügbar.</span>
                     ) : (
                       <span> <strong>Hintergrund:</strong> Der global geteilte C++ DSP Singleton-Host unterstützt ausschließlich VST2-DLLs. VST3-Plugins (.vst3) nutzen ein anderes API-Modell und können nicht nativ eingebettet werden.</span>
                     )}
@@ -861,7 +861,7 @@ export function VstEditorWindow() {
                 )}
               </p>
               <div className="text-[9px] bg-black/30 border border-gray-800 p-2 rounded-lg text-gray-500 font-mono leading-relaxed mt-1">
-                <strong>Vorteil:</strong> Dank der <strong>Omega Hybrid Engine</strong> des global geteilten C++ Singleton-Hosts kannst du das Plugin über die Regler unten steuern! Alle Parameter fließen live in den DAW-Signalweg und verändern das Audio in Echtzeit.
+                Die Regler unten steuern die vom Host gemeldeten Parameter direkt. Wenn ein Plugin keine grafische Oberfläche mitbringt oder sie nicht eingebettet werden kann, bleibt diese Ansicht der ehrliche Fallback.
               </div>
             </div>
 

@@ -268,7 +268,7 @@ export function EffectsPanel({
     loadPlugins()
 
     const handleStorage = (e: StorageEvent) => {
-      if (e.key === 'downloaded_vsts' || e.key === 'vst_rack_updated_trigger' || e.key === 'vst_rack_plugins') {
+      if (e.key === 'vst_rack_updated_trigger' || e.key === 'vst_rack_plugins') {
         loadPlugins()
         setRackTrigger(prev => prev + 1)
       }
@@ -787,11 +787,11 @@ export function EffectsPanel({
                           id: vst.id,
                           name: vst.name,
                           manufacturer: vst.manufacturer || 'Unbekannt',
-                          format: vst.format || 'VST3',
-                          category: vst.category || 'Effekt',
+                          format: vst.format || 'Unbekannt',
+                          category: vst.category || 'Plugin',
                           path: vst.path,
                           active: true,
-                          parameters: isPlaceholder ? getInitialParams(vst.category || 'Effekt') : []
+                          parameters: isPlaceholder ? getInitialParams(vst.category || 'Plugin') : []
                         }
                         rack.push(newLoaded)
                         localStorage.setItem('vst_rack_plugins', JSON.stringify(rack))

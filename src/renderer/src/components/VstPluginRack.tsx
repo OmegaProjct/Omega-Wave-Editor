@@ -90,11 +90,11 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
         id: vst.id,
         name: vst.name,
         manufacturer: vst.manufacturer || 'Unbekannt',
-        format: vst.format || 'VST3',
-        category: vst.category || 'Effekt',
+        format: vst.format || 'Unbekannt',
+        category: vst.category || 'Plugin',
         path: vst.path,
         active: true,
-        parameters: isPlaceholder ? getInitialParams(vst.category || 'Effekt') : []
+        parameters: isPlaceholder ? getInitialParams(vst.category || 'Plugin') : []
       }
       saveRackState([...rackPlugins, newLoaded])
     }
@@ -313,11 +313,11 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
       id: pluginToAdd.id,
       name: pluginToAdd.name,
       manufacturer: pluginToAdd.manufacturer || 'Unbekannt',
-      format: pluginToAdd.format || 'VST3',
-      category: pluginToAdd.category || 'Effekt',
+      format: pluginToAdd.format || 'Unbekannt',
+      category: pluginToAdd.category || 'Plugin',
       path: pluginToAdd.path,
       active: true,
-      parameters: isPlaceholder ? getInitialParams(pluginToAdd.category || 'Effekt') : []
+      parameters: isPlaceholder ? getInitialParams(pluginToAdd.category || 'Plugin') : []
     }
 
     saveRackState([...rackPlugins, newLoaded])
@@ -470,7 +470,7 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
             <div>
               <h4 className="font-bold text-omega-accent uppercase tracking-wider text-[10px] mb-1">Native Singleton-Einschränkung</h4>
               <p className="text-[11px] text-gray-400">
-                Der native VST-Host von Omega Wave Editor unterstützt derzeit aus Stabilitätsgründen maximal <strong>ein aktives reales externes VST-Plugin</strong> im Signalweg. Virtuelle Store-Platzhalter und interne Effekte sind von dieser Einschränkung nicht betroffen.
+                Der native VST-Host von Omega Wave Editor unterstützt derzeit aus Stabilitätsgründen maximal <strong>ein aktives reales externes VST-Plugin</strong> im Signalweg. Diese Grenze betrifft nur echte lokal gescannte externe Plugins.
               </p>
             </div>
           </div>
@@ -543,7 +543,7 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
                           <span className={`text-[7px] font-bold px-1.5 py-0.5 rounded font-mono uppercase tracking-wider ${
                             !isHostable || isDisabledReal ? 'bg-gray-850 text-gray-500 border border-gray-800' : 'bg-gray-800 text-omega-accent'
                           }`}>
-                            {vst.format || 'VST3'}
+                            {vst.format || 'Unbekannt'}
                           </span>
                           {!isHostable && (
                             <span className="text-[7.5px] bg-red-600/15 text-red-400 border border-red-600/30 font-bold px-1.5 py-0.5 rounded font-sans uppercase tracking-wider select-none">
@@ -557,7 +557,7 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
                           )}
                         </div>
                         <span className="text-[9px] text-gray-500 font-mono block mt-0.5">
-                          {isInstrument ? '🎹' : isPluginCategory ? '🧩' : '🔌'} {vst.category || 'Effekt'} von {vst.manufacturer || 'Dritthersteller'}
+                          {isInstrument ? '🎹' : isPluginCategory ? '🧩' : '🔌'} {vst.category || 'Plugin'} von {vst.manufacturer || 'Dritthersteller'}
                         </span>
                         {!isHostable && vst.unsupportedReason && (
                           <span className="text-[8.5px] text-red-400 font-medium block mt-1 leading-snug">
@@ -667,7 +667,7 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
           <div>
             <h4 className="font-bold text-omega-accent uppercase tracking-wider text-[10px] mb-1">Native Singleton-Einschränkung</h4>
             <p className="text-[11px] text-gray-400">
-              Der native VST-Host von Omega Wave Editor unterstützt derzeit aus Stabilitätsgründen maximal <strong>ein aktives reales externes VST-Plugin</strong> im Signalweg. Virtuelle Store-Platzhalter und interne Effekte sind von dieser Einschränkung nicht betroffen.
+              Der native VST-Host von Omega Wave Editor unterstützt derzeit aus Stabilitätsgründen maximal <strong>ein aktives reales externes VST-Plugin</strong> im Signalweg. Diese Grenze betrifft nur echte lokal gescannte externe Plugins.
             </p>
           </div>
         </div>
