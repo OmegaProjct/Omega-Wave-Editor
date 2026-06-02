@@ -10,7 +10,9 @@ export interface VstParameter {
   value: number
   defaultValue: number
   unit: string
+  index?: number
 }
+
 
 export interface LoadedVst {
   id: string
@@ -154,6 +156,7 @@ export function VstEditorWindow() {
   // Fallback and Visualizer States
   const [useFallback, setUseFallback] = useState(false)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const initializedRef = useRef<string | null>(null)
 
   // Web Audio refs
   const audioCtxRef = useRef<AudioContext | null>(null)
@@ -175,10 +178,16 @@ export function VstEditorWindow() {
 
       const savedRack = localStorage.getItem('vst_rack_plugins')
       if (savedRack) {
-        const rack: LoadedVst[] = JSON.parse(savedRack)
-        const found = rack.find(p => p.id === pluginId)
-        if (found) {
-          setPlugin(found)
+        const parsed = JSON.parse(savedRack)
+        if (Array.isArray(parsed)) {
+          const filtered = parsed.filter((p: any) => p && p.path && !p.path.startsWith('store://') && !p.path.startsWith('internal://'))
+          const found = filtered.find(p => p.id === pluginId)
+          if (found) {
+            setPlugin(found)
+          }
+          if (filtered.length !== parsed.length) {
+            localStorage.setItem('vst_rack_plugins', JSON.stringify(filtered))
+          }
         }
       }
     } catch (e) {
@@ -205,13 +214,14 @@ export function VstEditorWindow() {
 
   // Automatically load the plugin in the native C++ host and open the native manufacturer editor
   useEffect(() => {
-    if (plugin?.path) {
+    if (plugin?.path && initializedRef.current !== plugin.id) {
+      initializedRef.current = plugin.id
       console.log('Mounting VST Native plugin: ', plugin.path)
       
       const initializeNativeVst = async () => {
         try {
           if (plugin.path.startsWith('internal://') || plugin.path.startsWith('store://')) {
-            throw new Error('Built-in / Store Mockup VST - using premium visual fallback UI.')
+            throw new Error('Stale placeholder entry for store:// or internal:// path - using fallback UI.')
           }
           // 1. Load the VST plugin into the native host singleton
           await window.api.loadVstPlugin(plugin.path)
@@ -219,6 +229,43 @@ export function VstEditorWindow() {
           
           // 2. Open the native editor window immediately
           await window.api.openVstEditor()
+          
+          // Retrieve real parameters from native VST host
+          const rawParams = await window.api.getVstParams()
+          console.log('Retrieved real VST parameters from host:', rawParams)
+          
+          if (Array.isArray(rawParams) && rawParams.length > 0) {
+            const mappedParams: VstParameter[] = rawParams.map((p: any) => ({
+              name: p.name || `Parameter ${p.index}`,
+              min: 0.0,
+              max: 1.0,
+              step: 0.001,
+              value: typeof p.value === 'number' ? p.value : 0.0,
+              defaultValue: typeof p.value === 'number' ? p.value : 0.0,
+              unit: p.label || '',
+              index: p.index
+            }))
+            
+            const updatedPlugin = {
+              ...plugin,
+              parameters: mappedParams
+            }
+            setPlugin(updatedPlugin)
+            
+            // Sync to local storage
+            const savedRack = localStorage.getItem('vst_rack_plugins')
+            if (savedRack) {
+              try {
+                const rack: LoadedVst[] = JSON.parse(savedRack)
+                const newRack = rack.map(r => r.id === updatedPlugin.id ? updatedPlugin : r)
+                localStorage.setItem('vst_rack_plugins', JSON.stringify(newRack))
+                localStorage.setItem('vst_rack_updated_trigger', Date.now().toString())
+              } catch (e) {
+                console.error('Failed to sync updated VST parameters to localStorage:', e)
+              }
+            }
+          }
+          
           setUseFallback(false)
         } catch (err) {
           console.warn('Failed to initialize native VST host, using premium fallback UI:', err)
@@ -228,7 +275,7 @@ export function VstEditorWindow() {
       
       initializeNativeVst()
     }
-  }, [plugin?.path])
+  }, [plugin?.path, plugin?.id])
 
   // Canvas visualizer animation
   useEffect(() => {
@@ -292,7 +339,7 @@ export function VstEditorWindow() {
   }, [useFallback, plugin?.active, isRecording])
 
   const handleParamChange = (idx: number, newVal: number) => {
-    if (!plugin) return
+    if (!plugin || !plugin.parameters || !plugin.parameters[idx]) return
     const updatedParams = [...plugin.parameters]
     updatedParams[idx] = { ...updatedParams[idx], value: newVal }
     const updatedPlugin = { ...plugin, parameters: updatedParams }
@@ -311,10 +358,26 @@ export function VstEditorWindow() {
       }
     }
 
-    // Send parameter to native DSP engine if loaded
-    try {
-      window.api.setVstParam(idx, newVal)
-    } catch (e) {}
+    // Enforce strict bounds in [0, 1] and prevent non-real, internal, store-based, or active fallback UI plugins from calling setVstParam
+    const isRealPlugin = !!(
+      plugin.path &&
+      !plugin.path.startsWith('internal://') &&
+      !plugin.path.startsWith('store://') &&
+      !useFallback
+    )
+
+    if (isRealPlugin) {
+      try {
+        const param = updatedParams[idx]
+        const range = param.max - param.min
+        let normalizedValue = range === 0 ? 0 : (newVal - param.min) / range
+        normalizedValue = Math.max(0, Math.min(1, normalizedValue))
+        const targetIndex = typeof param.index === 'number' ? param.index : idx
+        window.api.setVstParam(targetIndex, normalizedValue)
+      } catch (e) {
+        console.error(e)
+      }
+    }
   }
 
   // Custom visual profiles
@@ -354,11 +417,22 @@ export function VstEditorWindow() {
       }
     }
 
-    // Set parameter to C++ engine
-    try {
-      await window.api.setVstParam(0, updated.active ? 1.0 : 0.0)
-    } catch (e) {
-      console.warn(e)
+    // Set parameter to C++ engine for real plugins only, enforcing strict bounds in [0, 1]
+    const isRealPlugin = !!(
+      plugin.path &&
+      !plugin.path.startsWith('internal://') &&
+      !plugin.path.startsWith('store://') &&
+      !useFallback
+    )
+
+    if (isRealPlugin) {
+      try {
+        // Do not send bypass through setVstParam(0, ...) for real plugins.
+        // If there is no real bypass API yet, keep bypass local/fallback-only or otherwise prevent unsafe host writes.
+        console.log('Bypass toggle is kept local/fallback-only for real native plugins to prevent unsafe host writes.')
+      } catch (e) {
+        console.warn(e)
+      }
     }
   }
 
@@ -572,7 +646,7 @@ export function VstEditorWindow() {
               <p className="text-[10px] text-gray-400 leading-relaxed">
                 Die native Benutzeroberfläche dieses Plugins konnte nicht direkt eingebettet werden. 
                 {plugin.path.startsWith('internal://') || plugin.path.startsWith('store://') ? (
-                  <span> Dies ist ein integriertes Mockup-Plugin zur visuellen Repräsentation.</span>
+                  <span> Dies ist ein veralteter Platzhalter-Eintrag (Stale Placeholder) aus einer früheren Installation oder dem Store, der lokal nicht verfügbar ist.</span>
                 ) : (
                   <span> <strong>Hintergrund:</strong> Der C++ DSP Host unterstützt ausschließlich VST2-DLLs. VST3-Plugins (.vst3) nutzen ein anderes API-Modell und können nicht nativ eingebettet werden.</span>
                 )}
@@ -608,41 +682,53 @@ export function VstEditorWindow() {
             </div>
 
             <div className="grid grid-cols-2 gap-4 overflow-y-auto pr-1 flex-1 max-h-[220px]">
-              {plugin.parameters.map((param, idx) => {
-                const percent = ((param.value - param.min) / (param.max - param.min)) * 100
-                return (
-                  <div key={idx} className="bg-[#1b1f24] border border-gray-800/60 p-2.5 rounded-xl flex flex-col gap-1.5 hover:border-gray-700/80 transition-colors">
-                    <div className="flex justify-between items-center text-[10px]">
-                      <span className="font-semibold text-gray-300 truncate max-w-[150px]">{param.name}</span>
-                      <span className="font-mono text-gray-400 font-semibold" style={{ color: profile.color }}>
-                        {param.value.toFixed(param.step >= 1 ? 0 : 1)} {param.unit}
-                      </span>
+              {!plugin.parameters || plugin.parameters.length === 0 ? (
+                <div className="col-span-2 flex flex-col items-center justify-center py-8 text-center text-gray-500 bg-[#1b1f24] border border-dashed border-gray-800 rounded-xl space-y-2">
+                  <div className="animate-spin rounded-full h-5 w-5 border-2 border-gray-700" style={{ borderTopColor: profile.color }}></div>
+                  <p className="text-xs font-medium text-gray-400">
+                    {t('vst_editor.loading_params', { defaultValue: 'Warte auf Host-Parameter...' })}
+                  </p>
+                  <p className="text-[9px] text-gray-500">
+                    {t('vst_editor.loading_params_sub', { defaultValue: 'Verbindung zum DSP Host wird aufgebaut' })}
+                  </p>
+                </div>
+              ) : (
+                plugin.parameters.map((param, idx) => {
+                  const percent = ((param.value - param.min) / (param.max - param.min)) * 100
+                  return (
+                    <div key={idx} className="bg-[#1b1f24] border border-gray-800/60 p-2.5 rounded-xl flex flex-col gap-1.5 hover:border-gray-700/80 transition-colors">
+                      <div className="flex justify-between items-center text-[10px]">
+                        <span className="font-semibold text-gray-300 truncate max-w-[150px]">{param.name}</span>
+                        <span className="font-mono text-gray-400 font-semibold" style={{ color: profile.color }}>
+                          {param.value.toFixed(param.step >= 1 ? 0 : 1)} {param.unit}
+                        </span>
+                      </div>
+                      
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="range"
+                          min={param.min}
+                          max={param.max}
+                          step={param.step}
+                          value={param.value}
+                          onChange={(e) => handleParamChange(idx, parseFloat(e.target.value))}
+                          className="flex-1 h-1.5 rounded-lg appearance-none cursor-pointer bg-black/40 outline-none focus:outline-none"
+                          style={{
+                            background: `linear-gradient(to right, ${profile.color} 0%, ${profile.color} ${percent}%, rgba(0,0,0,0.4) ${percent}%, rgba(0,0,0,0.4) 100%)`
+                          }}
+                        />
+                        <button
+                          onClick={() => handleParamChange(idx, param.defaultValue)}
+                          className="text-[9px] font-bold text-gray-500 hover:text-white transition-colors"
+                          title="Auf Standardwert zurücksetzen"
+                        >
+                          Reset
+                        </button>
+                      </div>
                     </div>
-                    
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="range"
-                        min={param.min}
-                        max={param.max}
-                        step={param.step}
-                        value={param.value}
-                        onChange={(e) => handleParamChange(idx, parseFloat(e.target.value))}
-                        className="flex-1 h-1.5 rounded-lg appearance-none cursor-pointer bg-black/40 outline-none focus:outline-none"
-                        style={{
-                          background: `linear-gradient(to right, ${profile.color} 0%, ${profile.color} ${percent}%, rgba(0,0,0,0.4) ${percent}%, rgba(0,0,0,0.4) 100%)`
-                        }}
-                      />
-                      <button
-                        onClick={() => handleParamChange(idx, param.defaultValue)}
-                        className="text-[9px] font-bold text-gray-500 hover:text-white transition-colors"
-                        title="Auf Standardwert zurücksetzen"
-                      >
-                        Reset
-                      </button>
-                    </div>
-                  </div>
-                )
-              })}
+                  )
+                })
+              )}
             </div>
           </div>
 
