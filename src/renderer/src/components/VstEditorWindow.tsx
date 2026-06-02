@@ -24,6 +24,9 @@ export interface LoadedVst {
   active: boolean
   parameters: VstParameter[]
   hasEditor?: boolean
+  missingFromScan?: boolean
+  notHostable?: boolean
+  unsupportedReason?: string
 }
 
 // ✂️ Trim leading and trailing silence from AudioBuffer with safety padding
@@ -198,6 +201,21 @@ export function VstEditorWindow() {
             const isReal = !!(foundInParsed.path && !foundInParsed.path.startsWith('store://') && !foundInParsed.path.startsWith('internal://'))
             
             if (isReal) {
+              if (foundInParsed.missingFromScan) {
+                setIsBlocked(true)
+                setActiveRealPluginName(null)
+                setBlockReason(`Dieses VST-Plugin "${foundInParsed.name}" fehlt beim aktuellen System-Scan und kann daher nicht geladen werden. Bitte überprüfen Sie Ihre VST-Scan-Pfade.`)
+                setPlugin(foundInParsed)
+                return
+              }
+              if (foundInParsed.notHostable) {
+                setIsBlocked(true)
+                setActiveRealPluginName(null)
+                setBlockReason(`Dieses VST-Plugin "${foundInParsed.name}" ist inkompatibel oder nicht hostbar. Grund: ${foundInParsed.unsupportedReason || 'Inkompatibel'}`)
+                setPlugin(foundInParsed)
+                return
+              }
+
               // It is a real external VST plugin! Check if it matches the active real plugin in the rack.
               if (!activeReal || activeReal.id !== pluginId) {
                 setIsBlocked(true)

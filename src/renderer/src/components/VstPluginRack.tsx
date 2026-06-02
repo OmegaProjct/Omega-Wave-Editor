@@ -24,6 +24,9 @@ export interface LoadedVst {
   active: boolean
   parameters: VstParameter[]
   hasEditor?: boolean
+  missingFromScan?: boolean
+  notHostable?: boolean
+  unsupportedReason?: string
 }
 
 // Hilfsfunktion zur Generierung von Parametern für ein VST
@@ -122,9 +125,82 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
               return p
             })
 
-            setRackPlugins(cleaned)
-            if (hasAnyCleaned || filtered.length !== parsed.length) {
-              localStorage.setItem('vst_rack_plugins', JSON.stringify(cleaned))
+            // Validierung gegen die aktuelle Scan-Liste
+            let validated = cleaned
+            let hasValidationChanges = false
+
+            if (scanList && scanList.length > 0) {
+              validated = cleaned.map((p: any) => {
+                const scanned = scanList.find((v: any) => v.id === p.id || v.path === p.path)
+                let updatedP = { ...p }
+                let modified = false
+
+                if (!scanned) {
+                  // Plugin fehlt beim Scan -> active=false, Guardrail-Flags setzen
+                  if (updatedP.active !== false) {
+                    updatedP.active = false
+                    modified = true
+                  }
+                  if (updatedP.missingFromScan !== true) {
+                    updatedP.missingFromScan = true
+                    modified = true
+                  }
+                  if (updatedP.notHostable !== true) {
+                    updatedP.notHostable = true
+                    modified = true
+                  }
+                  if (updatedP.unsupportedReason !== 'Plugin fehlt beim aktuellen Scan') {
+                    updatedP.unsupportedReason = 'Plugin fehlt beim aktuellen Scan'
+                    modified = true
+                  }
+                } else {
+                  // Plugin gefunden -> prüfen ob hostbar
+                  const isHostable = scanned.hostable !== false
+                  if (!isHostable) {
+                    if (updatedP.active !== false) {
+                      updatedP.active = false
+                      modified = true
+                    }
+                    if (updatedP.notHostable !== true) {
+                      updatedP.notHostable = true
+                      modified = true
+                    }
+                    const expectedReason = scanned.unsupportedReason || 'Inkompatibel'
+                    if (updatedP.unsupportedReason !== expectedReason) {
+                      updatedP.unsupportedReason = expectedReason
+                      modified = true
+                    }
+                    if (updatedP.missingFromScan !== false) {
+                      updatedP.missingFromScan = false
+                      modified = true
+                    }
+                  } else {
+                    // Hostbar und vorhanden -> Guardrail-Flags zurücksetzen
+                    if (updatedP.missingFromScan === true) {
+                      updatedP.missingFromScan = false
+                      modified = true
+                    }
+                    if (updatedP.notHostable === true) {
+                      updatedP.notHostable = false
+                      modified = true
+                    }
+                    if (updatedP.unsupportedReason !== undefined) {
+                      delete updatedP.unsupportedReason
+                      modified = true
+                    }
+                  }
+                }
+
+                if (modified) {
+                  hasValidationChanges = true
+                }
+                return updatedP
+              })
+            }
+
+            setRackPlugins(validated)
+            if (hasAnyCleaned || filtered.length !== parsed.length || hasValidationChanges) {
+              localStorage.setItem('vst_rack_plugins', JSON.stringify(validated))
             }
           }
         } catch (e) {
@@ -151,7 +227,7 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
       window.removeEventListener('SETTINGS_UPDATED', handleSettingsUpdated)
       window.removeEventListener('storage', handleStorageChange)
     }
-  }, [])
+  }, [scanList])
 
   // In Echtzeit auf eingehende MIDI-Werte hören!
   useEffect(() => {
@@ -264,6 +340,10 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
   const handleToggleActive = (id: string) => {
     const pluginToToggle = rackPlugins.find(p => p.id === id)
     if (!pluginToToggle) return
+
+    if (pluginToToggle.missingFromScan || pluginToToggle.notHostable) {
+      return
+    }
 
     if (isRealPlugin(pluginToToggle) && !pluginToToggle.active) {
       const hasOtherActiveReal = rackPlugins.some(p => p.id !== id && p.active && isRealPlugin(p))
@@ -604,206 +684,285 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
           </div>
         )}
         {/* Loaded Plugins List */}
-        {rackPlugins.map((plugin) => (
-          <div
-            key={plugin.id}
-            className={`bg-[#202225] border border-gray-700/80 rounded-2xl overflow-hidden shadow-2xl transition-all duration-300 ${
-              plugin.active ? 'border-l-4 border-l-omega-accent' : 'opacity-60 border-l-4 border-l-gray-600'
-            }`}
-          >
-            {/* Module Header */}
+        {rackPlugins.map((plugin) => {
+          const isOfflineOrIncompatible = !!(plugin.missingFromScan || plugin.notHostable)
+          return (
             <div
-              onClick={() => {
-                setCollapsedPluginIds(prev => ({ ...prev, [plugin.id]: !prev[plugin.id] }))
-              }}
-              onDoubleClick={(e) => {
-                e.stopPropagation()
-                if (plugin.path?.startsWith('store://') || plugin.path?.startsWith('internal://')) {
-                  return
-                }
-                const width = 720
-                const height = plugin.hasEditor === false ? 580 : 110
-                localStorage.setItem('popout_vst-editor_payload', JSON.stringify({ pluginId: plugin.id }))
-                window.api.openPopoutWindow('vst-editor', { width, height, title: 'Plugin Editor - ' + plugin.name })
-              }}
-              className="bg-[#181a1d] px-4 py-3 border-b border-gray-750 flex items-center justify-between cursor-pointer hover:bg-[#1c1e22] transition-all select-none group/header animate-fade-in"
-              title={t('vst_rack.double_click_desc', { defaultValue: 'Einfacher Klick zum Ein-/Ausklappen. Doppelklick zum Versuch, den Herstellereigentümlichen Editor zu laden (nicht garantiert)' })}
+              key={plugin.id}
+              className={`bg-[#202225] border border-gray-700/80 rounded-2xl overflow-hidden shadow-2xl transition-all duration-300 ${
+                isOfflineOrIncompatible
+                  ? 'border-l-4 border-l-red-600 bg-red-950/5'
+                  : plugin.active
+                  ? 'border-l-4 border-l-omega-accent'
+                  : 'opacity-60 border-l-4 border-l-gray-600'
+              }`}
             >
-              <div className="flex items-center gap-3">
-                {/* Collapsible Arrow Chevron */}
-                <div className="text-gray-500 group-hover/header:text-omega-accent transition-colors mr-1">
-                  {collapsedPluginIds[plugin.id] ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-                </div>
-                
-                {/* Power Switch Button with LED Glow */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleToggleActive(plugin.id);
-                  }}
-                  title={plugin.active ? t('vst_rack.bypass', { defaultValue: 'Bypass' }) : t('vst_rack.activate', { defaultValue: 'Aktivieren' })}
-                  className={`p-2 rounded-full border transition-all duration-300 active:scale-[0.9] flex items-center justify-center ${
-                    plugin.active
-                      ? 'bg-omega-accent/15 border-omega-accent text-omega-accent shadow-[0_0_8px_rgba(0,122,204,0.4)]'
-                      : 'bg-gray-800/40 border-gray-750 text-gray-500'
-                  }`}
-                >
-                  <Power size={13} className="stroke-[2.5]" />
-                </button>
- 
-                {/* Title */}
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-white tracking-wide group-hover/header:text-omega-accent transition-colors">
-                      {plugin.name}
-                    </span>
-                    <span className="text-[8px] bg-gray-800 text-omega-accent font-bold px-1.5 py-0.5 rounded uppercase font-mono tracking-wider">
-                      {plugin.format}
-                    </span>
+              {/* Module Header */}
+              <div
+                onClick={() => {
+                  setCollapsedPluginIds(prev => ({ ...prev, [plugin.id]: !prev[plugin.id] }))
+                }}
+                onDoubleClick={(e) => {
+                  e.stopPropagation()
+                  if (plugin.missingFromScan || plugin.notHostable) {
+                    return
+                  }
+                  if (isOfflineOrIncompatible) return
+                  if (plugin.path?.startsWith('store://') || plugin.path?.startsWith('internal://')) {
+                    return
+                  }
+                  const width = 720
+                  const height = plugin.hasEditor === false ? 580 : 110
+                  localStorage.setItem('popout_vst-editor_payload', JSON.stringify({ pluginId: plugin.id }))
+                  window.api.openPopoutWindow('vst-editor', { width, height, title: 'Plugin Editor - ' + plugin.name })
+                }}
+                className="bg-[#181a1d] px-4 py-3 border-b border-gray-750 flex items-center justify-between cursor-pointer hover:bg-[#1c1e22] transition-all select-none group/header animate-fade-in"
+                title={
+                  isOfflineOrIncompatible
+                    ? t('vst_rack.offline_header_desc', { defaultValue: 'Plugin ist offline oder inkompatibel. Editor kann nicht geladen werden.' })
+                    : t('vst_rack.double_click_desc', { defaultValue: 'Einfacher Klick zum Ein-/Ausklappen. Doppelklick zum Versuch, den Herstellereigentümlichen Editor zu laden (nicht garantiert)' })
+                }
+              >
+                <div className="flex items-center gap-3">
+                  {/* Collapsible Arrow Chevron */}
+                  <div className="text-gray-500 group-hover/header:text-omega-accent transition-colors mr-1">
+                    {collapsedPluginIds[plugin.id] ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
                   </div>
-                  <span className="text-[9px] text-gray-500 font-mono mt-0.5 block">
-                    {plugin.category} von {plugin.manufacturer}
-                  </span>
-                </div>
-              </div>
-
-              {/* Header Right controls */}
-              <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                {!(plugin.path?.startsWith('store://') || plugin.path?.startsWith('internal://')) && (
+                  
+                  {/* Power Switch Button with LED Glow */}
                   <button
-                    onClick={() => {
-                      const width = 720
-                      const height = plugin.hasEditor === false ? 580 : 110
-                      localStorage.setItem('popout_vst-editor_payload', JSON.stringify({ pluginId: plugin.id }))
-                      window.api.openPopoutWindow('vst-editor', { width, height, title: 'Plugin Editor - ' + plugin.name })
-                    }}
-                    className="px-2.5 py-1 text-[10px] bg-gray-800 hover:bg-gray-700 rounded text-gray-300 font-semibold border border-gray-700/60 transition-colors"
-                  >
-                    {plugin.hasEditor === false
-                      ? t('vst_rack.parameters', { defaultValue: 'Parameter' })
-                      : t('vst_rack.open_ui', { defaultValue: 'Editor laden' })
-                    }
-                  </button>
-                )}
-                <button
-                  onClick={() => handleRemovePlugin(plugin.id)}
-                  title={t('vst_rack.delete_from_rack', { defaultValue: 'Aus Rack löschen' })}
-                  className="p-1.5 bg-red-950/20 hover:bg-red-950/40 border border-red-900/30 text-red-400 rounded-lg transition-all"
-                >
-                  <Trash2 size={13} />
-                </button>
-              </div>
-            </div>
-
-            {/* Parameters Grid */}
-            {!collapsedPluginIds[plugin.id] && (
-              <div className="p-4 bg-[#1e2124]/40 grid grid-cols-1 md:grid-cols-2 gap-4 animate-slide-down">
-                {plugin.hasEditor === false && (
-                  <div className="col-span-full p-3 bg-blue-950/20 border border-blue-900/35 rounded-xl flex items-start gap-2.5 text-left text-xs leading-relaxed text-gray-300">
-                    <span className="text-sm mt-0.5 select-none">ℹ️</span>
-                    <div>
-                      <h5 className="font-bold text-[10px] text-omega-accent uppercase tracking-wider mb-0.5">Kein nativer Editor verfügbar</h5>
-                      <p className="text-[10.5px] leading-relaxed text-gray-400">
-                        Dieses Plugin besitzt laut Host-Rückmeldung keinen herstellereigenen grafischen Editor (GUI). Sie können alle Parameter stattdessen direkt hier im Rack über die Regler steuern oder extern anpassen.
-                      </p>
-                    </div>
-                  </div>
-                )}
-                {(!plugin.parameters || plugin.parameters.length === 0) ? (
-                  <div className="col-span-full py-6 px-4 bg-[#17191c]/45 border border-gray-700/40 rounded-xl text-center">
-                    <Sliders size={18} className="mx-auto text-gray-600 mb-2 opacity-60" />
-                    <p className="text-xs font-semibold text-gray-400">
-                      {plugin.hasEditor === false ? 'Parameter-Steuerung' : 'Keine Host-Parameter initialisiert'}
-                    </p>
-                    <p className="text-[10px] text-gray-500 mt-1 max-w-md mx-auto leading-relaxed">
-                      {plugin.hasEditor === false 
-                        ? 'Dieses Plugin besitzt keinen nativen Editor und stellt derzeit keine steuerbaren Host-Parameter über das Rack bereit.'
-                        : 'Für dieses externe Plugin wurden keine fiktiven Regler erzeugt. Sie können versuchen, das Herstellereigene Editor-Interface zu öffnen (Klick auf „Editor laden“ oder Doppelklick auf den Header), falls vom Plugin-Hersteller unterstützt und scanseitig verfügbar.'
+                    disabled={isOfflineOrIncompatible}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (plugin.missingFromScan || plugin.notHostable) {
+                        return
                       }
-                    </p>
+                      if (isOfflineOrIncompatible) return;
+                      handleToggleActive(plugin.id);
+                    }}
+                    title={
+                      isOfflineOrIncompatible
+                        ? t('vst_rack.disabled_offline', { defaultValue: 'Gesperrt - Plugin ist offline oder inkompatibel' })
+                        : plugin.active
+                        ? t('vst_rack.bypass', { defaultValue: 'Bypass' })
+                        : t('vst_rack.activate', { defaultValue: 'Aktivieren' })
+                    }
+                    className={`p-2 rounded-full border transition-all duration-300 active:scale-[0.9] flex items-center justify-center ${
+                      isOfflineOrIncompatible
+                        ? 'bg-red-950/20 border-red-900/40 text-red-500/50 cursor-not-allowed opacity-55'
+                        : plugin.active
+                        ? 'bg-omega-accent/15 border-omega-accent text-omega-accent shadow-[0_0_8px_rgba(0,122,204,0.4)]'
+                        : 'bg-gray-800/40 border-gray-750 text-gray-500'
+                    }`}
+                  >
+                    <Power size={13} className="stroke-[2.5]" />
+                  </button>
+   
+                  {/* Title */}
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-white tracking-wide group-hover/header:text-omega-accent transition-colors">
+                        {plugin.name}
+                      </span>
+                      <span className="text-[8px] bg-gray-800 text-omega-accent font-bold px-1.5 py-0.5 rounded uppercase font-mono tracking-wider font-semibold">
+                        {plugin.format}
+                      </span>
+                      {plugin.missingFromScan && (
+                        <span className="text-[7.5px] bg-red-600/15 text-red-400 border border-red-600/30 font-bold px-1.5 py-0.5 rounded font-sans uppercase tracking-wider select-none animate-pulse">
+                          Fehlt beim Scan
+                        </span>
+                      )}
+                      {plugin.notHostable && !plugin.missingFromScan && (
+                        <span className="text-[7.5px] bg-red-600/15 text-red-400 border border-red-600/30 font-bold px-1.5 py-0.5 rounded font-sans uppercase tracking-wider select-none animate-pulse">
+                          Inkompatibel
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[9px] text-gray-500 font-mono mt-0.5 block">
+                      {plugin.category} von {plugin.manufacturer}
+                    </span>
                   </div>
-                ) : (
-                  plugin.parameters.map((param, idx) => {
-                    const mapping = getParamMapping(plugin.id, idx)
-                    const isLearning = learningParam?.pluginId === plugin.id && learningParam?.paramIndex === idx
+                </div>
 
-                    return (
-                      <div
-                        key={idx}
-                        className="flex flex-col gap-1.5 p-3 rounded-xl bg-[#17191c]/60 border border-gray-700/50 hover:border-gray-600/50 transition-all duration-300"
-                      >
-                        <div className="flex justify-between items-center text-xs">
-                          {/* Name & value */}
-                          <span className="text-gray-300 font-bold tracking-wide">
-                            {param.name}
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[11px] text-omega-accent font-mono font-semibold bg-black/20 px-2 py-0.5 rounded border border-gray-800">
-                              {param.value.toFixed(1)} {param.unit}
-                            </span>
-                            
-                            {/* Reset Parameter */}
-                            <button
-                              onClick={() => handleParamReset(plugin.id, idx)}
-                              title={t('vst_rack.reset_parameter', { defaultValue: 'Parameter zurücksetzen' })}
-                              className="p-1 bg-gray-850 hover:bg-gray-700 text-gray-400 hover:text-white rounded border border-gray-750 transition-all hover:rotate-[-90deg] duration-300"
-                            >
-                              <RotateCcw size={10} />
-                            </button>
-                          </div>
+                {/* Header Right controls */}
+                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                  {!(plugin.path?.startsWith('store://') || plugin.path?.startsWith('internal://')) && (
+                    <button
+                      disabled={isOfflineOrIncompatible}
+                      onClick={() => {
+                        if (isOfflineOrIncompatible) return
+                        const width = 720
+                        const height = plugin.hasEditor === false ? 580 : 110
+                        localStorage.setItem('popout_vst-editor_payload', JSON.stringify({ pluginId: plugin.id }))
+                        window.api.openPopoutWindow('vst-editor', { width, height, title: 'Plugin Editor - ' + plugin.name })
+                      }}
+                      className={`px-2.5 py-1 text-[10px] rounded font-semibold border transition-colors ${
+                        isOfflineOrIncompatible
+                          ? 'bg-red-950/10 border-red-900/30 text-red-400/50 cursor-not-allowed opacity-50'
+                          : 'bg-gray-800 hover:bg-gray-700 text-gray-300 border-gray-700/60 transition-colors'
+                      }`}
+                    >
+                      {plugin.hasEditor === false
+                        ? t('vst_rack.parameters', { defaultValue: 'Parameter' })
+                        : t('vst_rack.open_ui', { defaultValue: 'Editor laden' })
+                      }
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleRemovePlugin(plugin.id)}
+                    title={t('vst_rack.delete_from_rack', { defaultValue: 'Aus Rack löschen' })}
+                    className="p-1.5 bg-red-950/20 hover:bg-red-950/40 border border-red-900/30 text-red-400 rounded-lg transition-all"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Parameters Grid */}
+              {!collapsedPluginIds[plugin.id] && (
+                <div className="p-4 bg-[#1e2124]/40 grid grid-cols-1 md:grid-cols-2 gap-4 animate-slide-down">
+                  {isOfflineOrIncompatible ? (
+                    plugin.missingFromScan ? (
+                      <div className="col-span-full p-4 bg-red-950/20 border border-red-900/40 rounded-xl flex items-start gap-3 text-left text-xs leading-relaxed text-gray-300 shadow-inner">
+                        <span className="text-lg select-none">⚠️</span>
+                        <div>
+                          <h5 className="font-bold text-[11px] text-red-400 uppercase tracking-wider mb-1">Plugin offline (nicht im System gefunden)</h5>
+                          <p className="text-[11px] leading-relaxed text-gray-400">
+                            Dieses Plugin wurde beim aktuellen System-Scan nicht im Workspace oder in den VST-Ordnern gefunden. 
+                            Es wurde aus Sicherheitsgründen im Signalweg automatisch deaktiviert.
+                          </p>
+                          <p className="text-[10px] text-gray-500 mt-2 font-mono leading-normal bg-black/25 p-2 rounded border border-gray-850">
+                            Pfad: {plugin.path}
+                          </p>
                         </div>
-
-                        {/* Slider and MIDI Learn */}
-                        <div className="flex items-center gap-2.5">
-                          <input
-                            type="range"
-                            min={param.min}
-                            max={param.max}
-                            step={param.step}
-                            value={param.value}
-                            onChange={e => handleParamChange(plugin.id, idx, parseFloat(e.target.value))}
-                            disabled={!plugin.active}
-                            className="flex-1 h-1.5 bg-gray-850 rounded-lg appearance-none cursor-pointer accent-omega-accent disabled:opacity-40 disabled:cursor-not-allowed"
-                          />
-
-                          {/* MIDI learn Button */}
-                          <div className="flex items-center gap-1">
-                            {mapping ? (
-                              <div className="flex items-center gap-1">
-                                <span className="px-1.5 py-0.5 bg-green-950 border border-green-900 text-green-400 text-[9px] font-mono font-bold rounded">
-                                  {mapping.type === 'cc' ? 'CC' : 'Note'} {mapping.number}
-                                </span>
-                                <button
-                                  onClick={() => handleMidiClearClick(plugin.id, idx)}
-                                  title={t('vst_rack.delete_mapping', { defaultValue: 'Mapping löschen' })}
-                                  className="px-1 py-0.5 bg-gray-800 hover:bg-gray-700 text-[8px] font-bold text-gray-400 hover:text-red-400 rounded transition-colors"
-                                >
-                                  Reset
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => handleMidiLearnClick(plugin.id, idx)}
-                                disabled={!plugin.active}
-                                className={`px-2 py-0.5 text-[9px] font-bold rounded-md border shadow transition-all duration-300 ${
-                                  isLearning
-                                    ? 'bg-red-650 hover:bg-red-500 text-white border-red-500 animate-pulse font-semibold'
-                                    : 'bg-[#282b30] hover:bg-gray-700 text-gray-400 hover:text-omega-accent border-gray-700 disabled:opacity-30'
-                                }`}
-                              >
-                                {isLearning ? t('vst_rack.learning', { defaultValue: 'Lerne...' }) : t('vst_rack.learn', { defaultValue: 'Lernen' })}
-                              </button>
-                            )}
-                          </div>
+                      </div>
+                    ) : (
+                      <div className="col-span-full p-4 bg-red-950/20 border border-red-900/40 rounded-xl flex items-start gap-3 text-left text-xs leading-relaxed text-gray-300 shadow-inner">
+                        <span className="text-lg select-none">⚠️</span>
+                        <div>
+                          <h5 className="font-bold text-[11px] text-red-400 uppercase tracking-wider mb-1">Plugin inkompatibel</h5>
+                          <p className="text-[11px] leading-relaxed text-gray-400">
+                            Dieses Plugin ist mit der aktuellen Host-Plattform oder Host-Architektur nicht kompatibel und wurde automatisch deaktiviert.
+                          </p>
+                          {plugin.unsupportedReason && (
+                            <div className="mt-2 p-2 bg-red-950/40 border border-red-900/30 text-red-300 font-semibold rounded text-[10.5px]">
+                              Grund: {plugin.unsupportedReason}
+                            </div>
+                          )}
                         </div>
                       </div>
                     )
-                  })
-                )}
-              </div>
-            )}
-          </div>
-        ))}
+                  ) : (
+                    <>
+                      {plugin.hasEditor === false && (
+                        <div className="col-span-full p-3 bg-blue-950/20 border border-blue-900/35 rounded-xl flex items-start gap-2.5 text-left text-xs leading-relaxed text-gray-300">
+                          <span className="text-sm mt-0.5 select-none">ℹ️</span>
+                          <div>
+                            <h5 className="font-bold text-[10px] text-omega-accent uppercase tracking-wider mb-0.5">Kein nativer Editor verfügbar</h5>
+                            <p className="text-[10.5px] leading-relaxed text-gray-400">
+                              Dieses Plugin besitzt laut Host-Rückmeldung keinen herstellereigenen grafischen Editor (GUI). Sie können alle Parameter stattdessen direkt hier im Rack über die Regler steuern oder extern anpassen.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      {(!plugin.parameters || plugin.parameters.length === 0) ? (
+                        <div className="col-span-full py-6 px-4 bg-[#17191c]/45 border border-gray-700/40 rounded-xl text-center">
+                          <Sliders size={18} className="mx-auto text-gray-600 mb-2 opacity-60" />
+                          <p className="text-xs font-semibold text-gray-400">
+                            {plugin.hasEditor === false ? 'Parameter-Steuerung' : 'Keine Host-Parameter initialisiert'}
+                          </p>
+                          <p className="text-[10px] text-gray-500 mt-1 max-w-md mx-auto leading-relaxed">
+                            {plugin.hasEditor === false 
+                              ? 'Dieses Plugin besitzt keinen nativen Editor und stellt derzeit keine steuerbaren Host-Parameter über das Rack bereit.'
+                              : 'Für dieses externe Plugin wurden keine fiktiven Regler erzeugt. Sie können versuchen, das Herstellereigene Editor-Interface zu öffnen (Klick auf „Editor laden“ oder Doppelklick auf den Header), falls vom Plugin-Hersteller unterstützt und scanseitig verfügbar.'
+                            }
+                          </p>
+                        </div>
+                      ) : (
+                        plugin.parameters.map((param, idx) => {
+                          const mapping = getParamMapping(plugin.id, idx)
+                          const isLearning = learningParam?.pluginId === plugin.id && learningParam?.paramIndex === idx
+
+                          return (
+                            <div
+                              key={idx}
+                              className="flex flex-col gap-1.5 p-3 rounded-xl bg-[#17191c]/60 border border-gray-700/50 hover:border-gray-600/50 transition-all duration-300"
+                            >
+                              <div className="flex justify-between items-center text-xs">
+                                {/* Name & value */}
+                                <span className="text-gray-300 font-bold tracking-wide">
+                                  {param.name}
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[11px] text-omega-accent font-mono font-semibold bg-black/20 px-2 py-0.5 rounded border border-gray-800">
+                                    {param.value.toFixed(1)} {param.unit}
+                                  </span>
+                                  
+                                  {/* Reset Parameter */}
+                                  <button
+                                    onClick={() => handleParamReset(plugin.id, idx)}
+                                    title={t('vst_rack.reset_parameter', { defaultValue: 'Parameter zurücksetzen' })}
+                                    className="p-1 bg-gray-850 hover:bg-gray-700 text-gray-400 hover:text-white rounded border border-gray-750 transition-all hover:rotate-[-90deg] duration-300"
+                                  >
+                                    <RotateCcw size={10} />
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Slider and MIDI Learn */}
+                              <div className="flex items-center gap-2.5">
+                                <input
+                                  type="range"
+                                  min={param.min}
+                                  max={param.max}
+                                  step={param.step}
+                                  value={param.value}
+                                  onChange={e => handleParamChange(plugin.id, idx, parseFloat(e.target.value))}
+                                  disabled={!plugin.active}
+                                  className="flex-1 h-1.5 bg-gray-850 rounded-lg appearance-none cursor-pointer accent-omega-accent disabled:opacity-40 disabled:cursor-not-allowed"
+                                />
+
+                                {/* MIDI learn Button */}
+                                <div className="flex items-center gap-1">
+                                  {mapping ? (
+                                    <div className="flex items-center gap-1">
+                                      <span className="px-1.5 py-0.5 bg-green-950 border border-green-900 text-green-400 text-[9px] font-mono font-bold rounded">
+                                        {mapping.type === 'cc' ? 'CC' : 'Note'} {mapping.number}
+                                      </span>
+                                      <button
+                                        onClick={() => handleMidiClearClick(plugin.id, idx)}
+                                        title={t('vst_rack.delete_mapping', { defaultValue: 'Mapping löschen' })}
+                                        className="px-1 py-0.5 bg-gray-800 hover:bg-gray-700 text-[8px] font-bold text-gray-400 hover:text-red-400 rounded transition-colors"
+                                      >
+                                        Reset
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      onClick={() => handleMidiLearnClick(plugin.id, idx)}
+                                      disabled={!plugin.active}
+                                      className={`px-2 py-0.5 text-[9px] font-bold rounded-md border shadow transition-all duration-300 ${
+                                        isLearning
+                                          ? 'bg-red-650 hover:bg-red-500 text-white border-red-500 animate-pulse font-semibold'
+                                          : 'bg-[#282b30] hover:bg-gray-700 text-gray-400 hover:text-omega-accent border-gray-700 disabled:opacity-30'
+                                      }`}
+                                    >
+                                      {isLearning ? t('vst_rack.learning', { defaultValue: 'Lerne...' }) : t('vst_rack.learn', { defaultValue: 'Lernen' })}
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
 
       {/* Footer Info bar */}
