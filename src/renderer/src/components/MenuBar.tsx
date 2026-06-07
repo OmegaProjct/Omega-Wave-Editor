@@ -125,6 +125,7 @@ export function MenuBar({
       return
     }
     if (action === 'help' || action === 'manual') return onFileAction('SHOW_MANUAL')
+    if (action === 'changelog') return onFileAction('SHOW_CHANGELOG')
     
     if (action === 'audio_effects') {
        return onFileAction('SHOW_MODAL', { 
@@ -211,6 +212,7 @@ export function MenuBar({
         {openMenu === 'help' && (
           <div className="absolute top-full left-0 bg-[#2b2d31] border border-gray-700 shadow-xl py-1 z-[1000] rounded">
             <MenuItem label={t('menu.manual', { defaultValue: 'Benutzerhandbuch' })} action="manual" />
+            <MenuItem label={t('menu.changelog', { defaultValue: 'Changelog...' })} action="changelog" />
             <MenuItem divider />
             <MenuItem label={t('menu.check_updates', { defaultValue: 'Auf Updates prüfen...' })} action="updates" />
             <MenuItem label={t('menu.about', { defaultValue: 'Über Omega Wave Editor...' })} action="about" />

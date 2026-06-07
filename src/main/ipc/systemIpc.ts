@@ -153,6 +153,24 @@ function downloadFileToDisk(
 }
 
 export function registerSystemIpc() {
+  // Read CHANGELOG.md – first from app resources (packaged), then from project root (dev)
+  ipcMain.handle('read-changelog', async () => {
+    const candidates = [
+      path.join(process.resourcesPath, 'CHANGELOG.md'),
+      path.join(app.getAppPath(), 'CHANGELOG.md'),
+      path.join(__dirname, '../../CHANGELOG.md'),
+      path.join(__dirname, '../../../CHANGELOG.md'),
+    ]
+    for (const p of candidates) {
+      try {
+        if (fs.existsSync(p)) {
+          return fs.readFileSync(p, 'utf-8')
+        }
+      } catch {}
+    }
+    return ''
+  })
+
   ipcMain.handle('open-external', (_, url: string) => {
     if (typeof url !== 'string') return
     try {

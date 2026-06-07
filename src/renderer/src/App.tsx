@@ -9,6 +9,7 @@ import { ExportModal } from './components/ExportModal'
 import { MessageModal, ModalType } from './components/MessageModal'
 import { ManualModal } from './components/ManualModal'
 import { AboutModal } from './components/AboutModal'
+import ChangelogModal from './components/ChangelogModal'
 import { StartDashboard } from './components/StartDashboard'
 import { SaveConfirmationModal } from './components/SaveConfirmationModal'
 import { UpdateModal } from './components/UpdateModal'
@@ -32,6 +33,7 @@ function App(): JSX.Element {
   const [showExport, setShowExport] = useState(false)
   const [showManual, setShowManual] = useState(false)
   const [showAbout, setShowAbout] = useState(false)
+  const [showChangelog, setShowChangelog] = useState(false)
   const [updateAvailable, setUpdateAvailable] = useState<any | null>(null)
   const [keyboardShortcuts, setKeyboardShortcuts] = useState<KeyboardShortcuts>(DEFAULT_KEYBOARD_SHORTCUTS)
   
@@ -439,6 +441,10 @@ function App(): JSX.Element {
        });
        return;
     }
+    if (type === 'SHOW_CHANGELOG') {
+      setShowChangelog(true)
+      return
+    }
     setTimelineAction({ type, payload });
     setTimeout(() => setTimelineAction(undefined), 100);
   }
@@ -682,6 +688,7 @@ function App(): JSX.Element {
       {showExport && <ExportModal onClose={() => setShowExport(false)} tracks={tracks} />}
       {showManual && <ManualModal onClose={() => setShowManual(false)} />}
       {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
+      {showChangelog && <ChangelogModal onClose={() => setShowChangelog(false)} />}
       {modalConfig && <MessageModal type={modalConfig.type} title={modalConfig.title} message={modalConfig.message} onClose={handleModalClose} />}
       
       {/* Premium Start Dashboard */}
