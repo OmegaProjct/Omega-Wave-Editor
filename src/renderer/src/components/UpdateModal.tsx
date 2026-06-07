@@ -18,6 +18,31 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
   const [progress, setProgress] = useState(0)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
+  const isPopout = new URLSearchParams(window.location.search).get('window') === 'update';
+
+  // Dynamically resize popout window to perfectly fit contents
+  useEffect(() => {
+    if (!isPopout) return;
+
+    const resizeToFit = () => {
+      const contentEl = document.getElementById('update-modal-content');
+      if (contentEl) {
+        const contentHeight = contentEl.scrollHeight;
+        const totalHeight = contentHeight + 40; // 40px safety padding for window titlebar / frames
+        console.log(`[UpdateModal] Dynamic content sizing: content(${contentHeight}) + pad(40) = ${totalHeight}px`);
+        try {
+          window.api.resizeWindow(720, Math.max(350, Math.min(850, totalHeight)));
+        } catch (e) {
+          console.warn('Failed to dynamically resize update window:', e);
+        }
+      }
+    };
+
+    // Run after DOM has settled, and also when step changes
+    const timer = setTimeout(resizeToFit, 150);
+    return () => clearTimeout(timer);
+  }, [isPopout, step]);
+
   // Download statistics state
   const [downloadedBytes, setDownloadedBytes] = useState<number | null>(null)
   const [totalBytes, setTotalBytes] = useState<number | null>(null)
@@ -223,9 +248,11 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
     }
   }
 
-  return (
-    <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-[5000] animate-in fade-in duration-200">
-      <div className="bg-[#24272c]/90 border border-gray-700/60 w-[720px] rounded-xl shadow-2xl overflow-hidden flex flex-col backdrop-blur-md">
+  const modalContent = (
+    <div 
+      id="update-modal-content"
+      className={`${isPopout ? 'w-full h-full min-h-screen' : 'w-[720px] max-h-[calc(100vh-40px)] rounded-xl shadow-2xl border border-gray-700/60'} bg-[#24272c]/90 overflow-hidden flex flex-col backdrop-blur-md`}
+    >
         
         {/* Header */}
         <div className="bg-[#1a1d21]/60 px-5 py-3.5 border-b border-gray-800/80 flex items-center justify-between">
@@ -241,7 +268,7 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
         </div>
 
         {/* Content */}
-        <div className="p-6 flex-1 flex flex-col items-center">
+        <div className="p-6 flex-1 flex flex-col items-center overflow-y-auto min-h-0 w-full custom-scrollbar">
           {step === 'prompt' && (
             <div className="flex flex-col items-center gap-4 w-full">
               <div className="h-16 w-16 bg-omega-accent/10 rounded-full flex items-center justify-center text-omega-accent shadow-lg shadow-omega-accent/5">
@@ -264,7 +291,10 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
                 </div>
                 
                 {/* Scrollable Changelog box */}
-                <div className="max-h-[380px] overflow-y-auto pr-2 leading-normal text-gray-200 custom-scrollbar select-text mt-2">
+                <div 
+                  className="overflow-y-auto pr-2 leading-normal text-gray-200 custom-scrollbar select-text mt-2"
+                  style={{ maxHeight: 'min(380px, calc(100vh - 380px))' }}
+                >
                   {renderFormattedChangelog(updateInfo.body || '')}
                 </div>
               </div>
@@ -317,13 +347,13 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
                 )}
               </div>
 
-              {/* Changelog readable during download */}
-              {updateInfo.body && (
-                <div className="w-full bg-[#16181b]/50 border border-gray-800/40 rounded-lg p-4 text-xs text-left text-gray-400 mt-3 flex flex-col gap-1.5 max-h-[240px] overflow-y-auto select-text shadow-inner">
+                <div 
+                  className="w-full bg-[#16181b]/50 border border-gray-800/40 rounded-lg p-4 text-xs text-left text-gray-400 mt-3 flex flex-col gap-1.5 overflow-y-auto select-text shadow-inner"
+                  style={{ maxHeight: 'min(240px, calc(100vh - 380px))' }}
+                >
                   <div className="text-[9px] uppercase font-bold text-gray-500 border-b border-gray-800/40 pb-1 mb-1.5 select-none">Was ist neu:</div>
-                  {renderFormattedChangelog(updateInfo.body)}
+                  {renderFormattedChangelog(updateInfo.body || '')}
                 </div>
-              )}
             </div>
           )}
 
@@ -340,13 +370,13 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
                 Möchtest du das Update jetzt installieren (die App wird sofort neu gestartet) oder soll die Installation erst beim nächsten Beenden der App ausgeführt werden?
               </p>
 
-              {/* Changelog viewable in Ready step */}
-              {updateInfo.body && (
-                <div className="w-full bg-[#16181b]/50 border border-gray-800/40 rounded-lg p-5 text-sm text-left text-gray-300 mt-3 flex flex-col gap-2 max-h-[220px] overflow-y-auto select-text shadow-inner">
+                <div 
+                  className="w-full bg-[#16181b]/50 border border-gray-800/40 rounded-lg p-5 text-sm text-left text-gray-305 mt-3 flex flex-col gap-2 overflow-y-auto custom-scrollbar select-text shadow-inner"
+                  style={{ maxHeight: 'min(220px, calc(100vh - 420px))' }}
+                >
                   <div className="text-[10px] uppercase font-bold text-gray-500 border-b border-gray-800/40 pb-1 mb-2 select-none">Neue Features in diesem Update:</div>
-                  {renderFormattedChangelog(updateInfo.body)}
+                  {renderFormattedChangelog(updateInfo.body || '')}
                 </div>
-              )}
             </div>
           )}
 
@@ -433,7 +463,16 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
           )}
         </div>
 
-      </div>
     </div>
-  )
+  );
+
+  if (isPopout) {
+    return modalContent;
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-[5000] animate-in fade-in duration-200">
+      {modalContent}
+    </div>
+  );
 }
