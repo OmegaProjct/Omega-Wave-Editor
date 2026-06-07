@@ -69,6 +69,7 @@ interface Window {
     startUpdateDownload: (payload: { url: string; latestVersion: string }) => Promise<{ success: boolean; error?: string; filePath?: string }>;
     cancelUpdateDownload: () => Promise<{ success: boolean }>;
     installUpdate: (payload: { installNow: boolean }) => Promise<{ success: boolean; error?: string; deferred?: boolean }>;
+    readChangelog: () => Promise<string>;
     onDownloadProgress: (callback: (data: any) => void) => () => void;
     getPerformanceStats: () => Promise<{ cpuUsage: number, processRamBytes: number, systemRamPct: number, systemCpuPct: number }>;
     getLocales: () => Promise<any>;

@@ -2,6 +2,20 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.8.18] - 2026-06-07
+
+### English
+
+#### Added
+- **Changelog Viewer**: Added a comprehensive in-app Changelog Viewer (`Help -> Changelog...`) displaying full historical updates with side-by-side versions, dates, localized language tabs (German 🇩🇪 / English 🇬🇧), custom category coloring (Added, Fixed, Changed, Removed), and inline Markdown styling.
+- **Embedded Changelog Resource**: Configured the build pipeline to embed the `CHANGELOG.md` inside production bundles, allowing the in-app viewer to read release history directly in packaged builds.
+
+### Deutsch
+
+#### Hinzugefügt
+- **Changelog-Viewer**: Implementierung einer vollständigen In-App-Changelog-Anzeige (`Hilfe -> Changelog...`), die alle historischen Updates mit Versionsliste, Datum, Sprachumschaltung (Deutsch 🇩🇪 / Englisch 🇬🇧), farbigen Kategorie-Etiketten und Inline-Markdown-Rendering darstellt.
+- **Eingebettete Changelog-Ressource**: Konfiguration des Build-Prozesses zur Einbettung der `CHANGELOG.md` in die Production-Builds, sodass der In-App-Changelog-Viewer die Versionshistorie in der gepackten Anwendung direkt auslesen kann.
+
 ## [0.8.17] - 2026-06-07
 
 ### English

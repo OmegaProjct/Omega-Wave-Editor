@@ -25,6 +25,7 @@ declare global {
       startUpdateDownload: (payload: { url: string, latestVersion: string }) => Promise<{ success: boolean, error?: string, filePath?: string }>
       cancelUpdateDownload: () => Promise<{ success: boolean }>
       installUpdate: (payload: { installNow: boolean }) => Promise<{ success: boolean, error?: string, deferred?: boolean }>
+      readChangelog: () => Promise<string>
       confirmClose: () => void
       onDownloadProgress: (callback: (data: any) => void) => () => void
       onCloseRequest: (callback: () => void) => () => void
