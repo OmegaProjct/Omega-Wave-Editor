@@ -63,6 +63,106 @@ export const REGION_COLORS: { label: string; value: string }[] = [
   { label: 'Dunkelblau', value: 'bg-blue-900' },
 ]
 
+function LiveWaveformCanvas({ duration, pixelsPerSecond }: { duration: number; pixelsPerSecond: number }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [halfWaveform, setHalfWaveform] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (window.api && typeof window.api.getSettings === 'function') {
+      window.api.getSettings().then((s: any) => {
+        if (s && typeof s.halfWaveform === 'boolean') {
+          setHalfWaveform(s.halfWaveform);
+        }
+      });
+    }
+
+    const handleSettingsUpdate = (e: any) => {
+      if (e.detail && typeof e.detail.halfWaveform === 'boolean') {
+        setHalfWaveform(e.detail.halfWaveform);
+      }
+    };
+    window.addEventListener('SETTINGS_UPDATED', handleSettingsUpdate as EventListener);
+    return () => {
+      window.removeEventListener('SETTINGS_UPDATED', handleSettingsUpdate as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    const width = rect.width;
+    const height = rect.height;
+
+    if (width === 0 || height === 0) return;
+
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    ctx.scale(dpr, dpr);
+
+    ctx.clearRect(0, 0, width, height);
+
+    let peaksHistory: number[] = [];
+    try {
+      const historyStr = localStorage.getItem('recording_peaks_history');
+      if (historyStr) {
+        peaksHistory = JSON.parse(historyStr);
+      }
+    } catch (e) {}
+
+    const centerY = height / 2;
+
+    if (peaksHistory.length === 0) {
+      ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      const baselineY = halfWaveform ? height * 0.95 : centerY;
+      ctx.moveTo(0, baselineY);
+      ctx.lineTo(width, baselineY);
+      ctx.stroke();
+      return;
+    }
+
+    const gradient = ctx.createLinearGradient(0, 0, 0, height);
+    gradient.addColorStop(0, '#f87171');
+    gradient.addColorStop(0.5, '#ef4444');
+    gradient.addColorStop(1, '#b91c1c');
+
+    ctx.strokeStyle = gradient;
+    ctx.lineWidth = 1.5;
+
+    ctx.beginPath();
+    const step = width / peaksHistory.length;
+    const boost = 2.5;
+
+    if (halfWaveform) {
+      const baseline = height * 0.95;
+      peaksHistory.forEach((peak, i) => {
+        const x = i * step;
+        const amplitude = Math.min(1.0, Math.max(0.03, peak * boost));
+        const drawHeight = amplitude * height * 0.90;
+        ctx.moveTo(x, baseline);
+        ctx.lineTo(x, baseline - drawHeight);
+      });
+    } else {
+      peaksHistory.forEach((peak, i) => {
+        const x = i * step;
+        const amplitude = Math.min(1.0, Math.max(0.03, peak * boost));
+        const drawHeight = amplitude * (height / 2) * 0.85;
+        ctx.moveTo(x, centerY - drawHeight);
+        ctx.lineTo(x, centerY + drawHeight);
+      });
+    }
+    ctx.stroke();
+  }, [duration, pixelsPerSecond, halfWaveform]);
+
+  return <canvas ref={canvasRef} className="w-full h-full opacity-90 pointer-events-none" />;
+}
+
 export type Track = {
   id: string
   index: number
@@ -124,7 +224,7 @@ export function Timeline({
   const [scrollTop, setScrollTop] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
-  const [showAudioRecording, setShowAudioRecording] = useState(false)
+
   const [vstRecording, setVstRecording] = useState<{ active: boolean; startTime: number; startPlayhead: number; pluginName: string } | null>(null);
   const [vstRecordingDuration, setVstRecordingDuration] = useState(0);
   const [audioRecording, setAudioRecording] = useState<{ active: boolean; startTime: number; startPlayhead: number } | null>(null);
@@ -531,6 +631,7 @@ export function Timeline({
   }, [tracks, updateTracksWithHistory]);
 
   const togglePlayback = useCallback(() => {
+    console.log('[Timeline] togglePlayback called. isPlaying:', isPlaying, 'startPos:', playheadPosRef.current);
     if (isPlaying) {
       const curTime = engine.currentTime
       engine.pause()
@@ -545,17 +646,18 @@ export function Timeline({
     } else {
       const startPos = playheadPosRef.current
       playbackStartPosRef.current = startPos
+      console.log('[Timeline] Calling engine.play. tracks count:', tracks?.length, 'startPos:', startPos);
       engine.play({ tracks }, startPos)
       setIsPlaying(true)
     }
   }, [isPlaying, engine, tracks, spacebarStops])
 
-  const handleSaveRecord = async (filePath: string, durationSec: number) => {
+  const handleSaveRecord = async (filePath: string, durationSec: number, startPos?: number) => {
     const filename = filePath.split(/[\\/]/).pop() || 'Aufnahme.wav';
     const newRegion: Region = {
       id: Math.random().toString(36).substr(2, 9),
       file: { name: filename, path: filePath, isDirectory: false },
-      startPos: playheadPos,
+      startPos: startPos !== undefined ? startPos : playheadPos,
       duration: durationSec,
       fileDuration: durationSec,
       sourceOffset: 0,
@@ -1138,6 +1240,7 @@ export function Timeline({
 
   useEffect(() => {
     const handleActionPlay = () => {
+      console.log('[Timeline] handleActionPlay (TIMELINE_ACTION_PLAY event received), triggering togglePlayback()');
       togglePlayback();
     };
     const handleActionStop = () => {
@@ -1417,6 +1520,8 @@ export function Timeline({
             if (isPlayingRefForMidi.current) {
               togglePlayback();
             }
+          } else if (parsed.action === 'toggle_daw') {
+            togglePlayback();
           }
         } catch (err) {
           console.error('Failed to parse vst_recording_action:', err);
@@ -1435,7 +1540,7 @@ export function Timeline({
               sourceOffset: 0,
               color: 'bg-red-600'
             };
-            updateTracksWithHistory(tracks.map((t, i) => i === 0 ? { ...t, regions: [...t.regions, newRegion] } : t));
+            updateTracksWithHistory(tracksRefForMidi.current.map((t, i) => i === 0 ? { ...t, regions: [...t.regions, newRegion] } : t));
             console.log('[Timeline] Imported recording from popout:', parsed.filePath);
           }
         } catch (err) {
@@ -1444,9 +1549,49 @@ export function Timeline({
       }
     };
 
+    const handleAudioRecordStart = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const detail = customEvent.detail || {};
+      setAudioRecording(prev => {
+        if (prev?.active) return prev;
+        const currentPlayhead = playheadPosRef.current;
+        return {
+          active: true,
+          startTime: detail.startTime || Date.now(),
+          startPlayhead: currentPlayhead
+        };
+      });
+    };
+
+    const handleAudioRecordStop = () => {
+      setAudioRecording(null);
+      setAudioRecordingDuration(0);
+    };
+
+    const handleAudioRecordAction = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const detail = customEvent.detail || {};
+      if (detail.action === 'play_daw') {
+        if (!isPlayingRefForMidi.current) {
+          togglePlayback();
+        }
+      } else if (detail.action === 'stop_daw') {
+        if (isPlayingRefForMidi.current) {
+          togglePlayback();
+        }
+      }
+    };
+
     window.addEventListener('storage', handleStorage);
+    window.addEventListener('AUDIO_RECORD_START', handleAudioRecordStart);
+    window.addEventListener('AUDIO_RECORD_STOP', handleAudioRecordStop);
+    window.addEventListener('AUDIO_RECORD_ACTION', handleAudioRecordAction);
+
     return () => {
       window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('AUDIO_RECORD_START', handleAudioRecordStart);
+      window.removeEventListener('AUDIO_RECORD_STOP', handleAudioRecordStop);
+      window.removeEventListener('AUDIO_RECORD_ACTION', handleAudioRecordAction);
     };
   }, [togglePlayback]);
 
@@ -1469,7 +1614,7 @@ export function Timeline({
     };
 
     const handleMidiRecord = () => {
-      setShowAudioRecording(true);
+      window.api.openPopoutWindow('audio-recorder', { width: 600, height: 520, title: '🔴 Audio-Aufnahme' });
     };
 
     const handleMidiTrackVolume = (payload?: any) => {
@@ -1896,13 +2041,7 @@ export function Timeline({
     <div className="flex flex-col h-full bg-[#1e2124] text-omega-text select-none overflow-hidden relative font-sans text-[13px]" onClick={handleTimelineClick}>
       {showCleaning && <AudioCleaningModal onClose={() => setShowCleaning(false)} trackId={selectedTrack?.id} />}
       {showProperties && <ObjectPropertiesModal onClose={() => setShowProperties(false)} region={selectedRegion} />}
-      {showAudioRecording && (
-        <AudioRecordingModal
-          onClose={() => setShowAudioRecording(false)}
-          onSaveRecord={handleSaveRecord}
-          playheadPos={playheadPos}
-        />
-      )}
+
 
       {contextMenu && (
         <div className="fixed bg-[#e5e5e5] text-black border border-gray-400 shadow-lg py-1 z-[9999] text-xs w-56 flex flex-col" style={{ top: contextMenu.y, left: contextMenu.x }} onClick={(e) => e.stopPropagation()}>
@@ -2111,7 +2250,7 @@ export function Timeline({
         </div>
         <div className="flex gap-1 text-gray-400 border-r border-gray-700 pr-2">
             <button 
-              title="Audioaufnahme (Popout)" 
+              title="Audioaufnahme" 
               className={`p-1.5 rounded transition-all ${audioRecording?.active ? 'text-red-500 animate-pulse bg-red-500/20 shadow-[0_0_8px_rgba(239,68,68,0.5)] border border-red-500/30' : 'hover:bg-gray-700 text-gray-400'}`} 
               onClick={() => {
                 window.api.openPopoutWindow('audio-recorder', { width: 600, height: 520, title: '🔴 Audio-Aufnahme' });
@@ -2201,9 +2340,6 @@ export function Timeline({
         {/* ── Timecode-Ruler ───────────────────────────────────────────────────── */}
         <div className="h-8 border-b border-omega-border flex items-center bg-[#1a1d21] z-[130] relative">
            <div className="w-32 h-full flex-shrink-0 bg-omega-panel border-r border-omega-border flex items-center justify-end px-3 gap-2 shadow-[2px_0_5px_rgba(0,0,0,0.3)] z-[160]">
-              <Unlock size={12} className="text-gray-500" />
-              <Zap size={12} className="text-gray-500" />
-              <ChevronDown size={12} className="text-gray-500" />
            </div>
            <div
              ref={rulerRef}
@@ -2607,21 +2743,7 @@ export function Timeline({
                               🔴 LIVE-AUFNAHME ({vstRecording.pluginName})
                             </div>
                             <div className="flex-1 bg-red-950/30 relative overflow-hidden">
-                              <div className="absolute inset-0 flex items-center">
-                                {(() => {
-                                  const clipW = vstRecordingDuration * pixelsPerSecond;
-                                  const barW = 2;
-                                  const gap = 1;
-                                  const count = Math.min(Math.floor(clipW / (barW + gap)), 600);
-                                  const bars = [];
-                                  for (let i = 0; i < count; i++) {
-                                    const seed = Math.abs(Math.sin(i * 0.15)) * 0.55 + Math.abs(Math.cos(i * 0.05)) * 0.35;
-                                    const h = Math.max(10, seed * 80);
-                                    bars.push(<div key={i} style={{ width: barW, height: `${h}%`, marginRight: gap, flexShrink: 0 }} className="bg-red-500/70 rounded-sm" />);
-                                  }
-                                  return bars;
-                                })()}
-                              </div>
+                              <LiveWaveformCanvas duration={vstRecordingDuration} pixelsPerSecond={pixelsPerSecond} />
                             </div>
                           </div>
                         )}
@@ -2637,21 +2759,7 @@ export function Timeline({
                               🔴 AUDIO-AUFNAHME
                             </div>
                             <div className="flex-1 bg-red-950/30 relative overflow-hidden">
-                              <div className="absolute inset-0 flex items-center">
-                                {(() => {
-                                  const clipW = audioRecordingDuration * pixelsPerSecond;
-                                  const barW = 2;
-                                  const gap = 1;
-                                  const count = Math.min(Math.floor(clipW / (barW + gap)), 600);
-                                  const bars = [];
-                                  for (let i = 0; i < count; i++) {
-                                    const seed = Math.abs(Math.sin(i * 0.15)) * 0.55 + Math.abs(Math.cos(i * 0.05)) * 0.35;
-                                    const h = Math.max(10, seed * 80);
-                                    bars.push(<div key={i} style={{ width: barW, height: `${h}%`, marginRight: gap, flexShrink: 0 }} className="bg-red-500/70 rounded-sm" />);
-                                  }
-                                  return bars;
-                                })()}
-                              </div>
+                              <LiveWaveformCanvas duration={audioRecordingDuration} pixelsPerSecond={pixelsPerSecond} />
                             </div>
                           </div>
                         )}

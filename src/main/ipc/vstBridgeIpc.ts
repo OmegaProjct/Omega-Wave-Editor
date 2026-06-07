@@ -1,7 +1,7 @@
 import { ipcMain, BrowserWindow, screen } from 'electron'
 import { VstHost } from '../vstBridge/VstHostAddon'
 
-let editorWindow: BrowserWindow | null = null
+const editorWindows = new Map<number, BrowserWindow>()
 
 export function setupVstBridgeIpc(): void {
   // Load Plugin
@@ -16,67 +16,68 @@ export function setupVstBridgeIpc(): void {
   })
 
   // Set Shared Array Buffers
-  ipcMain.handle('vst-set-shared-buffer', async (_, inputSAB: SharedArrayBuffer, outputSAB: SharedArrayBuffer, midiSAB: SharedArrayBuffer) => {
+  ipcMain.handle('vst-set-shared-buffer', async (_, instanceId: number, inputSAB: SharedArrayBuffer, outputSAB: SharedArrayBuffer, midiSAB: SharedArrayBuffer) => {
     try {
-      console.log('IPC Request: vst-set-shared-buffer')
-      VstHost.setSharedBuffer(inputSAB, outputSAB, midiSAB)
+      console.log(`IPC Request: vst-set-shared-buffer for instance ${instanceId}`)
+      VstHost.setSharedBuffer(instanceId, inputSAB, outputSAB, midiSAB)
       return { success: true }
     } catch (err: any) {
-      console.error('IPC Error: vst-set-shared-buffer failed:', err)
+      console.error(`IPC Error: vst-set-shared-buffer failed for instance ${instanceId}:`, err)
       throw err
     }
   })
 
   // Start Audio Thread
-  ipcMain.handle('vst-start-audio', async (_, sampleRate: number, blockSize: number) => {
+  ipcMain.handle('vst-start-audio', async (_, instanceId: number, sampleRate: number, blockSize: number) => {
     try {
-      console.log(`IPC Request: vst-start-audio (sampleRate: ${sampleRate}, blockSize: ${blockSize})`)
-      VstHost.startAudioThread(sampleRate, blockSize)
+      console.log(`IPC Request: vst-start-audio (instanceId: ${instanceId}, sampleRate: ${sampleRate}, blockSize: ${blockSize})`)
+      VstHost.startAudioThread(instanceId, sampleRate, blockSize)
       return { success: true }
     } catch (err: any) {
-      console.error('IPC Error: vst-start-audio failed:', err)
+      console.error(`IPC Error: vst-start-audio failed for instance ${instanceId}:`, err)
       throw err
     }
   })
 
   // Stop Audio Thread
-  ipcMain.handle('vst-stop-audio', async () => {
+  ipcMain.handle('vst-stop-audio', async (_, instanceId: number) => {
     try {
-      console.log('IPC Request: vst-stop-audio')
-      VstHost.stopAudioThread()
+      console.log(`IPC Request: vst-stop-audio for instance ${instanceId}`)
+      VstHost.stopAudioThread(instanceId)
       return { success: true }
     } catch (err: any) {
-      console.error('IPC Error: vst-stop-audio failed:', err)
+      console.error(`IPC Error: vst-stop-audio failed for instance ${instanceId}:`, err)
       throw err
     }
   })
 
   // Get Parameters
-  ipcMain.handle('vst-get-params', async () => {
+  ipcMain.handle('vst-get-params', async (_, instanceId: number) => {
     try {
-      return VstHost.getParams()
+      return VstHost.getParams(instanceId)
     } catch (err: any) {
-      console.error('IPC Error: vst-get-params failed:', err)
+      console.error(`IPC Error: vst-get-params failed for instance ${instanceId}:`, err)
       throw err
     }
   })
 
   // Set Parameter
-  ipcMain.handle('vst-set-param', async (_, index: number, value: number) => {
+  ipcMain.handle('vst-set-param', async (_, instanceId: number, index: number, value: number) => {
     try {
-      VstHost.setParam(index, value)
+      VstHost.setParam(instanceId, index, value)
       return { success: true }
     } catch (err: any) {
-      console.error('IPC Error: vst-set-param failed:', err)
+      console.error(`IPC Error: vst-set-param failed for instance ${instanceId}:`, err)
       throw err
     }
   })
 
   // Open Native VST Editor Window
-  ipcMain.handle('vst-open-editor', async (event) => {
+  ipcMain.handle('vst-open-editor', async (event, instanceId: number) => {
     try {
-      console.log('IPC Request: vst-open-editor')
+      console.log(`IPC Request: vst-open-editor for instance ${instanceId}`)
       
+      let editorWindow = editorWindows.get(instanceId)
       if (editorWindow) {
         editorWindow.focus()
         return { success: true }
@@ -105,7 +106,7 @@ export function setupVstBridgeIpc(): void {
         resizable: true,
         minimizable: false,
         maximizable: true,
-        title: 'Plugin Editor',
+        title: `Plugin Editor (Instance ${instanceId})`,
         autoHideMenuBar: true,
         x: rx,
         y: ry + rh,
@@ -115,6 +116,8 @@ export function setupVstBridgeIpc(): void {
         }
       })
 
+      editorWindows.set(instanceId, editorWindow)
+
       // Load a blank page and wait a small duration for Chromium's native widgets to instantiate.
       // This ensures the C++ EnumChildWindows call will successfully find and hide the Chrome widgets.
       await editorWindow.loadURL('about:blank')
@@ -122,7 +125,7 @@ export function setupVstBridgeIpc(): void {
 
       // We call openEditor, passing the raw native window pointer buffer (HWND on Windows)
       const nativeHandle = editorWindow.getNativeWindowHandle()
-      const preferredSize = VstHost.openEditor(nativeHandle)
+      const preferredSize = VstHost.openEditor(instanceId, nativeHandle)
       
       let preferredWidth = rw
       let preferredHeight = 450
@@ -141,6 +144,25 @@ export function setupVstBridgeIpc(): void {
       // Show immediately since VST fills it natively
       editorWindow.show()
 
+      // Intercept Spacebar inside the VST editor popout windows to toggle DAW playback
+      const handleBeforeInput = (e: any, input: any) => {
+        if (input.key === ' ' && input.type === 'keyDown') {
+          console.log('[IPC] Space key detected in VST popout, toggling DAW playback');
+          const mainWin = BrowserWindow.getAllWindows().find(w => {
+            const url = w.webContents.getURL();
+            return !url.includes('window=');
+          });
+          if (mainWin) {
+            mainWin.webContents.send('seek-timeline', -999);
+          }
+        }
+      }
+
+      if (senderWindow) {
+        senderWindow.webContents.on('before-input-event', handleBeforeInput)
+      }
+      editorWindow.webContents.on('before-input-event', handleBeforeInput)
+
       // 🧲 BIDIRECTIONAL MAGNETIC LOCK (Unified Snapping)
       const syncPositions = () => {
         if (!editorWindow || !senderWindow || editorWindow.isDestroyed() || senderWindow.isDestroyed()) return
@@ -156,7 +178,7 @@ export function setupVstBridgeIpc(): void {
         // Smoothly resize the embedded native VST editor child window
         try {
           const contentBounds = editorWindow.getContentBounds()
-          VstHost.resizeEditor(contentBounds.width, contentBounds.height)
+          VstHost.resizeEditor(instanceId, contentBounds.width, contentBounds.height)
         } catch (err) {
           console.warn('Failed to resize VST native editor:', err)
         }
@@ -188,12 +210,15 @@ export function setupVstBridgeIpc(): void {
       }
 
       editorWindow.on('closed', () => {
-        try {
-          VstHost.closeEditor()
-        } catch (err) {
-          console.error('Failed to close VST editor native resources:', err)
+        if (senderWindow && !senderWindow.isDestroyed()) {
+          senderWindow.webContents.off('before-input-event', handleBeforeInput)
         }
-        editorWindow = null
+        try {
+          VstHost.closeEditor(instanceId)
+        } catch (err) {
+          console.error(`Failed to close VST editor native resources for instance ${instanceId}:`, err)
+        }
+        editorWindows.delete(instanceId)
 
         // Cleanup magnetic listeners and close React control window as well
         if (senderWindow && !senderWindow.isDestroyed()) {
@@ -203,42 +228,45 @@ export function setupVstBridgeIpc(): void {
         }
 
         // Notify the renderer that the editor window has been closed
-        event.sender.send('vst-editor-closed')
+        event.sender.send('vst-editor-closed', instanceId)
       })
 
       return { success: true }
     } catch (err: any) {
-      console.error('IPC Error: vst-open-editor failed:', err)
+      console.error(`IPC Error: vst-open-editor failed for instance ${instanceId}:`, err)
       throw err
     }
   })
 
   // Close Editor Window
-  ipcMain.handle('vst-close-editor', async () => {
+  ipcMain.handle('vst-close-editor', async (_, instanceId: number) => {
     try {
-      console.log('IPC Request: vst-close-editor')
+      console.log(`IPC Request: vst-close-editor for instance ${instanceId}`)
+      const editorWindow = editorWindows.get(instanceId)
       if (editorWindow) {
         editorWindow.close()
       }
       return { success: true }
     } catch (err: any) {
-      console.error('IPC Error: vst-close-editor failed:', err)
+      console.error(`IPC Error: vst-close-editor failed for instance ${instanceId}:`, err)
       throw err
     }
   })
 
   // Unload Plugin
-  ipcMain.handle('vst-unload-plugin', async () => {
+  ipcMain.handle('vst-unload-plugin', async (_, instanceId: number) => {
     try {
-      console.log('IPC Request: vst-unload-plugin')
-      VstHost.unloadPlugin()
+      console.log(`IPC Request: vst-unload-plugin for instance ${instanceId}`)
+      VstHost.unloadPlugin(instanceId)
+      const editorWindow = editorWindows.get(instanceId)
       if (editorWindow) {
         editorWindow.close()
       }
       return { success: true }
     } catch (err: any) {
-      console.error('IPC Error: vst-unload-plugin failed:', err)
+      console.error(`IPC Error: vst-unload-plugin failed for instance ${instanceId}:`, err)
       throw err
     }
   })
 }
+

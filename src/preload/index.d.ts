@@ -39,16 +39,16 @@ declare global {
       scanVstPlugins: () => Promise<any[]>
       
       // VST Bridge Pro (v0.8.0 / v0.8.9)
-      loadVstPlugin: (path: string) => Promise<{ name: string; vendor: string; numParams: number; numInputs: number; numOutputs: number; uniqueId: number; hasEditor: boolean }>
-      vstSetSharedBuffer: (inputSAB: SharedArrayBuffer, outputSAB: SharedArrayBuffer, midiSAB: SharedArrayBuffer) => Promise<{ success: boolean }>
-      vstStartAudio: (sampleRate: number, blockSize: number) => Promise<{ success: boolean }>
-      vstStopAudio: () => Promise<{ success: boolean }>
-      getVstParams: () => Promise<any[]>
-      setVstParam: (index: number, value: number) => Promise<{ success: boolean }> | void
-      openVstEditor: () => Promise<{ success: boolean }>
-      closeVstEditor: () => Promise<{ success: boolean }>
-      unloadVstPlugin: () => Promise<{ success: boolean }>
-      onVstEditorClosed: (callback: () => void) => () => void
+      loadVstPlugin: (path: string) => Promise<{ instanceId: number; name: string; vendor: string; numParams: number; numInputs: number; numOutputs: number; uniqueId: number; hasEditor: boolean }>
+      vstSetSharedBuffer: (instanceId: number, inputSAB: SharedArrayBuffer, outputSAB: SharedArrayBuffer, midiSAB: SharedArrayBuffer) => Promise<{ success: boolean }>
+      vstStartAudio: (instanceId: number, sampleRate: number, blockSize: number) => Promise<{ success: boolean }>
+      vstStopAudio: (instanceId: number) => Promise<{ success: boolean }>
+      getVstParams: (instanceId: number) => Promise<any[]>
+      setVstParam: (instanceId: number, index: number, value: number) => Promise<{ success: boolean }> | void
+      openVstEditor: (instanceId: number) => Promise<{ success: boolean }>
+      closeVstEditor: (instanceId: number) => Promise<{ success: boolean }>
+      unloadVstPlugin: (instanceId: number) => Promise<{ success: boolean }>
+      onVstEditorClosed: (callback: (instanceId: number) => void) => () => void
       onVstNativeEditorClosed: (callback: () => void) => () => void
       
       getAsioDrivers: () => Promise<any[]>

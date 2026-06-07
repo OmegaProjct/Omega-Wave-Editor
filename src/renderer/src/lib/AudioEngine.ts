@@ -153,7 +153,8 @@ type TrackNode = {
   delayGain: GainNode;
   deEsser: BiquadFilterNode;
   output: GainNode;
-  vstPluginInstanceId?: string;
+  vstPluginInstanceId?: number;
+  vstPluginPath?: string;
   vstNode?: AudioWorkletNode;
   vstInputSAB?: SharedArrayBuffer;
   vstOutputSAB?: SharedArrayBuffer;
@@ -571,36 +572,59 @@ export class AudioEngine {
   }
 
   public async play(project: { tracks: any[] }, startTime: number = 0) {
-    if (this.ctx.state === 'suspended') await this.ctx.resume();
+    console.log('[AudioEngine] play() called. startTime:', startTime, 'ctx state:', this.ctx?.state);
 
-    // 1. Preload any unloaded regions currently overlapping with the starting playhead area
-    const filesToLoad: string[] = [];
-    project.tracks.forEach(t => {
-      t.regions.forEach((r: any) => {
-        if (r.file && r.file.path && !this.buffers.has(r.file.path)) {
-          const regionStart = r.startPos;
-          const regionEnd = r.startPos + r.duration;
-          // Preload files within play window (starting 2s before to 5s after the current playhead)
-          const isNeededNow = startTime >= regionStart - 2 && startTime <= regionEnd + 5;
-          if (isNeededNow) {
-            filesToLoad.push(r.file.path);
+    this.isPlaying = true; // Set synchronously before any awaits to prevent React stale state race conditions (e.g. during preloading)
+    this.startTime = this.ctx.currentTime - startTime;
+    this.pauseTime = startTime;
+
+    try {
+      // 1. Preload any unloaded regions currently overlapping with the starting playhead area
+      const filesToLoad: string[] = [];
+      project.tracks.forEach(t => {
+        t.regions.forEach((r: any) => {
+          if (r.file && r.file.path && !this.buffers.has(r.file.path)) {
+            const regionStart = r.startPos;
+            const regionEnd = r.startPos + r.duration;
+            // Preload files within play window (starting 2s before to 5s after the current playhead)
+            const isNeededNow = startTime >= regionStart - 2 && startTime <= regionEnd + 5;
+            if (isNeededNow) {
+              filesToLoad.push(r.file.path);
+            }
           }
-        }
+        });
       });
-    });
 
-    if (filesToLoad.length > 0) {
-      console.log(`[AudioEngine] Immediate preloading ${filesToLoad.length} files to prevent silence:`, filesToLoad);
-      await Promise.all(filesToLoad.map(fp => this.loadFile(fp).catch(err => {
-        console.warn(`[AudioEngine] Immediate preloading failed for ${fp}:`, err.message);
-      })));
+      if (filesToLoad.length > 0) {
+        console.log(`[AudioEngine] Immediate preloading ${filesToLoad.length} files to prevent silence:`, filesToLoad);
+        await Promise.all(filesToLoad.map(fp => this.loadFile(fp).catch(err => {
+          console.warn(`[AudioEngine] Immediate preloading failed for ${fp}:`, err.message);
+        })));
+      }
+
+      this.stop(); // Always destroy previous state to prevent layering
+      this.isPlaying = true; // Restore to true since stop() sets it to false synchronously
+      this.startTime = this.ctx.currentTime - startTime;
+      this.pauseTime = startTime;
+
+      if (this.ctx.state === 'suspended') {
+        try {
+          await this.ctx.resume();
+          console.log('[AudioEngine] ctx.resume() succeeded. new state:', this.ctx.state);
+          // Re-update startTime because the audio context's currentTime might have advanced or shifted when resuming
+          this.startTime = this.ctx.currentTime - startTime;
+        } catch (e) {
+          console.error('[AudioEngine] ctx.resume() failed:', e);
+          throw e;
+        }
+      }
+    } catch (e) {
+      this.isPlaying = false;
+      throw e;
     }
-
-    this.stop(); // Always destroy previous state to prevent layering
     this.currentProject = project;
     this.startTime = this.ctx.currentTime - startTime;
     this.pauseTime = startTime;
-    this.isPlaying = true;
     this.activeRegions.clear();
 
     this.manageSlidingWindowCache();
@@ -921,46 +945,16 @@ export class AudioEngine {
 
     this.activeRegions.forEach(nodes => {
       nodes.forEach(node => {
+        try { node.source.stop(); } catch {}
         if (node.pitchShifter) node.pitchShifter.stop();
       });
     });
 
-    this.ctx.close();
-    this.ctx = new AudioContext();
-    this.masterGain = this.ctx.createGain();
-    this.masterGain.gain.value = this.masterVolumeValue; // Restore persistent master volume!
-    this.masterLimiter = this.ctx.createDynamicsCompressor();
-    this.masterAnalyser = this.ctx.createAnalyser();
-    
-    this.masterLimiter.threshold.value = -0.1;
-    this.masterLimiter.knee.value = 0.0;
-    this.masterLimiter.ratio.value = 20.0;
-    this.masterLimiter.attack.value = 0.005;
-    this.masterLimiter.release.value = 0.050;
-
-    this.masterAnalyser.fftSize = 256;
-    
-    this.masterGain.connect(this.masterLimiter);
-    this.masterLimiter.connect(this.masterAnalyser);
-    this.masterAnalyser.connect(this.ctx.destination);
-    
-    // Restore dynamic audio output selection
-    if (this.activeDeviceId && this.activeDeviceId !== 'default') {
-      if ((this.ctx as any).setSinkId) {
-        (this.ctx as any).setSinkId(this.activeDeviceId).catch((e: any) => {
-          console.error('Failed to restore output device sink ID:', e);
-        });
-      }
-    }
-
     this.isDucked = false;
-    this.originalMasterVolume = this.masterVolumeValue; // Ducking should restore user master volume
+    this.originalMasterVolume = this.masterVolumeValue;
     this.tracks.clear();
     this.activeRegions.clear();
 
-    // Sicherstellen: der neue AudioContext bleibt im Ruhezustand, bis play() explizit aufgerufen wird.
-    // In Electron startet ein neuer AudioContext direkt im 'running' State, was zu unerwartetem
-    // Audio-Abspielen führen kann (z.B. bei Gerätewechsel in den Einstellungen).
     if (this.ctx.state === 'running') {
       this.ctx.suspend().catch(() => {});
     }
@@ -1815,30 +1809,17 @@ export class AudioEngine {
       if (!dllPath || dllPath.trim() === '') {
         throw new Error('Plugin-Pfad darf nicht leer sein oder nur aus Leerzeichen bestehen.');
       }
-      if (!dllPath.toLowerCase().endsWith('.dll')) {
-        throw new Error(`Plugin-Datei '${dllPath}' wird unter Windows nicht unterstützt (nur '.dll' erlaubt).`);
+      if (!dllPath.toLowerCase().endsWith('.dll') && !dllPath.toLowerCase().endsWith('.vst3')) {
+        throw new Error(`Plugin-Datei '${dllPath}' wird unter Windows nicht unterstützt.`);
       }
 
       const track = this.tracks.get(trackId);
       if (!track) return;
 
-      // 1. Zuerst alle anderen Spuren nach geladenen realen VST-Plugins durchsuchen
-      // und diese sauber entladen (Global Singleton Guardrail).
-      for (const [otherTrackId, otherTrack] of this.tracks.entries()) {
-        if (otherTrackId !== trackId && otherTrack.vstPluginInstanceId) {
-          console.warn(`[AudioEngine] Globales Singleton-Limit: Entlade VST von Spur ${otherTrackId} vor dem Laden auf Spur ${trackId}`);
-          try {
-            await this.executeUnmount(otherTrackId);
-          } catch (err) {
-            console.error(`[AudioEngine] Fehler beim Entladen des VSTs von Spur ${otherTrackId}:`, err);
-          }
-        }
-      }
-
-      // 2. Das Plugin auf der aktuellen Spur entladen, falls bereits eines geladen war.
+      // Das Plugin auf der aktuellen Spur entladen, falls bereits eines geladen war.
       await this.executeUnmount(trackId);
 
-      // 3. Jetzt das neue Plugin laden.
+      // Jetzt das neue Plugin laden.
       console.log(`Mounting VST plugin on track ${trackId}: ${dllPath}`);
       const info = await window.api.loadVstPlugin(dllPath);
       if (!info) throw new Error('Failed to load plugin');
@@ -1865,8 +1846,8 @@ export class AudioEngine {
       midiArr[1] = 0;
       midiArr[2] = midiCapacity;
       
-      await window.api.vstSetSharedBuffer(inputSAB, outputSAB, midiSAB);
-      await window.api.vstStartAudio(this.ctx.sampleRate, 128);
+      await window.api.vstSetSharedBuffer(info.instanceId, inputSAB, outputSAB, midiSAB);
+      await window.api.vstStartAudio(info.instanceId, this.ctx.sampleRate, 128);
       
       if (!this.vstWorkletLoaded) {
         const code = `
@@ -1978,7 +1959,8 @@ registerProcessor('omega-vst-bridge', OmegaVstBridgeProcessor);
       vstNode.connect(track.reverb);
       vstNode.connect(track.delay);
       
-      track.vstPluginInstanceId = dllPath;
+      track.vstPluginInstanceId = info.instanceId;
+      track.vstPluginPath = dllPath;
       track.vstNode = vstNode;
       track.vstInputSAB = inputSAB;
       track.vstOutputSAB = outputSAB;
@@ -1987,7 +1969,27 @@ registerProcessor('omega-vst-bridge', OmegaVstBridgeProcessor);
       const { MidiEngine } = await import('./MidiEngine');
       MidiEngine.setLiveVstNode(vstNode);
       
-      console.log(`VST plugin ${dllPath} successfully mounted and routed on track ${trackId}`);
+      // Update instanceId in localStorage for editor access
+      const savedRack = localStorage.getItem('vst_rack_plugins');
+      if (savedRack) {
+        try {
+          const rack = JSON.parse(savedRack);
+          if (Array.isArray(rack)) {
+            const updated = rack.map((p: any) => {
+              if (p.path === dllPath) {
+                return { ...p, instanceId: info.instanceId, hasEditor: info.hasEditor };
+              }
+              return p;
+            });
+            localStorage.setItem('vst_rack_plugins', JSON.stringify(updated));
+            localStorage.setItem('vst_rack_updated_trigger', Date.now().toString());
+          }
+        } catch (e) {
+          console.warn('Failed to sync VST instance info to localStorage:', e);
+        }
+      }
+      
+      console.log(`VST plugin ${dllPath} successfully mounted and routed on track ${trackId} with instance ${info.instanceId}`);
     } catch (err) {
       console.error(`Failed to mount VST plugin:`, err);
     } finally {
@@ -2020,9 +2022,11 @@ registerProcessor('omega-vst-bridge', OmegaVstBridgeProcessor);
     if (!track || !track.vstNode) return;
     
     try {
-      console.log(`Unmounting VST plugin on track ${trackId}`);
-      await window.api.vstStopAudio();
-      await window.api.unloadVstPlugin();
+      console.log(`Unmounting VST plugin on track ${trackId} (instance ${track.vstPluginInstanceId})`);
+      if (track.vstPluginInstanceId !== undefined) {
+        await window.api.vstStopAudio(track.vstPluginInstanceId);
+        await window.api.unloadVstPlugin(track.vstPluginInstanceId);
+      }
       
       track.compressor.disconnect();
       track.vstNode.disconnect();
@@ -2033,6 +2037,7 @@ registerProcessor('omega-vst-bridge', OmegaVstBridgeProcessor);
       
       track.vstNode = undefined;
       track.vstPluginInstanceId = undefined;
+      track.vstPluginPath = undefined;
       track.vstInputSAB = undefined;
       track.vstOutputSAB = undefined;
       track.vstMidiSAB = undefined;

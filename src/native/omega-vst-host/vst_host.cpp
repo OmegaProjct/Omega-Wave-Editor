@@ -19,10 +19,16 @@ typedef AEffect* (VSTCALLBACK *PluginEntryProc)(audioMasterCallback audioMaster)
 typedef void* HINSTANCE;
 #endif
 
-// Global Plugin Host State
-struct PluginState {
+#include <unordered_map>
+#include <mutex>
+
+// Dynamic Plugin Instance State
+struct PluginInstance {
+    int32_t id = 0;
+    std::string format;
     HINSTANCE libraryInstance = nullptr;
     AEffect* effect = nullptr;
+    void* vst3Factory = nullptr;
     
     // SAB Audio & MIDI Queues
     float* inputSAB = nullptr;
@@ -40,7 +46,30 @@ struct PluginState {
     
     // HWND of the editor window
     void* parentWindowHandle = nullptr;
-} g_state;
+};
+
+// Global Registry
+std::unordered_map<int32_t, PluginInstance*> g_instances;
+std::unordered_map<AEffect*, PluginInstance*> g_effectToInstanceMap;
+std::mutex g_instancesMutex;
+std::atomic<int32_t> g_nextInstanceId{1};
+
+// Helper to look up instances securely
+PluginInstance* GetInstance(const Napi::CallbackInfo& info, int argIndex = 0) {
+    Napi::Env env = info.Env();
+    if (info.Length() <= argIndex || !info[argIndex].IsNumber()) {
+        Napi::TypeError::New(env, "Number expected for instanceId").ThrowAsJavaScriptException();
+        return nullptr;
+    }
+    int32_t instanceId = info[argIndex].As<Napi::Number>().Int32Value();
+    std::lock_guard<std::mutex> lock(g_instancesMutex);
+    auto it = g_instances.find(instanceId);
+    if (it == g_instances.end()) {
+        Napi::Error::New(env, "Plugin instance not found for ID: " + std::to_string(instanceId)).ThrowAsJavaScriptException();
+        return nullptr;
+    }
+    return it->second;
+}
 
 // Default Audio Master Callback
 intptr_t VSTCALLBACK HostAudioMasterCallback(AEffect* effect, int32_t opcode, int32_t index, intptr_t value, void* ptr, float opt) {
@@ -51,6 +80,76 @@ intptr_t VSTCALLBACK HostAudioMasterCallback(AEffect* effect, int32_t opcode, in
             break;
     }
     return 0;
+}
+
+// VST3 Backend Path
+Napi::Value LoadVst3Plugin(Napi::Env env, PluginInstance* inst, const std::string& path) {
+    std::string dllPath = path;
+    
+    #ifdef _WIN32
+    DWORD fileAttr = GetFileAttributesA(path.c_str());
+    if (fileAttr != INVALID_FILE_ATTRIBUTES && (fileAttr & FILE_ATTRIBUTE_DIRECTORY)) {
+        size_t lastSlash = path.find_last_of("\\/");
+        std::string folderName = (lastSlash == std::string::npos) ? path : path.substr(lastSlash + 1);
+        if (folderName.size() > 5 && folderName.substr(folderName.size() - 5) == ".vst3") {
+            folderName = folderName.substr(0, folderName.size() - 5);
+        }
+        
+        std::string possiblePath1 = path + "\\Contents\\x86_64-win\\" + folderName + ".vst3";
+        std::string possiblePath2 = path + "\\Contents\\x86_64-win\\" + folderName + ".dll";
+        
+        if (GetFileAttributesA(possiblePath1.c_str()) != INVALID_FILE_ATTRIBUTES) {
+            dllPath = possiblePath1;
+        } else if (GetFileAttributesA(possiblePath2.c_str()) != INVALID_FILE_ATTRIBUTES) {
+            dllPath = possiblePath2;
+        }
+    }
+    
+    std::wstring wpath(dllPath.begin(), dllPath.end());
+    inst->libraryInstance = LoadLibraryW(wpath.c_str());
+    if (!inst->libraryInstance) {
+        Napi::Error::New(env, "Failed to load VST3 binary: " + dllPath).ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    
+    auto getFactory = (void*(*)())GetProcAddress(inst->libraryInstance, "GetPluginFactory");
+    if (!getFactory) {
+        FreeLibrary(inst->libraryInstance);
+        inst->libraryInstance = nullptr;
+        Napi::Error::New(env, "Invalid VST3: GetPluginFactory not found").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    
+    inst->vst3Factory = getFactory();
+    inst->format = "VST3";
+    
+    // Assemble info object
+    Napi::Object result = Napi::Object::New(env);
+    result.Set("instanceId", Napi::Number::New(env, inst->id));
+    result.Set("name", Napi::String::New(env, "VST3 Plugin (Loaded)"));
+    result.Set("vendor", Napi::String::New(env, "VST3 Factory Verified"));
+    result.Set("numParams", Napi::Number::New(env, 0));
+    result.Set("numInputs", Napi::Number::New(env, 2));
+    result.Set("numOutputs", Napi::Number::New(env, 2));
+    result.Set("uniqueId", Napi::Number::New(env, 0));
+    result.Set("hasEditor", Napi::Boolean::New(env, false));
+    result.Set("format", Napi::String::New(env, "VST3"));
+    
+    return result;
+    #else
+    inst->format = "VST3";
+    Napi::Object result = Napi::Object::New(env);
+    result.Set("instanceId", Napi::Number::New(env, inst->id));
+    result.Set("name", Napi::String::New(env, "VST3 Unsupported Platform"));
+    result.Set("vendor", Napi::String::New(env, "None"));
+    result.Set("numParams", Napi::Number::New(env, 0));
+    result.Set("numInputs", Napi::Number::New(env, 0));
+    result.Set("numOutputs", Napi::Number::New(env, 0));
+    result.Set("uniqueId", Napi::Number::New(env, 0));
+    result.Set("hasEditor", Napi::Boolean::New(env, false));
+    result.Set("format", Napi::String::New(env, "VST3"));
+    return result;
+    #endif
 }
 
 // IPC Methods for Node.js
@@ -64,81 +163,92 @@ Napi::Value LoadPlugin(const Napi::CallbackInfo& info) {
     
     std::string path = info[0].As<Napi::String>().Utf8Value();
     
-    // Unload existing plugin if loaded
-    if (g_state.effect) {
-        if (g_state.audioThreadRunning) {
-            g_state.audioThreadRunning = false;
-            if (g_state.audioThread.joinable()) {
-                g_state.audioThread.join();
-            }
+    // Create new PluginInstance
+    PluginInstance* inst = new PluginInstance();
+    inst->id = g_nextInstanceId++;
+    
+    // Check if VST3
+    bool isVst3 = (path.find(".vst3") != std::string::npos);
+    if (isVst3) {
+        Napi::Value result = LoadVst3Plugin(env, inst, path);
+        if (result.IsNull() || env.IsExceptionPending()) {
+            delete inst;
+            return env.Null();
         }
-        g_state.effect->dispatcher(g_state.effect, effClose, 0, 0, nullptr, 0.0f);
-        g_state.effect = nullptr;
+        std::lock_guard<std::mutex> lock(g_instancesMutex);
+        g_instances[inst->id] = inst;
+        return result;
     }
     
     #ifdef _WIN32
-    if (g_state.libraryInstance) {
-        FreeLibrary(g_state.libraryInstance);
-        g_state.libraryInstance = nullptr;
-    }
-    
-    // Convert path to wide string for Windows API
     std::wstring wpath(path.begin(), path.end());
-    g_state.libraryInstance = LoadLibraryW(wpath.c_str());
+    inst->libraryInstance = LoadLibraryW(wpath.c_str());
     
-    if (!g_state.libraryInstance) {
+    if (!inst->libraryInstance) {
+        delete inst;
         Napi::Error::New(env, "Failed to load VST DLL library").ThrowAsJavaScriptException();
         return env.Null();
     }
     
-    PluginEntryProc mainProc = (PluginEntryProc)GetProcAddress(g_state.libraryInstance, "VSTPluginMain");
+    PluginEntryProc mainProc = (PluginEntryProc)GetProcAddress(inst->libraryInstance, "VSTPluginMain");
     if (!mainProc) {
-        // Fallback for older VSTs
-        mainProc = (PluginEntryProc)GetProcAddress(g_state.libraryInstance, "main");
+        mainProc = (PluginEntryProc)GetProcAddress(inst->libraryInstance, "main");
     }
     
     if (!mainProc) {
-        FreeLibrary(g_state.libraryInstance);
-        g_state.libraryInstance = nullptr;
+        FreeLibrary(inst->libraryInstance);
+        delete inst;
         Napi::Error::New(env, "Invalid VST DLL: VSTPluginMain entry point not found").ThrowAsJavaScriptException();
         return env.Null();
     }
     
-    g_state.effect = mainProc(HostAudioMasterCallback);
-    if (!g_state.effect || g_state.effect->magic != kEffectMagic) {
-        FreeLibrary(g_state.libraryInstance);
-        g_state.libraryInstance = nullptr;
-        g_state.effect = nullptr;
+    inst->effect = mainProc(HostAudioMasterCallback);
+    if (!inst->effect || inst->effect->magic != kEffectMagic) {
+        FreeLibrary(inst->libraryInstance);
+        delete inst;
         Napi::Error::New(env, "VST initialization failed (magic mismatch)").ThrowAsJavaScriptException();
         return env.Null();
     }
     
-    // Initialize plugin
-    g_state.effect->dispatcher(g_state.effect, effOpen, 0, 0, nullptr, 0.0f);
+    inst->format = "VST2";
     
-    // Assemble info object
+    {
+        std::lock_guard<std::mutex> lock(g_instancesMutex);
+        g_instances[inst->id] = inst;
+        g_effectToInstanceMap[inst->effect] = inst;
+    }
+    
+    inst->effect->dispatcher(inst->effect, effOpen, 0, 0, nullptr, 0.0f);
+    
     Napi::Object result = Napi::Object::New(env);
+    result.Set("instanceId", Napi::Number::New(env, inst->id));
     
     char nameBuf[256] = {0};
-    g_state.effect->dispatcher(g_state.effect, effGetEffectName, 0, 0, nameBuf, 0.0f);
+    inst->effect->dispatcher(inst->effect, effGetEffectName, 0, 0, nameBuf, 0.0f);
     result.Set("name", Napi::String::New(env, nameBuf[0] ? nameBuf : "Unknown VST"));
     
     char vendorBuf[256] = {0};
-    g_state.effect->dispatcher(g_state.effect, effGetVendorString, 0, 0, vendorBuf, 0.0f);
+    inst->effect->dispatcher(inst->effect, effGetVendorString, 0, 0, vendorBuf, 0.0f);
     result.Set("vendor", Napi::String::New(env, vendorBuf[0] ? vendorBuf : "Unknown Vendor"));
     
-    result.Set("numParams", Napi::Number::New(env, g_state.effect->numParams));
-    result.Set("numInputs", Napi::Number::New(env, g_state.effect->numInputs));
-    result.Set("numOutputs", Napi::Number::New(env, g_state.effect->numOutputs));
-    result.Set("uniqueId", Napi::Number::New(env, g_state.effect->uniqueID));
+    result.Set("numParams", Napi::Number::New(env, inst->effect->numParams));
+    result.Set("numInputs", Napi::Number::New(env, inst->effect->numInputs));
+    result.Set("numOutputs", Napi::Number::New(env, inst->effect->numOutputs));
+    result.Set("uniqueId", Napi::Number::New(env, inst->effect->uniqueID));
+    result.Set("format", Napi::String::New(env, "VST2"));
     
-    bool hasEditor = (g_state.effect->flags & effFlagsHasEditor) != 0;
+    bool hasEditor = (inst->effect->flags & effFlagsHasEditor) != 0;
     result.Set("hasEditor", Napi::Boolean::New(env, hasEditor));
     
     return result;
     #else
-    // Graceful fallback for macOS/Linux - reports that hosting is disabled
+    inst->format = "Fallback";
+    {
+        std::lock_guard<std::mutex> lock(g_instancesMutex);
+        g_instances[inst->id] = inst;
+    }
     Napi::Object result = Napi::Object::New(env);
+    result.Set("instanceId", Napi::Number::New(env, inst->id));
     result.Set("name", Napi::String::New(env, "VST Hosting (Unsupported on this platform)"));
     result.Set("vendor", Napi::String::New(env, "None"));
     result.Set("numParams", Napi::Number::New(env, 0));
@@ -146,6 +256,7 @@ Napi::Value LoadPlugin(const Napi::CallbackInfo& info) {
     result.Set("numOutputs", Napi::Number::New(env, 0));
     result.Set("uniqueId", Napi::Number::New(env, 0));
     result.Set("hasEditor", Napi::Boolean::New(env, false));
+    result.Set("format", Napi::String::New(env, "Fallback"));
     return result;
     #endif
 }
@@ -153,39 +264,42 @@ Napi::Value LoadPlugin(const Napi::CallbackInfo& info) {
 Napi::Value SetSharedBuffer(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
     
-    if (info.Length() < 3 || !info[0].IsTypedArray() || !info[1].IsTypedArray() || !info[2].IsTypedArray()) {
+    PluginInstance* inst = GetInstance(info, 0);
+    if (!inst) return env.Null();
+    
+    if (info.Length() < 4 || !info[1].IsTypedArray() || !info[2].IsTypedArray() || !info[3].IsTypedArray()) {
         Napi::TypeError::New(env, "TypedArrays expected for input, output and midi buffers").ThrowAsJavaScriptException();
         return env.Null();
     }
     
-    Napi::Float32Array inputArr = info[0].As<Napi::Float32Array>();
-    g_state.inputSAB = inputArr.Data();
-    g_state.inputSABSize = inputArr.ElementLength();
+    Napi::Float32Array inputArr = info[1].As<Napi::Float32Array>();
+    inst->inputSAB = inputArr.Data();
+    inst->inputSABSize = inputArr.ElementLength();
     
-    Napi::Float32Array outputArr = info[1].As<Napi::Float32Array>();
-    g_state.outputSAB = outputArr.Data();
-    g_state.outputSABSize = outputArr.ElementLength();
+    Napi::Float32Array outputArr = info[2].As<Napi::Float32Array>();
+    inst->outputSAB = outputArr.Data();
+    inst->outputSABSize = outputArr.ElementLength();
     
-    Napi::Int32Array midiArr = info[2].As<Napi::Int32Array>();
-    g_state.midiSAB = midiArr.Data();
-    g_state.midiSABCapacity = midiArr.ElementLength() / 4; // Each event is 4 integers
+    Napi::Int32Array midiArr = info[3].As<Napi::Int32Array>();
+    inst->midiSAB = midiArr.Data();
+    inst->midiSABCapacity = midiArr.ElementLength() / 4; // Each event is 4 integers
     
     return env.Undefined();
 }
 
 // Background Audio Processing Thread
-void AudioProcessLoop() {
+void AudioProcessLoop(PluginInstance* inst) {
     #ifdef _WIN32
     // Set thread priority to Pro Audio
     SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
     #endif
     
-    AudioRingBuffer inputRing(g_state.inputSAB, g_state.inputSABSize);
-    AudioRingBuffer outputRing(g_state.outputSAB, g_state.outputSABSize);
-    MidiRingBuffer midiRing(g_state.midiSAB, g_state.midiSABCapacity);
+    AudioRingBuffer inputRing(inst->inputSAB, inst->inputSABSize);
+    AudioRingBuffer outputRing(inst->outputSAB, inst->outputSABSize);
+    MidiRingBuffer midiRing(inst->midiSAB, inst->midiSABCapacity);
     
     int32_t channels = 2; // Stereo
-    int32_t framesToProcess = g_state.blockSize;
+    int32_t framesToProcess = inst->blockSize;
     int32_t samplesToProcess = framesToProcess * channels;
     
     std::vector<float> interleavedInput(samplesToProcess, 0.0f);
@@ -202,7 +316,7 @@ void AudioProcessLoop() {
     std::vector<int32_t> midiEventsBuffer(1024, 0);
     std::vector<VstMidiEvent> vstMidiEvents;
     
-    while (g_state.audioThreadRunning.load(std::memory_order_relaxed)) {
+    while (inst->audioThreadRunning.load(std::memory_order_relaxed)) {
         // Wait until enough input samples are available to process
         if (inputRing.getAvailableRead() < samplesToProcess) {
             // Yield or short sleep to avoid CPU spinning
@@ -247,19 +361,19 @@ void AudioProcessLoop() {
         }
         
         // Feed MIDI events to VST
-        if (!vstMidiEvents.empty() && g_state.effect) {
+        if (!vstMidiEvents.empty() && inst->effect) {
             VstEvents eventsStruct;
             eventsStruct.numEvents = static_cast<int32_t>(vstMidiEvents.size());
             eventsStruct.reserved = 0;
             for (size_t i = 0; i < vstMidiEvents.size(); ++i) {
                 eventsStruct.events[i] = &vstMidiEvents[i];
             }
-            g_state.effect->dispatcher(g_state.effect, effProcessEvents, 0, 0, &eventsStruct, 0.0f);
+            inst->effect->dispatcher(inst->effect, effProcessEvents, 0, 0, &eventsStruct, 0.0f);
         }
         
         // 4. Process VST
-        if (g_state.effect) {
-            g_state.effect->processReplacing(g_state.effect, inputs, outputs, framesToProcess);
+        if (inst->effect) {
+            inst->effect->processReplacing(inst->effect, inputs, outputs, framesToProcess);
         } else {
             // Bypass
             std::copy(leftInput.begin(), leftInput.end(), leftOutput.begin());
@@ -280,20 +394,23 @@ void AudioProcessLoop() {
 Napi::Value StartAudioThread(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
     
-    if (info.Length() >= 2) {
-        g_state.sampleRate = info[0].As<Napi::Number>().Int32Value();
-        g_state.blockSize = info[1].As<Napi::Number>().Int32Value();
+    PluginInstance* inst = GetInstance(info, 0);
+    if (!inst) return env.Null();
+    
+    if (info.Length() >= 3) {
+        inst->sampleRate = info[1].As<Napi::Number>().Int32Value();
+        inst->blockSize = info[2].As<Napi::Number>().Int32Value();
     }
     
-    if (g_state.effect) {
-        g_state.effect->dispatcher(g_state.effect, effSetSampleRate, 0, 0, nullptr, static_cast<float>(g_state.sampleRate));
-        g_state.effect->dispatcher(g_state.effect, effSetBlockSize, 0, g_state.blockSize, nullptr, 0.0f);
-        g_state.effect->dispatcher(g_state.effect, effMainsChanged, 0, 1, nullptr, 0.0f); // Resume / turn on
+    if (inst->effect) {
+        inst->effect->dispatcher(inst->effect, effSetSampleRate, 0, 0, nullptr, static_cast<float>(inst->sampleRate));
+        inst->effect->dispatcher(inst->effect, effSetBlockSize, 0, inst->blockSize, nullptr, 0.0f);
+        inst->effect->dispatcher(inst->effect, effMainsChanged, 0, 1, nullptr, 0.0f); // Resume / turn on
     }
     
-    if (!g_state.audioThreadRunning) {
-        g_state.audioThreadRunning = true;
-        g_state.audioThread = std::thread(AudioProcessLoop);
+    if (!inst->audioThreadRunning) {
+        inst->audioThreadRunning = true;
+        inst->audioThread = std::thread(AudioProcessLoop, inst);
     }
     
     return env.Undefined();
@@ -302,15 +419,18 @@ Napi::Value StartAudioThread(const Napi::CallbackInfo& info) {
 Napi::Value StopAudioThread(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
     
-    if (g_state.audioThreadRunning) {
-        g_state.audioThreadRunning = false;
-        if (g_state.audioThread.joinable()) {
-            g_state.audioThread.join();
+    PluginInstance* inst = GetInstance(info, 0);
+    if (!inst) return env.Null();
+    
+    if (inst->audioThreadRunning) {
+        inst->audioThreadRunning = false;
+        if (inst->audioThread.joinable()) {
+            inst->audioThread.join();
         }
     }
     
-    if (g_state.effect) {
-        g_state.effect->dispatcher(g_state.effect, effMainsChanged, 0, 0, nullptr, 0.0f); // Suspend / turn off
+    if (inst->effect) {
+        inst->effect->dispatcher(inst->effect, effMainsChanged, 0, 0, nullptr, 0.0f); // Suspend / turn off
     }
     
     return env.Undefined();
@@ -320,25 +440,26 @@ Napi::Value GetParams(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
     Napi::Array result = Napi::Array::New(env);
     
-    if (!g_state.effect) return result;
+    PluginInstance* inst = GetInstance(info, 0);
+    if (!inst || !inst->effect) return result;
     
-    for (int32_t i = 0; i < g_state.effect->numParams; ++i) {
+    for (int32_t i = 0; i < inst->effect->numParams; ++i) {
         Napi::Object param = Napi::Object::New(env);
         param.Set("index", Napi::Number::New(env, i));
         
         char nameBuf[256] = {0};
-        g_state.effect->dispatcher(g_state.effect, effGetParamName, i, 0, nameBuf, 0.0f);
+        inst->effect->dispatcher(inst->effect, effGetParamName, i, 0, nameBuf, 0.0f);
         param.Set("name", Napi::String::New(env, nameBuf[0] ? nameBuf : "Param " + std::to_string(i)));
         
         char dispBuf[256] = {0};
-        g_state.effect->dispatcher(g_state.effect, effGetParamDisplay, i, 0, dispBuf, 0.0f);
+        inst->effect->dispatcher(inst->effect, effGetParamDisplay, i, 0, dispBuf, 0.0f);
         param.Set("display", Napi::String::New(env, dispBuf));
         
         char labelBuf[256] = {0};
-        g_state.effect->dispatcher(g_state.effect, effGetParamLabel, i, 0, labelBuf, 0.0f);
+        inst->effect->dispatcher(inst->effect, effGetParamLabel, i, 0, labelBuf, 0.0f);
         param.Set("label", Napi::String::New(env, labelBuf));
         
-        float val = g_state.effect->getParameter(g_state.effect, i);
+        float val = inst->effect->getParameter(inst->effect, i);
         param.Set("value", Napi::Number::New(env, val));
         
         result.Set(i, param);
@@ -350,16 +471,19 @@ Napi::Value GetParams(const Napi::CallbackInfo& info) {
 Napi::Value SetParam(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
     
-    if (info.Length() < 2 || !info[0].IsNumber() || !info[1].IsNumber()) {
+    PluginInstance* inst = GetInstance(info, 0);
+    if (!inst) return env.Null();
+    
+    if (info.Length() < 3 || !info[1].IsNumber() || !info[2].IsNumber()) {
         Napi::TypeError::New(env, "Number expected for index and value").ThrowAsJavaScriptException();
         return env.Null();
     }
     
-    int32_t index = info[0].As<Napi::Number>().Int32Value();
-    float value = info[1].As<Napi::Number>().FloatValue();
+    int32_t index = info[1].As<Napi::Number>().Int32Value();
+    float value = info[2].As<Napi::Number>().FloatValue();
     
-    if (g_state.effect && index >= 0 && index < g_state.effect->numParams) {
-        g_state.effect->setParameter(g_state.effect, index, value);
+    if (inst->effect && index >= 0 && index < inst->effect->numParams) {
+        inst->effect->setParameter(inst->effect, index, value);
     }
     
     return env.Undefined();
@@ -368,28 +492,31 @@ Napi::Value SetParam(const Napi::CallbackInfo& info) {
 Napi::Value OpenEditor(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
     
+    PluginInstance* inst = GetInstance(info, 0);
+    if (!inst) return env.Null();
+    
     int preferredWidth = 650;
     int preferredHeight = 450;
     
     #ifdef _WIN32
-    if (info.Length() < 1 || !info[0].IsBuffer()) {
+    if (info.Length() < 2 || !info[1].IsBuffer()) {
         Napi::TypeError::New(env, "Buffer expected for parentHwnd").ThrowAsJavaScriptException();
         return env.Null();
     }
     
-    Napi::Buffer<void*> buf = info[0].As<Napi::Buffer<void*>>();
+    Napi::Buffer<void*> buf = info[1].As<Napi::Buffer<void*>>();
     if (buf.Length() < sizeof(HWND)) {
         Napi::Error::New(env, "Invalid HWND buffer size").ThrowAsJavaScriptException();
         return env.Null();
     }
     
     HWND parentHwnd = *reinterpret_cast<HWND*>(buf.Data());
-    g_state.parentWindowHandle = parentHwnd;
+    inst->parentWindowHandle = parentHwnd;
     
-    if (g_state.effect && (g_state.effect->flags & effFlagsHasEditor)) {
+    if (inst->effect && (inst->effect->flags & effFlagsHasEditor)) {
         // 1. Get preferred editor size from VST plugin
         ERect* rectPtr = nullptr;
-        g_state.effect->dispatcher(g_state.effect, effEditGetRect, 0, 0, &rectPtr, 0.0f);
+        inst->effect->dispatcher(inst->effect, effEditGetRect, 0, 0, &rectPtr, 0.0f);
         if (rectPtr) {
             preferredWidth = rectPtr->right - rectPtr->left;
             preferredHeight = rectPtr->bottom - rectPtr->top;
@@ -397,7 +524,7 @@ Napi::Value OpenEditor(const Napi::CallbackInfo& info) {
         }
         
         // 2. Open the VST editor within the parent window HWND
-        g_state.effect->dispatcher(g_state.effect, effEditOpen, 0, 0, parentHwnd, 0.0f);
+        inst->effect->dispatcher(inst->effect, effEditOpen, 0, 0, parentHwnd, 0.0f);
         
         // 3. Enumerate and manage child windows to resolve Z-order occlusion by Chromium compositor
         struct EnumData {
@@ -463,16 +590,19 @@ Napi::Value OpenEditor(const Napi::CallbackInfo& info) {
 Napi::Value ResizeEditor(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
     
+    PluginInstance* inst = GetInstance(info, 0);
+    if (!inst) return env.Null();
+    
     #ifdef _WIN32
-    if (info.Length() < 2 || !info[0].IsNumber() || !info[1].IsNumber()) {
+    if (info.Length() < 3 || !info[1].IsNumber() || !info[2].IsNumber()) {
         Napi::TypeError::New(env, "Numbers expected for width and height").ThrowAsJavaScriptException();
         return env.Null();
     }
     
-    int w = info[0].As<Napi::Number>().Int32Value();
-    int h = info[1].As<Napi::Number>().Int32Value();
+    int w = info[1].As<Napi::Number>().Int32Value();
+    int h = info[2].As<Napi::Number>().Int32Value();
     
-    HWND parentHwnd = static_cast<HWND>(g_state.parentWindowHandle);
+    HWND parentHwnd = static_cast<HWND>(inst->parentWindowHandle);
     if (parentHwnd) {
         struct EnumData {
             HWND parent;
@@ -513,11 +643,14 @@ Napi::Value ResizeEditor(const Napi::CallbackInfo& info) {
 Napi::Value CloseEditor(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
     
+    PluginInstance* inst = GetInstance(info, 0);
+    if (!inst) return env.Null();
+    
     #ifdef _WIN32
-    if (g_state.effect && (g_state.effect->flags & effFlagsHasEditor)) {
-        g_state.effect->dispatcher(g_state.effect, effEditClose, 0, 0, nullptr, 0.0f);
+    if (inst->effect && (inst->effect->flags & effFlagsHasEditor)) {
+        inst->effect->dispatcher(inst->effect, effEditClose, 0, 0, nullptr, 0.0f);
     }
-    g_state.parentWindowHandle = nullptr;
+    inst->parentWindowHandle = nullptr;
     #endif
     
     return env.Undefined();
@@ -526,24 +659,40 @@ Napi::Value CloseEditor(const Napi::CallbackInfo& info) {
 Napi::Value UnloadPlugin(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
     
-    if (g_state.audioThreadRunning) {
-        g_state.audioThreadRunning = false;
-        if (g_state.audioThread.joinable()) {
-            g_state.audioThread.join();
+    PluginInstance* inst = GetInstance(info, 0);
+    if (!inst) return env.Null();
+    
+    if (inst->audioThreadRunning) {
+        inst->audioThreadRunning = false;
+        if (inst->audioThread.joinable()) {
+            inst->audioThread.join();
         }
     }
     
-    if (g_state.effect) {
-        g_state.effect->dispatcher(g_state.effect, effClose, 0, 0, nullptr, 0.0f);
-        g_state.effect = nullptr;
+    if (inst->effect) {
+        inst->effect->dispatcher(inst->effect, effClose, 0, 0, nullptr, 0.0f);
+        
+        // Remove from maps
+        {
+            std::lock_guard<std::mutex> lock(g_instancesMutex);
+            g_effectToInstanceMap.erase(inst->effect);
+        }
+        inst->effect = nullptr;
     }
     
     #ifdef _WIN32
-    if (g_state.libraryInstance) {
-        FreeLibrary(g_state.libraryInstance);
-        g_state.libraryInstance = nullptr;
+    if (inst->libraryInstance) {
+        FreeLibrary(inst->libraryInstance);
+        inst->libraryInstance = nullptr;
     }
     #endif
+    
+    // Remove from main instances map and delete instance memory
+    {
+        std::lock_guard<std::mutex> lock(g_instancesMutex);
+        g_instances.erase(inst->id);
+    }
+    delete inst;
     
     return env.Undefined();
 }

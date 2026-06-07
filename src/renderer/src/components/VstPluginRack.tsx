@@ -27,6 +27,7 @@ export interface LoadedVst {
   missingFromScan?: boolean
   notHostable?: boolean
   unsupportedReason?: string
+  instanceId?: number
 }
 
 // Hilfsfunktion zur Generierung von Parametern für ein VST
@@ -81,10 +82,6 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
     if (isLoaded) {
       handleRemovePlugin(vst.id)
     } else {
-      if (isRealPlugin(vst) && hasLoadedRealPlugin) {
-        alert('Es kann maximal ein reales externes VST-Plugin gleichzeitig geladen werden (native Host-Singleton-Beschränkung).')
-        return
-      }
       const isPlaceholder = vst.path?.startsWith('store://') || vst.path?.startsWith('internal://')
       const newLoaded: LoadedVst = {
         id: vst.id,
@@ -303,11 +300,6 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
       return
     }
 
-    if (isRealPlugin(pluginToAdd) && hasLoadedRealPlugin) {
-      alert('Es kann maximal ein reales externes VST-Plugin gleichzeitig geladen werden (native Host-Singleton-Beschränkung).')
-      return
-    }
-
     const isPlaceholder = pluginToAdd.path?.startsWith('store://') || pluginToAdd.path?.startsWith('internal://')
     const newLoaded: LoadedVst = {
       id: pluginToAdd.id,
@@ -344,14 +336,6 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
 
     if (pluginToToggle.missingFromScan || pluginToToggle.notHostable) {
       return
-    }
-
-    if (isRealPlugin(pluginToToggle) && !pluginToToggle.active) {
-      const hasOtherActiveReal = rackPlugins.some(p => p.id !== id && p.active && isRealPlugin(p))
-      if (hasOtherActiveReal) {
-        alert('Es kann maximal ein reales externes VST-Plugin gleichzeitig aktiv sein.')
-        return
-      }
     }
 
     const updated = rackPlugins.map(p => {
@@ -464,16 +448,6 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
 
         {/* Grid List of Checklist Plugins */}
         <div className="flex-1 overflow-y-auto p-4 bg-[#141619] space-y-4">
-          {/* Singleton-Info-Banner */}
-          <div className="bg-blue-950/20 border border-blue-900/40 rounded-xl p-3.5 flex items-start gap-3 text-xs leading-relaxed text-gray-300">
-            <span className="text-base select-none mt-0.5">ℹ️</span>
-            <div>
-              <h4 className="font-bold text-omega-accent uppercase tracking-wider text-[10px] mb-1">Native Singleton-Einschränkung</h4>
-              <p className="text-[11px] text-gray-400">
-                Der native VST-Host von Omega Wave Editor unterstützt derzeit aus Stabilitätsgründen maximal <strong>ein aktives reales externes VST-Plugin</strong> im Signalweg. Diese Grenze betrifft nur echte lokal gescannte externe Plugins.
-              </p>
-            </div>
-          </div>
 
           {isScanningLoading ? (
             <div className="flex flex-col items-center justify-center h-48 text-center">
@@ -491,21 +465,17 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
                 const isInstrument = vst.category?.toLowerCase().includes('instrument')
                 const isPluginCategory = vst.category?.toLowerCase() === 'plugin'
                 const isHostable = vst.hostable !== false
-                const isReal = isRealPlugin(vst)
-                const isDisabledReal = hasLoadedRealPlugin && isReal && !isLoaded
 
                 return (
                   <div
                     key={vst.id}
                     onClick={() => {
-                      if (!isHostable || isDisabledReal) return
+                      if (!isHostable) return
                       handleTogglePluginCheckbox(vst)
                     }}
                     className={`p-3.5 rounded-xl border flex items-center justify-between transition-all duration-300 ${
                       !isHostable
                         ? 'bg-red-950/5 border-red-900/30 opacity-60 cursor-not-allowed'
-                        : isDisabledReal
-                        ? 'bg-[#1b1e22]/20 border-gray-850 opacity-40 cursor-not-allowed'
                         : isLoaded
                         ? 'bg-omega-accent/10 border-omega-accent/70 shadow-[0_0_12px_rgba(0,122,204,0.12)] cursor-pointer'
                         : 'bg-[#1b1e22]/50 border-gray-800 hover:border-gray-700 hover:bg-[#1b1e22]/80 cursor-pointer'
@@ -513,15 +483,13 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
                     title={
                       !isHostable
                         ? `Nicht unterstützt: ${vst.unsupportedReason || 'Inkompatibel'}`
-                        : isDisabledReal
-                        ? 'Singleton-Limit: Es ist bereits ein reales externes VST-Plugin geladen.'
                         : undefined
                     }
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       {/* Checkbox Icon */}
                       <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${
-                        !isHostable || isDisabledReal
+                        !isHostable
                           ? 'border-gray-800 bg-gray-950/15 text-gray-500'
                           : isLoaded
                           ? 'bg-omega-accent border-omega-accent text-white shadow-[0_0_8px_rgba(0,122,204,0.4)]'
@@ -529,30 +497,24 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
                       }`}>
                         {isLoaded && <Check size={12} className="stroke-[3]" />}
                         {!isHostable && <span className="text-[10px] select-none">✕</span>}
-                        {isDisabledReal && <span className="text-[10px] select-none">🔒</span>}
                       </div>
 
                       {/* Info */}
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <span className={`text-xs font-bold truncate ${
-                            !isHostable || isDisabledReal ? 'text-gray-500 line-through' : isLoaded ? 'text-omega-accent' : 'text-gray-250'
+                            !isHostable ? 'text-gray-500 line-through' : isLoaded ? 'text-omega-accent' : 'text-gray-250'
                           }`}>
                             {vst.name}
                           </span>
                           <span className={`text-[7px] font-bold px-1.5 py-0.5 rounded font-mono uppercase tracking-wider ${
-                            !isHostable || isDisabledReal ? 'bg-gray-850 text-gray-500 border border-gray-800' : 'bg-gray-800 text-omega-accent'
+                            !isHostable ? 'bg-gray-850 text-gray-500 border border-gray-800' : 'bg-gray-800 text-omega-accent'
                           }`}>
                             {vst.format || 'Unbekannt'}
                           </span>
                           {!isHostable && (
                             <span className="text-[7.5px] bg-red-600/15 text-red-400 border border-red-600/30 font-bold px-1.5 py-0.5 rounded font-sans uppercase tracking-wider select-none">
                               Inkompatibel
-                            </span>
-                          )}
-                          {isDisabledReal && (
-                            <span className="text-[7.5px] bg-blue-600/15 text-blue-400 border border-blue-600/30 font-bold px-1.5 py-0.5 rounded font-sans uppercase tracking-wider select-none">
-                              Singleton-Limit
                             </span>
                           )}
                         </div>
@@ -562,11 +524,6 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
                         {!isHostable && vst.unsupportedReason && (
                           <span className="text-[8.5px] text-red-400 font-medium block mt-1 leading-snug">
                             ⚠ {vst.unsupportedReason}
-                          </span>
-                        )}
-                        {isDisabledReal && (
-                          <span className="text-[8.5px] text-blue-400 font-medium block mt-1 leading-snug">
-                            ℹ Bereits ein reales Plugin geladen.
                           </span>
                         )}
                       </div>
@@ -631,19 +588,12 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
           >
             <option value="">+ {t('vst_rack.load_placeholder', { defaultValue: 'Plugin in Rack laden...' })}</option>
             {scanList.map(vst => {
-              const isHostable = vst.hostable !== false
-              const isReal = isRealPlugin(vst)
               const isAlreadyLoaded = rackPlugins.some(p => p.id === vst.id)
-              const isDisabledOption = !isHostable || (hasLoadedRealPlugin && isReal && !isAlreadyLoaded)
+              const isDisabledOption = !vst.hostable
               return (
                 <option key={vst.id} value={vst.id} disabled={isDisabledOption}>
                   {vst.category?.toLowerCase().includes('instrument') ? '🎹' : vst.category?.toLowerCase() === 'plugin' ? '🧩' : '🔌'} {vst.name} ({vst.format})
-                  {!isHostable 
-                    ? ` - Nicht unterstützt (${vst.unsupportedReason || 'Inkompatibel'})` 
-                    : (hasLoadedRealPlugin && isReal && !isAlreadyLoaded) 
-                    ? ' - Singleton-Limit erreicht (bereits ein reales Plugin geladen)' 
-                    : ''
-                  }
+                  {!vst.hostable && ` - Nicht unterstützt (${vst.unsupportedReason || 'Inkompatibel'})`}
                 </option>
               )
             })}
@@ -661,16 +611,6 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
 
       {/* Main Rack View Area */}
       <div className="flex-1 overflow-y-auto p-4 bg-[#141619] space-y-6">
-        {/* Singleton-Info-Banner */}
-        <div className="bg-blue-950/20 border border-blue-900/40 rounded-xl p-3.5 flex items-start gap-3 text-xs leading-relaxed text-gray-300">
-          <span className="text-base select-none mt-0.5">ℹ️</span>
-          <div>
-            <h4 className="font-bold text-omega-accent uppercase tracking-wider text-[10px] mb-1">Native Singleton-Einschränkung</h4>
-            <p className="text-[11px] text-gray-400">
-              Der native VST-Host von Omega Wave Editor unterstützt derzeit aus Stabilitätsgründen maximal <strong>ein aktives reales externes VST-Plugin</strong> im Signalweg. Diese Grenze betrifft nur echte lokal gescannte externe Plugins.
-            </p>
-          </div>
-        </div>
 
         {/* Placeholder if empty */}
         {rackPlugins.length === 0 && (
@@ -709,12 +649,22 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
                     return
                   }
                   if (isOfflineOrIncompatible) return
+                  if (!plugin.instanceId) return
                   if (plugin.path?.startsWith('store://') || plugin.path?.startsWith('internal://')) {
                     return
                   }
                   const width = 720
                   const height = plugin.hasEditor === false ? 580 : 110
-                  localStorage.setItem('popout_vst-editor_payload', JSON.stringify({ pluginId: plugin.id }))
+                  localStorage.setItem('popout_vst-editor_payload', JSON.stringify({
+                    pluginId: plugin.id,
+                    instanceId: plugin.instanceId,
+                    hasEditor: plugin.hasEditor,
+                    name: plugin.name,
+                    manufacturer: plugin.manufacturer,
+                    format: plugin.format,
+                    category: plugin.category,
+                    path: plugin.path
+                  }))
                   window.api.openPopoutWindow('vst-editor', { width, height, title: 'Plugin Editor - ' + plugin.name })
                 }}
                 className="bg-[#181a1d] px-4 py-3 border-b border-gray-750 flex items-center justify-between cursor-pointer hover:bg-[#1c1e22] transition-all select-none group/header animate-fade-in"
@@ -791,19 +741,30 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
                 <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                   {!(plugin.path?.startsWith('store://') || plugin.path?.startsWith('internal://')) && (
                     <button
-                      disabled={isOfflineOrIncompatible}
+                      disabled={isOfflineOrIncompatible || !plugin.instanceId}
                       onClick={() => {
                         if (isOfflineOrIncompatible) return
+                        if (!plugin.instanceId) return
                         const width = 720
                         const height = plugin.hasEditor === false ? 580 : 110
-                        localStorage.setItem('popout_vst-editor_payload', JSON.stringify({ pluginId: plugin.id }))
+                        localStorage.setItem('popout_vst-editor_payload', JSON.stringify({
+                          pluginId: plugin.id,
+                          instanceId: plugin.instanceId,
+                          hasEditor: plugin.hasEditor,
+                          name: plugin.name,
+                          manufacturer: plugin.manufacturer,
+                          format: plugin.format,
+                          category: plugin.category,
+                          path: plugin.path
+                        }))
                         window.api.openPopoutWindow('vst-editor', { width, height, title: 'Plugin Editor - ' + plugin.name })
                       }}
                       className={`px-2.5 py-1 text-[10px] rounded font-semibold border transition-colors ${
-                        isOfflineOrIncompatible
+                        isOfflineOrIncompatible || !plugin.instanceId
                           ? 'bg-red-950/10 border-red-900/30 text-red-400/50 cursor-not-allowed opacity-50'
                           : 'bg-gray-800 hover:bg-gray-700 text-gray-300 border-gray-700/60 transition-colors'
                       }`}
+                      title={!plugin.instanceId ? 'Erst im Signalweg laden' : undefined}
                     >
                       {plugin.hasEditor === false
                         ? t('vst_rack.parameters', { defaultValue: 'Parameter' })

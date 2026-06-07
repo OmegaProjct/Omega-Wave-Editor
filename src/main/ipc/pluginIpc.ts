@@ -172,13 +172,11 @@ export function registerPluginIpc() {
             if (!isHostSupported) {
               hostable = false
               unsupportedReason = 'Das native VST-Host-Addon konnte nicht geladen werden.'
-            } else if (format === 'VST2') {
+            } else if (format === 'VST2' || format === 'VST3') {
               hostable = true
             } else {
               hostable = false
-              if (format === 'VST3') {
-                unsupportedReason = 'VST3-Format wird vom aktuellen Host unter Windows noch nicht unterstützt.'
-              } else if (format === 'LV2') {
+              if (format === 'LV2') {
                 unsupportedReason = 'LV2-Format wird unter Windows nicht unterstützt.'
               } else if (format === 'AU') {
                 unsupportedReason = 'Audio Units (AU) sind nur auf macOS verfügbar.'

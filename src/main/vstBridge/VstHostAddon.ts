@@ -42,9 +42,10 @@ export class VstHostAddon {
     return this.isLoaded && this.addon !== null
   }
 
-  public loadPlugin(dllPath: string): VstPluginInfo {
+  public loadPlugin(dllPath: string): VstPluginInfo & { instanceId: number } {
     if (!this.addon) {
       return {
+        instanceId: 0,
         name: 'VST Engine (Not Compiled / Fallback)',
         vendor: 'None',
         version: 0,
@@ -58,7 +59,7 @@ export class VstHostAddon {
     return this.addon.loadPlugin(dllPath)
   }
 
-  public setSharedBuffer(inputSAB: SharedArrayBuffer, outputSAB: SharedArrayBuffer, midiSAB: SharedArrayBuffer): void {
+  public setSharedBuffer(instanceId: number, inputSAB: SharedArrayBuffer, outputSAB: SharedArrayBuffer, midiSAB: SharedArrayBuffer): void {
     if (!this.addon) return
     
     // We convert the SharedArrayBuffers to TypedArrays before passing them to N-API
@@ -66,47 +67,47 @@ export class VstHostAddon {
     const outputArr = new Float32Array(outputSAB)
     const midiArr = new Int32Array(midiSAB)
     
-    this.addon.setSharedBuffer(inputArr, outputArr, midiArr)
+    this.addon.setSharedBuffer(instanceId, inputArr, outputArr, midiArr)
   }
 
-  public startAudioThread(sampleRate: number, blockSize: number): void {
+  public startAudioThread(instanceId: number, sampleRate: number, blockSize: number): void {
     if (!this.addon) return
-    this.addon.startAudioThread(sampleRate, blockSize)
+    this.addon.startAudioThread(instanceId, sampleRate, blockSize)
   }
 
-  public stopAudioThread(): void {
+  public stopAudioThread(instanceId: number): void {
     if (!this.addon) return
-    this.addon.stopAudioThread()
+    this.addon.stopAudioThread(instanceId)
   }
 
-  public getParams(): VstParameter[] {
+  public getParams(instanceId: number): VstParameter[] {
     if (!this.addon) return []
-    return this.addon.getParams()
+    return this.addon.getParams(instanceId)
   }
 
-  public setParam(index: number, value: number): void {
+  public setParam(instanceId: number, index: number, value: number): void {
     if (!this.addon) return
-    this.addon.setParam(index, value)
+    this.addon.setParam(instanceId, index, value)
   }
 
-  public openEditor(parentHwnd: Buffer): { width: number; height: number } | undefined {
+  public openEditor(instanceId: number, parentHwnd: Buffer): { width: number; height: number } | undefined {
     if (!this.addon) return undefined
-    return this.addon.openEditor(parentHwnd)
+    return this.addon.openEditor(instanceId, parentHwnd)
   }
 
-  public resizeEditor(width: number, height: number): void {
+  public resizeEditor(instanceId: number, width: number, height: number): void {
     if (!this.addon) return
-    this.addon.resizeEditor(width, height)
+    this.addon.resizeEditor(instanceId, width, height)
   }
 
-  public closeEditor(): void {
+  public closeEditor(instanceId: number): void {
     if (!this.addon) return
-    this.addon.closeEditor()
+    this.addon.closeEditor(instanceId)
   }
 
-  public unloadPlugin(): void {
+  public unloadPlugin(instanceId: number): void {
     if (!this.addon) return
-    this.addon.unloadPlugin()
+    this.addon.unloadPlugin(instanceId)
   }
 
   public getAsioDriverDetails(driverName: string): any {

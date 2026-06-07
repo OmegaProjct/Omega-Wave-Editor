@@ -35,17 +35,17 @@ const api = {
   getAsioDriverDetails: (driverName: string) => ipcRenderer.invoke('get-asio-driver-details', driverName),
   openAsioControlPanel: (driverName: string) => ipcRenderer.invoke('open-asio-control-panel', driverName),
   loadVstPlugin: (path: string) => ipcRenderer.invoke('vst-load-plugin', path),
-  vstSetSharedBuffer: (inputSAB: SharedArrayBuffer, outputSAB: SharedArrayBuffer, midiSAB: SharedArrayBuffer) => 
-    ipcRenderer.invoke('vst-set-shared-buffer', inputSAB, outputSAB, midiSAB),
-  vstStartAudio: (sampleRate: number, blockSize: number) => ipcRenderer.invoke('vst-start-audio', sampleRate, blockSize),
-  vstStopAudio: () => ipcRenderer.invoke('vst-stop-audio'),
-  getVstParams: () => ipcRenderer.invoke('vst-get-params'),
-  setVstParam: (index: number, value: number) => ipcRenderer.invoke('vst-set-param', index, value),
-  openVstEditor: () => ipcRenderer.invoke('vst-open-editor'),
-  closeVstEditor: () => ipcRenderer.invoke('vst-close-editor'),
-  unloadVstPlugin: () => ipcRenderer.invoke('vst-unload-plugin'),
-  onVstEditorClosed: (callback: () => void) => {
-    const sub = () => callback()
+  vstSetSharedBuffer: (instanceId: number, inputSAB: SharedArrayBuffer, outputSAB: SharedArrayBuffer, midiSAB: SharedArrayBuffer) => 
+    ipcRenderer.invoke('vst-set-shared-buffer', instanceId, inputSAB, outputSAB, midiSAB),
+  vstStartAudio: (instanceId: number, sampleRate: number, blockSize: number) => ipcRenderer.invoke('vst-start-audio', instanceId, sampleRate, blockSize),
+  vstStopAudio: (instanceId: number) => ipcRenderer.invoke('vst-stop-audio', instanceId),
+  getVstParams: (instanceId: number) => ipcRenderer.invoke('vst-get-params', instanceId),
+  setVstParam: (instanceId: number, index: number, value: number) => ipcRenderer.invoke('vst-set-param', instanceId, index, value),
+  openVstEditor: (instanceId: number) => ipcRenderer.invoke('vst-open-editor', instanceId),
+  closeVstEditor: (instanceId: number) => ipcRenderer.invoke('vst-close-editor', instanceId),
+  unloadVstPlugin: (instanceId: number) => ipcRenderer.invoke('vst-unload-plugin', instanceId),
+  onVstEditorClosed: (callback: (instanceId: number) => void) => {
+    const sub = (_event: any, instanceId: number) => callback(instanceId)
     ipcRenderer.on('vst-editor-closed', sub)
     return () => { ipcRenderer.removeListener('vst-editor-closed', sub) }
   },

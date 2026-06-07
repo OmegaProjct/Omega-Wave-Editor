@@ -1,12 +1,16 @@
-import React, { useState } from 'react'
-import { Check, Star, ShieldAlert, Cpu, X, ExternalLink, Sparkles } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
+import React, { useEffect, useMemo, useState } from 'react'
+import { Check, Cpu, ExternalLink, ShieldAlert, Sparkles, Star, X } from 'lucide-react'
+import type { PluginDescriptor } from '../../../common/types'
+import { getStorePluginStatus, readRackPluginsFromStorage } from '../lib/pluginState'
+
+type StoreCategory = 'Instrument' | 'Effekt'
+type DownloadMode = 'direct' | 'external'
 
 export interface StorePlugin {
   id: string
   name: string
   manufacturer: string
-  category: 'Instrument' | 'Effekt'
+  category: StoreCategory
   subCategory: string
   description: string
   longDescription: string
@@ -14,21 +18,37 @@ export interface StorePlugin {
   reviews: number
   size: string
   formats: string[]
-  downloadUrl: string
+  landingPageUrl: string
+  directDownloadUrl?: string
+  directDownloadFileName?: string
+  downloadMode: DownloadMode
   platforms: ('win' | 'mac' | 'linux')[]
   features: string[]
 }
 
-/**
- * Hilfsfunktion zur Überprüfung der VST2-Kompatibilität mit dem aktuellen Windows-Host.
- * Gibt true zurück, wenn 'VST2' in den unterstützten Formaten enthalten ist.
- */
 export function isPluginCompatible(plugin: { formats: string[] }): boolean {
-  return plugin.formats.includes('VST2');
+  return plugin.formats.includes('VST2')
 }
 
-const COMPACT_PLUGINS = [
-  // 1. Synthesizer & Instrumente (5)
+type CompactPlugin = {
+  id: string
+  name: string
+  mfg: string
+  cat: StoreCategory
+  sub: string
+  size: string
+  r: number
+  desc: string
+  landingUrl: string
+  directUrl?: string
+  directFileName?: string
+  formats: string[]
+  platforms: ('win' | 'mac' | 'linux')[]
+  longDesc: string
+  features: string[]
+}
+
+const COMPACT_PLUGINS: CompactPlugin[] = [
   {
     id: 'store_surge_xt',
     name: 'Surge XT',
@@ -37,15 +57,17 @@ const COMPACT_PLUGINS = [
     sub: 'Synthesizer',
     size: '112 MB',
     r: 4.9,
-    desc: 'Mächtiger hybrider Wavetable-Synthesizer.',
-    url: 'https://surge-synth-team.org',
+    desc: 'Machtiger hybrider Wavetable-Synthesizer.',
+    landingUrl: 'https://surge-synthesizer.github.io/downloads',
+    directUrl: 'https://github.com/surge-synthesizer/releases-xt/releases/download/1.3.4/surge-xt-win64-1.3.4-setup.exe',
+    directFileName: 'surge-xt-win64-1.3.4-setup.exe',
     formats: ['VST3', 'CLAP'],
-    platforms: ['win', 'mac', 'linux'] as ('win' | 'mac' | 'linux')[],
-    longDesc: 'Surge XT ist ein hochentwickelter Open-Source-Synthesizer mit einer extrem flexiblen Klangerzeugung. Er bietet eine Vielzahl von Oszillator-Algorithmen (Wavetable, FM, VA, Physical Modeling), flexiblen Filtern und weitreichenden Modulationsmöglichkeiten.',
+    platforms: ['win', 'mac', 'linux'],
+    longDesc: 'Surge XT ist ein offener High-End-Synth mit Wavetable-, FM-, VA- und Modeling-Ansatzen. Fuer Omega ist er aktuell technisch interessant, aber wegen fehlendem VST2 im heutigen Host nicht direkt ladbar.',
     features: [
-      'Vielseitige Syntheseformen (Wavetable, FM, VA, Physical Modeling)',
-      'Vollständiger Open-Source-Quellcode und aktiv von einer Community gepflegt',
-      'Unterstützung für MPE (MIDI Polyphonic Expression) und das moderne CLAP-Format'
+      'Breite Synthese-Palette mit Wavetable, FM und VA',
+      'Aktiv gepflegte Open-Source-Entwicklung',
+      'Direkter Windows-Download verfuegbar'
     ]
   },
   {
@@ -57,14 +79,14 @@ const COMPACT_PLUGINS = [
     size: '185 MB',
     r: 4.8,
     desc: 'Spektral-verzerrender Wavetable-Synthesizer.',
-    url: 'https://vital.audio',
+    landingUrl: 'https://vital.audio',
     formats: ['VST3', 'CLAP'],
-    platforms: ['win', 'mac', 'linux'] as ('win' | 'mac' | 'linux')[],
-    longDesc: 'Vital ist ein moderner Wavetable-Synthesizer, der besonders für seine visuelle Feedback-Steuerung und spektrale Klangmanipulation bekannt ist. Die kostenfreie Version gewährt vollen Zugriff auf die Klangerzeugungs-Engine, enthält jedoch ein im Vergleich zur Pro-Version kleineres Preset- und Wavetable-Paket.',
+    platforms: ['win', 'mac', 'linux'],
+    longDesc: 'Vital Free ist ein moderner Wavetable-Synth mit starker Visualisierung. Der Host in Omega kann ihn aktuell nicht laden, weil hier nur VST2 verarbeitet wird.',
     features: [
-      'Grafischer Wavetable-Synthesizer mit Echtzeit-Visualisierung aller Modulationen',
-      'Einfache Zuweisung von Modulatoren per Drag-and-Drop',
-      'Inklusive 75 Presets und 25 vielseitigen Wavetables in der Free-Edition'
+      'Sehr gute visuelle Modulationsdarstellung',
+      'Kostenlose Edition mit voller Engine',
+      'Zurzeit nur ueber Herstellerseite'
     ]
   },
   {
@@ -76,14 +98,14 @@ const COMPACT_PLUGINS = [
     size: '34 MB',
     r: 4.6,
     desc: 'Einsteigerfreundlicher polyphoner Synthesizer.',
-    url: 'https://tytel.org/helm/',
+    landingUrl: 'https://tytel.org/helm/',
     formats: ['VST3', 'AU'],
-    platforms: ['win', 'mac', 'linux'] as ('win' | 'mac' | 'linux')[],
-    longDesc: 'Helm ist ein freier, modular aufgebauter polyphoner Synthesizer, der sich hervorragend für Musiker eignet, die die Grundlagen der subtraktiven Synthese erlernen möchten. Das übersichtliche visuelle Feedback erleichtert das Verständnis der Signalwege und Modulationsverknüpfungen.',
+    platforms: ['win', 'mac', 'linux'],
+    longDesc: 'Helm ist ein klar aufgebauter Lern- und Performance-Synth. Fuer Omega ist er aktuell nur als externer Link gelistet, weil wir keinen verifizierten Direktlink eingebaut haben.',
     features: [
-      'Einsteigerfreundlicher, visuell gestalteter subtraktiver Synthesizer',
-      'Open-Source-Lizenz ermöglicht freie Anpassungen',
-      'Integrierter Step-Sequenzer und vielseitige Modulationsquellen'
+      'Uebersichtlicher Aufbau fuer Sounddesign',
+      'Open Source',
+      'Derzeit Herstellerseite statt Direktdownload'
     ]
   },
   {
@@ -94,15 +116,17 @@ const COMPACT_PLUGINS = [
     sub: 'Synthesizer',
     size: '18 MB',
     r: 4.7,
-    desc: 'Ultimativer DX7 FM-Synthesizer-Klon.',
-    url: 'https://asb2m10.github.io/dexed/',
+    desc: 'DX7-FM-Synth fuer klassische 80er-Sounds.',
+    landingUrl: 'https://asb2m10.github.io/dexed/',
+    directUrl: 'https://github.com/asb2m10/dexed/releases/download/v1.0.1/Dexed-1.0.1-win.exe',
+    directFileName: 'Dexed-1.0.1-win.exe',
     formats: ['VST2', 'VST3', 'AU'],
-    platforms: ['win', 'mac', 'linux'] as ('win' | 'mac' | 'linux')[],
-    longDesc: 'Dexed ist eine detailgetreue Nachbildung des legendären Yamaha DX7 FM-Synthesizers aus den 1980ern. Neben der Klangerzeugung auf dem Computer kann das Plugin auch als MIDI-Editor und Programmverwalter für originale DX7-Hardware-Synthesizer verwendet werden.',
+    platforms: ['win', 'mac', 'linux'],
+    longDesc: 'Dexed ist einer der wichtigsten kostenlosen FM-Synths und bietet fuer Omega den entscheidenden VST2-Pfad. Genau deshalb ist er einer der sinnvollsten Direktdownloads im aktuellen Store.',
     features: [
-      'Hervorragende Emulation des klassischen FM-Synthese-Chips',
-      'Kann als SysEx-Editor und Bibliothekar für echte DX7-Hardware dienen',
-      'Kompatibel mit zehntausenden frei verfügbaren DX7-Patches im Netz'
+      'DX7-kompatibler FM-Klang',
+      'VST2 vorhanden und damit im aktuellen Host interessant',
+      'Direkter Windows-Installer verifiziert'
     ]
   },
   {
@@ -113,19 +137,17 @@ const COMPACT_PLUGINS = [
     sub: 'Synthesizer',
     size: '24 MB',
     r: 4.8,
-    desc: 'Klassischer Analog-Synth für warme Roland-Sounds.',
-    url: 'https://u-he.com/products/tyrelln6.shtml',
+    desc: 'Klassischer Analog-Synth fuer warme Sounds.',
+    landingUrl: 'https://u-he.com/products/tyrelln6.shtml',
     formats: ['VST2', 'VST3', 'AU'],
-    platforms: ['win', 'mac'] as ('win' | 'mac' | 'linux')[],
-    longDesc: 'Der Tyrell N6 ist ein kompakter Analog-Modell-Synthesizer, der von u-he im Auftrag des deutschen Musikportals Amazona.de entwickelt wurde. Er orientiert sich an klassischen subtraktiven Synthesizern und liefert den typischen analogen, warmen Grundsound ohne komplizierte Struktur.',
+    platforms: ['win', 'mac'],
+    longDesc: 'Tyrell N6 ist weiterhin im Store, aber aktuell nur ueber die Herstellerseite, bis wir einen belastbaren Direktpfad hinterlegt haben.',
     features: [
-      'Klassisch-analoge Synthesizer-Architektur',
-      'Zwei Oszillatoren mit Rauschgenerator und Ringmodulator',
-      'Entwickelt von u-he im Auftrag des Musikmagazins Amazona.de'
+      'Warmer analoger Grundcharakter',
+      'VST2 vorhanden',
+      'Direktdownload noch nicht verifiziert'
     ]
   },
-
-  // 2. Akustische & Sampler-Instrumente (1)
   {
     id: 'store_decent_sampler',
     name: 'Decent Sampler',
@@ -134,19 +156,17 @@ const COMPACT_PLUGINS = [
     sub: 'Sampler',
     size: '15 MB',
     r: 4.8,
-    desc: 'Sehr flexibler Sample-Player für freie Libraries.',
-    url: 'https://www.decentsamples.com/product/decent-sampler-plugin/',
+    desc: 'Flexibler Sample-Player fuer freie Libraries.',
+    landingUrl: 'https://www.decentsamples.com/product/decent-sampler-plugin/',
     formats: ['VST3', 'AU'],
-    platforms: ['win', 'mac', 'linux'] as ('win' | 'mac' | 'linux')[],
-    longDesc: 'Decent Sampler ist ein schlanker Sample-Player, der speziell als kostenlose Plattform für freie Sample-Bibliotheken entwickelt wurde. Über eine einfache, XML-basierte Struktur können Sounddesigner zudem leicht eigene Sample-Instrumente entwerfen.',
+    platforms: ['win', 'mac', 'linux'],
+    longDesc: 'Decent Sampler ist praktisch, aber fuer den aktuellen Omega-Host ohne VST2 nicht sinnvoll nutzbar. Deshalb bleibt der Eintrag ehrlich als externer Verweis.',
     features: [
-      'Ressourcenschonender Player für das weit verbreitete DecentSampler-Format',
-      'Riesige Auswahl an kostenlosen und kostenpflichtigen Bibliotheken im Internet',
-      'Einfache Erstellung eigener Sample-Instrumente mit Text- und XML-Dateien'
+      'Viele freie Libraries verfuegbar',
+      'Leichtgewichtig',
+      'Keine VST2-Unterstuetzung fuer Omega'
     ]
   },
-
-  // 3. Reverb & Space (2)
   {
     id: 'store_valhalla_supermassive',
     name: 'Valhalla Supermassive',
@@ -155,15 +175,17 @@ const COMPACT_PLUGINS = [
     sub: 'Hall & Delay',
     size: '8 MB',
     r: 5.0,
-    desc: 'Gigantische Reverbs und unendliche Spacig-Echos.',
-    url: 'https://valhalladsp.com/shop/reverbs/valhalla-supermassive/',
+    desc: 'Grosser Reverb- und Delay-Effekt fuer dichte Raeume.',
+    landingUrl: 'https://valhalladsp.com/shop/reverb/valhalla-supermassive/',
+    directUrl: 'https://valhallaproduction.s3.us-west-2.amazonaws.com/supermassive/ValhallaSupermassiveWin_V5_0_0.zip',
+    directFileName: 'ValhallaSupermassiveWin_V5_0_0.zip',
     formats: ['VST3', 'AU'],
-    platforms: ['win', 'mac'] as ('win' | 'mac' | 'linux')[],
-    longDesc: 'Valhalla Supermassive ist ein hochentwickeltes Reverb- und Delay-Effektplugin, das speziell für riesige, dichte Raumklänge und sich entwickelnde Echos konzipiert wurde. Mit einer Reihe von Oszillator- und Modulationsmodulen lassen sich dichte Soundscapes für Sound-Design und Ambient erstellen.',
+    platforms: ['win', 'mac'],
+    longDesc: 'Valhalla Supermassive ist frei verfuegbar und der Windows-Download ist direkt verlinkbar. Im aktuellen Omega-Host bleibt er trotzdem technisch inkompatibel, solange nur VST2 geladen wird.',
     features: [
-      'Kombination aus massivem Hall und komplexen Delay-Feedbackschleifen',
-      'Mehrere einzigartige Hall-Algorithmen (z. B. Gemini, Sagittarius, Lyra)',
-      'Hervorragend geeignet für Ambient, experimentelle Soundscapes und Filmvertonung'
+      'Beliebter kostenloser Reverb/Delay',
+      'Direkter Windows-Download verifiziert',
+      'Aktuell kein VST2 fuer Omega'
     ]
   },
   {
@@ -174,19 +196,17 @@ const COMPACT_PLUGINS = [
     sub: 'Hall & Delay',
     size: '6 MB',
     r: 4.8,
-    desc: 'Lush Vintage-Plate-Hall der 80er Jahre.',
-    url: 'https://tal-software.com/products/tal-reverb-4',
+    desc: 'Vintage-Plate-Reverb mit 80er-Charakter.',
+    landingUrl: 'https://tal-software.com',
     formats: ['VST2', 'VST3', 'AU'],
-    platforms: ['win', 'mac', 'linux'] as ('win' | 'mac' | 'linux')[],
-    longDesc: 'TAL-Reverb-4 ist ein klassischer Vintage-Hall-Effekt von TAL Software mit dem Sound der 1980er Jahre. Er erzeugt einen dichten, modulierten Plattenhall-Charakter, der Gesang oder Synthesizer-Spuren eine edle Räumlichkeit verleiht, ohne das Signal zu verwaschen.',
+    platforms: ['win', 'mac', 'linux'],
+    longDesc: 'TAL-Reverb-4 bleibt im Store erhalten, aber vorerst nur als Hersteller-Link. So vermeiden wir kaputte oder veraltete Download-Pfade.',
     features: [
-      'Klassischer Vintage-Plate-Reverb mit dem charakteristischen 80er-Jahre-Sound',
-      'Äußerst einfache Bedienung mit wenigen, aber sehr effektiven Parametern',
-      'Integrierter EQ- und Dämpfungsbereich zur optimalen Einbettung im Mix'
+      'Einfacher, musikalischer Reverb',
+      'VST2 vorhanden',
+      'Direktdownload im Store noch nicht verifiziert'
     ]
   },
-
-  // 4. Equalizer & Filter (1)
   {
     id: 'store_tdr_nova',
     name: 'TDR Nova',
@@ -195,19 +215,19 @@ const COMPACT_PLUGINS = [
     sub: 'EQ & Filter',
     size: '14 MB',
     r: 4.8,
-    desc: 'Präziser paralleler dynamischer Equalizer.',
-    url: 'https://www.tokyodawn.net/tdr-nova/',
+    desc: 'Praeziser dynamischer Equalizer.',
+    landingUrl: 'https://www.tokyodawn.net/tdr-nova/',
+    directUrl: 'https://www.tokyodawn.net/labs/Nova/2.2.2/TDR%20Nova%20(installer).zip',
+    directFileName: 'TDR Nova (installer).zip',
     formats: ['VST3', 'AU'],
-    platforms: ['win', 'mac'] as ('win' | 'mac' | 'linux')[],
-    longDesc: 'TDR Nova ist ein präziser paralleler dynamischer Equalizer von Tokyo Dawn Labs. Jedes Band kann separat auch als frequenzselektiver Kompressor oder Expander agieren. Damit eignet sich das Plugin hervorragend für komplexe Reparaturarbeiten im Frequenzband und anspruchsvolle Mischungen.',
+    platforms: ['win', 'mac'],
+    longDesc: 'TDR Nova ist klanglich stark, aber im aktuellen Host wieder ein gutes Beispiel fuer den Unterschied zwischen echtem Direktdownload und echter Nutzbarkeit im Host: laden koennen wir die Datei, VST3 aber noch nicht hosten.',
     features: [
-      'Paralleler dynamischer Equalizer mit vier Bändern und zusätzlichen Filtern',
-      'Präziser integrierter Spektralanalysator für exzellente visuelle Kontrolle',
-      'Vielseitig einsetzbar: Frequenzkorrektur, dynamische Kompression und Mastering'
+      'Starker kostenloser dynamischer EQ',
+      'Windows-Download direkt verifiziert',
+      'Im Host aktuell wegen fehlendem VST2 nicht ladbar'
     ]
   },
-
-  // 5. Pitch & Autotune (1)
   {
     id: 'store_graillon_2',
     name: 'Graillon 2 (Free)',
@@ -216,19 +236,17 @@ const COMPACT_PLUGINS = [
     sub: 'Pitch & Autotune',
     size: '9 MB',
     r: 4.8,
-    desc: 'Legendäre Pitch-Shift Vocals & Autotune.',
-    url: 'https://www.auburnsounds.com/products/Graillon.html',
+    desc: 'Realtime Pitch-Korrektur und Pitch-Shifting.',
+    landingUrl: 'https://www.auburnsounds.com/products/Graillon.html',
     formats: ['VST3', 'AU'],
-    platforms: ['win', 'mac', 'linux'] as ('win' | 'mac' | 'linux')[],
-    longDesc: 'Graillon 2 ist ein Gesangseffekt-Plugin für Echtzeit-Tonhöhenkorrektur. In der kostenfreien Version bietet es eine vollwertige Pitch-Shift-Engine und eine Tonhöhenkorrektur zur Begradigung von Vocal-Aufnahmen, während fortgeschrittenere Module der Vollversion vorbehalten sind.',
+    platforms: ['win', 'mac', 'linux'],
+    longDesc: 'Graillon bleibt vorerst als externer Verweis, bis wir einen stabilen Direktpfad geprueft haben.',
     features: [
-      'Tonhöhenkorrektur (Autotune-Effekt) in Echtzeit für Gesangsspuren',
-      'Hocheffektiver Pitch-Shifter zur einfachen Transponierung von Audio',
-      'Freie Edition enthält alle Kernfunktionen für eine saubere Tonhöhenkorrektur'
+      'Pitch-Korrektur in Echtzeit',
+      'Nutzbar fuer kreative Vocal-Effekte',
+      'Aktuell Herstellerseite statt Direktdownload'
     ]
   },
-
-  // 6. Pegelanalyse & Tools (2)
   {
     id: 'store_voxengo_span',
     name: 'Voxengo SPAN',
@@ -237,15 +255,17 @@ const COMPACT_PLUGINS = [
     sub: 'Pegelanalyse & Tools',
     size: '14 MB',
     r: 4.9,
-    desc: 'FFT-Spektralanalyse für Frequenzen.',
-    url: 'https://www.voxengo.com/product/span/',
+    desc: 'Spektrumanalyse und Metering fuer den Mix.',
+    landingUrl: 'https://www.voxengo.com/product/span/',
+    directUrl: 'https://www.voxengo.com/files/VoxengoSPAN_324_Win32_64_VST_VST3_AAX_setup.exe',
+    directFileName: 'VoxengoSPAN_324_Win32_64_VST_VST3_AAX_setup.exe',
     formats: ['VST3', 'AU'],
-    platforms: ['win', 'mac'] as ('win' | 'mac' | 'linux')[],
-    longDesc: 'Voxengo SPAN ist ein professioneller Echtzeit-Frequenzanalysator. Mit seiner detailreichen Spektraldarstellung hilft er dabei, Frequenzkonflikte im Mix aufzudecken. Er bietet umfassende Konfigurationsmöglichkeiten für Blockgröße, Überlappung und diverse Metering-Standards.',
+    platforms: ['win', 'mac'],
+    longDesc: 'SPAN ist einer der besten kostenlosen Analyzer und hat einen verifizierten Direktlink. Die Datei landet direkt im Omega-Download-Ordner.',
     features: [
-      'Echtzeit-FFT-Audiospektrumanalysator für präzise Frequenzanalyse',
-      'Umfangreiche Anpassungsoptionen für Blockgröße, Überlappung und Glättung',
-      'Integrierte Pegelmessung (K-System, RMS, True Peak)'
+      'Professioneller Analyzer',
+      'Direkter Windows-Installer verifiziert',
+      'Aktueller Host braucht trotzdem VST2 fuer echtes Laden'
     ]
   },
   {
@@ -256,34 +276,39 @@ const COMPACT_PLUGINS = [
     sub: 'Pegelanalyse & Tools',
     size: '16 MB',
     r: 5.0,
-    desc: 'Präzise LUFS-Lautheitsmessung.',
-    url: 'https://youlean.co/youlean-loudness-meter/',
+    desc: 'LUFS- und Loudness-Meter fuer Streaming und Broadcast.',
+    landingUrl: 'https://youlean.co/download-youlean-loudness-meter/',
+    directUrl: 'https://cdn.youlean.co/wp-content/uploads/2025/11/Youlean-Loudness-Meter-2-V2.5.14-Windows-1.zip',
+    directFileName: 'Youlean-Loudness-Meter-2-V2.5.14-Windows-1.zip',
     formats: ['VST3', 'AU'],
-    platforms: ['win', 'mac'] as ('win' | 'mac' | 'linux')[],
-    longDesc: 'Das Youlean Loudness Meter ist das Standardwerkzeug für präzise Lautheitsmessung. Es hilft Musikproduzenten und Broadcast-Engineers dabei, die strengen Lautheitsvorgaben (z. B. LUFS-Standards für Spotify, Apple Music, YouTube oder EBU R128) einzuhalten.',
+    platforms: ['win', 'mac'],
+    longDesc: 'Youlean ist ein sehr sinnvoller Download fuer Mixing und Loudness-Kontrolle. Der Dateilink ist echt und wird direkt lokal gespeichert.',
     features: [
-      'Präzise Messung der integrierten, kurzfristigen und momentanen Lautheit (LUFS)',
-      'True-Peak-Pegelmessung zur sicheren Vermeidung von digitaler Verzerrung',
-      'Kostenfreie Version deckt wichtige EBU R128 und ITU-R BS.1770 Standards ab'
+      'LUFS, True Peak und Lautheitskontrolle',
+      'Direkter Windows-Download verifiziert',
+      'Datei wird direkt in Omega abgelegt'
     ]
   }
 ]
 
-const BUILTIN_PLUGINS: StorePlugin[] = COMPACT_PLUGINS.map(p => ({
-  id: p.id,
-  name: p.name,
-  manufacturer: p.mfg,
-  category: p.cat as 'Instrument' | 'Effekt',
-  subCategory: p.sub,
-  description: p.desc,
-  longDescription: p.longDesc,
-  rating: p.r,
-  reviews: Math.floor(p.r * 250) + 74,
-  size: p.size,
-  formats: p.formats,
-  downloadUrl: p.url,
-  platforms: p.platforms,
-  features: p.features
+const BUILTIN_PLUGINS: StorePlugin[] = COMPACT_PLUGINS.map((plugin) => ({
+  id: plugin.id,
+  name: plugin.name,
+  manufacturer: plugin.mfg,
+  category: plugin.cat,
+  subCategory: plugin.sub,
+  description: plugin.desc,
+  longDescription: plugin.longDesc,
+  rating: plugin.r,
+  reviews: Math.floor(plugin.r * 250) + 74,
+  size: plugin.size,
+  formats: plugin.formats,
+  landingPageUrl: plugin.landingUrl,
+  directDownloadUrl: plugin.directUrl,
+  directDownloadFileName: plugin.directFileName,
+  downloadMode: plugin.directUrl ? 'direct' : 'external',
+  platforms: plugin.platforms,
+  features: plugin.features
 }))
 
 const RACK_CATEGORIES = [
@@ -296,70 +321,357 @@ const RACK_CATEGORIES = [
   'Pegelanalyse & Tools'
 ]
 
+function getDirectoryFromFilePath(filePath: string): string {
+  const parts = filePath.split(/[\\/]/)
+  parts.pop()
+  return parts.join('\\')
+}
+
 export function VstPluginStore({ isPopout: propIsPopout }: { isPopout?: boolean, onInstalledChange?: () => void }) {
-  const { t } = useTranslation()
   const isPopout = propIsPopout ?? (new URLSearchParams(window.location.search).get('window') === 'vst-store')
-  
   const [storeCatalog] = useState<StorePlugin[]>(BUILTIN_PLUGINS)
-  
-  // Filtering & Search
-  const [activeCategory, setActiveCategory] = useState<string>('Alle')
-  const [searchQuery, setSearchQuery] = useState<string>('')
-
-  // Katalog-Auswahl-State
+  const [activeCategory, setActiveCategory] = useState('Alle')
+  const [searchQuery, setSearchQuery] = useState('')
   const [selectedPlugin, setSelectedPlugin] = useState<StorePlugin | null>(null)
+  const [scannedPlugins, setScannedPlugins] = useState<PluginDescriptor[]>([])
+  const [rackPlugins, setRackPlugins] = useState<any[]>([])
+  const [activeDownloads, setActiveDownloads] = useState<Set<string>>(new Set())
+  const [downloadedPaths, setDownloadedPaths] = useState<Record<string, string>>({})
 
-  // Filter Catalog
-  const filteredCatalog = storeCatalog.filter(plugin => {
-    const matchesSearch = plugin.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          plugin.manufacturer.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          plugin.description.toLowerCase().includes(searchQuery.toLowerCase())
+  const reloadPluginState = async () => {
+    try {
+      const plugins = await window.api.scanVstPlugins()
+      if (Array.isArray(plugins)) {
+        setScannedPlugins(plugins)
+      } else {
+        setScannedPlugins([])
+      }
+    } catch {
+      setScannedPlugins([])
+    } finally {
+      setRackPlugins(readRackPluginsFromStorage())
+    }
+  }
+
+  useEffect(() => {
+    let cancelled = false
+
+    const reloadStatus = () => {
+      reloadPluginState().catch(() => {
+        if (!cancelled) {
+          setScannedPlugins([])
+          setRackPlugins(readRackPluginsFromStorage())
+        }
+      })
+    }
+
+    reloadStatus()
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === 'vst_rack_plugins' || event.key === 'vst_rack_updated_trigger') {
+        setRackPlugins(readRackPluginsFromStorage())
+      }
+    }
+
+    const handleSettingsUpdated = () => {
+      reloadStatus()
+    }
+
+    window.addEventListener('storage', handleStorage)
+    window.addEventListener('SETTINGS_UPDATED', handleSettingsUpdated)
+
+    return () => {
+      cancelled = true
+      window.removeEventListener('storage', handleStorage)
+      window.removeEventListener('SETTINGS_UPDATED', handleSettingsUpdated)
+    }
+  }, [])
+
+  const filteredCatalog = storeCatalog.filter((plugin) => {
+    const matchesSearch =
+      plugin.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      plugin.manufacturer.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      plugin.description.toLowerCase().includes(searchQuery.toLowerCase())
 
     if (activeCategory === 'Alle') return matchesSearch
     return matchesSearch && plugin.subCategory === activeCategory
   })
 
-  // Render Docked View (Catalog Browser with honest external links and detail views)
+  const directDownloadCount = useMemo(
+    () => storeCatalog.filter((plugin) => plugin.downloadMode === 'direct').length,
+    [storeCatalog]
+  )
+  const selectedPluginStatus = selectedPlugin
+    ? getStorePluginStatus(selectedPlugin, scannedPlugins, rackPlugins, downloadedPaths)
+    : null
+
+  async function handleDirectDownload(plugin: StorePlugin) {
+    if (!plugin.directDownloadUrl || activeDownloads.has(plugin.id)) return
+
+    setActiveDownloads((prev) => new Set(prev).add(plugin.id))
+    try {
+      const result = await window.api.downloadPluginFile({
+        url: plugin.directDownloadUrl,
+        fileName: plugin.directDownloadFileName,
+        pluginName: plugin.name
+      })
+
+      if (result.success && result.filePath) {
+        setDownloadedPaths((prev) => ({ ...prev, [plugin.id]: result.filePath! }))
+      }
+    } finally {
+      setActiveDownloads((prev) => {
+        const next = new Set(prev)
+        next.delete(plugin.id)
+        return next
+      })
+    }
+  }
+
+  function renderActionButton(plugin: StorePlugin, compact = false) {
+    const status = getStorePluginStatus(plugin, scannedPlugins, rackPlugins, downloadedPaths)
+    const downloadedPath = status.downloadedPath
+    const isDownloading = activeDownloads.has(plugin.id)
+    const classes = compact ? 'px-2.5 py-1.5 text-[10px]' : 'px-4 py-2 text-xs'
+
+    if (status.isInstalled && status.isHostable) {
+      return (
+        <button
+          onClick={(event) => event.stopPropagation()}
+          className={`flex items-center gap-1 ${classes} bg-emerald-950/35 border border-emerald-900/40 rounded-xl text-emerald-300 font-extrabold transition-all cursor-default`}
+          title="Plugin wurde im System gefunden"
+        >
+          <Check size={compact ? 10 : 12} className="stroke-[2.5]" />
+          <span>{status.isInRack ? 'Im Rack' : 'Im System'}</span>
+        </button>
+      )
+    }
+
+    if (downloadedPath && !status.isInstalled) {
+      return (
+        <button
+          onClick={(event) => {
+            event.stopPropagation()
+            void reloadPluginState()
+          }}
+          className={`flex items-center gap-1 ${classes} bg-amber-600 hover:bg-amber-500 rounded-xl text-white font-extrabold transition-all shadow-md active:scale-[0.96]`}
+          title="Nach neuer Installation erneut suchen"
+        >
+          <Cpu size={compact ? 10 : 12} className="stroke-[2.5]" />
+          <span>Neu scannen</span>
+        </button>
+      )
+    }
+
+    if (downloadedPath) {
+      return (
+        <button
+          onClick={(event) => {
+            event.stopPropagation()
+            void window.api.openPath(getDirectoryFromFilePath(downloadedPath))
+          }}
+          className={`flex items-center gap-1 ${classes} bg-emerald-600 hover:bg-emerald-500 rounded-xl text-white font-extrabold transition-all shadow-md active:scale-[0.96]`}
+          title="Download-Ordner öffnen"
+        >
+          <Check size={compact ? 10 : 12} className="stroke-[2.5]" />
+          <span>Ordner öffnen</span>
+        </button>
+      )
+    }
+
+    if (plugin.downloadMode === 'direct' && plugin.directDownloadUrl) {
+      return (
+        <button
+          onClick={(event) => {
+            event.stopPropagation()
+            void handleDirectDownload(plugin)
+          }}
+          disabled={isDownloading}
+          className={`flex items-center gap-1 ${classes} ${isDownloading ? 'bg-blue-900/40 text-blue-200 border border-blue-700/40 cursor-wait' : 'bg-omega-accent hover:bg-blue-500 text-white'} rounded-xl font-extrabold transition-all shadow-md active:scale-[0.96]`}
+          title="Datei direkt in den Omega-Download-Ordner laden"
+        >
+          <ExternalLink size={compact ? 10 : 12} className="stroke-[2.5]" />
+          <span>{isDownloading ? 'Lädt...' : 'Direkt laden'}</span>
+        </button>
+      )
+    }
+
+    return (
+      <a
+        href={plugin.landingPageUrl}
+        target="_blank"
+        rel="noreferrer"
+        onClick={(event) => event.stopPropagation()}
+        className={`flex items-center gap-1 ${classes} bg-[#223044] hover:bg-[#29415f] rounded-xl text-white font-extrabold transition-all shadow-md active:scale-[0.96]`}
+        title="Herstellerseite öffnen"
+      >
+        <ExternalLink size={compact ? 10 : 12} className="stroke-[2.5]" />
+        <span>Herstellerseite</span>
+      </a>
+    )
+  }
+
+  function renderCard(plugin: StorePlugin, popout = false) {
+    const isInstrument = plugin.category === 'Instrument'
+    const status = getStorePluginStatus(plugin, scannedPlugins, rackPlugins, downloadedPaths)
+    const isInstalled = status.isInstalled
+    const isInRack = status.isInRack
+    const isHostable = status.isHostable
+
+    return (
+      <div
+        key={plugin.id}
+        onClick={() => setSelectedPlugin(plugin)}
+        className={popout
+          ? 'bg-[#1a1d21]/60 border border-gray-750 hover:border-omega-accent/50 rounded-2xl p-4 transition-all duration-300 cursor-pointer hover:bg-[#1a1d21]/90 flex flex-col justify-between group shadow-xl'
+          : 'p-3.5 bg-[#1b1e22]/60 border border-gray-800 hover:border-omega-accent/50 rounded-xl flex items-center justify-between shadow-md cursor-pointer transition-colors hover:bg-[#1a1d21]/80'}
+      >
+        {popout ? (
+          <>
+            <div>
+              <div className="flex justify-between items-start gap-2 mb-2">
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-bold text-sm select-none shadow-inner ${
+                  isInstrument
+                    ? 'bg-purple-950/40 text-purple-400 border border-purple-900/40'
+                    : 'bg-blue-950/40 text-blue-400 border border-blue-900/40'
+                }`}>
+                  {isInstrument ? '🎹' : '🔌'}
+                </div>
+                <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                  <span className={`text-[7px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-[4px] border ${
+                    isInstrument
+                      ? 'bg-purple-950/50 text-purple-300 border-purple-800/30'
+                      : 'bg-blue-950/50 text-blue-300 border-blue-800/30'
+                  }`}>
+                    {plugin.category}
+                  </span>
+                  {isInstalled ? (
+                    <span className="text-[7px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-[4px] border bg-cyan-950/50 text-cyan-300 border-cyan-900/30">
+                      Gefunden
+                    </span>
+                  ) : null}
+                  {isInRack ? (
+                    <span className="text-[7px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-[4px] border bg-emerald-950/40 text-emerald-300 border-emerald-900/30">
+                      Im Rack
+                    </span>
+                  ) : null}
+                  <span className={`text-[7px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-[4px] border ${
+                    isHostable
+                      ? 'bg-emerald-950/50 text-emerald-300 border-emerald-800/30'
+                      : 'bg-rose-950/50 text-rose-300 border-rose-800/30'
+                  }`}>
+                    {isHostable ? 'Ladbar' : 'Noch nicht ladbar'}
+                  </span>
+                </div>
+              </div>
+
+              <h3 className="text-xs font-black text-white group-hover:text-omega-accent transition-colors truncate">
+                {plugin.name}
+              </h3>
+              <span className="text-[8.5px] text-gray-500 font-medium block mt-0.5">
+                von {plugin.manufacturer}
+              </span>
+              <p className="text-[10px] text-gray-400 mt-2 line-clamp-2 leading-relaxed">
+                {plugin.description}
+              </p>
+            </div>
+
+            <div className="mt-4 pt-3.5 border-t border-gray-800/80 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-0.5 text-amber-500">
+                  <Star size={9} fill="currentColor" />
+                  <span className="font-bold font-mono text-[9px]">{plugin.rating.toFixed(1)}</span>
+                </div>
+                <span className="text-gray-700 font-bold text-[8px]">•</span>
+                <span className="font-mono text-gray-500 text-[8.5px]">{plugin.size}</span>
+              </div>
+              <div onClick={(event) => event.stopPropagation()}>
+                {renderActionButton(plugin, true)}
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center gap-3 min-w-0 mr-2">
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0 ${
+                isInstrument ? 'bg-purple-950/40 text-purple-400' : 'bg-blue-950/40 text-blue-400'
+              }`}>
+                {isInstrument ? '🎹' : '🔌'}
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-bold text-white truncate">{plugin.name}</span>
+                  <span className="text-[7px] bg-gray-850 text-omega-accent font-bold px-1.5 py-0.5 rounded font-mono uppercase tracking-wider">
+                    {plugin.formats.join('/')}
+                  </span>
+                  {isInstalled ? (
+                    <span className="text-[7px] font-black uppercase tracking-wider px-1 py-0.5 rounded border bg-cyan-950/50 text-cyan-300 border-cyan-900/30">
+                      Gefunden
+                    </span>
+                  ) : null}
+                  {isInRack ? (
+                    <span className="text-[7px] font-black uppercase tracking-wider px-1 py-0.5 rounded border bg-emerald-950/40 text-emerald-300 border-emerald-900/30">
+                      Im Rack
+                    </span>
+                  ) : null}
+                  <span className={`text-[7px] font-black uppercase tracking-wider px-1 py-0.5 rounded border ${
+                    isHostable
+                      ? 'bg-emerald-950/50 text-emerald-350 border-emerald-900/30'
+                      : 'bg-rose-950/50 text-rose-350 border-rose-900/30'
+                  }`}>
+                    {isHostable ? '✓ Ladbar' : '✕ Noch nicht ladbar'}
+                  </span>
+                </div>
+                <span className="text-[9px] text-gray-500 block truncate">
+                  von {plugin.manufacturer} • {plugin.size}
+                </span>
+              </div>
+            </div>
+
+            <div onClick={(event) => event.stopPropagation()} className="flex-shrink-0">
+              {renderActionButton(plugin, true)}
+            </div>
+          </>
+        )}
+      </div>
+    )
+  }
+
   if (!isPopout) {
     return (
       <div className="flex flex-col h-full bg-[#1e2124] text-omega-text select-none overflow-hidden font-sans">
-        
-        {/* Symmetrical 3-Part Header Toolbar */}
-        <div 
-          onDoubleClick={() => window.api.openPopoutWindow('vst-store', { width: 1120, height: 750, title: 'VST Store - Curated Freeware' })}
+        <div
+          onDoubleClick={() => window.api.openPopoutWindow('vst-store', { width: 1120, height: 750, title: 'VST Store' })}
           className="p-3 border-b border-gray-700/80 bg-[#1a1d21]/60 flex items-center justify-between gap-3 flex-shrink-0 cursor-pointer hover:bg-[#1a1d21]/80 select-none transition-colors"
-          title="Doppelklick zum Ausdocken des VST-Katalogs in ein separates Fenster"
+          title="Doppelklick zum Ausdocken des VST Stores in ein separates Fenster"
         >
-          {/* Left: Title */}
           <div className="w-1/3 min-w-[150px]">
             <h2 className="text-xs font-bold text-gray-200 uppercase tracking-wider flex items-center gap-1.5">
-              🏪 {t('vst_store.title', { defaultValue: 'VST-Katalog' })}
+              🏪 VST Store
             </h2>
             <p className="text-[9px] text-gray-500 mt-0.5">
-              {t('vst_store.subtitle', { defaultValue: 'Katalog empfehlenswerter Freeware-Plugins. Ein manueller Download beim Entwickler ist erforderlich.' })}
+              Verifizierte Freeware-Plugins. Echte Direktdownloads, wo technisch sauber möglich.
             </p>
           </div>
 
-          {/* Center: Outdock Button */}
-          <div className="w-1/3 flex justify-center" onClick={e => e.stopPropagation()}>
+          <div className="w-1/3 flex justify-center" onClick={(event) => event.stopPropagation()}>
             <button
-              onClick={() => window.api.openPopoutWindow('vst-store', { width: 1120, height: 750, title: 'VST Catalog - Curated Freeware' })}
+              onClick={() => window.api.openPopoutWindow('vst-store', { width: 1120, height: 750, title: 'VST Store' })}
               className="h-8 px-3.5 bg-green-600/15 hover:bg-green-600 hover:text-white border border-green-600/60 rounded-lg text-green-400 font-extrabold text-[11px] flex items-center gap-1.5 transition-all shadow active:scale-[0.97]"
-              title="Katalog-Browser im separaten Fenster öffnen"
+              title="VST Store im separaten Fenster öffnen"
             >
               <ExternalLink size={12} className="stroke-[2.5]" />
-              <span>Katalog öffnen</span>
+              <span>Store öffnen</span>
             </button>
           </div>
 
-          {/* Right: Search Input bar */}
-          <div className="w-1/3 flex justify-end" onClick={e => e.stopPropagation()}>
+          <div className="w-1/3 flex justify-end" onClick={(event) => event.stopPropagation()}>
             <div className="relative w-44 sm:w-56">
               <input
                 type="text"
-                placeholder="Katalog durchsuchen..."
+                placeholder="Store durchsuchen..."
                 value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
+                onChange={(event) => setSearchQuery(event.target.value)}
                 className="w-full py-1.5 pl-8 pr-3 text-[11px] bg-[#101214] border border-gray-750 rounded-lg text-gray-250 outline-none focus:border-omega-accent transition-colors"
               />
               <span className="absolute left-2.5 top-2 text-[10px] text-gray-500">🔍</span>
@@ -367,16 +679,14 @@ export function VstPluginStore({ isPopout: propIsPopout }: { isPopout?: boolean,
           </div>
         </div>
 
-        {/* Prominenter Disclaimer-Banner für Docked-Modus */}
         <div className="mx-4 mt-3 p-2.5 bg-blue-950/25 border border-blue-900/35 rounded-xl text-[10px] text-blue-300 flex items-start gap-2 flex-shrink-0 shadow-sm">
           <ShieldAlert size={13} className="text-blue-400 mt-0.5 flex-shrink-0" />
           <div>
-            <span className="font-extrabold text-white block mb-0.5">Reiner Katalog-Browser</span>
-            <span>Verzeichnis empfehlenswerter kostenloser Plugins. Kein direkter In-App-Download. Manuelle Installation vom Hersteller erforderlich.</span>
+            <span className="font-extrabold text-white block mb-0.5">Echter Plugin Store</span>
+            <span>{directDownloadCount} Plugins haben gerade verifizierte Direktdownloads. Alles andere bleibt klar als Herstellerseite markiert.</span>
           </div>
         </div>
 
-        {/* Library Catalog List */}
         <div className="flex-1 overflow-y-auto p-4 bg-[#141619] space-y-4">
           <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">
             Empfohlene VST-Plugins ({filteredCatalog.length})
@@ -389,132 +699,69 @@ export function VstPluginStore({ isPopout: propIsPopout }: { isPopout?: boolean,
                 Keine Plugins gefunden
               </h4>
               <p className="text-[10px] text-gray-655 max-w-xs mt-1 leading-relaxed">
-                Keine VSTs entsprechen Ihrer Suche im Katalog.
+                Keine VSTs entsprechen Ihrer Suche im Store.
               </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              {filteredCatalog.map(plugin => {
-                const isInstrument = plugin.category === 'Instrument'
-                return (
-                  <div
-                    key={plugin.id}
-                    onClick={() => {
-                      setSelectedPlugin(plugin)
-                    }}
-                    className="p-3.5 bg-[#1b1e22]/60 border border-gray-800 hover:border-omega-accent/50 rounded-xl flex items-center justify-between shadow-md cursor-pointer transition-colors hover:bg-[#1a1d21]/80"
-                  >
-                    <div className="flex items-center gap-3 min-w-0 mr-2">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0 ${
-                        isInstrument ? 'bg-purple-950/40 text-purple-400' : 'bg-blue-950/40 text-blue-400'
-                      }`}>
-                        {isInstrument ? '🎹' : '🔌'}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-white truncate">{plugin.name}</span>
-                          <span className="text-[7px] bg-gray-850 text-omega-accent font-bold px-1.5 py-0.5 rounded font-mono uppercase tracking-wider flex-shrink-0" title={`Verfügbare Formate: ${plugin.formats.join(', ')}`}>
-                            {plugin.formats.join('/')}
-                          </span>
-                          <span className={`text-[7px] font-black uppercase tracking-wider px-1 py-0.5 rounded border flex-shrink-0 ${
-                            isPluginCompatible(plugin)
-                              ? 'bg-emerald-950/50 text-emerald-350 border-emerald-900/30'
-                              : 'bg-rose-950/50 text-rose-350 border-rose-900/30'
-                          }`}>
-                            {isPluginCompatible(plugin) ? '✓ Kompatibel' : '✗ Inkompatibel'}
-                          </span>
-                        </div>
-                        <span className="text-[9px] text-gray-500 block truncate">
-                          von {plugin.manufacturer} • {plugin.size}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    {plugin.downloadUrl ? (
-                      <div onClick={e => e.stopPropagation()} className="flex-shrink-0">
-                        <a
-                          href={plugin.downloadUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          title={t('vst_store.manufacturer_site', { defaultValue: 'Herstellerseite öffnen (Download)' })}
-                          className="flex items-center gap-1 px-2.5 py-1.5 bg-omega-accent/15 hover:bg-omega-accent/30 border border-omega-accent/40 hover:border-omega-accent text-omega-accent hover:text-white rounded-lg transition-colors hover:scale-105 active:scale-95 text-[10px] font-bold"
-                        >
-                          <ExternalLink size={10} className="stroke-[2.5]" />
-                          <span>{t('vst_store.load', { defaultValue: 'Zum Hersteller' })}</span>
-                        </a>
-                      </div>
-                    ) : null}
-                  </div>
-                )
-              })}
+              {filteredCatalog.map((plugin) => renderCard(plugin))}
             </div>
           )}
         </div>
 
-        {/* Footer */}
         <div className="p-3 border-t border-gray-700 bg-[#1a1d21]/60 flex items-center justify-between text-[10px] text-gray-655 flex-shrink-0">
           <div className="flex items-center gap-1.5">
             <ShieldAlert size={12} className="text-gray-500 flex-shrink-0" />
-            <span>{t('vst_store.disclaimer', { defaultValue: 'Hinweis: Dies ist ein reines Verzeichnis empfehlenswerter kostenloser Plugins. Ein direkter Download oder eine automatische Installation im Editor erfolgt nicht. Alle Plugins müssen manuell auf Ihrem System installiert werden.' })}</span>
+            <span>Direktdownloads werden nur für verifizierte Hersteller-Dateien angeboten. Was keinen echten Dateilink hat, bleibt bewusst als externer Hersteller-Link markiert.</span>
           </div>
-          <span className="font-mono flex-shrink-0">Katalog v0.8.8</span>
+          <span className="font-mono flex-shrink-0">Store v0.9.0</span>
         </div>
       </div>
     )
   }
 
-  // Render Popout View (Full screen store catalog)
   return (
     <div className="flex flex-col h-full bg-[#1e2124] text-omega-text select-none overflow-hidden relative font-sans">
-      
-      {/* Popout Header */}
       <div className="p-4 border-b border-gray-700/80 bg-[#1a1d21]/60 flex justify-between items-center flex-shrink-0">
         <div>
           <h2 className="text-sm font-bold text-gray-200 uppercase tracking-wider flex items-center gap-1.5">
-            🏪 {t('vst_store.title', { defaultValue: 'VST & VSTi Plugin-Katalog — Freeware-Browser' })}
+            🏪 VST Store
           </h2>
           <p className="text-[10px] text-gray-500 mt-0.5">
-            {t('vst_store.subtitle', { defaultValue: 'Katalog empfehlenswerter Freeware-Plugins. Ein manueller Download beim Entwickler ist erforderlich.' })}
+            Verifizierte Freeware-Plugins. Echte Direktdownloads, wo technisch sauber möglich.
           </p>
         </div>
         <div className="flex items-center gap-2 px-3 py-1 bg-blue-950/20 border border-blue-900/30 rounded text-blue-400 text-[10px]">
           <Cpu size={12} />
-          <span>{t('vst_store.sandboxed', { defaultValue: 'Reiner Katalog-Browser' })}</span>
+          <span>Store mit Direktdownloads</span>
         </div>
       </div>
 
-      {/* Search Input bar */}
       <div className="px-4 py-3 bg-[#141619]/80 border-b border-gray-800/80 flex justify-center items-center flex-shrink-0">
         <div className="relative w-full max-w-lg">
           <input
             type="text"
-            placeholder="Katalog nach Name, Hersteller oder Beschreibung filtern..."
+            placeholder="Store nach Name, Hersteller oder Beschreibung filtern..."
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
+            onChange={(event) => setSearchQuery(event.target.value)}
             className="w-full py-2 pl-9 pr-4 text-xs bg-[#101214] border border-gray-750 rounded-xl text-gray-250 outline-none focus:border-omega-accent transition-colors"
           />
           <span className="absolute left-3.5 top-2.5 text-gray-500 text-xs">🔍</span>
         </div>
       </div>
 
-      {/* Prominenter Disclaimer-Banner für Popout-Modus */}
       <div className="mx-4 mt-3 p-3.5 bg-blue-950/20 border border-blue-900/30 rounded-xl text-xs text-blue-300 flex items-start gap-3 shadow-md flex-shrink-0">
         <ShieldAlert size={16} className="text-blue-400 mt-0.5 flex-shrink-0" />
         <div>
-          <span className="font-extrabold text-white block mb-0.5">Reiner Katalog-Browser — Keine In-App-Downloads</span>
-          <span>Dies ist ein reines Verzeichnis empfehlenswerter kostenloser Plugins. Es werden keine automatischen In-App-Installationen oder verdeckten Downloads durchgeführt. Alle VSTs müssen manuell über die verifizierten Hersteller-Links beim Entwickler geladen und auf Ihrem System installiert werden.</span>
+          <span className="font-extrabold text-white block mb-0.5">Plugin Store mit echten Direktdownloads</span>
+          <span>Verifizierte Windows-Dateien werden direkt in Ihren Omega-Download-Ordner geladen. Wo kein echter Dateilink vorliegt, bleibt der Eintrag bewusst bei der Herstellerseite.</span>
         </div>
       </div>
 
-      {/* Flex container for Category Sidebar & Grid Catalog */}
       <div className="flex-1 min-h-0 flex flex-row">
-        
-        {/* Left Side: Vertical Category Sidebar */}
         <div className="w-64 bg-[#17191c]/90 border-r border-gray-800 p-4 overflow-y-auto flex-shrink-0 space-y-1.5 scrollbar-thin">
-          <h3 className="text-[9px] font-bold text-gray-500 uppercase tracking-wider px-2 mb-2">
-            Kategorien
-          </h3>
-          {RACK_CATEGORIES.map(cat => (
+          <h3 className="text-[9px] font-bold text-gray-500 uppercase tracking-wider px-2 mb-2">Kategorien</h3>
+          {RACK_CATEGORIES.map((cat) => (
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
@@ -525,14 +772,13 @@ export function VstPluginStore({ isPopout: propIsPopout }: { isPopout?: boolean,
               }`}
             >
               <span className="text-xs">
-                {cat === 'Alle' ? '🌐' : cat.includes('Synth') || cat.includes('Sampler') || cat.includes('Drums') ? '🎹' : '🔌'}
+                {cat === 'Alle' ? '🌐' : cat.includes('Synth') || cat.includes('Sampler') ? '🎹' : '🔌'}
               </span>
               <span className="truncate">{cat}</span>
             </button>
           ))}
         </div>
 
-        {/* Right Side: Grid: Curated Catalog List */}
         <div className="flex-1 overflow-y-auto p-4 bg-[#25282c] grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 content-start">
           {filteredCatalog.length === 0 ? (
             <div className="col-span-full flex flex-col items-center justify-center h-48 text-center text-gray-500">
@@ -540,129 +786,55 @@ export function VstPluginStore({ isPopout: propIsPopout }: { isPopout?: boolean,
               <p className="text-xs">Keine VSTs in dieser Kategorie gefunden, die der Suche entsprechen.</p>
             </div>
           ) : (
-            filteredCatalog.map(plugin => {
-              const isInstrument = plugin.category === 'Instrument'
-
-              return (
-                <div
-                  key={plugin.id}
-                  onClick={() => {
-                    setSelectedPlugin(plugin)
-                  }}
-                  className="bg-[#1a1d21]/60 border border-gray-750 hover:border-omega-accent/50 rounded-2xl p-4 transition-all duration-300 cursor-pointer hover:bg-[#1a1d21]/90 flex flex-col justify-between group shadow-xl"
-                >
-                  <div>
-                    <div className="flex justify-between items-start gap-2 mb-2">
-                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-bold text-sm select-none shadow-inner ${
-                        isInstrument
-                          ? 'bg-purple-950/40 text-purple-400 border border-purple-900/40'
-                          : 'bg-blue-950/40 text-blue-400 border border-blue-900/40'
-                      }`}>
-                        {isInstrument ? '🎹' : '🔌'}
-                      </div>
-                      <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                        <span className={`text-[7px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-[4px] border ${
-                          isInstrument
-                            ? 'bg-purple-950/50 text-purple-300 border-purple-800/30'
-                            : 'bg-blue-950/50 text-blue-300 border-blue-800/30'
-                        }`}>
-                          {plugin.category}
-                        </span>
-                        <span className={`text-[7px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-[4px] border ${
-                          isPluginCompatible(plugin)
-                            ? 'bg-emerald-950/50 text-emerald-300 border-emerald-800/30'
-                            : 'bg-rose-950/50 text-rose-300 border-rose-800/30'
-                        }`}>
-                          {isPluginCompatible(plugin) ? 'Kompatibel (VST2)' : 'Inkompatibel (Host nur VST2)'}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div>
-                      <h3 className="text-xs font-black text-white group-hover:text-omega-accent transition-colors truncate">
-                        {plugin.name}
-                      </h3>
-                      <span className="text-[8.5px] text-gray-500 font-medium block mt-0.5">
-                        von {plugin.manufacturer}
-                      </span>
-                      <p className="text-[10px] text-gray-400 mt-2 line-clamp-2 leading-relaxed">
-                        {plugin.description}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 pt-3.5 border-t border-gray-800/80 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-0.5 text-amber-500">
-                        <Star size={9} fill="currentColor" />
-                        <span className="font-bold font-mono text-[9px]">{plugin.rating.toFixed(1)}</span>
-                      </div>
-                      <span className="text-gray-700 font-bold text-[8px]">•</span>
-                      <span className="font-mono text-gray-500 text-[8.5px]">{plugin.size}</span>
-                    </div>
-
-                    {plugin.downloadUrl ? (
-                      <div onClick={e => e.stopPropagation()}>
-                        <a
-                          href={plugin.downloadUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex items-center gap-1 px-2.5 py-1.5 bg-omega-accent hover:bg-blue-500 active:scale-[0.96] rounded-lg text-white font-extrabold transition-all text-[10px] shadow"
-                          title={t('vst_store.manufacturer_site', { defaultValue: 'Herstellerseite öffnen (Download)' })}
-                        >
-                          <ExternalLink size={10} className="stroke-[2.5]" />
-                          <span>{t('vst_store.load', { defaultValue: 'Zum Hersteller' })}</span>
-                        </a>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              )
-            })
+            filteredCatalog.map((plugin) => renderCard(plugin, true))
           )}
         </div>
       </div>
 
-      {/* Footer Info bar */}
       <div className="p-3 border-t border-gray-700 bg-[#1a1d21]/60 flex items-center justify-between text-[10px] text-gray-655 flex-shrink-0">
-        <div className="flex items-center gap-1.5">
-          <ShieldAlert size={12} className="text-gray-500 flex-shrink-0" />
-          <span>{t('vst_store.disclaimer', { defaultValue: 'Hinweis: Dies ist ein reines Verzeichnis empfehlenswerter kostenloser Plugins. Ein direkter Download oder eine automatische Installation im Editor erfolgt nicht. Alle Plugins müssen manuell auf Ihrem System installiert werden.' })}</span>
+          <div className="flex items-center gap-1.5">
+            <ShieldAlert size={12} className="text-gray-500 flex-shrink-0" />
+            <span>Direktdownloads werden nur für verifizierte Hersteller-Dateien angeboten. Was keinen echten Dateilink hat, bleibt bewusst als externer Hersteller-Link markiert.</span>
         </div>
-        <span className="font-mono flex-shrink-0">Katalog v0.8.8</span>
+        <span className="font-mono flex-shrink-0">Store v0.9.0</span>
       </div>
 
-      {/* ── DETAILS MODAL (GORGEOUS GLASSMORPHIC POPUP) ── */}
-      {selectedPlugin && (
+      {selectedPlugin ? (
         <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-[999] flex items-center justify-center p-4">
           <div className="bg-[#1e2124] border border-gray-755 rounded-2xl w-full max-w-xl max-h-[85vh] flex flex-col shadow-2xl relative overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            {/* Close Button */}
-            <button 
+            <button
               onClick={() => setSelectedPlugin(null)}
               className="absolute top-3.5 right-3.5 p-1 rounded-full bg-black/40 hover:bg-black/60 text-gray-400 hover:text-white border border-gray-700/40 transition-colors z-20"
             >
               <X size={14} />
             </button>
 
-            {/* Ehrlicher Text-Platzhalter anstelle erfundener Mockups */}
             <div className="p-8 pt-10 bg-[#141619] border-b border-gray-800 flex flex-col items-center justify-center text-center gap-2 flex-shrink-0 select-none">
               <span className="text-3xl opacity-60">📷</span>
-              <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider font-extrabold">Keine Bildvorschau verfügbar</h4>
+              <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Keine Bildvorschau verfügbar</h4>
               <p className="text-[10px] text-gray-500 max-w-sm leading-relaxed">
-                Für dieses Plugin ist keine verifizierte Benutzeroberflächen-Vorschau oder Grafik hinterlegt. 
-                Als ehrlicher VST-Katalog verzichten wir auf frei erfundene Darstellungen.
+                Fuer dieses Plugin ist keine verifizierte Oberflaechen-Vorschau hinterlegt. Wir zeigen lieber keine erfundene Grafik an.
               </p>
             </div>
 
-            {/* Content Body */}
             <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
               <div className="flex justify-between items-start gap-4">
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2.5">
+                  <div className="flex items-center gap-2.5 flex-wrap">
                     <h2 className="text-sm font-black text-white uppercase tracking-wider">{selectedPlugin.name}</h2>
                     <span className="text-[7.5px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-[4px] border border-gray-855 bg-black/30 text-omega-accent">
                       {selectedPlugin.subCategory}
                     </span>
+                    {selectedPluginStatus?.isInstalled ? (
+                      <span className="text-[7.5px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-[4px] border bg-cyan-950/50 text-cyan-300 border-cyan-900/30">
+                        Gefunden
+                      </span>
+                    ) : null}
+                    {selectedPluginStatus?.isInRack ? (
+                      <span className="text-[7.5px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-[4px] border bg-emerald-950/40 text-emerald-300 border-emerald-900/30">
+                        Im Rack
+                      </span>
+                    ) : null}
                   </div>
                   <p className="text-[10px] text-gray-500 font-semibold font-mono mt-0.5">
                     von {selectedPlugin.manufacturer}
@@ -680,39 +852,26 @@ export function VstPluginStore({ isPopout: propIsPopout }: { isPopout?: boolean,
                 {selectedPlugin.longDescription}
               </p>
 
-              {/* Kompatibilitätshinweis */}
-              {isPluginCompatible(selectedPlugin) ? (
-                <div className="p-4 bg-emerald-950/20 border border-emerald-800/40 rounded-xl text-[11px] text-emerald-300 leading-relaxed flex items-start gap-3 shadow-md">
-                  <Check size={16} className="text-emerald-400 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <span className="font-extrabold text-emerald-200 block mb-1">Voraussichtlich kompatibel (bietet VST2)</span>
-                    <p className="mb-1.5">
-                      Dieses Plugin bietet das benötigte <strong>VST2-Format</strong> an und ist daher mit dem aktuellen Windows-Host voraussichtlich nutzbar.
-                    </p>
-                    <p className="text-[10px] text-emerald-350/90 leading-normal">
-                      <strong>Hinweis zur Installation:</strong> Da der Host unter Windows ausschließlich 64-Bit VST2-Plugins laden kann, müssen Sie bei der manuellen Installation des Herstellers darauf achten, dass die 64-Bit VST2-Version (oft als .dll-Datei) in Ihren System-Plugin-Pfad installiert wird.
-                    </p>
-                  </div>
+              <div className="grid grid-cols-2 gap-3 text-[10px]">
+                <div className="bg-[#171a1d] border border-gray-800/60 rounded-xl p-3">
+                  <span className="text-gray-500 uppercase tracking-wider block mb-1">Systemstatus</span>
+                  <span className={selectedPluginStatus?.isInstalled ? 'text-cyan-300 font-semibold' : 'text-gray-400'}>
+                    {selectedPluginStatus?.isInstalled ? 'Im System gefunden' : 'Noch nicht im System gefunden'}
+                  </span>
                 </div>
-              ) : (
-                <div className="p-4 bg-rose-950/20 border border-rose-800/40 rounded-xl text-[11px] text-rose-350 leading-relaxed flex items-start gap-3 shadow-md">
-                  <ShieldAlert size={16} className="text-rose-400 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <span className="font-extrabold text-rose-200 block mb-1">Nicht kompatibel mit dem aktuellen Windows-Host</span>
-                    <p className="mb-1.5">
-                      Dieses Plugin unterstützt die Formate <strong>{selectedPlugin.formats.join(', ')}</strong>, bietet jedoch <strong>keine VST2-Version</strong> an.
-                    </p>
-                    <p className="text-[10px] text-rose-350/90 leading-normal">
-                      <strong>Technische Erklärung:</strong> Der integrierte Windows-Audiomotor von Omega Wave Editor unterstützt derzeit ausschließlich das ältere <strong>VST2-Format (64-Bit)</strong>. Neuere Schnittstellen wie VST3 oder CLAP können von diesem Host real noch nicht geladen und verarbeitet werden. Da dieses Plugin kein VST2 anbietet, kann es auf diesem System im aktuellen Editor nicht geladen werden.
-                    </p>
-                  </div>
+                <div className="bg-[#171a1d] border border-gray-800/60 rounded-xl p-3">
+                  <span className="text-gray-500 uppercase tracking-wider block mb-1">Ladestatus</span>
+                  <span className={selectedPluginStatus?.isHostable ? 'text-emerald-300 font-semibold' : 'text-amber-300 font-semibold'}>
+                    {selectedPluginStatus?.isHostable ? 'Aktuell ladbar' : 'Noch nicht ladbar'}
+                  </span>
                 </div>
-              )}
-
-              <div className="p-3 bg-blue-950/20 border border-blue-900/30 rounded-xl text-[10px] text-blue-300 leading-relaxed flex items-start gap-2.5">
-                <ShieldAlert size={14} className="text-blue-405 mt-0.5 flex-shrink-0" />
-                <span>{t('vst_store.disclaimer', { defaultValue: 'Hinweis: Dies ist ein reines Verzeichnis empfehlenswerter kostenloser Plugins. Ein direkter Download oder eine automatische Installation im Editor erfolgt nicht. Alle Plugins müssen manuell auf Ihrem System installiert werden.' })}</span>
               </div>
+
+              {selectedPluginStatus?.unsupportedReason ? (
+                <div className="text-[10px] text-amber-300 bg-amber-950/15 border border-amber-900/30 p-3 rounded-xl leading-relaxed">
+                  Aktueller technischer Hinweis: {selectedPluginStatus.unsupportedReason}
+                </div>
+              ) : null}
 
               <div>
                 <h4 className="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-2 flex items-center gap-1">
@@ -720,8 +879,8 @@ export function VstPluginStore({ isPopout: propIsPopout }: { isPopout?: boolean,
                   Features & Details
                 </h4>
                 <ul className="grid grid-cols-1 gap-1.5">
-                  {selectedPlugin.features.map((feature, i) => (
-                    <li key={i} className="flex items-start gap-2 text-[10px] text-gray-400 leading-tight">
+                  {selectedPlugin.features.map((feature, index) => (
+                    <li key={index} className="flex items-start gap-2 text-[10px] text-gray-400 leading-tight">
                       <Check size={10} className="text-omega-accent stroke-[3] mt-0.5 flex-shrink-0" />
                       <span>{feature}</span>
                     </li>
@@ -743,12 +902,12 @@ export function VstPluginStore({ isPopout: propIsPopout }: { isPopout?: boolean,
                   <div>
                     <span className="text-[8px] text-gray-605 uppercase block tracking-wider font-extrabold">Plattformen</span>
                     <div className="flex gap-1 mt-0.5">
-                      {selectedPlugin.platforms.map(p => (
-                        <span 
-                          key={p} 
+                      {selectedPlugin.platforms.map((platform) => (
+                        <span
+                          key={platform}
                           className="px-1 bg-gray-800 border border-gray-700/60 rounded text-[7px] font-mono font-bold text-gray-400 uppercase"
                         >
-                          {p}
+                          {platform}
                         </span>
                       ))}
                     </div>
@@ -757,33 +916,15 @@ export function VstPluginStore({ isPopout: propIsPopout }: { isPopout?: boolean,
               </div>
             </div>
 
-            {/* Modal Footer Controls */}
             <div className="p-4 border-t border-gray-800 bg-[#171a1d] flex items-center justify-between flex-shrink-0">
               <span className="text-[10px] text-gray-500">
-                {t('vst_store.sandboxed', { defaultValue: 'Reiner Katalog-Browser' })} • {t('vst_store.disclaimer_short', { defaultValue: 'Kein direkter In-App-Download' })}
+                Store mit Direktdownloads • Direktdownload nur bei verifizierten Dateilinks
               </span>
-
-              {selectedPlugin.downloadUrl ? (
-                <div>
-                  <a
-                    href={selectedPlugin.downloadUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-1.5 px-4 py-2 bg-omega-accent hover:bg-blue-500 active:scale-[0.96] rounded-xl text-white font-extrabold transition-all text-xs shadow-md"
-                    title={t('vst_store.manufacturer_site', { defaultValue: 'Herstellerseite öffnen (Download)' })}
-                  >
-                    <ExternalLink size={12} className="stroke-[2.5]" />
-                    <span>{t('vst_store.manufacturer_site', { defaultValue: 'Herstellerseite öffnen (Download)' })}</span>
-                  </a>
-                </div>
-              ) : null}
+              <div>{renderActionButton(selectedPlugin)}</div>
             </div>
           </div>
         </div>
-      )}
-
-
-
+      ) : null}
     </div>
   )
 }
