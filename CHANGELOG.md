@@ -2,6 +2,18 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.8.16] - 2026-06-07
+
+### English
+
+#### Fixed
+- **Update Dialog Dynamic Sizing**: Constrained the update modal height to always fit within the visible window area, ensuring action buttons remain visible without scrolling. Added dynamic window resizing for popout mode.
+
+### Deutsch
+
+#### Behoben
+- **Dynamische Update-Dialog-Größe**: Begrenzung der maximalen Höhe des Update-Dialogs auf den sichtbaren Fensterbereich, sodass die Aktions-Buttons (Herunterladen, Später) immer sichtbar bleiben und kein Scrollen oder Fenstervergrößern nötig ist. Dynamische Fenstergrößenanpassung im Popout-Modus hinzugefügt.
+
 ## [0.8.15] - 2026-06-07
 
 ### English
