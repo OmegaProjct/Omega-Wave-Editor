@@ -2,6 +2,24 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.8.17] - 2026-06-07
+
+### English
+
+#### Fixed
+- **Update Download**: Fixed update installer download getting stuck at 0% progress. The HTTPS download request and file stream are now properly tracked, enabling reliable cancellation and preventing hangs. Added a 30-second connection timeout and correct redirect handling.
+- **Update Dialog Markdown Rendering**: Patch notes no longer show raw `**bold**` asterisks. Inline bold markdown is now correctly parsed and rendered as bold text.
+- **Update Dialog Pulsing Dots**: Removed the distracting pulsing animation from the language section dots (Deutsch / English) in the patch notes view.
+- **Update Dialog Font Size**: Increased the font size throughout the patch notes panel for better readability.
+
+### Deutsch
+
+#### Behoben
+- **Update-Download**: Behebung eines Fehlers, bei dem der Download des Installers bei 0% hängenblieb. Die HTTPS-Verbindung und der Dateistream werden nun korrekt verfolgt, wodurch Abbruch und Redirect-Handling zuverlässig funktionieren. Zusätzlich wurde ein 30-Sekunden-Verbindungstimeout hinzugefügt.
+- **Update-Dialog Markdown-Darstellung**: Patchnotes zeigen keine rohen `**fett**`-Sternchen mehr an. Inline-Bold-Markdown wird nun korrekt als fetter Text gerendert.
+- **Update-Dialog pulsierende Punkte**: Die störende Pulsieranimation der Sprachabschnitts-Punkte (Deutsch / Englisch) in der Patchnotes-Ansicht wurde entfernt.
+- **Update-Dialog Schriftgröße**: Die Schriftgröße im Patchnotes-Panel wurde für bessere Lesbarkeit vergrößert.
+
 ## [0.8.16] - 2026-06-07
 
 ### English

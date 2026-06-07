@@ -92,9 +92,6 @@ export function setupUpdateDownloader(mainWindow: BrowserWindow) {
       let lastProgressSentTime = 0
 
       await downloadFileHttps(downloadUrl, tempFilePath, (percent, downloadedBytes, totalBytes) => {
-        if (isDownloadCancelled) {
-          throw new Error('Canceled')
-        }
         const now = Date.now()
         if (now - lastProgressSentTime > 150 || percent === 100) {
           lastProgressSentTime = now
@@ -235,9 +232,12 @@ function downloadFileHttps(
   onProgress: (percent: number, downloaded: number, total: number) => void
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    let fileStream: fs.WriteStream | null = null
+    function makeRequest(currentUrl: string, redirectCount = 0) {
+      if (redirectCount > 10) {
+        reject(new Error('Too many redirects'))
+        return
+      }
 
-    function makeRequest(currentUrl: string) {
       try {
         const parsedUrl = new URL(currentUrl)
         const options = {
@@ -247,13 +247,15 @@ function downloadFileHttps(
           headers: {
             'User-Agent': 'Omega-Wave-Editor-Updater',
             'Accept': 'application/octet-stream'
-          }
+          },
+          timeout: 30000 // 30s connection timeout
         }
 
         const req = https.request(options, (res) => {
           if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
             console.log(`Redirecting to: ${res.headers.location}`)
-            makeRequest(res.headers.location)
+            res.resume() // Drain the response before following redirect
+            makeRequest(res.headers.location, redirectCount + 1)
             return
           }
 
@@ -265,34 +267,64 @@ function downloadFileHttps(
           const totalBytes = parseInt(res.headers['content-length'] || '0', 10)
           let downloadedBytes = 0
 
-          fileStream = fs.createWriteStream(destPath)
+          const fileStream = fs.createWriteStream(destPath)
+          activeFileStream = fileStream
+
+          fileStream.on('error', (err) => {
+            activeFileStream = null
+            try { fs.unlinkSync(destPath) } catch {}
+            reject(err)
+          })
 
           res.on('data', (chunk) => {
-            if (fileStream) {
-              fileStream.write(chunk)
-              downloadedBytes += chunk.length
-              const percent = totalBytes > 0 ? Math.round((downloadedBytes / totalBytes) * 100) : 0
-              onProgress(percent, downloadedBytes, totalBytes)
+            if (isDownloadCancelled) {
+              // Cleanly abort when cancelled
+              res.destroy()
+              fileStream.destroy()
+              activeFileStream = null
+              activeDownloadRequest = null
+              try { fs.unlinkSync(destPath) } catch {}
+              reject(new Error('Canceled'))
+              return
             }
+            fileStream.write(chunk)
+            downloadedBytes += chunk.length
+            const percent = totalBytes > 0 ? Math.round((downloadedBytes / totalBytes) * 100) : 0
+            onProgress(percent, downloadedBytes, totalBytes)
           })
 
           res.on('end', () => {
-            if (fileStream) {
-              fileStream.end()
+            fileStream.end(() => {
+              activeFileStream = null
+              activeDownloadRequest = null
               resolve()
-            }
+            })
           })
 
           res.on('error', (err) => {
-            if (fileStream) {
-              fileStream.destroy()
-              fs.unlink(destPath, () => {})
-            }
+            fileStream.destroy()
+            activeFileStream = null
+            activeDownloadRequest = null
+            try { fs.unlinkSync(destPath) } catch {}
             reject(err)
           })
         })
 
+        // Track active request for cancellation
+        activeDownloadRequest = req
+
+        req.on('timeout', () => {
+          req.destroy()
+          activeDownloadRequest = null
+          reject(new Error('Connection timeout'))
+        })
+
         req.on('error', (err) => {
+          activeDownloadRequest = null
+          if ((err as any).code === 'ECONNRESET' && isDownloadCancelled) {
+            // Expected when we destroy the request during cancel
+            return
+          }
           reject(err)
         })
 

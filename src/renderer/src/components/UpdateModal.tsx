@@ -76,9 +76,21 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
     return `${mins}m ${secs}s`
   }
 
+  // Parse inline markdown: **bold** → <strong>
+  const renderInlineMarkdown = (text: string) => {
+    const parts = text.split(/(\*\*[^*]+\*\*)/g);
+    return parts.map((part, i) => {
+      const boldMatch = part.match(/^\*\*(.+)\*\*$/);
+      if (boldMatch) {
+        return <strong key={i} className="text-white font-extrabold">{boldMatch[1]}</strong>;
+      }
+      return <span key={i}>{part}</span>;
+    });
+  };
+
   // HandBrake-style Markdown-Parser for changelogs with prominent text sizes
   const renderFormattedChangelog = (text: string) => {
-    if (!text) return <p className="text-sm text-gray-500 italic">Keine Details für dieses Update verfügbar.</p>;
+    if (!text) return <p className="text-base text-gray-500 italic">Keine Details für dieses Update verfügbar.</p>;
     
     const lines = text.split('\n');
     return lines.map((line, idx) => {
@@ -95,54 +107,42 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
         
         if (level === 2) {
           return (
-            <h3 key={idx} className="text-white font-black text-lg mt-7 mb-4 first:mt-0 border-b border-gray-800/80 pb-2 select-none tracking-tight">
-              {content}
+            <h3 key={idx} className="text-white font-black text-xl mt-7 mb-4 first:mt-0 border-b border-gray-800/80 pb-2 select-none tracking-tight">
+              {renderInlineMarkdown(content)}
             </h3>
           );
         }
         if (level === 3) {
           return (
-            <h4 key={idx} className="text-omega-accent font-extrabold text-sm uppercase tracking-wider mt-6 mb-3 flex items-center gap-1.5 select-none">
-              <span className="w-1.5 h-1.5 bg-omega-accent rounded-sm inline-block animate-pulse"></span>
-              {content}
+            <h4 key={idx} className="text-omega-accent font-extrabold text-base uppercase tracking-wider mt-6 mb-3 flex items-center gap-1.5 select-none">
+              <span className="w-1.5 h-1.5 bg-omega-accent rounded-sm inline-block"></span>
+              {renderInlineMarkdown(content)}
             </h4>
           );
         }
         if (level === 4) {
           return (
-            <h5 key={idx} className="text-gray-100 font-bold text-sm mt-4.5 mb-2.5 border-l-2 border-omega-accent/60 pl-2 select-none">
-              {content}
+            <h5 key={idx} className="text-gray-100 font-bold text-base mt-4.5 mb-2.5 border-l-2 border-omega-accent/60 pl-2 select-none">
+              {renderInlineMarkdown(content)}
             </h5>
           );
         }
         // Fallback for Level 1 or other levels
         return (
-          <h2 key={idx} className="text-white font-black text-xl mt-8 mb-4 first:mt-0">
-            {content}
+          <h2 key={idx} className="text-white font-black text-2xl mt-8 mb-4 first:mt-0">
+            {renderInlineMarkdown(content)}
           </h2>
         );
       }
       
-      // List items with category prefix bolding (e.g. "- Core: Fixed seek offset")
+      // List items with inline markdown support
       if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
         const content = line.trim().substring(2);
-        const categoryMatch = content.match(/^([^:]+):\s*(.*)$/);
-        
-        if (categoryMatch) {
-          return (
-            <li key={idx} className="list-none pl-4 relative text-sm text-gray-200 mb-2 leading-relaxed flex items-start gap-1.5">
-              <span className="text-omega-accent select-none mt-1.5 font-bold text-xs">•</span>
-              <div>
-                <strong className="text-white font-extrabold">{categoryMatch[1]}:</strong> {categoryMatch[2]}
-              </div>
-            </li>
-          );
-        }
         
         return (
-          <li key={idx} className="list-none pl-4 relative text-sm text-gray-200 mb-2 leading-relaxed flex items-start gap-1.5">
-            <span className="text-omega-accent select-none mt-1.5 font-bold text-xs">•</span>
-            <span>{content}</span>
+          <li key={idx} className="list-none pl-4 relative text-base text-gray-200 mb-2.5 leading-relaxed flex items-start gap-1.5">
+            <span className="text-omega-accent select-none mt-1.5 font-bold text-sm">•</span>
+            <div>{renderInlineMarkdown(content)}</div>
           </li>
         );
       }
@@ -154,8 +154,8 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
       
       // Default text lines
       return (
-        <p key={idx} className="text-sm text-gray-300 mb-2 leading-relaxed">
-          {line}
+        <p key={idx} className="text-base text-gray-300 mb-2 leading-relaxed">
+          {renderInlineMarkdown(line)}
         </p>
       );
     });
