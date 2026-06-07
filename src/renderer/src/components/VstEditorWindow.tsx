@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Power, RotateCcw, Volume2, Sparkles, HelpCircle, Activity, Music, Mic, Square } from 'lucide-react'
+import { getInitialParams } from './VstPluginRack'
+import { Power, RotateCcw, Volume2, Sparkles, HelpCircle, Activity, Music, Mic, Square, Loader2 } from 'lucide-react'
 
 export interface VstParameter {
   name: string
@@ -27,7 +28,9 @@ export interface LoadedVst {
   missingFromScan?: boolean
   notHostable?: boolean
   unsupportedReason?: string
+  instanceId?: number
 }
+
 
 // ✂️ Trim leading and trailing silence from AudioBuffer with safety padding
 function trimAudioBuffer(buffer: AudioBuffer, threshold = 0.002): { trimmedBuffer: AudioBuffer; leadingSilenceSec: number } {
@@ -164,11 +167,6 @@ export function VstEditorWindow() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const initializedRef = useRef<string | null>(null)
 
-  // Singleton protection states
-  const [isBlocked, setIsBlocked] = useState(false)
-  const [blockReason, setBlockReason] = useState('')
-  const [, setActiveRealPluginName] = useState<string | null>(null)
-
   // Web Audio refs
   const audioCtxRef = useRef<AudioContext | null>(null)
   const recorderDestRef = useRef<MediaStreamAudioDestinationNode | null>(null)
@@ -178,6 +176,10 @@ export function VstEditorWindow() {
   const recordingTimerRef = useRef<any>(null)
   const startTimeRef = useRef<number>(0)
 
+  const peaksIntervalRef = useRef<any>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const isStandaloneLoadedRef = useRef<number | null>(null)
+
   // Load the VST plugin configuration from localStorage
   const loadPluginFromStorage = () => {
     try {
@@ -186,95 +188,32 @@ export function VstEditorWindow() {
 
       const payload = JSON.parse(payloadStr)
       const pluginId = payload.pluginId
+      const fallbackPlugin: LoadedVst = {
+        id: pluginId,
+        instanceId: typeof payload.instanceId === 'number' ? payload.instanceId : undefined,
+        name: payload.name || 'Unbekanntes VST Plugin',
+        manufacturer: payload.manufacturer || 'Unbekannt',
+        format: payload.format || 'VST',
+        category: payload.category || 'Effect',
+        path: payload.path || '',
+        active: false,
+        parameters: [],
+        hasEditor: typeof payload.hasEditor === 'boolean' ? payload.hasEditor : undefined
+      }
 
       const savedRack = localStorage.getItem('vst_rack_plugins')
       if (savedRack) {
         const parsed = JSON.parse(savedRack)
         if (Array.isArray(parsed)) {
-          // Find the active real plugin in the rack
-          const activeReal = parsed.find((p: any) => p && p.active && p.path && !p.path.startsWith('store://') && !p.path.startsWith('internal://'))
-          
-          // Find the requested plugin in the rack
-          const foundInParsed = parsed.find((p: any) => p && p.id === pluginId)
-          
-          if (foundInParsed) {
-            const isReal = !!(foundInParsed.path && !foundInParsed.path.startsWith('store://') && !foundInParsed.path.startsWith('internal://'))
-            
-            if (isReal) {
-              if (foundInParsed.missingFromScan) {
-                setIsBlocked(true)
-                setActiveRealPluginName(null)
-                setBlockReason(`Dieses VST-Plugin "${foundInParsed.name}" fehlt beim aktuellen System-Scan und kann daher nicht geladen werden. Bitte überprüfen Sie Ihre VST-Scan-Pfade.`)
-                setPlugin(foundInParsed)
-                return
-              }
-              if (foundInParsed.notHostable) {
-                setIsBlocked(true)
-                setActiveRealPluginName(null)
-                setBlockReason(`Dieses VST-Plugin "${foundInParsed.name}" ist inkompatibel oder nicht hostbar. Grund: ${foundInParsed.unsupportedReason || 'Inkompatibel'}`)
-                setPlugin(foundInParsed)
-                return
-              }
-
-              // It is a real external VST plugin! Check if it matches the active real plugin in the rack.
-              if (!activeReal || activeReal.id !== pluginId) {
-                setIsBlocked(true)
-                if (activeReal) {
-                  setActiveRealPluginName(activeReal.name)
-                  setBlockReason(`Der native C++ VST-Host unterstützt konstruktionsbedingt ausschließlich ein einziges aktives reales VST-Plugin. Derzeit ist das Plugin "${activeReal.name}" aktiv. Das Laden von "${foundInParsed.name}" wurde blockiert, um Singleton-Konflikte zu vermeiden.`)
-                } else {
-                  setActiveRealPluginName(null)
-                  setBlockReason(`Dieses VST-Plugin "${foundInParsed.name}" ist im Rack derzeit als Bypass/inaktiv geschaltet. Der native C++ VST-Host kann nur dann ein reales Plugin laden, wenn dieses im Rack aktiv geschaltet ist.`)
-                }
-                setPlugin(foundInParsed)
-                return
-              }
-            }
-            
-            setIsBlocked(false)
-            setBlockReason('')
-            setActiveRealPluginName(null)
-
-            const filtered = parsed.filter((p: any) => p && p.path && !p.path.startsWith('store://') && !p.path.startsWith('internal://'))
-            
-            // Automatische Saeuberung fiktiver Parameter bei realen Plugins (ohne 'index'-Property)
-            let hasAnyCleaned = false
-            const cleaned = filtered.map((p: any) => {
-              if (p.parameters && p.parameters.length > 0) {
-                const hasFakeParams = p.parameters.some((param: any) => param.index === undefined)
-                if (hasFakeParams) {
-                  hasAnyCleaned = true
-                  return { ...p, parameters: [] }
-                }
-              }
-              return p
-            })
-
-            const found = cleaned.find(p => p.id === pluginId)
-            if (found) {
-              setPlugin(found)
-            } else {
-              setPlugin(foundInParsed)
-            }
-
-            if (hasAnyCleaned || filtered.length !== parsed.length) {
-              localStorage.setItem('vst_rack_plugins', JSON.stringify(cleaned))
-            }
+          const found = parsed.find((p: any) => p && p.id === pluginId)
+          if (found) {
+            setPlugin(found)
           } else {
-            setIsBlocked(true)
-            setBlockReason('Das angeforderte Plugin wurde im aktuellen VST-Rack nicht gefunden.')
-            setPlugin({
-              id: pluginId,
-              name: payload.name || 'Unbekanntes VST Plugin',
-              manufacturer: payload.manufacturer || 'Unbekannt',
-              format: payload.format || 'VST',
-              category: 'Effect',
-              path: payload.path || '',
-              active: false,
-              parameters: []
-            })
+            setPlugin(fallbackPlugin)
           }
         }
+      } else {
+        setPlugin(fallbackPlugin)
       }
     } catch (e) {
       console.error('Failed to load VST configurations for editor window:', e)
@@ -298,63 +237,102 @@ export function VstEditorWindow() {
     }
   }, [])
 
-  // Automatically load the plugin in the native C++ host and open the native manufacturer editor
+  // ⌨️ DAW Playback Keyboard Router
   useEffect(() => {
-    if (isBlocked) {
-      console.log('Native plugin loading is blocked due to singleton constraints.')
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        if (e.repeat) return
+        const target = e.target as HTMLElement
+        const isTextInput =
+          (target.tagName === 'INPUT' && ['text', 'number', 'email', 'search', 'password'].includes((target.getAttribute('type') || 'text').toLowerCase())) ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable
+        
+        if (!isTextInput) {
+          e.preventDefault()
+          localStorage.setItem('vst_recording_action', JSON.stringify({
+            action: 'toggle_daw',
+            timestamp: Date.now()
+          }))
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [])
+
+  // Cleanup hook for any legacy standalone instance IDs that may still exist.
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (isStandaloneLoadedRef.current !== null) {
+        const instanceId = isStandaloneLoadedRef.current
+        console.log(`Unloading standalone VST instance via beforeunload: ${instanceId}`)
+        window.api.vstStopAudio(instanceId)
+        window.api.unloadVstPlugin(instanceId)
+      }
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      if (isStandaloneLoadedRef.current !== null) {
+        const instanceId = isStandaloneLoadedRef.current
+        console.log(`Unloading standalone VST instance via hook cleanup: ${instanceId}`)
+        window.api.vstStopAudio(instanceId).catch(console.error)
+        window.api.unloadVstPlugin(instanceId).catch(console.error)
+      }
+    }
+  }, [])
+
+  // Connect only to an existing host instance.
+  useEffect(() => {
+    if (!plugin) return
+
+    if (plugin.instanceId === undefined) {
+      initializedRef.current = null
+      setStatusMessage(t('vst_editor.load_in_rack_first', { defaultValue: 'Bitte das Plugin zuerst als echte Instanz ins VST Rack laden.' }))
+      const mockParams = plugin.parameters.length > 0 ? plugin.parameters : getInitialParams(plugin.category || 'Plugin')
+      setPlugin(prev => prev ? { ...prev, parameters: mockParams } : null)
+      setUseFallback(true)
+      setIsChangingPlugin(false)
+      window.api.resizeWindow(720, 580)
       return
     }
-    if (plugin?.path && initializedRef.current !== plugin.id) {
-      const oldPluginId = initializedRef.current
+
+    // Case 2: Instance is available, connect native editor
+    if (plugin.instanceId !== undefined && initializedRef.current !== plugin.id) {
       initializedRef.current = plugin.id
-      console.log('Mounting VST Native plugin: ', plugin.path)
+      const instanceId = plugin.instanceId
+      console.log(`Connecting editor to active VST instance: ID ${instanceId}, Path ${plugin.path}`)
       
       const initializeNativeVst = async () => {
         try {
           if (plugin.path.startsWith('internal://') || plugin.path.startsWith('store://')) {
             throw new Error('Stale placeholder entry for store:// or internal:// path - using fallback UI.')
           }
-          
-          if (oldPluginId) {
-            console.log(`Unloading old plugin ${oldPluginId} before loading new one ${plugin.id}`)
-            setStatusMessage(t('vst_editor.unloading_previous', { defaultValue: 'Entlade das vorherige Plugin sicher aus dem global geteilten C++ Singleton-Host...' }))
-            setIsChangingPlugin(true)
-            
-            // Warte kurz, um dem Benutzer die Warnung anzuzeigen und dem Host Zeit zu geben
-            await new Promise(resolve => setTimeout(resolve, 350))
-            
-            try {
-              await window.api.vstStopAudio()
-              await window.api.unloadVstPlugin()
-            } catch (unloadErr) {
-              console.warn('Error unloading previous plugin in editor window:', unloadErr)
-            }
-          }
 
-          setStatusMessage(t('vst_editor.loading_new', { defaultValue: 'Versuche das Plugin in den global geteilten C++ Singleton-Host zu laden...' }))
+          setStatusMessage(t('vst_editor.connecting_instance', { defaultValue: 'Verbinde mit aktiver VST-Instanz...' }))
           setIsChangingPlugin(true)
-          await new Promise(resolve => setTimeout(resolve, 250))
+          await new Promise(resolve => setTimeout(resolve, 150))
 
-          // 1. Load the VST plugin into the native host singleton
-          const loadResult = await window.api.loadVstPlugin(plugin.path)
-          const hasEditor = loadResult && typeof loadResult.hasEditor === 'boolean' ? loadResult.hasEditor : true
-          console.log(`Successfully loaded VST natively. hasEditor: ${hasEditor}`)
+          const hasEditor = typeof plugin.hasEditor === 'boolean' ? plugin.hasEditor : true
           
           if (hasEditor) {
-            console.log('Spawning original UI snapped below.')
-            // 2. Open the native editor window immediately
+            console.log(`Spawning original UI snapped below for instance ${instanceId}`)
             try {
-              await window.api.openVstEditor()
+              await window.api.openVstEditor(instanceId)
             } catch (editorErr) {
               console.warn('Failed to open native VST editor window:', editorErr)
             }
           } else {
-            console.log('Plugin has no native editor. Skipping openVstEditor and enforcing fallback UI.')
+            console.log(`Plugin instance ${instanceId} has no native editor. Enforcing fallback UI.`)
+            window.api.resizeWindow(720, 580)
           }
           
-          // Retrieve real parameters from native VST host
-          const rawParams = await window.api.getVstParams()
-          console.log('Retrieved real VST parameters from host:', rawParams)
+          // Retrieve real parameters from native VST host for this instance
+          const rawParams = await window.api.getVstParams(instanceId)
+          console.log(`Retrieved real VST parameters for instance ${instanceId}:`, rawParams)
           
           const mappedParams: VstParameter[] = Array.isArray(rawParams) && rawParams.length > 0
             ? rawParams.map((p: any) => ({
@@ -389,14 +367,13 @@ export function VstEditorWindow() {
             }
           }
           
-          if (!hasEditor) {
-            setUseFallback(true)
-          } else {
-            setUseFallback(false)
-          }
+          setUseFallback(!hasEditor)
         } catch (err) {
-          console.warn('Failed to initialize native VST host, using premium fallback UI:', err)
+          console.warn('Failed to connect to native VST instance, using fallback UI:', err)
+          const mockParams = plugin.parameters.length > 0 ? plugin.parameters : getInitialParams(plugin.category || 'Plugin')
+          setPlugin(prev => prev ? { ...prev, parameters: mockParams } : null)
           setUseFallback(true)
+          window.api.resizeWindow(720, 580)
         } finally {
           setIsChangingPlugin(false)
         }
@@ -404,7 +381,7 @@ export function VstEditorWindow() {
       
       initializeNativeVst()
     }
-  }, [plugin?.path, plugin?.id])
+  }, [plugin?.instanceId, plugin?.id])
 
   // Canvas visualizer animation
   useEffect(() => {
@@ -487,22 +464,23 @@ export function VstEditorWindow() {
       }
     }
 
-    // Enforce strict bounds in [0, 1] and prevent non-real, internal, store-based, or active fallback UI plugins (unless GUI-less) from calling setVstParam
+    // Enforce strict bounds in [0, 1] and check instanceId
     const isRealPlugin = !!(
       plugin.path &&
       !plugin.path.startsWith('internal://') &&
       !plugin.path.startsWith('store://') &&
-      (!useFallback || plugin.hasEditor === false)
+      (!useFallback || plugin.hasEditor === false) &&
+      plugin.instanceId !== undefined
     )
 
-    if (isRealPlugin) {
+    if (isRealPlugin && plugin.instanceId !== undefined) {
       try {
         const param = updatedParams[idx]
         const range = param.max - param.min
         let normalizedValue = range === 0 ? 0 : (newVal - param.min) / range
         normalizedValue = Math.max(0, Math.min(1, normalizedValue))
         const targetIndex = typeof param.index === 'number' ? param.index : idx
-        window.api.setVstParam(targetIndex, normalizedValue)
+        window.api.setVstParam(plugin.instanceId, targetIndex, normalizedValue)
       } catch (e) {
         console.error(e)
       }
@@ -551,13 +529,12 @@ export function VstEditorWindow() {
       plugin.path &&
       !plugin.path.startsWith('internal://') &&
       !plugin.path.startsWith('store://') &&
-      (!useFallback || plugin.hasEditor === false)
+      (!useFallback || plugin.hasEditor === false) &&
+      plugin.instanceId !== undefined
     )
 
     if (isRealPlugin) {
       try {
-        // Do not send bypass through setVstParam(0, ...) for real plugins.
-        // If there is no real bypass API yet, keep bypass local/fallback-only or otherwise prevent unsafe host writes.
         console.log('Bypass toggle is kept local/fallback-only for real native plugins to prevent unsafe host writes.')
       } catch (e) {
         console.warn(e)
@@ -566,7 +543,7 @@ export function VstEditorWindow() {
   }
 
   // 🔴 LIVE RECORDING BRIDGE LOGIC 🔴
-  const startLiveRecording = () => {
+  const startLiveRecording = async () => {
     if (isRecording || !plugin) return
 
     try {
@@ -576,6 +553,20 @@ export function VstEditorWindow() {
       const ctx = audioCtxRef.current
       if (ctx.state === 'suspended') ctx.resume()
 
+      // Connect actual microphone input
+      const settings = await window.api.getSettings()
+      const deviceId = settings.inputDevice || ''
+      const constraints: MediaStreamConstraints = {
+        audio: {
+          deviceId: deviceId ? { exact: deviceId } : undefined,
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false
+        }
+      }
+      const stream = await navigator.mediaDevices.getUserMedia(constraints)
+      streamRef.current = stream
+
       if (!recorderDestRef.current) {
         recorderDestRef.current = ctx.createMediaStreamDestination()
       }
@@ -583,6 +574,17 @@ export function VstEditorWindow() {
       const dest = recorderDestRef.current
       recordedChunksRef.current = []
       
+      const inputSource = ctx.createMediaStreamSource(stream)
+      inputSource.connect(dest)
+
+      // Set up analyser node for real input peaks visualizer
+      const analyser = ctx.createAnalyser()
+      analyser.fftSize = 256
+      inputSource.connect(analyser)
+
+      const bufferLength = analyser.frequencyBinCount
+      const dataArray = new Float32Array(bufferLength)
+
       const recorder = new MediaRecorder(dest.stream, { mimeType: 'audio/webm' })
       
       recorder.ondataavailable = (e) => {
@@ -630,6 +632,28 @@ export function VstEditorWindow() {
       startTimeRef.current = Date.now()
       setRecordingSeconds(0)
       
+      // Initialize real recording peaks history array in localStorage
+      localStorage.setItem('recording_peaks_history', '[]')
+
+      // Record peak level data at 40ms interval
+      peaksIntervalRef.current = setInterval(() => {
+        analyser.getFloatTimeDomainData(dataArray)
+        let peak = 0
+        for (let i = 0; i < bufferLength; i++) {
+          const val = Math.abs(dataArray[i])
+          if (val > peak) peak = val
+        }
+        
+        try {
+          const historyStr = localStorage.getItem('recording_peaks_history') || '[]'
+          const history = JSON.parse(historyStr)
+          history.push(peak)
+          localStorage.setItem('recording_peaks_history', JSON.stringify(history))
+        } catch (e) {
+          console.error(e)
+        }
+      }, 40)
+
       recorder.start(250)
       mediaRecorderRef.current = recorder
       setIsRecording(true)
@@ -667,89 +691,29 @@ export function VstEditorWindow() {
       clearInterval(recordingTimerRef.current)
       recordingTimerRef.current = null
     }
+
+    if (peaksIntervalRef.current) {
+      clearInterval(peaksIntervalRef.current)
+      peaksIntervalRef.current = null
+    }
+
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop())
+      streamRef.current = null
+    }
     
     setIsRecording(false)
     localStorage.setItem('vst_recording_state', JSON.stringify({ active: false }));
   }
 
-  if (isBlocked) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-[#0d0f11] text-[#d1d5db] font-sans px-6 select-none">
-        <div className="max-w-md w-full bg-[#16191c] border border-red-900/40 p-8 rounded-2xl shadow-2xl space-y-6 relative overflow-hidden">
-          {/* Subtle red glowing aura */}
-          <div className="absolute -top-24 -left-24 w-48 h-48 bg-red-600/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-red-500/5 rounded-full blur-3xl pointer-events-none" />
-          
-          <div className="flex flex-col items-center text-center space-y-4">
-            <div className="w-16 h-16 bg-red-950/30 border border-red-800/40 rounded-full flex items-center justify-center shadow-inner">
-              <span className="text-3xl text-red-500 animate-pulse">🔒</span>
-            </div>
-            
-            <div className="space-y-2">
-              <h2 className="text-lg font-black uppercase tracking-widest text-white">
-                Verbindung Blockiert
-              </h2>
-              <p className="text-xs text-gray-400 font-medium">
-                C++ DSP Native Host-Singleton-Schutz
-              </p>
-            </div>
-          </div>
-
-          <div className="bg-black/35 border border-gray-800/60 p-4 rounded-xl space-y-3">
-            <div className="text-xs leading-relaxed text-red-400 font-semibold">
-              {blockReason}
-            </div>
-            <div className="text-[10px] leading-relaxed text-gray-400 border-t border-gray-800/60 pt-2.5 font-mono">
-              <strong>Hintergrund:</strong> Der globale native VST-Host unterstützt aus Stabilitätsgründen maximal ein einziges aktives reales externes VST-Plugin gleichzeitig. Parallele Ladevorgänge oder das Laden inaktiver Plugins werden blockiert, um Engine-Crashes zu verhindern.
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider text-center">
-              Empfohlene Schritte zur Freigabe:
-            </div>
-            <ul className="text-[10px] text-gray-450 space-y-2 pl-4 list-decimal leading-relaxed">
-              <li>Gehe zurück zum Hauptfenster von Omega Wave Editor.</li>
-              <li>Öffne das <strong>Effekt-Rack</strong> in der rechten Seitenleiste.</li>
-              <li>Deaktiviere das dort derzeit aktive reale VST-Plugin (Bypass oder Entfernen).</li>
-              <li>Aktiviere das gewünschte Plugin <strong>"{plugin?.name || 'dieses'}"</strong> im Rack, um es in den globalen C++ Singleton-Host zu laden.</li>
-            </ul>
-          </div>
-
-          <div className="pt-2 text-center">
-            <button
-              onClick={() => {
-                loadPluginFromStorage()
-              }}
-              className="px-5 py-2 bg-red-950/40 hover:bg-red-900/40 text-red-400 border border-red-800/30 hover:border-red-700/50 rounded-xl text-xs font-bold transition-all shadow-md active:scale-[0.95] cursor-pointer"
-            >
-              Status erneut prüfen
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  if (!plugin || isChangingPlugin) {
+  if (!plugin) {
     return (
       <div className="flex h-screen items-center justify-center bg-[#101214] text-[#d1d5db] font-sans px-6 text-center select-none">
         <div className="max-w-md w-full bg-[#171a1d] border border-gray-800 p-6 rounded-2xl shadow-2xl space-y-4">
           <div className="relative mx-auto w-12 h-12 flex items-center justify-center">
             <div className="animate-spin absolute inset-0 rounded-full border-t-2 border-b-2 border-omega-accent"></div>
-            <span className="text-lg">🔒</span>
           </div>
-          <div className="space-y-1">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-white">
-              {t('vst_editor.switching_title', { defaultValue: 'Plugin-Wechsel aktiv' })}
-            </h2>
-            <p className="text-xs text-gray-400 leading-relaxed">
-              {statusMessage || t('vst_editor.switching_desc', { defaultValue: 'Das alte Plugin wird entladen und das neue geladen. Bitte warten...' })}
-            </p>
-          </div>
-          <div className="text-[10px] text-amber-500 bg-amber-950/20 border border-amber-900/30 px-3 py-2 rounded-lg font-mono">
-            ⚠️ {t('vst_editor.singleton_notice', { defaultValue: 'Der native Audio-Host ist ein global geteilter C++ Singleton-Host. Um Abstürze oder Instabilitäten zu verhindern, kann zu jedem Zeitpunkt ausschließlich ein einziges reales externes VST-Plugin geladen und aktiv sein.' })}
-          </div>
+          <p className="text-xs text-gray-400">Lade Plugin-Konfiguration...</p>
         </div>
       </div>
     )
@@ -787,6 +751,17 @@ export function VstEditorWindow() {
                 style={{ color: profile.color }}>
                 {plugin.format}
               </span>
+              {plugin.instanceId === undefined && (
+                <span className="text-[9px] bg-amber-500/10 text-amber-500 border border-amber-500/30 px-1.5 py-0.5 rounded font-sans font-medium uppercase animate-pulse">
+                  Nicht im Rack
+                </span>
+              )}
+              {isChangingPlugin && (
+                <div className="flex items-center gap-1.5 text-xs text-omega-accent">
+                  <Loader2 className="animate-spin w-3.5 h-3.5" />
+                  <span className="text-[9px] font-medium tracking-wide uppercase">{statusMessage || 'Lade...'}</span>
+                </div>
+              )}
             </div>
             <span className="text-xs text-gray-500 block mt-0.5">
               {plugin.category} • {plugin.manufacturer}
@@ -803,6 +778,7 @@ export function VstEditorWindow() {
                   type="checkbox"
                   checked={syncPlayback}
                   onChange={(e) => setSyncPlayback(e.target.checked)}
+                  disabled={plugin.instanceId === undefined}
                   className="rounded border-gray-700 bg-gray-900 text-cyan-500 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
                 />
                 <span>{t('vst_editor.sync_playback', { defaultValue: 'DAW mitstarten' })}</span>
@@ -819,6 +795,7 @@ export function VstEditorWindow() {
               ) : (
                 <button
                   onClick={startLiveRecording}
+                  disabled={plugin.instanceId === undefined}
                   className="h-8 px-4 bg-cyan-950/40 border border-cyan-500/25 hover:bg-cyan-500/10 text-cyan-400 text-xs font-bold rounded-lg flex items-center gap-2 cursor-pointer transition-all hover:border-cyan-500/50"
                   title={t('vst_editor.live_recording_tooltip', { defaultValue: 'Spiele Noten auf der Tastatur und nimm das Gespielte live als neuen Clip auf die Timeline auf!' })}
                 >
@@ -845,7 +822,11 @@ export function VstEditorWindow() {
                 <span>🛡️ Standard-Parameteransicht</span>
               </h3>
               <p className="text-[10px] text-gray-400 leading-relaxed">
-                {plugin.hasEditor === false ? (
+                {plugin.instanceId === undefined ? (
+                  <span>
+                    <strong>Plugin noch nicht geladen:</strong> Diese Ansicht oeffnet keinen eigenen Host mehr. Laden Sie das Plugin zuerst im VST Rack, damit Editor und Signalweg dieselbe echte Instanz verwenden.
+                  </span>
+                ) : plugin.hasEditor === false ? (
                   <span>
                     <strong>Kein Grafik-Interface vorhanden:</strong> Dieses VST-Plugin hat keine herstellereigene grafische Benutzeroberfläche. Die verfügbaren Host-Parameter werden deshalb hier in einer generischen Parameteransicht angezeigt.
                   </span>
@@ -855,7 +836,7 @@ export function VstEditorWindow() {
                     {plugin.path.startsWith('internal://') || plugin.path.startsWith('store://') ? (
                       <span> Dies ist ein veralteter Platzhalter-Eintrag aus einer früheren Installation oder einem alten Store-Zustand. Lokal ist dafür kein echtes Plugin verfügbar.</span>
                     ) : (
-                      <span> <strong>Hintergrund:</strong> Der global geteilte C++ DSP Singleton-Host unterstützt ausschließlich VST2-DLLs. VST3-Plugins (.vst3) nutzen ein anderes API-Modell und können nicht nativ eingebettet werden.</span>
+                      <span> <strong>Hintergrund:</strong> Der aktuelle Windows-Host kann VST2 bereits als echte Instanzen fuehren. Der VST3-Pfad ist dagegen noch nicht vollstaendig umgesetzt, deshalb kann die Herstelleroberflaeche dort derzeit noch ausfallen.</span>
                     )}
                   </>
                 )}

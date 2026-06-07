@@ -9,6 +9,8 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
 import { exec } from 'child_process'
+import * as https from 'https'
+import * as http from 'http'
 import { VstHost } from '../vstBridge/VstHostAddon'
 
 function isSafePath(filePath: any): boolean {
@@ -42,6 +44,114 @@ function isNewerVersion(current: string, latest: string): boolean {
   return latePatch > currPatch
 }
 
+function sanitizeFileName(fileName: string): string {
+  return fileName.replace(/[<>:"/\\|?*\x00-\x1F]/g, '_').trim()
+}
+
+function getPluginDownloadsDir(): string {
+  let docPath = ''
+  try {
+    docPath = app.getPath('documents')
+  } catch {
+    docPath = path.join(os.homedir(), 'Documents')
+  }
+  return path.join(docPath, 'OmegaProjects', 'Omega Wave Editor', 'Downloads', 'VST Plugins')
+}
+
+function getSettingsPath(): string {
+  return path.join(app.getPath('userData'), 'settings.json')
+}
+
+function getConfiguredDownloadDir(): string {
+  try {
+    const settingsPath = getSettingsPath()
+    if (fs.existsSync(settingsPath)) {
+      const raw = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'))
+      if (typeof raw?.dlPath === 'string' && raw.dlPath.trim() !== '') {
+        return path.join(raw.dlPath, 'VST Plugins')
+      }
+    }
+  } catch (err) {
+    console.warn('Could not read configured download path, falling back to default:', err)
+  }
+  return getPluginDownloadsDir()
+}
+
+function uniqueTargetPath(dirPath: string, fileName: string): string {
+  const parsed = path.parse(fileName)
+  let candidate = path.join(dirPath, fileName)
+  let counter = 1
+
+  while (fs.existsSync(candidate)) {
+    candidate = path.join(dirPath, `${parsed.name} (${counter})${parsed.ext}`)
+    counter += 1
+  }
+
+  return candidate
+}
+
+function downloadFileToDisk(
+  urlStr: string,
+  destPath: string,
+  redirectCount = 0
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (redirectCount > 8) {
+      reject(new Error('Zu viele Weiterleitungen beim Download.'))
+      return
+    }
+
+    const client = urlStr.startsWith('https:') ? https : http
+    const request = client.get(urlStr, {
+      headers: {
+        'User-Agent': 'Omega-Wave-Editor-VST-Store',
+        'Accept': '*/*'
+      }
+    }, (response) => {
+      const statusCode = response.statusCode ?? 0
+      const location = response.headers.location
+
+      if (statusCode >= 300 && statusCode < 400 && location) {
+        response.resume()
+        const nextUrl = new URL(location, urlStr).toString()
+        downloadFileToDisk(nextUrl, destPath, redirectCount + 1).then(resolve).catch(reject)
+        return
+      }
+
+      if (statusCode !== 200) {
+        response.resume()
+        reject(new Error(`Download fehlgeschlagen (HTTP ${statusCode}).`))
+        return
+      }
+
+      const fileStream = fs.createWriteStream(destPath)
+      response.pipe(fileStream)
+
+      fileStream.on('finish', () => {
+        fileStream.close()
+        resolve()
+      })
+
+      fileStream.on('error', (err) => {
+        fileStream.destroy()
+        try {
+          fs.unlinkSync(destPath)
+        } catch {}
+        reject(err)
+      })
+    })
+
+    request.on('error', (err) => {
+      try {
+        if (fs.existsSync(destPath)) {
+          fs.unlinkSync(destPath)
+        }
+      } catch {}
+      reject(err)
+    })
+  })
+}
+
 export function registerSystemIpc() {
   ipcMain.handle('open-external', (_, url: string) => {
     if (typeof url !== 'string') return
@@ -71,6 +181,41 @@ export function registerSystemIpc() {
       return { success: true }
     } catch (e: any) {
       return { success: false, error: e.message }
+    }
+  })
+
+  ipcMain.handle('download-plugin-file', async (_, payload: { url: string; fileName?: string; pluginName?: string }) => {
+    const url = payload?.url
+    if (typeof url !== 'string' || url.trim() === '') {
+      return { success: false, error: 'Keine Download-URL angegeben.' }
+    }
+
+    try {
+      const parsed = new URL(url)
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        return { success: false, error: 'Nur http- und https-Downloads sind erlaubt.' }
+      }
+
+      const configuredDir = getConfiguredDownloadDir()
+      fs.mkdirSync(configuredDir, { recursive: true })
+
+      const urlFileName = decodeURIComponent(parsed.pathname.split('/').pop() || '')
+      const fallbackName = payload?.pluginName
+        ? `${payload.pluginName}.download`
+        : 'plugin-download.bin'
+      const resolvedFileName = sanitizeFileName(payload?.fileName || urlFileName || fallbackName)
+      const targetPath = uniqueTargetPath(configuredDir, resolvedFileName)
+
+      await downloadFileToDisk(url, targetPath)
+
+      return {
+        success: true,
+        filePath: targetPath,
+        directory: configuredDir
+      }
+    } catch (e: any) {
+      console.error('Plugin download failed:', e)
+      return { success: false, error: e?.message || 'Download fehlgeschlagen.' }
     }
   })
 

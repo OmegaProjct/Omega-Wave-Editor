@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Folder, Play, Square, AlertTriangle, Check } from 'lucide-react';
+import { X, Folder, Play, Square, AlertTriangle, Check, ExternalLink } from 'lucide-react';
 import { RecordingEngine, RecordingOptions } from '../lib/RecordingEngine';
 import { AdvancedRecordingSettingsModal, AdvancedSettings } from './AdvancedRecordingSettingsModal';
 import { useTranslation } from 'react-i18next';
 
 interface AudioRecordingModalProps {
   onClose?: () => void;
-  onSaveRecord?: (filePath: string, durationSec: number) => void;
+  onSaveRecord?: (filePath: string, durationSec: number, startPos?: number) => void;
   playheadPos?: number;
 }
 
@@ -105,6 +105,7 @@ export function AudioRecordingModal({
   const engineRef = useRef<RecordingEngine>(new RecordingEngine());
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number>(0);
+  const startPlayheadRef = useRef<number>(0);
   
   // Level Meter Canvas Refs
   const canvasLRef = useRef<HTMLCanvasElement | null>(null);
@@ -290,6 +291,7 @@ export function AudioRecordingModal({
       await engineRef.current.startRecording(options);
 
       startTimeRef.current = Date.now();
+      startPlayheadRef.current = playheadPos || 0;
       setRecordingTimeMs(0);
       setIsRecording(true);
 
@@ -300,17 +302,43 @@ export function AudioRecordingModal({
         filename: filename
       }));
 
+      // Dispatch custom window events for same-window timeline tracking
+      window.dispatchEvent(new CustomEvent('AUDIO_RECORD_START', {
+        detail: {
+          startTime: Date.now(),
+          filename: filename
+        }
+      }));
+
+      // Initialize recording peaks history array in localStorage
+      localStorage.setItem('recording_peaks_history', '[]');
+
       // Send action to play DAW if coupled
       if (syncPlayback) {
         localStorage.setItem('vst_recording_action', JSON.stringify({
           action: 'play_daw',
           timestamp: Date.now()
         }));
+        window.dispatchEvent(new CustomEvent('AUDIO_RECORD_ACTION', {
+          detail: { action: 'play_daw' }
+        }));
       }
 
       // Start Timer
       timerRef.current = setInterval(() => {
         setRecordingTimeMs(Date.now() - startTimeRef.current);
+        
+        // Log peak history to localStorage
+        try {
+          const peaks = engineRef.current.getLivePeaks();
+          const currentPeak = Math.max(peaks.left, peaks.right);
+          const historyStr = localStorage.getItem('recording_peaks_history') || '[]';
+          const history = JSON.parse(historyStr);
+          history.push(currentPeak);
+          localStorage.setItem('recording_peaks_history', JSON.stringify(history));
+        } catch (e) {
+          console.error('Failed to log peak history:', e);
+        }
       }, 40); // 25 FPS refresh
     } catch (err) {
       console.error('Fehler beim Starten der Aufnahme:', err);
@@ -337,12 +365,16 @@ export function AudioRecordingModal({
       timerRef.current = null;
     }
     localStorage.setItem('audio_recording_state', JSON.stringify({ active: false }));
+    window.dispatchEvent(new CustomEvent('AUDIO_RECORD_STOP'));
 
     // Stop DAW if coupled
     if (syncPlayback) {
       localStorage.setItem('vst_recording_action', JSON.stringify({
         action: 'stop_daw',
         timestamp: Date.now()
+      }));
+      window.dispatchEvent(new CustomEvent('AUDIO_RECORD_ACTION', {
+        detail: { action: 'stop_daw' }
       }));
     }
 
@@ -371,7 +403,7 @@ export function AudioRecordingModal({
             localStorage.removeItem('audio_recorded_finished');
           }, 300);
         } else if (onSaveRecord) {
-          onSaveRecord(finalPath, result.durationSec);
+          onSaveRecord(finalPath, result.durationSec, startPlayheadRef.current);
         }
         
         // Trigger a fresh directory scan to increment the index for the next recording
@@ -518,20 +550,33 @@ export function AudioRecordingModal({
   };
 
   return (
-    <div className={isPopout ? "h-screen w-screen bg-[#282b30] text-[#d1d5db] font-sans flex flex-col overflow-hidden select-none" : "fixed inset-0 z-[2000] flex items-center justify-center bg-black/60 backdrop-blur-sm"}>
-      <div className={isPopout ? "flex-1 flex flex-col bg-[#282b30] w-full h-full" : "w-[540px] bg-[#282b30] border border-[#3b3e45] text-[#d1d5db] font-sans shadow-2xl flex flex-col rounded-lg overflow-hidden select-none"}>
+    <div className={isPopout ? "h-screen w-screen bg-[#282b30] text-[#d1d5db] font-sans flex flex-col overflow-hidden select-none" : "fixed inset-0 z-[2000] flex items-center justify-center pointer-events-none"}>
+      <div className={isPopout ? "flex-1 flex flex-col bg-[#282b30] w-full h-full" : "w-[540px] bg-[#282b30] border border-[#3b3e45] text-[#d1d5db] font-sans shadow-2xl flex flex-col rounded-lg overflow-hidden select-none pointer-events-auto shadow-black/80"}>
         
         {/* Title bar */}
         {!isPopout && (
           <div className="h-10 bg-[#1e2124] border-b border-[#3b3e45] flex items-center justify-between px-3" style={{ WebkitAppRegion: 'no-drag' } as any}>
             <span className="font-semibold text-sm text-white">{t('recording.title', { defaultValue: 'Audioaufnahme' })}</span>
-            <button
-              onClick={isRecording ? handleStop : (onClose || (() => window.close()))}
-              className="text-gray-400 hover:text-white transition-colors"
-              style={{ WebkitAppRegion: 'no-drag' } as any}
-            >
-              <X size={16} />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  if (onClose) onClose();
+                  window.api.openPopoutWindow('audio-recorder', { width: 600, height: 520, title: '🔴 Audio-Aufnahme' });
+                }}
+                className="text-gray-400 hover:text-white transition-colors"
+                title={t('recording.open_popout', { defaultValue: 'In separatem Fenster öffnen' })}
+                style={{ WebkitAppRegion: 'no-drag' } as any}
+              >
+                <ExternalLink size={14} />
+              </button>
+              <button
+                onClick={isRecording ? handleStop : (onClose || (() => window.close()))}
+                className="text-gray-400 hover:text-white transition-colors"
+                style={{ WebkitAppRegion: 'no-drag' } as any}
+              >
+                <X size={16} />
+              </button>
+            </div>
           </div>
         )}
 

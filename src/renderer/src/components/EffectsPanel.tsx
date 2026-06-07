@@ -4,6 +4,7 @@ import { RotateCcw, ChevronDown, ChevronRight, Save, FolderOpen, Copy, Clipboard
 import { AudioEngine } from '../lib/AudioEngine'
 import { VstPluginRack, getInitialParams } from './VstPluginRack'
 import { VstPluginStore } from './VstPluginStore'
+import { getDerivedPluginStatus, getRackEntryForPlugin, hasRealPluginLoadedInRack, isPluginBlockedBySingleton, readRackPluginsFromStorage } from '../lib/pluginState'
 
 // === Typen ===
 export type RegionEffects = {
@@ -190,62 +191,22 @@ export function EffectsPanel({
 
   // Funktion zur Überprüfung, ob bereits ein reales externes VST-Plugin im Rack geladen ist
   const checkRackForRealPlugin = () => {
-    const savedRack = localStorage.getItem('vst_rack_plugins')
-    if (savedRack) {
-      try {
-        const parsed = JSON.parse(savedRack)
-        if (Array.isArray(parsed)) {
-          const hasReal = parsed.some((p: any) => p && p.path && !p.path.startsWith('store://') && !p.path.startsWith('internal://'))
-          setHasRealPluginInRack(hasReal)
-          return
-        }
-      } catch (e) {}
-    }
-    setHasRealPluginInRack(false)
+    setHasRealPluginInRack(hasRealPluginLoadedInRack(readRackPluginsFromStorage()))
   }
 
   // Zentrale Hilfsfunktion zur Ermittlung, ob ein echtes externes VST-Plugin durch das Singleton-Limit blockiert ist
   const isVstBlockedBySingleton = (vst: any): boolean => {
-    if (!vst || !vst.path) return false
-    const isReal = !vst.path.startsWith('store://') && !vst.path.startsWith('internal://')
-    if (!isReal) return false
-
-    let hasReal = false
-    let isAlreadyLoaded = false
-
-    const savedRack = localStorage.getItem('vst_rack_plugins')
-    if (savedRack) {
-      try {
-        const parsed = JSON.parse(savedRack)
-        if (Array.isArray(parsed)) {
-          hasReal = parsed.some((p: any) => p && p.path && !p.path.startsWith('store://') && !p.path.startsWith('internal://'))
-          isAlreadyLoaded = parsed.some((p: any) => p && p.id === vst.id)
-        }
-      } catch (e) {}
-    }
-
-    return hasReal && !isAlreadyLoaded
+    return isPluginBlockedBySingleton(vst, readRackPluginsFromStorage())
   }
 
   // Hilfsfunktion zur Ermittlung des Zustands eines Plugins im Rack (localStorage)
   const getRackPluginState = (pluginId: string) => {
-    const savedRack = localStorage.getItem('vst_rack_plugins')
-    if (savedRack) {
-      try {
-        const parsed = JSON.parse(savedRack)
-        if (Array.isArray(parsed)) {
-          const found = parsed.find((p: any) => p && p.id === pluginId)
-          if (found) {
-            return {
-              missingFromScan: !!found.missingFromScan,
-              notHostable: !!found.notHostable,
-              unsupportedReason: found.unsupportedReason
-            }
-          }
-        }
-      } catch (e) {}
+    const state = getDerivedPluginStatus({ id: pluginId }, readRackPluginsFromStorage())
+    return {
+      missingFromScan: state.missingFromScan,
+      notHostable: state.notHostable,
+      unsupportedReason: state.unsupportedReason
     }
-    return { missingFromScan: false, notHostable: false, unsupportedReason: undefined }
   }
 
   // Sidebar-Zustände
@@ -476,27 +437,15 @@ export function EffectsPanel({
   }
 
   const handleOpenPlugin = (vst: any) => {
-    const rackEntry = (() => {
-      const savedRack = localStorage.getItem('vst_rack_plugins')
-      if (savedRack) {
-        try {
-          const parsed = JSON.parse(savedRack)
-          if (Array.isArray(parsed)) {
-            return parsed.find((p: any) => p && (p.id === vst.id || p.path === vst.path))
-          }
-        } catch (e) {}
-      }
-      return null
-    })()
+    const rackPlugins = readRackPluginsFromStorage()
+    const rackEntry = getRackEntryForPlugin(vst, rackPlugins)
+    const vstStatus = getDerivedPluginStatus(vst, rackPlugins)
 
-    const isMissingFromScan = rackEntry?.missingFromScan === true
-    const isNotHostableRack = rackEntry?.notHostable === true
-
-    if (isMissingFromScan) {
+    if (vstStatus.missingFromScan) {
       alert('Aktion abgewiesen: Dieses VST-Plugin fehlt beim System-Scan und kann nicht geladen werden (missingFromScan).')
       return
     }
-    if (isNotHostableRack) {
+    if (vstStatus.notHostable) {
       alert(`Aktion abgewiesen: Dieses VST-Plugin ist inkompatibel und kann nicht geladen werden (${rackEntry?.unsupportedReason || 'notHostable'}).`)
       return
     }
@@ -504,8 +453,12 @@ export function EffectsPanel({
       alert(`Aktion abgewiesen: Dieses Plugin ist inkompatibel und kann nicht geladen werden (${vst.unsupportedReason || 'Inkompatibel'}).`)
       return
     }
-    if (isVstBlockedBySingleton(vst)) {
+    if (isPluginBlockedBySingleton(vst, rackPlugins)) {
       alert('Aktion abgewiesen: Der native VST-Host unterstützt aus Stabilitätsgründen maximal ein aktives reales externes VST-Plugin gleichzeitig (Singleton-Beschränkung).')
+      return
+    }
+    if (!rackEntry?.instanceId) {
+      alert('Dieses Plugin ist noch nicht als echte Host-Instanz im Rack geladen. Bitte zuerst ins VST Rack laden.')
       return
     }
 
@@ -528,7 +481,16 @@ export function EffectsPanel({
 
     const width = 720
     const height = hasEditor === false ? 580 : 110
-    localStorage.setItem('popout_vst-editor_payload', JSON.stringify({ pluginId: vst.id }))
+    localStorage.setItem('popout_vst-editor_payload', JSON.stringify({
+      pluginId: vst.id,
+      instanceId: rackEntry.instanceId,
+      hasEditor,
+      name: vst.name,
+      manufacturer: vst.manufacturer,
+      format: vst.format,
+      category: vst.category,
+      path: vst.path
+    }))
     window.api.openPopoutWindow('vst-editor', { width, height, title: 'Plugin Editor - ' + vst.name })
   }
 
@@ -537,20 +499,7 @@ export function EffectsPanel({
   const btnOn = 'bg-gray-800 border-gray-700 hover:bg-gray-700 text-gray-300 hover:text-white'
   const btnOff = 'bg-gray-900 border-gray-800 text-gray-600 cursor-not-allowed opacity-40'
 
-  const getRackPlugins = (): any[] => {
-    const savedRack = localStorage.getItem('vst_rack_plugins')
-    if (savedRack) {
-      try {
-        const parsed = JSON.parse(savedRack)
-        if (Array.isArray(parsed)) {
-          return parsed
-        }
-      } catch (e) {}
-    }
-    return []
-  }
-
-  const rackPlugins = getRackPlugins()
+  const rackPlugins = readRackPluginsFromStorage()
   const offlineOrIncompatibleRackPlugins = rackPlugins.filter(
     (p: any) => p && (p.missingFromScan === true || p.notHostable === true)
   )
@@ -578,6 +527,24 @@ export function EffectsPanel({
 
   // Aktuell gewähltes VST-Plugin (falls Item-ID einem Plugin gehört)
   const selectedVst = activePlugins.find(p => p.id === selectedItem)
+  const selectedVstStatus = selectedVst
+    ? getDerivedPluginStatus(selectedVst, rackPlugins)
+    : null
+  const selectedVstBlockedBySingleton = selectedVst
+    ? isPluginBlockedBySingleton(selectedVst, rackPlugins)
+    : false
+  const selectedVstNeedsRackLoad = !!selectedVst && !selectedVstStatus?.rackEntry?.instanceId
+  const selectedVstActionLabel = !selectedVstStatus
+    ? t('effects.vst.open_interface', { defaultValue: 'Plugin-Interface oeffnen' })
+    : selectedVstNeedsRackLoad
+      ? 'Erst ins Rack laden'
+    : selectedVstStatus.missingFromScan
+      ? 'Fehlt beim Scan'
+      : !selectedVstStatus.isHostable
+        ? 'Aktuell nicht ladbar'
+        : selectedVstBlockedBySingleton
+          ? 'Bereits anderes Plugin aktiv'
+          : t('effects.vst.open_interface', { defaultValue: 'Plugin-Interface oeffnen' })
 
   // Effekt-Items für die Sidebar
   const effectItems = [
@@ -737,7 +704,7 @@ export function EffectsPanel({
                     key={vst.id}
                     label={vst.name}
                     icon={isInstrument ? '🎹' : isPluginCategory ? '🧩' : '🔌'}
-                    active={selectedItem === vst.id && activeView === 'vst_rack'}
+                    active={selectedItem === vst.id && activeView === 'effects'}
                     disabled={isDisabled}
                     title={tooltipReason}
                     onClick={() => {
@@ -746,52 +713,7 @@ export function EffectsPanel({
                         return
                       }
                       setSelectedItem(vst.id)
-                      setActiveView('vst_rack')
-                      
-                      // Auto-load into rack if clicked in sidebar
-                      const savedRack = localStorage.getItem('vst_rack_plugins')
-                      let rack: any[] = []
-                      let hasAnyCleaned = false
-                      if (savedRack) {
-                        try {
-                          const parsed = JSON.parse(savedRack)
-                          if (Array.isArray(parsed)) {
-                            const filtered = parsed.filter((p: any) => p && p.path && !p.path.startsWith('store://') && !p.path.startsWith('internal://'))
-                            rack = filtered.map((p: any) => {
-                              if (p.parameters && p.parameters.length > 0) {
-                                const hasFakeParams = p.parameters.some((param: any) => param.index === undefined)
-                                if (hasFakeParams) {
-                                  hasAnyCleaned = true
-                                  return { ...p, parameters: [] }
-                                }
-                              }
-                              return p
-                            })
-                          }
-                        } catch (e) {}
-                      }
-                      
-                      const isPlaceholder = vst.path?.startsWith('store://') || vst.path?.startsWith('internal://')
-                      const existingIndex = rack.findIndex(p => p.id === vst.id)
-                      
-                      if (existingIndex === -1) {
-                        const newLoaded = {
-                          id: vst.id,
-                          name: vst.name,
-                          manufacturer: vst.manufacturer || 'Unbekannt',
-                          format: vst.format || 'Unbekannt',
-                          category: vst.category || 'Plugin',
-                          path: vst.path,
-                          active: true,
-                          parameters: isPlaceholder ? getInitialParams(vst.category || 'Plugin') : []
-                        }
-                        rack.push(newLoaded)
-                        localStorage.setItem('vst_rack_plugins', JSON.stringify(rack))
-                        window.dispatchEvent(new CustomEvent('SETTINGS_UPDATED', { detail: {} }))
-                      } else if (hasAnyCleaned) {
-                        localStorage.setItem('vst_rack_plugins', JSON.stringify(rack))
-                        window.dispatchEvent(new CustomEvent('SETTINGS_UPDATED', { detail: {} }))
-                      }
+                      setActiveView('effects')
                     }}
                     badge={vst.format}
                     onDoubleClick={() => {
@@ -1038,6 +960,22 @@ export function EffectsPanel({
                 <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wider">
                   {selectedVst.category?.toLowerCase().includes('instrument') ? '🎹' : selectedVst.category?.toLowerCase() === 'plugin' ? '🧩' : '🔌'} {selectedVst.name}
                 </h3>
+                <div className="bg-[#1a1d21] border border-gray-700/80 rounded-xl overflow-hidden">
+                  <div className="h-36 bg-gradient-to-br from-[#1d2734] via-[#1a1d21] to-[#241b2b] flex items-center justify-center border-b border-gray-700/70">
+                    <div className="flex flex-col items-center justify-center text-center px-4">
+                      <div className="w-14 h-14 rounded-2xl bg-black/25 border border-white/10 flex items-center justify-center text-2xl mb-3">
+                        {selectedVst.category?.toLowerCase().includes('instrument') ? '🎹' : selectedVst.category?.toLowerCase() === 'plugin' ? '🧩' : '🔌'}
+                      </div>
+                      <div className="text-sm font-bold text-white">{selectedVst.name}</div>
+                      <div className="text-[10px] text-gray-400 mt-1">
+                        {selectedVst.manufacturer || t('effects.vst.unknown', { defaultValue: 'Unbekannt' })}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="px-4 py-2 text-[10px] text-gray-500 bg-black/10">
+                    Platz für Plugin-Bild oder Herstellergrafik. Solange keine verifizierte Vorschau hinterlegt ist, zeigen wir hier eine neutrale Plugin-Karte statt des Racks.
+                  </div>
+                </div>
                 <div className="bg-[#1a1d21] border border-gray-700/80 rounded-xl p-4 flex flex-col gap-3">
                   <div className="grid grid-cols-2 gap-2 text-[10px]">
                     <div>
@@ -1062,13 +1000,20 @@ export function EffectsPanel({
                     </div>
                     <div>
                       <span className="text-gray-600 uppercase tracking-wider font-bold block">{t('effects.vst.status', { defaultValue: 'Status' })}</span>
-                      {(() => {
+                      {selectedVstStatus?.missingFromScan ? (
+                        <span className="text-red-400 font-bold">{t('effects.vst.missing', { defaultValue: 'Fehlt beim Scan' })}</span>
+                      ) : !selectedVstStatus?.isHostable ? (
+                        <span className="text-red-400 font-bold">{t('effects.vst.unsupported', { defaultValue: 'Nicht unterstuetzt' })}</span>
+                      ) : (
+                        <span className="text-green-400">{t('effects.vst.scanned', { defaultValue: 'Gescannt' })}</span>
+                      )}
+                      {false && (() => {
                         const savedRack = localStorage.getItem('vst_rack_plugins')
                         let missing = false
                         let notHostable = false
                         if (savedRack) {
                           try {
-                            const parsed = JSON.parse(savedRack)
+                            const parsed = JSON.parse(savedRack || '[]')
                             if (Array.isArray(parsed)) {
                               const found = parsed.find((p: any) => p && (p.id === selectedVst.id || p.path === selectedVst.path))
                               missing = found?.missingFromScan === true
@@ -1090,12 +1035,22 @@ export function EffectsPanel({
                       })()}
                     </div>
                   </div>
-                  {(() => {
+                  {selectedVstStatus?.missingFromScan ? (
+                    <div className="text-[10px] text-red-400 bg-red-950/20 border border-red-900/30 p-2.5 rounded-lg font-medium leading-relaxed">
+                      Aktion abgewiesen: Dieses VST-Plugin fehlt beim System-Scan und kann nicht geladen werden.
+                    </div>
+                  ) : selectedVstStatus?.notHostable ? (
+                    <div className="text-[10px] text-red-400 bg-red-950/20 border border-red-900/30 p-2.5 rounded-lg font-medium leading-relaxed">
+                      Nicht unterstuetzt: Dieses VST-Plugin ist aktuell nicht ladbar.
+                      {selectedVstStatus.unsupportedReason ? ` ${selectedVstStatus.unsupportedReason}` : ''}
+                    </div>
+                  ) : null}
+                  {false && (() => {
                     const rackEntry = (() => {
                       const savedRack = localStorage.getItem('vst_rack_plugins')
                       if (savedRack) {
                         try {
-                          const parsed = JSON.parse(savedRack)
+                          const parsed = JSON.parse(savedRack || '[]')
                           if (Array.isArray(parsed)) {
                             return parsed.find((p: any) => p && (p.id === selectedVst.id || p.path === selectedVst.path))
                           }
@@ -1130,24 +1085,25 @@ export function EffectsPanel({
                     }
                     return null
                   })()}
-                  {isVstBlockedBySingleton(selectedVst) && (
+                  {selectedVstBlockedBySingleton && (
                     <div className="text-[10px] text-blue-400 bg-blue-950/20 border border-blue-900/30 p-2.5 rounded-lg font-medium leading-relaxed">
                       ⚠️ Singleton-Limit erreicht: Es ist bereits ein anderes reales externes VST-Plugin im Rack geladen.
                     </div>
                   )}
                   <div className="text-[9px] text-gray-650 break-all font-mono bg-black/20 p-2 rounded">
-                    {selectedVst.path}
+                    {selectedVst.path || 'Kein lokaler Plugin-Pfad hinterlegt'}
                   </div>
                   <button
                     onClick={() => handleOpenPlugin(selectedVst)}
                     disabled={
-                      selectedVst.hostable === false ||
-                      isVstBlockedBySingleton(selectedVst) ||
-                      (() => {
+                      selectedVstNeedsRackLoad ||
+                      !selectedVstStatus?.isHostable ||
+                      selectedVstBlockedBySingleton ||
+                      false && (() => {
                         const savedRack = localStorage.getItem('vst_rack_plugins')
                         if (savedRack) {
                           try {
-                            const parsed = JSON.parse(savedRack)
+                            const parsed = JSON.parse(savedRack || '[]')
                             if (Array.isArray(parsed)) {
                               const found = parsed.find((p: any) => p && (p.id === selectedVst.id || p.path === selectedVst.path))
                               return found?.missingFromScan === true || found?.notHostable === true
@@ -1159,7 +1115,7 @@ export function EffectsPanel({
                     }
                     className="w-full bg-omega-accent hover:bg-blue-500 text-white py-2 rounded-lg text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-omega-accent"
                   >
-                    {t('effects.vst.open_interface', { defaultValue: 'Plugin-Interface öffnen' })}
+                    {selectedVstActionLabel}
                   </button>
                 </div>
               </div>

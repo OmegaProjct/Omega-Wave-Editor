@@ -59,6 +59,11 @@ function App(): JSX.Element {
 
   const { state: tracks, push: pushTracks, undo, redo } = useHistory(initialTracks, maxUndoSteps);
 
+  const tracksRef = useRef(tracks);
+  useEffect(() => {
+    tracksRef.current = tracks;
+  }, [tracks]);
+
   const openModalPopoutOrInline = (
     name: 'settings' | 'manual' | 'about' | 'update',
     openInline: () => void,
@@ -152,7 +157,7 @@ function App(): JSX.Element {
             color: 'bg-cyan-500' // Neon cyan for VST recordings!
           }
           
-          const updated = tracks.map((t, i) => i === 0 ? { ...t, regions: [...t.regions, newRegion] } : t)
+          const updated = tracksRef.current.map((t, i) => i === 0 ? { ...t, regions: [...t.regions, newRegion] } : t)
           handleTracksUpdate(updated)
           
           // Preload in AudioEngine
@@ -476,6 +481,7 @@ function App(): JSX.Element {
       // 4. Globale Tastenkürzel
       if (matchesShortcut(e, keyboardShortcuts.playPause)) {
         e.preventDefault();
+        if (e.repeat) return;
         window.dispatchEvent(new CustomEvent('TIMELINE_ACTION_PLAY'));
         return;
       }
@@ -631,10 +637,14 @@ function App(): JSX.Element {
       }
     });
 
-    // Forward seek-timeline events from the export popup to the main timeline
+    // Forward seek-timeline events from the export popup or VST play commands to the main timeline
     const unsubscribeSeek = window.api.onSeekTimeline((position: number) => {
-      setTimelineAction({ type: 'SEEK', payload: position })
-      setTimeout(() => setTimelineAction(undefined), 100)
+      if (position === -999) {
+        triggerTimelineAction('TOGGLE_PLAYBACK')
+      } else {
+        setTimelineAction({ type: 'SEEK', payload: position })
+        setTimeout(() => setTimelineAction(undefined), 100)
+      }
     })
 
     return () => {

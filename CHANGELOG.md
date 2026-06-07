@@ -2,11 +2,37 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
-## [0.8.14] - 2026-06-02
+## [0.8.15] - 2026-06-07
 
 ### English
 
 #### Added
+- **Waveform Scaling & Amplitude Boost**: Integrated vertical amplitude scaling (boosted visual levels by 2.5x) for the main waveform and added direct support for the half vs. full waveform display configuration.
+
+#### Changed
+- **Popout-Only Audio Recording**: Configured the audio recording interface to default strictly to the dedicated native popout window mode, removing redundant embedded UI elements.
+
+#### Fixed
+- **Spacebar Playback Control**: Prevented immediate double-triggering/keyboard auto-repeat of the Spacebar, restoring expected play/pause toggling behavior.
+- **Timeline Scrubbing Fluidity**: Fixed playhead jumpiness when clicking or dragging on the timeline ruler for smoother manual scrubbing.
+- **Audio Preload Async Restores**: Resolved a race condition during startup and file loading that could block audio playback from initiating correctly.
+- **UI Element Cleanup**: Removed unused/non-functional toolbar graphic placeholders.
+
+### Deutsch
+
+#### Hinzugefügt
+- **Wellenform-Skalierung & Amplituden-Boost**: Anpassung der vertikalen Amplitudendarstellung (2.5-fache visuelle Anhebung) in der Hauptwellenform und direkte Unterstützung der Konfiguration für halbe und ganze Wellenformdarstellung.
+
+#### Geändert
+- **Aufnahmedialog nur als Popout**: Der Audio-Aufnahmedialog öffnet sich nun standardmäßig immer direkt in einem separaten nativen Fenster (Popout-Only), und funktionslose eingebettete UI-Elemente wurden entfernt.
+
+#### Behoben
+- **Leertasten-Wiedergabesteuerung**: Deaktivierung des automatischen Tastatur-Repeats bei gedrückter Leertaste, wodurch das fehlerhafte wiederholte Play/Pause-Verhalten behoben wurde.
+- **Flüssiges Timeline-Scrubbing**: Behebung von Playhead-Sprüngen bei Klicks und Ziehbewegungen im Timeline-Lineal zur Gewährleistung einer flüssigen manuellen Positionsverschiebung.
+- **Audio-Preload Asynchronitäts-Korrekturen**: Behebung einer Race-Condition beim Datei-Preload und der Audio-Engine-Initialisierung, die in manchen Fällen das Abspielen verhinderte.
+- **Grafik-Bereinigung**: Entfernung funktionsloser Button-Grafiken aus der Benutzeroberfläche.
+
+## [0.8.14] - 2026-06-02
 - **Ehrliche UI-Erklärung**: Integrated a precise, native-feeling German description in the Premium Hybrid Fallback VST Editor when `hasEditor === false` to transparently explain that the plugin does not feature a native GUI by design.
 - **Robust Parameter Flow**: Enhanced `VstEditorWindow.tsx` parameter dispatching to ensure parameter sliders communicate flawlessly with the C++ Native Host for GUI-less VST2 plugins even while fallback UI is active.
 
