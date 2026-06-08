@@ -8,7 +8,7 @@ declare global {
       getSystemPath: (name: string) => Promise<string>
       readDir: (dirPath: string) => Promise<FileEntry[]>
       extractAudio: (videoPath: string, outputPath: string) => Promise<boolean>
-      getMediaInfo: (filePath: string) => Promise<{ duration: number, tags?: any }>
+      getMediaInfo: (filePath: string) => Promise<{ duration: number, channels?: number, tags?: any }>
       exportProject: (tracksData: any, outputPath: string, id3Tags?: any) => Promise<boolean>
       getSettings: () => Promise<any>
       saveSettings: (settings: any) => Promise<boolean>
@@ -29,7 +29,7 @@ declare global {
       confirmClose: () => void
       onDownloadProgress: (callback: (data: any) => void) => () => void
       onCloseRequest: (callback: () => void) => () => void
-      getPeaks: (filePath: string, samples?: number) => Promise<number[]>
+      getPeaks: (filePath: string, samples?: number, channel?: 'left' | 'right') => Promise<number[]>
       readFileBuffer: (filePath: string) => Promise<any>
       savePreset: (filePath: string, data: any) => Promise<any>
       saveProjectBackup: (filePath: string, data: any) => Promise<any>

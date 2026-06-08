@@ -1,8 +1,8 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react'
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { motion, useMotionValue, useAnimationFrame } from 'framer-motion'
 import { WaveformRenderer } from './WaveformRenderer'
 import { HistoryManager } from '../lib/HistoryManager'
-import { Play, Square, SkipBack, SkipForward, Plus, Minus, MousePointer2, Scissors, Music, ChevronDown, MoveHorizontal, Maximize2, Unlock, Eye, Volume2, Lock, Zap, Mic, Magnet, Link, Unlink, RotateCcw, RotateCw } from 'lucide-react'
+import { Play, Square, SkipBack, SkipForward, Plus, Minus, MousePointer2, Scissors, Music, ChevronDown, MoveHorizontal, Maximize2, Unlock, Eye, Volume2, Lock, Zap, Mic, Magnet, Link, Unlink, RotateCcw, RotateCw, ChevronRight } from 'lucide-react'
 import { AudioCleaningModal } from './AudioCleaningModal'
 import { ObjectPropertiesModal } from './ObjectPropertiesModal'
 import { AudioRecordingModal } from './AudioRecordingModal'
@@ -46,6 +46,10 @@ export type Region = {
   groupId?: string   // group membership
   stereoMode?: 'stereo' | 'left-only' | 'right-only'
   effects?: RegionEffects
+  channels?: number
+  visualNameSuffix?: string
+  name?: string
+  comment?: string
 }
 
 export const REGION_COLORS: { label: string; value: string }[] = [
@@ -62,6 +66,99 @@ export const REGION_COLORS: { label: string; value: string }[] = [
   { label: 'Violett', value: 'bg-violet-600' },
   { label: 'Dunkelblau', value: 'bg-blue-900' },
 ]
+
+const mergeSplitTracks = (tracksList: Track[]): Track[] => {
+  let updatedTracks = tracksList.map(t => ({ ...t, regions: [...t.regions] }));
+  
+  for (let i = 0; i < updatedTracks.length; i++) {
+    const trackL = updatedTracks[i];
+    const leftRegions = trackL.regions.filter(r => r.stereoMode === 'left-only');
+    
+    for (const rL of leftRegions) {
+      let bestTrackIdx = -1;
+      let bestRegionIdx = -1;
+      let minDistance = Infinity;
+      
+      for (let j = i + 1; j < updatedTracks.length; j++) {
+        const trackR = updatedTracks[j];
+        for (let k = 0; k < trackR.regions.length; k++) {
+          const rR = trackR.regions[k];
+          if (rR.stereoMode === 'right-only' && rR.file.path === rL.file.path) {
+            const dist = Math.abs(rR.startPos - rL.startPos);
+            if (dist < minDistance) {
+              minDistance = dist;
+              bestTrackIdx = j;
+              bestRegionIdx = k;
+            }
+          }
+        }
+      }
+      
+      if (bestTrackIdx !== -1 && bestRegionIdx !== -1) {
+        const rR = updatedTracks[bestTrackIdx].regions[bestRegionIdx];
+        trackL.regions.push(rR);
+        updatedTracks[bestTrackIdx].regions.splice(bestRegionIdx, 1);
+      }
+    }
+  }
+  
+  updatedTracks = updatedTracks.filter((t, idx) => t.regions.length > 0 || idx === 0);
+  updatedTracks = updatedTracks.map((t, idx) => ({ ...t, index: idx + 1 }));
+  return updatedTracks;
+};
+
+const splitMergedTracks = (tracksList: Track[]): Track[] => {
+  let updatedTracks = tracksList.map(t => ({ ...t, regions: [...t.regions] }));
+  
+  for (let i = 0; i < updatedTracks.length; i++) {
+    const track = updatedTracks[i];
+    const leftRegions = track.regions.filter(r => r.stereoMode === 'left-only');
+    const rightRegions = track.regions.filter(r => r.stereoMode === 'right-only');
+    
+    const rightToMove: Region[] = [];
+    
+    for (const rR of rightRegions) {
+      const hasMatchingLeft = leftRegions.some(rL => rL.file.path === rR.file.path);
+      if (hasMatchingLeft) {
+        rightToMove.push(rR);
+      }
+    }
+    
+    if (rightToMove.length > 0) {
+      track.regions = track.regions.filter(r => !rightToMove.includes(r));
+      
+      const targetTrackIdx = i + 1;
+      if (targetTrackIdx >= updatedTracks.length) {
+        const nextIdx = updatedTracks.length + 1;
+        const newTrack: Track = {
+          id: nextIdx.toString(),
+          index: nextIdx,
+          name: '',
+          regions: [],
+          muted: false,
+          solo: false,
+          locked: false,
+          visible: true,
+          volume: 1,
+          height: 64,
+          automation: []
+        };
+        updatedTracks.push(newTrack);
+      } else {
+        updatedTracks[targetTrackIdx].regions.push(...rightToMove);
+      }
+    }
+  }
+  
+  updatedTracks = updatedTracks.map((t, idx) => ({ ...t, index: idx + 1 }));
+  return updatedTracks;
+};
+
+const shareChannels = (r1: Region, r2: Region): boolean => {
+  const m1 = r1.stereoMode || 'stereo';
+  const m2 = r2.stereoMode || 'stereo';
+  return m1 === 'stereo' || m2 === 'stereo' || m1 === m2;
+};
 
 function LiveWaveformCanvas({ duration, pixelsPerSecond }: { duration: number; pixelsPerSecond: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -173,11 +270,48 @@ export type Track = {
   locked: boolean
   visible: boolean
   volume: number
+  preMuteVolume?: number
   height: number
   automation: { time: number, value: number }[]
+  volumeL?: number
+  volumeR?: number
+  mutedL?: boolean
+  mutedR?: boolean
+  soloL?: boolean
+  soloR?: boolean
+  lockedL?: boolean
+  lockedR?: boolean
+  nameL?: string
+  nameR?: string
+  preMuteVolumeL?: number
+  preMuteVolumeR?: number
 }
 
 const PIXELS_PER_SECOND_BASE = 50 
+
+const formatTime = (seconds: number) => {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  if (m > 0) {
+    const sFixed = s.toFixed(s % 1 === 0 ? 0 : 1);
+    return sFixed !== '0' ? `${m}m ${sFixed}s` : `${m}m`;
+  }
+  return `${seconds.toFixed(seconds % 1 === 0 ? 0 : 1)}s`;
+};
+
+const getDbHeightPercentage = (linearLevel: number): number => {
+  if (linearLevel <= 0.001) return 0;
+  const db = 20 * Math.log10(linearLevel);
+  const clampedDb = Math.max(-60, Math.min(0, db));
+  return ((clampedDb + 60) / 60) * 100;
+};
+
+const gainToDb = (gain: number): string => {
+  if (gain <= 0.001) return '-∞ dB';
+  const db = 20 * Math.log10(gain);
+  if (Math.abs(db) < 0.05) return '0.0 dB';
+  return `${db > 0 ? '+' : ''}${db.toFixed(1)} dB`;
+};
 
 export function Timeline({ 
   onTracksChange, 
@@ -199,9 +333,9 @@ export function Timeline({
   const engine = AudioEngine.getInstance()
   const [zoomLevel, setZoomLevel] = useState(1)
   const pixelsPerSecond = PIXELS_PER_SECOND_BASE * zoomLevel
-  
-  const totalTimelineWidth = 600 * pixelsPerSecond 
-  
+  const [showVerticalGuidelines, setShowVerticalGuidelines] = useState<boolean>(false)
+  const [videoAudioOnOneTrack, setVideoAudioOnOneTrack] = useState<boolean>(true)
+
   const [trackHeight, setTrackHeight] = useState(64)
   const [tracks, setTracks] = useState<Track[]>(initialTracks || [
     { id: '1', index: 1, name: '', regions: [], muted: false, solo: false, locked: false, visible: true, volume: 1, height: 64, automation: [] },
@@ -212,13 +346,22 @@ export function Timeline({
   const [sampleRate, setSampleRate] = useState<number>(48000)
   const [autoScroll, setAutoScroll] = useState<'Aus' | 'Langsam' | 'Schnell'>('Schnell')
   const [spacebarStops, setSpacebarStops] = useState<boolean>(false)
+  const [jumpSizePlayback, setJumpSizePlayback] = useState<number>(3.0)
+  const [jumpSizeStopped, setJumpSizeStopped] = useState<number>(1.0)
   const [activeShortcuts, setActiveShortcuts] = useState<KeyboardShortcuts>(normalizeKeyboardShortcuts(keyboardShortcuts))
   const playbackStartPosRef = useRef<number>(0)
 
   const [playheadPos, setPlayheadPos] = useState<number>(0)
   const playheadPosRef = useRef(0)
   const isDraggingPlayheadRef = useRef(false)
-  const playheadMotionX = useMotionValue(128)
+  const currentTracksRef = useRef<Track[]>(tracks)
+  useEffect(() => {
+    currentTracksRef.current = tracks
+  }, [tracks])
+
+  const lastRescheduleTimeRef = useRef<number>(0)
+  const rescheduleTimeoutRef = useRef<any>(null)
+  const playheadMotionX = useMotionValue(0)
   // playheadRulerMotionWidth removed – the blue bar is now an independent export selection marker
   const [scrollLeft, setScrollLeft] = useState(0)
   const [scrollTop, setScrollTop] = useState(0)
@@ -241,7 +384,137 @@ export function Timeline({
   const setSelectedRegionId = useCallback((id: string | null) => {
     setSelectedRegionIds(id ? new Set([id]) : new Set())
   }, [setSelectedRegionIds])
-  const [draggingRegion, setDraggingRegion] = useState<{ id: string, trackId: string, initialStartPos: number, startX: number, action: 'move' | 'trimStart' | 'trimEnd', initialDuration: number, initialSourceOffset: number, initialFileDuration: number, pitchRate?: number } | null>(null)
+
+  // Dynamische Timeline-Dauer und -Breite
+  const timelineDuration = useMemo(() => {
+    let maxRegionEnd = 0;
+    tracks.forEach(t => {
+      t.regions.forEach(r => {
+        const pitchRate = r.effects?.pitchRate || 1.0;
+        const end = r.startPos + (r.duration / pitchRate);
+        if (end > maxRegionEnd) {
+          maxRegionEnd = end;
+        }
+      });
+    });
+    return Math.max(600, maxRegionEnd + 120, playheadPos + 120);
+  }, [tracks, playheadPos]);
+
+  const totalTimelineWidth = timelineDuration * pixelsPerSecond 
+  
+  const getDisplayedTracks = useCallback((tracksList: Track[], videoAudioOnOneTrackVal: boolean) => {
+    if (videoAudioOnOneTrackVal) {
+      return tracksList.map(t => ({ ...t, originalTrackId: t.id }));
+    }
+    
+    const result: any[] = [];
+    tracksList.forEach((track) => {
+      // Hat dieser Track Stereo-Inhalte? (D.h. mindestens eine Region, die nicht mono (1) ist)
+      const hasStereo = track.regions.some(r => r.channels !== 1);
+      
+      if (hasStereo) {
+        // Wir teilen den Track in zwei visuelle Tracks auf
+        result.push({
+          ...track,
+          id: track.id + '_L',
+          originalTrackId: track.id,
+          name: track.nameL !== undefined ? track.nameL : (track.name ? `${track.name} [L]` : `Spur ${track.index} [L]`),
+          volume: track.volumeL !== undefined ? track.volumeL : track.volume,
+          muted: track.mutedL !== undefined ? track.mutedL : track.muted,
+          solo: track.soloL !== undefined ? track.soloL : track.solo,
+          locked: track.lockedL !== undefined ? track.lockedL : track.locked,
+          regions: track.regions.map((r: Region) => ({
+            ...r,
+            stereoMode: r.channels !== 1 ? 'left-only' : r.stereoMode,
+            visualNameSuffix: r.channels !== 1 ? ' [L]' : ' [Mono]'
+          }))
+        });
+        result.push({
+          ...track,
+          id: track.id + '_R',
+          originalTrackId: track.id,
+          name: track.nameR !== undefined ? track.nameR : (track.name ? `${track.name} [R]` : `Spur ${track.index} [R]`),
+          volume: track.volumeR !== undefined ? track.volumeR : track.volume,
+          muted: track.mutedR !== undefined ? track.mutedR : track.muted,
+          solo: track.soloR !== undefined ? track.soloR : track.solo,
+          locked: track.lockedR !== undefined ? track.lockedR : track.locked,
+          regions: track.regions.map((r: Region) => ({
+            ...r,
+            stereoMode: r.channels !== 1 ? 'right-only' : r.stereoMode,
+            visualNameSuffix: r.channels !== 1 ? ' [R]' : ' [Mono]'
+          }))
+        });
+      } else {
+        // Wenn der Track nur Mono-Inhalte hat, bleibt er auf einer Spur
+        result.push({
+          ...track,
+          originalTrackId: track.id,
+          regions: track.regions.map((r: Region) => ({
+            ...r,
+            visualNameSuffix: ' [Mono]'
+          }))
+        });
+      }
+    });
+    return result;
+  }, []);
+
+  const recalculateTrackVolumes = useCallback((currentTracks: Track[]) => {
+    const dispTracks = getDisplayedTracks(currentTracks, videoAudioOnOneTrack);
+    const hasSolo = dispTracks.some(t => t.solo);
+    
+    dispTracks.forEach(t => {
+      let effectiveVolume = t.volume;
+      if (hasSolo) {
+        effectiveVolume = t.solo ? t.volume : 0;
+      } else {
+        effectiveVolume = t.muted ? 0 : t.volume;
+      }
+      engine.setTrackVolume(t.id, effectiveVolume);
+    });
+  }, [videoAudioOnOneTrack, engine, getDisplayedTracks]);
+
+  const displayedTracks = useMemo(() => {
+    return getDisplayedTracks(tracks, videoAudioOnOneTrack);
+  }, [tracks, videoAudioOnOneTrack, getDisplayedTracks]);
+
+  const guidelineInterval = useMemo(() => {
+    // Dynamisches Intervall: Abstand zwischen Ticks/Linien soll mind. 80px betragen
+    const intervals = [0.1, 0.2, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600];
+    for (const interval of intervals) {
+      if (interval * pixelsPerSecond >= 80) {
+        return interval;
+      }
+    }
+    return 600;
+  }, [pixelsPerSecond]);
+
+  const visibleTicks = useMemo(() => {
+    const viewportWidth = 3000;
+    const startIdx = Math.max(0, Math.floor(scrollLeft / (pixelsPerSecond * guidelineInterval)) - 1);
+    const endIdx = Math.ceil((scrollLeft + viewportWidth) / (pixelsPerSecond * guidelineInterval)) + 1;
+    
+    const maxIdx = Math.ceil(timelineDuration / guidelineInterval);
+    const limitEndIdx = Math.min(maxIdx, endIdx);
+    
+    const result: number[] = [];
+    for (let i = startIdx; i <= limitEndIdx; i++) {
+      result.push(i);
+    }
+    return result;
+  }, [scrollLeft, pixelsPerSecond, guidelineInterval, timelineDuration]);
+  const [draggingRegion, setDraggingRegion] = useState<{
+    id: string;
+    trackId: string;
+    initialStartPos: number;
+    startX: number;
+    action: 'move' | 'trimStart' | 'trimEnd';
+    initialDuration: number;
+    initialSourceOffset: number;
+    initialFileDuration: number;
+    pitchRate?: number;
+    initialGroupPositions?: { id: string; initialStartPos: number }[];
+  } | null>(null)
   // Lasso / Rubber-Band Selection
   const [lassoRect, setLassoRect] = useState<{ startX: number; startY: number; endX: number; endY: number } | null>(null)
   const lassoStartRef = useRef<{ x: number; y: number } | null>(null)
@@ -268,6 +541,7 @@ export function Timeline({
   const [stereoSubmenuOpen, setStereoSubmenuOpen] = useState(false)
   const [normalizeSubmenuOpen, setNormalizeSubmenuOpen] = useState(false)
   const [editorContextMenu, setEditorContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const [trackContextMenu, setTrackContextMenu] = useState<{ x: number; y: number; trackId: string } | null>(null)
   const [showAutomation, setShowAutomation] = useState(false)
   const [effectsClipboard, setEffectsClipboard] = useState<RegionEffects | null>(null)
 
@@ -405,6 +679,7 @@ export function Timeline({
     
     const leftRegion = {
       ...region,
+      channels: 1,
       stereoMode: 'left-only' as const,
       file: { ...region.file, name: region.file.name + ' (Mono L)' }
     };
@@ -412,6 +687,7 @@ export function Timeline({
     const rightRegion = {
       ...region,
       id: Math.random().toString(36).substr(2, 9),
+      channels: 1,
       stereoMode: 'right-only' as const,
       file: { ...region.file, name: region.file.name + ' (Mono R)' }
     };
@@ -446,6 +722,88 @@ export function Timeline({
     });
 
     updateTracksWithHistory(updatedTracks);
+  };
+
+  const splitStereoTrack = (trackId: string) => {
+    const targetTrack = tracks.find(t => t.id === trackId);
+    if (!targetTrack) return;
+
+    const stereoRegions = targetTrack.regions.filter(r => r.channels && r.channels !== 1);
+    if (stereoRegions.length === 0) {
+      window.dispatchEvent(new CustomEvent('SHOW_GLOBAL_MODAL', { detail: { type: 'info', title: 'Stereo aufteilen', message: 'Keine Stereo-Objekte auf dieser Spur vorhanden.' } }));
+      return;
+    }
+
+    const trackIdx = tracks.findIndex(t => t.id === trackId);
+    if (trackIdx === -1) return;
+
+    let updatedTracks = [...tracks];
+    let targetTrackId = '';
+
+    if (trackIdx === tracks.length - 1) {
+      const nextIdx = tracks.length + 1;
+      const newTrack = { id: nextIdx.toString(), index: nextIdx, name: '', regions: [], muted: false, solo: false, locked: false, visible: true, volume: 1, height: 64, automation: [] };
+      updatedTracks.push(newTrack);
+      targetTrackId = newTrack.id;
+    } else {
+      targetTrackId = tracks[trackIdx + 1].id;
+    }
+
+    const leftRegionsMap = new Map<string, any>();
+    const rightRegionsList: any[] = [];
+
+    targetTrack.regions.forEach(region => {
+      if (region.channels && region.channels !== 1) {
+        const leftRegion = {
+          ...region,
+          channels: 1,
+          stereoMode: 'left-only' as const,
+          groupId: undefined,
+          file: { ...region.file, name: region.file.name + ' (Mono L)' }
+        };
+
+        const rightRegion = {
+          ...region,
+          id: Math.random().toString(36).substr(2, 9),
+          channels: 1,
+          stereoMode: 'right-only' as const,
+          groupId: undefined,
+          file: { ...region.file, name: region.file.name + ' (Mono R)' }
+        };
+
+        leftRegionsMap.set(region.id, leftRegion);
+        rightRegionsList.push(rightRegion);
+      } else {
+        leftRegionsMap.set(region.id, region);
+      }
+    });
+
+    updatedTracks = updatedTracks.map(t => {
+      if (t.id === trackId) {
+        return {
+          ...t,
+          regions: t.regions.map(r => leftRegionsMap.has(r.id) ? leftRegionsMap.get(r.id) : r)
+        };
+      }
+      if (t.id === targetTrackId) {
+        return {
+          ...t,
+          regions: [...t.regions, ...rightRegionsList]
+        };
+      }
+      return t;
+    });
+
+    updateTracksWithHistory(updatedTracks);
+
+    if (engine.isPlaying) {
+      const dispTracks = getDisplayedTracks(updatedTracks, videoAudioOnOneTrack);
+      dispTracks.forEach(t => {
+        t.regions.forEach((r: any) => {
+          engine.rescheduleRegion(t.id, r, t.regions);
+        });
+      });
+    }
   };
 
   const setStereoMode = (regionId: string, mode: 'stereo' | 'left-only' | 'right-only') => {
@@ -596,29 +954,68 @@ export function Timeline({
   };
 
   const closeAllGaps = useCallback(() => {
+    const allRegions = tracks.flatMap((t: any) => t.regions.map((r: any) => ({ ...r, trackId: t.id })));
+    if (allRegions.length === 0) {
+      window.dispatchEvent(new CustomEvent('SHOW_GLOBAL_MODAL', { detail: { type: 'info', title: 'Lücken schließen', message: 'Keine Lücken zum Schließen vorhanden.' } }));
+      return;
+    }
+
+    // Nach Startposition sortieren
+    const sortedRegions = [...allRegions].sort((a: any, b: any) => a.startPos - b.startPos);
+
+    // Zusammenhängende Intervalle spurübergreifend mergen (Belegung ermitteln)
+    const mergedIntervals: { start: number; end: number; regionIds: string[] }[] = [];
+    sortedRegions.forEach((r: any) => {
+      const start = r.startPos;
+      const end = r.startPos + r.duration;
+      
+      // Überlappungen oder unmittelbar aneinandergrenzende Clips (Toleranz 1ms)
+      if (mergedIntervals.length > 0 && start <= mergedIntervals[mergedIntervals.length - 1].end + 0.001) {
+        const last = mergedIntervals[mergedIntervals.length - 1];
+        last.end = Math.max(last.end, end);
+        last.regionIds.push(r.id);
+      } else {
+        mergedIntervals.push({ start, end, regionIds: [r.id] });
+      }
+    });
+
+    const newStartPosMap = new Map<string, number>();
     let changed = false;
-    const updatedTracks = tracks.map(track => {
-      if (track.regions.length === 0) return track;
+    
+    // Verschieben der Blöcke, um Lücken zu schließen
+    let currentNewStart = 0;
+    mergedIntervals.forEach((interval: any) => {
+      const originalStart = interval.start;
+      const shiftDelta = currentNewStart - originalStart;
       
-      const sortedRegions = [...track.regions].sort((a, b) => a.startPos - b.startPos);
-      
-      let prevEnd = 0;
-      const updatedRegions = sortedRegions.map((region) => {
-        const newStart = prevEnd;
-        const newRegion = {
-          ...region,
-          startPos: newStart
-        };
-        prevEnd = newStart + region.duration;
-        if (newStart !== region.startPos) {
-          changed = true;
+      interval.regionIds.forEach((id: string) => {
+        const r = allRegions.find((reg: any) => reg.id === id);
+        if (r) {
+          const newStart = r.startPos + shiftDelta;
+          newStartPosMap.set(id, newStart);
         }
-        return newRegion;
       });
       
+      const newEnd = interval.end + shiftDelta;
+      currentNewStart = newEnd;
+    });
+
+    const updatedTracks = tracks.map((track: any) => {
       return {
         ...track,
-        regions: updatedRegions
+        regions: track.regions.map((r: any) => {
+          if (newStartPosMap.has(r.id)) {
+            const newStart = newStartPosMap.get(r.id)!;
+            if (Math.abs(newStart - r.startPos) > 0.0001) {
+              changed = true;
+            }
+            return {
+              ...r,
+              startPos: newStart
+            };
+          }
+          return r;
+        })
       };
     });
 
@@ -628,7 +1025,21 @@ export function Timeline({
     }
 
     updateTracksWithHistory(updatedTracks);
-  }, [tracks, updateTracksWithHistory]);
+
+    // Echte Echtzeit-Audioaktualisierung nach dem Schließen von Lücken!
+    if (engine.isPlaying) {
+      const dispTracks = getDisplayedTracks(updatedTracks, videoAudioOnOneTrack);
+      
+      dispTracks.forEach((track: any) => {
+        track.regions.forEach((r: any) => {
+          const originalRegion = tracks.flatMap((t: any) => t.regions).find((reg: any) => reg.id === r.id);
+          if (originalRegion && Math.abs(originalRegion.startPos - r.startPos) > 0.0001) {
+            engine.rescheduleRegion(track.id, r, track.regions);
+          }
+        });
+      });
+    }
+  }, [tracks, updateTracksWithHistory, engine, getDisplayedTracks, videoAudioOnOneTrack]);
 
   const togglePlayback = useCallback(() => {
     console.log('[Timeline] togglePlayback called. isPlaying:', isPlaying, 'startPos:', playheadPosRef.current);
@@ -646,11 +1057,14 @@ export function Timeline({
     } else {
       const startPos = playheadPosRef.current
       playbackStartPosRef.current = startPos
-      console.log('[Timeline] Calling engine.play. tracks count:', tracks?.length, 'startPos:', startPos);
-      engine.play({ tracks }, startPos)
+      console.log('[Timeline] Calling engine.play. tracks count:', displayedTracks?.length, 'startPos:', startPos);
+      // Zuruecksetzen auf normale Wiedergabe vorwaerts
+      engine.playbackSpeed = 1.0;
+      engine.playbackDirection = 1;
+      engine.play({ tracks: displayedTracks }, startPos)
       setIsPlaying(true)
     }
-  }, [isPlaying, engine, tracks, spacebarStops])
+  }, [isPlaying, engine, displayedTracks, spacebarStops])
 
   const handleSaveRecord = async (filePath: string, durationSec: number, startPos?: number) => {
     const filename = filePath.split(/[\\/]/).pop() || 'Aufnahme.wav';
@@ -819,7 +1233,7 @@ export function Timeline({
   const skipToStart = () => {
     setPlayheadPos(0);
     playheadPosRef.current = 0;
-    if (isPlaying) { engine.stop(); engine.play({ tracks }, 0); }
+    if (isPlaying) { engine.stop(); engine.play({ tracks: displayedTracks }, 0); }
   };
 
   const skipToEnd = () => {
@@ -828,7 +1242,7 @@ export function Timeline({
     const end = Math.max(...allRegions.map(r => r.startPos + r.duration));
     setPlayheadPos(end);
     playheadPosRef.current = end;
-    if (isPlaying) { engine.stop(); engine.play({ tracks }, end); }
+    if (isPlaying) { engine.stop(); engine.play({ tracks: displayedTracks }, end); }
   };
 
   useEffect(() => {
@@ -842,7 +1256,143 @@ export function Timeline({
 
       if (isTextInput) return;
 
-      if (matchesShortcut(e, activeShortcuts.normalizePeak)) {
+      if (matchesShortcut(e, activeShortcuts.setPlaybackStart)) {
+        e.preventDefault();
+        if (isPlaying) {
+          const curTime = engine.currentTime;
+          engine.pause();
+          setIsPlaying(false);
+          setPlayheadPos(curTime);
+          playheadPosRef.current = curTime;
+          playbackStartPosRef.current = curTime;
+          console.log('[Timeline] setPlaybackStart (ArrowDown) gedrückt während Wiedergabe. Gestoppt bei:', curTime);
+        } else {
+          const curTime = playheadPosRef.current;
+          playbackStartPosRef.current = curTime;
+          console.log('[Timeline] setPlaybackStart (ArrowDown) gedrückt im Stillstand. Startpunkt bei:', curTime);
+        }
+      } else if (matchesShortcut(e, activeShortcuts.playAtPosition)) {
+        e.preventDefault();
+        if (e.repeat) return;
+        if (isPlaying) {
+          const curTime = engine.currentTime;
+          engine.pause();
+          setIsPlaying(false);
+          setPlayheadPos(curTime);
+          playheadPosRef.current = curTime;
+        } else {
+          const startPos = playheadPosRef.current;
+          playbackStartPosRef.current = startPos;
+          engine.playbackSpeed = 1.0;
+          engine.playbackDirection = 1;
+          engine.play({ tracks: displayedTracks }, startPos);
+          setIsPlaying(true);
+        }
+      } else if (matchesShortcut(e, activeShortcuts.playForward)) {
+        e.preventDefault();
+        if (e.repeat) return;
+        
+        let newSpeed = 1.0;
+        let newDir = 1;
+        if (isPlaying) {
+          if (engine.playbackDirection === 1) {
+            // Vorwärts: Zyklisch erhöhen (1.0 -> 1.5 -> 2.0 -> 3.0 -> 4.0 -> 5.0 -> 1.0)
+            if (engine.playbackSpeed === 1.0) newSpeed = 1.5;
+            else if (engine.playbackSpeed === 1.5) newSpeed = 2.0;
+            else if (engine.playbackSpeed === 2.0) newSpeed = 3.0;
+            else if (engine.playbackSpeed === 3.0) newSpeed = 4.0;
+            else if (engine.playbackSpeed === 4.0) newSpeed = 5.0;
+            else newSpeed = 1.0;
+            newDir = 1;
+          } else {
+            // Rückwärts: Schrittweise abbremsen in Richtung vorwärts
+            newDir = -1;
+            if (engine.playbackSpeed === 5.0) newSpeed = 4.0;
+            else if (engine.playbackSpeed === 4.0) newSpeed = 3.0;
+            else if (engine.playbackSpeed === 3.0) newSpeed = 2.0;
+            else if (engine.playbackSpeed === 2.0) newSpeed = 1.5;
+            else if (engine.playbackSpeed === 1.5) newSpeed = 1.0;
+            else {
+              // Bei 1.0x rückwärts wechseln wir zu 1.0x vorwärts
+              newSpeed = 1.0;
+              newDir = 1;
+            }
+          }
+        }
+        
+        const curTime = isPlaying ? engine.currentTime : playheadPosRef.current;
+        if (isPlaying) {
+          engine.stop();
+        }
+        engine.playbackSpeed = newSpeed;
+        engine.playbackDirection = newDir;
+        engine.play({ tracks: displayedTracks }, curTime);
+        setIsPlaying(true);
+      } else if (matchesShortcut(e, activeShortcuts.playBackward)) {
+        e.preventDefault();
+        if (e.repeat) return;
+        
+        let newSpeed = 1.0;
+        let newDir = -1;
+        if (isPlaying) {
+          if (engine.playbackDirection === -1) {
+            // Rückwärts: Zyklisch erhöhen (1.0 -> 1.5 -> 2.0 -> 3.0 -> 4.0 -> 5.0 -> 1.0)
+            if (engine.playbackSpeed === 1.0) newSpeed = 1.5;
+            else if (engine.playbackSpeed === 1.5) newSpeed = 2.0;
+            else if (engine.playbackSpeed === 2.0) newSpeed = 3.0;
+            else if (engine.playbackSpeed === 3.0) newSpeed = 4.0;
+            else if (engine.playbackSpeed === 4.0) newSpeed = 5.0;
+            else newSpeed = 1.0;
+            newDir = -1;
+          } else {
+            // Vorwärts: Schrittweise abbremsen in Richtung rückwärts
+            newDir = 1;
+            if (engine.playbackSpeed === 5.0) newSpeed = 4.0;
+            else if (engine.playbackSpeed === 4.0) newSpeed = 3.0;
+            else if (engine.playbackSpeed === 3.0) newSpeed = 2.0;
+            else if (engine.playbackSpeed === 2.0) newSpeed = 1.5;
+            else if (engine.playbackSpeed === 1.5) newSpeed = 1.0;
+            else {
+              // Bei 1.0x vorwärts wechseln wir zu 1.0x rückwärts
+              newSpeed = 1.0;
+              newDir = -1;
+            }
+          }
+        }
+        
+        const curTime = isPlaying ? engine.currentTime : playheadPosRef.current;
+        if (isPlaying) {
+          engine.stop();
+        }
+        engine.playbackSpeed = newSpeed;
+        engine.playbackDirection = newDir;
+        engine.play({ tracks: displayedTracks }, curTime);
+        setIsPlaying(true);
+      } else if (matchesShortcut(e, activeShortcuts.jumpBackward)) {
+        e.preventDefault();
+        const curTime = isPlaying ? engine.currentTime : playheadPosRef.current;
+        const step = isPlaying ? jumpSizePlayback : jumpSizeStopped;
+        const targetPos = Math.max(0, curTime - step);
+        
+        setPlayheadPos(targetPos);
+        playheadPosRef.current = targetPos;
+        if (isPlaying) {
+          engine.stop();
+          engine.play({ tracks: displayedTracks }, targetPos);
+        }
+      } else if (matchesShortcut(e, activeShortcuts.jumpForward)) {
+        e.preventDefault();
+        const curTime = isPlaying ? engine.currentTime : playheadPosRef.current;
+        const step = isPlaying ? jumpSizePlayback : jumpSizeStopped;
+        const targetPos = curTime + step;
+        
+        setPlayheadPos(targetPos);
+        playheadPosRef.current = targetPos;
+        if (isPlaying) {
+          engine.stop();
+          engine.play({ tracks: displayedTracks }, targetPos);
+        }
+      } else if (matchesShortcut(e, activeShortcuts.normalizePeak)) {
         if (selectedRegionId) {
           e.preventDefault();
           normalizePeak(selectedRegionId);
@@ -1055,8 +1605,35 @@ export function Timeline({
   }, [selectedRegionId, selectedRegionIds, deleteSelectedRegions, togglePlayback, tracks, handleCopy, handlePaste, activeShortcuts]);
 
   const [vuLevel, setVuLevel] = useState(0);
+  const [masterVolume, setMasterVolume] = useState(engine.getMasterVolume ? engine.getMasterVolume() : 0.8);
+  const vuMaskLRef = useRef<HTMLDivElement>(null);
+  const vuMaskRRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleVolumeChanged = (e: Event) => {
+      const customEvent = e as CustomEvent<{ volume: number }>;
+      setMasterVolume(customEvent.detail.volume);
+    };
+    window.addEventListener('MASTER_VOLUME_CHANGED', handleVolumeChanged);
+    return () => {
+      window.removeEventListener('MASTER_VOLUME_CHANGED', handleVolumeChanged);
+    };
+  }, []);
 
   useAnimationFrame(() => {
+    // Direct DOM manipulation of the stereo VU meters for 60fps performance
+    const levels = engine.getMasterLevels();
+    const isPlayingAudio = engine.isPlaying;
+    const lPercent = isPlayingAudio ? getDbHeightPercentage(levels.left) : 0;
+    const rPercent = isPlayingAudio ? getDbHeightPercentage(levels.right) : 0;
+
+    if (vuMaskLRef.current) {
+      vuMaskLRef.current.style.height = `${100 - lPercent}%`;
+    }
+    if (vuMaskRRef.current) {
+      vuMaskRRef.current.style.height = `${100 - rPercent}%`;
+    }
+
     if (vstRecording && vstRecording.active) {
       const elapsed = (Date.now() - vstRecording.startTime) / 1000;
       setVstRecordingDuration(elapsed);
@@ -1067,6 +1644,16 @@ export function Timeline({
     }
 
     const current = engine.currentTime;
+    
+    // Automatischer Stopp bei Rueckwaertsabspielen am Anfang des Projekts
+    if (engine.isPlaying && engine.playbackDirection === -1 && current <= 0) {
+      engine.stop();
+      setIsPlaying(false);
+      setPlayheadPos(0);
+      playheadPosRef.current = 0;
+      return;
+    }
+
     if (engine.isPlaying && !isDraggingPlayheadRef.current) {
       playheadPosRef.current = current;
       
@@ -1094,7 +1681,7 @@ export function Timeline({
         }
       }
 
-      playheadMotionX.set(128 + (current * pixelsPerSecond) - currentScrollLeft);
+      playheadMotionX.set((current * pixelsPerSecond) - currentScrollLeft);
       
       if (Math.floor(current * 10) % 2 === 0) {
          setPlayheadPos(current);
@@ -1122,7 +1709,11 @@ export function Timeline({
         if (s.sampleRate !== undefined) setSampleRate(s.sampleRate);
         if (s.autoScroll !== undefined) setAutoScroll(s.autoScroll);
         if (s.spacebarStops !== undefined) setSpacebarStops(s.spacebarStops);
+        if (s.jumpSizePlayback !== undefined) setJumpSizePlayback(s.jumpSizePlayback);
+        if (s.jumpSizeStopped !== undefined) setJumpSizeStopped(s.jumpSizeStopped);
         if (s.keyboardShortcuts !== undefined) setActiveShortcuts(normalizeKeyboardShortcuts(s.keyboardShortcuts));
+        if (s.showVerticalGuidelines !== undefined) setShowVerticalGuidelines(s.showVerticalGuidelines);
+        if (s.videoAudioOnOneTrack !== undefined) setVideoAudioOnOneTrack(s.videoAudioOnOneTrack);
         if (!initialTracks && s.tracksCount !== undefined) {
           const count = s.tracksCount;
           setTracks(prev => {
@@ -1176,8 +1767,45 @@ export function Timeline({
       if (newSettings.spacebarStops !== undefined) {
         setSpacebarStops(newSettings.spacebarStops);
       }
+      if (newSettings.jumpSizePlayback !== undefined) {
+        setJumpSizePlayback(newSettings.jumpSizePlayback);
+      }
+      if (newSettings.jumpSizeStopped !== undefined) {
+        setJumpSizeStopped(newSettings.jumpSizeStopped);
+      }
       if (newSettings.keyboardShortcuts !== undefined) {
         setActiveShortcuts(normalizeKeyboardShortcuts(newSettings.keyboardShortcuts));
+      }
+      if (newSettings.showVerticalGuidelines !== undefined) {
+        setShowVerticalGuidelines(newSettings.showVerticalGuidelines);
+      }
+      if (newSettings.videoAudioOnOneTrack !== undefined) {
+        const newVal = newSettings.videoAudioOnOneTrack;
+        setVideoAudioOnOneTrack(newVal);
+        
+        setTracks(prevTracks => {
+          HistoryManager.pushState(prevTracks);
+          let updatedTracks = [...prevTracks];
+          if (newVal) {
+            updatedTracks = mergeSplitTracks(updatedTracks);
+          } else {
+            updatedTracks = splitMergedTracks(updatedTracks);
+          }
+          
+          if (engine.isPlaying) {
+            const dispTracks = getDisplayedTracks(updatedTracks, newVal);
+            dispTracks.forEach(t => {
+              t.regions.forEach((r: any) => {
+                engine.rescheduleRegion(t.id, r, t.regions);
+              });
+            });
+          }
+          
+          if (onTracksChange) {
+            onTracksChange(updatedTracks);
+          }
+          return updatedTracks;
+        });
       }
 
       if (newSettings.tracksCount !== undefined) {
@@ -1235,7 +1863,7 @@ export function Timeline({
   useEffect(() => {
     if (isPlaying) return;
     playheadPosRef.current = playheadPos;
-    playheadMotionX.set(128 + (playheadPos * pixelsPerSecond) - scrollLeft);
+    playheadMotionX.set((playheadPos * pixelsPerSecond) - scrollLeft);
   }, [playheadPos, pixelsPerSecond, scrollLeft, isPlaying]);
 
   useEffect(() => {
@@ -1256,7 +1884,7 @@ export function Timeline({
       playheadPosRef.current = newPos;
       if (engine.isPlaying) {
         engine.stop();
-        engine.play({ tracks }, newPos);
+        engine.play({ tracks: displayedTracks }, newPos);
       }
     };
 
@@ -1293,6 +1921,7 @@ export function Timeline({
     e.stopPropagation();
     setContextMenu(null);
     setEditorContextMenu(null);
+    setTrackContextMenu(null);
     setZoomMenuOpen(false);
 
     if (rulerDoubleClickPendingRef.current) return;
@@ -1334,6 +1963,7 @@ export function Timeline({
     e.stopPropagation();
     setContextMenu(null);
     setEditorContextMenu(null);
+    setTrackContextMenu(null);
     setZoomMenuOpen(false);
 
     isDraggingPlayheadRef.current = true;
@@ -1365,7 +1995,7 @@ export function Timeline({
       isDraggingPlayheadRef.current = false;
       
       if (wasPlaying) {
-        engine.play({ tracks }, playheadPosRef.current);
+        engine.play({ tracks: displayedTracks }, playheadPosRef.current);
         setIsPlaying(true);
       }
     };
@@ -1378,6 +2008,7 @@ export function Timeline({
     if (justDraggedRef.current) return;
     setContextMenu(null)
     setEditorContextMenu(null)
+    setTrackContextMenu(null)
     setZoomMenuOpen(false)
     
     const target = e.target as HTMLElement;
@@ -1403,33 +2034,129 @@ export function Timeline({
   }
 
   const updateTrackVolume = (trackId: string, value: number) => {
-    const newTracks = tracks.map(t => t.id === trackId ? { ...t, volume: value } : t);
+    const isL = trackId.endsWith('_L');
+    const isR = trackId.endsWith('_R');
+    const cleanTrackId = trackId.replace(/_[LR]$/, '');
+    
+    const newTracks = tracks.map(t => {
+      if (t.id === cleanTrackId) {
+        if (isL) return { ...t, volumeL: value };
+        if (isR) return { ...t, volumeR: value };
+        return { ...t, volume: value };
+      }
+      return t;
+    });
     setTracks(newTracks);
-    engine.setTrackVolume(trackId, value)
+    recalculateTrackVolumes(newTracks);
   }
 
   const updateTrackPan = (trackId: string, value: number) => {
-    const newTracks = tracks.map(t => t.id === trackId ? { ...t, pan: value } : t);
+    const isL = trackId.endsWith('_L');
+    const isR = trackId.endsWith('_R');
+    const cleanTrackId = trackId.replace(/_[LR]$/, '');
+    
+    const newTracks = tracks.map(t => {
+      if (t.id === cleanTrackId) {
+        if (isL) return { ...t, panL: value };
+        if (isR) return { ...t, panR: value };
+        return { ...t, pan: value };
+      }
+      return t;
+    });
     setTracks(newTracks);
-    engine.setTrackPan(trackId, value)
+    engine.setTrackPan(trackId, value);
   }
 
   const toggleMute = (trackId: string) => {
+    const isL = trackId.endsWith('_L');
+    const isR = trackId.endsWith('_R');
+    const cleanTrackId = trackId.replace(/_[LR]$/, '');
+    
     const newTracks = tracks.map(t => {
-      if (t.id === trackId) {
-        const newMuted = !t.muted
-        engine.setTrackVolume(trackId, newMuted ? 0 : t.volume)
-        return { ...t, muted: newMuted }
+      if (t.id === cleanTrackId) {
+        if (isL) {
+          const newMuted = !(t.mutedL !== undefined ? t.mutedL : t.muted);
+          return { ...t, mutedL: newMuted };
+        }
+        if (isR) {
+          const newMuted = !(t.mutedR !== undefined ? t.mutedR : t.muted);
+          return { ...t, mutedR: newMuted };
+        }
+        const newMuted = !t.muted;
+        return { ...t, muted: newMuted };
       }
-      return t
+      return t;
     });
     updateTracksWithHistory(newTracks);
+    recalculateTrackVolumes(newTracks);
   }
 
   const toggleSolo = (trackId: string) => {
-    const newTracks = tracks.map(t => t.id === trackId ? { ...t, solo: !t.solo } : t);
+    const isL = trackId.endsWith('_L');
+    const isR = trackId.endsWith('_R');
+    const cleanTrackId = trackId.replace(/_[LR]$/, '');
+    
+    const newTracks = tracks.map(t => {
+      if (t.id === cleanTrackId) {
+        if (isL) return { ...t, soloL: !(t.soloL !== undefined ? t.soloL : t.solo) };
+        if (isR) return { ...t, soloR: !(t.soloR !== undefined ? t.soloR : t.solo) };
+        return { ...t, solo: !t.solo };
+      }
+      return t;
+    });
     updateTracksWithHistory(newTracks);
+    recalculateTrackVolumes(newTracks);
   }
+
+  const toggleVolumeMute = (trackId: string) => {
+    const isL = trackId.endsWith('_L');
+    const isR = trackId.endsWith('_R');
+    const cleanTrackId = trackId.replace(/_[LR]$/, '');
+    const track = tracks.find(t => t.id === cleanTrackId);
+    if (!track) return;
+
+    const newTracks = tracks.map(t => {
+      if (t.id === cleanTrackId) {
+        if (isL) {
+          const currentVol = t.volumeL !== undefined ? t.volumeL : t.volume;
+          let newVolume = 0;
+          let preMuteVolume = currentVol;
+          if (currentVol > 0) {
+            newVolume = 0;
+            preMuteVolume = currentVol;
+          } else {
+            newVolume = t.preMuteVolumeL !== undefined ? t.preMuteVolumeL : 1.0;
+          }
+          return { ...t, volumeL: newVolume, preMuteVolumeL: preMuteVolume };
+        }
+        if (isR) {
+          const currentVol = t.volumeR !== undefined ? t.volumeR : t.volume;
+          let newVolume = 0;
+          let preMuteVolume = currentVol;
+          if (currentVol > 0) {
+            newVolume = 0;
+            preMuteVolume = currentVol;
+          } else {
+            newVolume = t.preMuteVolumeR !== undefined ? t.preMuteVolumeR : 1.0;
+          }
+          return { ...t, volumeR: newVolume, preMuteVolumeR: preMuteVolume };
+        }
+        let newVolume = 0;
+        let preMuteVolume = t.volume;
+        if (t.volume > 0) {
+          newVolume = 0;
+          preMuteVolume = t.volume;
+        } else {
+          newVolume = t.preMuteVolume !== undefined ? t.preMuteVolume : 1.0;
+        }
+        return { ...t, volume: newVolume, preMuteVolume };
+      }
+      return t;
+    });
+    updateTracksWithHistory(newTracks);
+    recalculateTrackVolumes(newTracks);
+  }
+
 
   const tracksRefForMidi = useRef(tracks);
   useEffect(() => {
@@ -1674,6 +2401,7 @@ export function Timeline({
 
   const onDrop = async (e: React.DragEvent, trackId: string) => {
     e.preventDefault()
+    const cleanTrackId = trackId.replace(/_[LR]$/, '');
     let fileInfo: { name: string; path: string; isDirectory: boolean } | null = null;
 
     try {
@@ -1707,9 +2435,10 @@ export function Timeline({
             id: Math.random().toString(36).substr(2, 9),
             file: fileInfo, startPos, duration: info?.duration || 10,
             sourceOffset: 0, fileDuration: info?.duration || 10,
+            channels: info?.channels || 2,
             color: fileInfo.name.match(/\.(mp4|mkv|mov)$/i) ? 'bg-purple-600' : 'bg-omega-accent'
           }
-          const newTracks = tracks.map(t => t.id === trackId ? { ...t, regions: [...t.regions, newRegion] } : t);
+          const newTracks = tracks.map(t => t.id === cleanTrackId ? { ...t, regions: [...t.regions, newRegion] } : t);
           updateTracksWithHistory(newTracks);
           setSelectedRegionId(newRegion.id)
         } catch (err: any) {
@@ -1724,6 +2453,7 @@ export function Timeline({
   const handleRegionMouseDown = (e: React.MouseEvent, trackId: string, regionId: string, action: 'move' | 'trimStart' | 'trimEnd' = 'move') => {
     if (toolMode !== 'select') return;
     e.stopPropagation();
+    const cleanTrackId = trackId.replace(/_[LR]$/, '');
     const region = tracks.flatMap(t => t.regions).find(r => r.id === regionId);
     if (!region) return;
     
@@ -1743,15 +2473,28 @@ export function Timeline({
     }
     
     HistoryManager.pushState(tracks); 
+    
+    const initialGroupPositions: { id: string; initialStartPos: number }[] = [];
+    if (region.groupId) {
+      tracks.forEach(t => {
+        t.regions.forEach(r => {
+          if (r.groupId === region.groupId && r.id !== regionId) {
+            initialGroupPositions.push({ id: r.id, initialStartPos: r.startPos });
+          }
+        });
+      });
+    }
+
     setDraggingRegion({ 
-      id: regionId, trackId, 
+      id: regionId, trackId: cleanTrackId, 
       initialStartPos: region.startPos, 
       initialDuration: region.duration,
       initialSourceOffset: region.sourceOffset || 0,
       initialFileDuration: region.fileDuration || region.duration,
       startX: e.clientX,
       action,
-      pitchRate: region.effects?.pitchRate || 1.0
+      pitchRate: region.effects?.pitchRate || 1.0,
+      initialGroupPositions
     });
   }
 
@@ -1788,13 +2531,75 @@ export function Timeline({
     updateTracksWithHistory(newTracks);
   }, [selectedRegionIds, tracks]);
 
-  const ungroupSelected = useCallback(() => {
-    const newTracks = tracks.map(t => ({
-      ...t,
-      regions: t.regions.map(r => selectedRegionIds.has(r.id) ? { ...r, groupId: undefined } : r)
-    }));
-    updateTracksWithHistory(newTracks);
-  }, [selectedRegionIds, tracks]);
+  const handleUnlinkClick = useCallback(() => {
+    if (selectedRegionIds.size === 0) return;
+
+    const selectedRegions = tracks.flatMap(t => t.regions).filter(r => selectedRegionIds.has(r.id));
+    const stereoRegions = selectedRegions.filter(r => r.channels && r.channels !== 1);
+
+    if (stereoRegions.length > 0) {
+      let updatedTracks = [...tracks];
+      for (const region of stereoRegions) {
+        const currentTrack = updatedTracks.find(t => t.regions.some(r => r.id === region.id));
+        if (!currentTrack) continue;
+
+        const leftRegion = {
+          ...region,
+          channels: 1,
+          stereoMode: 'left-only' as const,
+          groupId: undefined,
+          file: { ...region.file, name: region.file.name + ' (Mono L)' }
+        };
+
+        const rightRegion = {
+          ...region,
+          id: Math.random().toString(36).substr(2, 9),
+          channels: 1,
+          stereoMode: 'right-only' as const,
+          groupId: undefined,
+          file: { ...region.file, name: region.file.name + ' (Mono R)' }
+        };
+
+        const trackIdx = updatedTracks.findIndex(t => t.id === currentTrack.id);
+        let targetTrackId = '';
+
+        if (trackIdx === updatedTracks.length - 1) {
+          const nextIdx = updatedTracks.length + 1;
+          const newTrack = { id: nextIdx.toString(), index: nextIdx, name: '', regions: [], muted: false, solo: false, locked: false, visible: true, volume: 1, height: 64, automation: [] };
+          updatedTracks.push(newTrack);
+          targetTrackId = newTrack.id;
+        } else {
+          targetTrackId = updatedTracks[trackIdx + 1].id;
+        }
+
+        updatedTracks = updatedTracks.map(t => {
+          if (t.id === currentTrack.id) {
+            return {
+              ...t,
+              regions: t.regions.map(r => r.id === region.id ? leftRegion : r)
+            };
+          }
+          if (t.id === targetTrackId) {
+            return {
+              ...t,
+              regions: [...t.regions, rightRegion]
+            };
+          }
+          return t;
+        });
+      }
+      updateTracksWithHistory(updatedTracks);
+    } else {
+      const hasGroup = selectedRegions.some(r => r.groupId !== undefined);
+      if (hasGroup) {
+        const newTracks = tracks.map(t => ({
+          ...t,
+          regions: t.regions.map(r => selectedRegionIds.has(r.id) ? { ...r, groupId: undefined } : r)
+        }));
+        updateTracksWithHistory(newTracks);
+      }
+    }
+  }, [selectedRegionIds, tracks, updateTracksWithHistory]);
 
   useEffect(() => {
     if (!draggingGain) return;
@@ -1864,92 +2669,208 @@ export function Timeline({
       const deltaX = e.clientX - draggingRegion.startX;
       const deltaTime = deltaX / pixelsPerSecond;
       
-      setTracks(prev => {
-        let newTracks = [...prev];
-        const sourceTrackIdx = newTracks.findIndex(t => t.regions.some(r => r.id === draggingRegion.id));
-        if (sourceTrackIdx === -1) return prev;
+      const prevTracks = currentTracksRef.current;
+      let newTracks = [...prevTracks];
+      const sourceTrackIdx = newTracks.findIndex(t => t.regions.some(r => r.id === draggingRegion.id));
+      if (sourceTrackIdx === -1) return;
+      
+      const region = newTracks[sourceTrackIdx].regions.find(r => r.id === draggingRegion.id)!;
+      const currentTrackId = newTracks[sourceTrackIdx].id;
+      
+      let updatedRegion = { ...region };
+      let targetTrackId = currentTrackId;
+
+      if (draggingRegion.action === 'move') {
+        let minInitialStartPos = draggingRegion.initialStartPos;
+        if (draggingRegion.initialGroupPositions) {
+          draggingRegion.initialGroupPositions.forEach(gp => {
+            if (gp.initialStartPos < minInitialStartPos) {
+              minInitialStartPos = gp.initialStartPos;
+            }
+          });
+        }
+
+        const maxNegativeDelta = -minInitialStartPos;
+        const clampedDeltaTime = Math.max(maxNegativeDelta, deltaTime);
+
+        let newPos = Math.max(0, draggingRegion.initialStartPos + clampedDeltaTime);
+        newPos = applySnap(newPos, draggingRegion.id, newTracks);
+
+        const deltaPos = newPos - draggingRegion.initialStartPos;
+
+        const elements = document.elementsFromPoint(e.clientX, e.clientY);
+        const trackEl = elements.find(el => el.hasAttribute('data-track-id'));
+        const hoverTrackId = trackEl ? trackEl.getAttribute('data-track-id') : null;
+        const cleanHoverTrackId = hoverTrackId ? hoverTrackId.replace(/_[LR]$/, '') : null;
+
+        const groupId = region.groupId;
+        const groupMoveOffsets: Map<string, number> = new Map();
+        if (groupId && draggingRegion.initialGroupPositions) {
+          draggingRegion.initialGroupPositions.forEach(gp => {
+            groupMoveOffsets.set(gp.id, Math.max(0, gp.initialStartPos + deltaPos));
+          });
+        }
+
+        updatedRegion = { ...region, startPos: newPos };
+
+        if (cleanHoverTrackId && currentTrackId !== cleanHoverTrackId) {
+            newTracks[sourceTrackIdx] = { ...newTracks[sourceTrackIdx], regions: newTracks[sourceTrackIdx].regions.filter(r => r.id !== region.id) };
+            const targetTrackIdx = newTracks.findIndex(t => t.id === cleanHoverTrackId);
+            if (targetTrackIdx !== -1) {
+                newTracks[targetTrackIdx] = { ...newTracks[targetTrackIdx], regions: [...newTracks[targetTrackIdx].regions, updatedRegion] };
+                targetTrackId = cleanHoverTrackId;
+            }
+        } else {
+            newTracks[sourceTrackIdx] = {
+                ...newTracks[sourceTrackIdx],
+                regions: newTracks[sourceTrackIdx].regions.map(r => r.id === draggingRegion.id ? updatedRegion : r)
+            }
+        }
+
+        if (groupMoveOffsets.size > 0) {
+          newTracks = newTracks.map(t => ({
+            ...t,
+            regions: t.regions.map(r => groupMoveOffsets.has(r.id) ? { ...r, startPos: groupMoveOffsets.get(r.id)! } : r)
+          }));
+        }
+
+      } else if (draggingRegion.action === 'trimStart') {
+        const pitchRate = draggingRegion.pitchRate || 1.0;
+        const minPos = Math.max(0, draggingRegion.initialStartPos - (draggingRegion.initialSourceOffset / pitchRate));
+        const maxDelta = (draggingRegion.initialDuration / pitchRate) - 0.1;
+        const actualDelta = Math.min(deltaTime, maxDelta);
+        const newPos = Math.max(minPos, draggingRegion.initialStartPos + actualDelta);
+        const actualDeltaClamped = newPos - draggingRegion.initialStartPos;
         
-        const region = newTracks[sourceTrackIdx].regions.find(r => r.id === draggingRegion.id)!;
-        const currentTrackId = newTracks[sourceTrackIdx].id;
+        updatedRegion = { 
+          ...region, 
+          startPos: newPos, 
+          duration: draggingRegion.initialDuration - actualDeltaClamped * pitchRate,
+          sourceOffset: draggingRegion.initialSourceOffset + actualDeltaClamped * pitchRate
+        };
 
-        if (draggingRegion.action === 'move') {
-          let newPos = Math.max(0, draggingRegion.initialStartPos + deltaTime);
-          newPos = applySnap(newPos, draggingRegion.id, newTracks);
+        newTracks[sourceTrackIdx] = {
+            ...newTracks[sourceTrackIdx],
+            regions: newTracks[sourceTrackIdx].regions.map(r => r.id === draggingRegion.id ? updatedRegion : r)
+        }
+      } else if (draggingRegion.action === 'trimEnd') {
+        const pitchRate = draggingRegion.pitchRate || 1.0;
+        const fileDur = draggingRegion.initialFileDuration;
+        const srcOff = draggingRegion.initialSourceOffset;
+        const maxDur = Math.max(0.1, fileDur - srcOff);
+        const newDuration = Math.min(maxDur, Math.max(0.1, draggingRegion.initialDuration + deltaTime * pitchRate));
+        
+        updatedRegion = { ...region, duration: newDuration };
 
-          const elements = document.elementsFromPoint(e.clientX, e.clientY);
-          const trackEl = elements.find(el => el.hasAttribute('data-track-id'));
-          const hoverTrackId = trackEl ? trackEl.getAttribute('data-track-id') : null;
+        newTracks[sourceTrackIdx] = {
+            ...newTracks[sourceTrackIdx],
+            regions: newTracks[sourceTrackIdx].regions.map(r => r.id === draggingRegion.id ? updatedRegion : r)
+        }
+      }
+      
+      // Update UI state immediately for smooth 60fps movement
+      setTracks(newTracks);
 
-          const groupId = region.groupId;
-          const deltaPos = newPos - draggingRegion.initialStartPos;
-          const groupMoveOffsets: Map<string, number> = new Map();
-          if (groupId) {
-            newTracks.forEach(t => {
-              t.regions.forEach(r => {
-                if (r.id !== draggingRegion.id && r.groupId === groupId) {
-                  groupMoveOffsets.set(r.id, Math.max(0, r.startPos + deltaPos));
+      // Throttle-with-trailing-edge audio engine rescheduling
+      if (engine.isPlaying) {
+        const triggerReschedule = () => {
+          const dispTracks = getDisplayedTracks(newTracks, videoAudioOnOneTrack);
+          
+          let foundDispRegion: Region | null = null;
+          let foundDispTrackId = '';
+          let foundDispTrackRegions: Region[] = [];
+          for (const t of dispTracks) {
+            const r = t.regions.find((reg: any) => reg.id === draggingRegion.id);
+            if (r) {
+              foundDispRegion = r;
+              foundDispTrackId = t.id;
+              foundDispTrackRegions = t.regions;
+              break;
+            }
+          }
+
+          if (foundDispRegion && foundDispTrackId) {
+            engine.rescheduleRegion(foundDispTrackId, foundDispRegion, foundDispTrackRegions);
+          }
+
+          if (region.groupId) {
+            dispTracks.forEach(t => {
+              t.regions.forEach((r: any) => {
+                if (r.id !== draggingRegion.id && r.groupId === region.groupId) {
+                  engine.rescheduleRegion(t.id, r, t.regions);
                 }
               });
             });
           }
+        };
 
-          if (hoverTrackId && currentTrackId !== hoverTrackId) {
-              newTracks[sourceTrackIdx] = { ...newTracks[sourceTrackIdx], regions: newTracks[sourceTrackIdx].regions.filter(r => r.id !== region.id) };
-              const targetTrackIdx = newTracks.findIndex(t => t.id === hoverTrackId);
-              if (targetTrackIdx !== -1) {
-                  newTracks[targetTrackIdx] = { ...newTracks[targetTrackIdx], regions: [...newTracks[targetTrackIdx].regions, { ...region, startPos: newPos }] };
-              }
-          } else {
-              newTracks[sourceTrackIdx] = {
-                  ...newTracks[sourceTrackIdx],
-                  regions: newTracks[sourceTrackIdx].regions.map(r => r.id === draggingRegion.id ? { ...r, startPos: newPos } : r)
-              }
-          }
-
-          if (groupMoveOffsets.size > 0) {
-            newTracks = newTracks.map(t => ({
-              ...t,
-              regions: t.regions.map(r => groupMoveOffsets.has(r.id) ? { ...r, startPos: groupMoveOffsets.get(r.id)! } : r)
-            }));
-          }
-
-        } else if (draggingRegion.action === 'trimStart') {
-          const pitchRate = draggingRegion.pitchRate || 1.0;
-          const minPos = Math.max(0, draggingRegion.initialStartPos - (draggingRegion.initialSourceOffset / pitchRate));
-          const maxDelta = (draggingRegion.initialDuration / pitchRate) - 0.1;
-          const actualDelta = Math.min(deltaTime, maxDelta);
-          const newPos = Math.max(minPos, draggingRegion.initialStartPos + actualDelta);
-          const actualDeltaClamped = newPos - draggingRegion.initialStartPos;
-          
-          newTracks[sourceTrackIdx] = {
-              ...newTracks[sourceTrackIdx],
-              regions: newTracks[sourceTrackIdx].regions.map(r => r.id === draggingRegion.id ? { 
-                ...r, 
-                startPos: newPos, 
-                duration: draggingRegion.initialDuration - actualDeltaClamped * pitchRate,
-                sourceOffset: draggingRegion.initialSourceOffset + actualDeltaClamped * pitchRate
-              } : r)
-          }
-        } else if (draggingRegion.action === 'trimEnd') {
-          const pitchRate = draggingRegion.pitchRate || 1.0;
-          const fileDur = draggingRegion.initialFileDuration;
-          const srcOff = draggingRegion.initialSourceOffset;
-          const maxDur = Math.max(0.1, fileDur - srcOff);
-          const newDuration = Math.min(maxDur, Math.max(0.1, draggingRegion.initialDuration + deltaTime * pitchRate));
-          newTracks[sourceTrackIdx] = {
-              ...newTracks[sourceTrackIdx],
-              regions: newTracks[sourceTrackIdx].regions.map(r => r.id === draggingRegion.id ? { ...r, duration: newDuration } : r)
-          }
-        }
+        const now = Date.now();
+        const THROTTLE_MS = 50;
         
-        return newTracks;
-      });
-    }
+        if (rescheduleTimeoutRef.current) {
+          clearTimeout(rescheduleTimeoutRef.current);
+          rescheduleTimeoutRef.current = null;
+        }
+
+        if (now - lastRescheduleTimeRef.current >= THROTTLE_MS) {
+          triggerReschedule();
+          lastRescheduleTimeRef.current = now;
+        } else {
+          const delay = THROTTLE_MS - (now - lastRescheduleTimeRef.current);
+          rescheduleTimeoutRef.current = setTimeout(() => {
+            triggerReschedule();
+            lastRescheduleTimeRef.current = Date.now();
+          }, delay);
+        }
+      }
+    };
     
     const handleMouseUp = () => {
+      if (rescheduleTimeoutRef.current) {
+        clearTimeout(rescheduleTimeoutRef.current);
+        rescheduleTimeoutRef.current = null;
+      }
+
       setDraggingRegion(null);
       setTracks(current => {
          if (onTracksChange) onTracksChange(current);
+
+         // Echte Finalisierung des Audioschnitts beim Loslassen
+         if (engine.isPlaying) {
+           const dispTracks = getDisplayedTracks(current, videoAudioOnOneTrack);
+           let foundDispRegion: Region | null = null;
+           let foundDispTrackId = '';
+           let foundDispTrackRegions: Region[] = [];
+           for (const t of dispTracks) {
+             const r = t.regions.find((reg: any) => reg.id === draggingRegion.id);
+             if (r) {
+               foundDispRegion = r;
+               foundDispTrackId = t.id;
+               foundDispTrackRegions = t.regions;
+               break;
+             }
+           }
+
+           if (foundDispRegion && foundDispTrackId) {
+             engine.rescheduleRegion(foundDispTrackId, foundDispRegion, foundDispTrackRegions);
+           }
+
+           // Reschedule andere Regionen in der Gruppe
+           const sourceTrackIdx = current.findIndex(t => t.regions.some((r: any) => r.id === draggingRegion.id));
+           if (sourceTrackIdx !== -1) {
+             const region = current[sourceTrackIdx].regions.find((r: any) => r.id === draggingRegion.id)!;
+             if (region.groupId) {
+               dispTracks.forEach(t => {
+                 t.regions.forEach((r: any) => {
+                   if (r.id !== draggingRegion.id && r.groupId === region.groupId) {
+                     engine.rescheduleRegion(t.id, r, t.regions);
+                   }
+                 });
+               });
+             }
+           }
+         }
+
          return current;
       });
       justDraggedRef.current = true;
@@ -1961,12 +2882,16 @@ export function Timeline({
     return () => {
        window.removeEventListener('mousemove', handleMouseMove);
        window.removeEventListener('mouseup', handleMouseUp);
+       if (rescheduleTimeoutRef.current) {
+         clearTimeout(rescheduleTimeoutRef.current);
+       }
     }
-  }, [draggingRegion, pixelsPerSecond, onTracksChange, applySnap]);
+  }, [draggingRegion, pixelsPerSecond, onTracksChange, applySnap, getDisplayedTracks, videoAudioOnOneTrack]);
 
 
   const handleRegionClick = (e: React.MouseEvent, trackId: string, regionId: string) => {
     e.stopPropagation();
+    const cleanTrackId = trackId.replace(/_[LR]$/, '');
     if (toolMode === 'scissors') {
       const rect = e.currentTarget.getBoundingClientRect();
       const clickX = e.clientX - rect.left;
@@ -1982,7 +2907,7 @@ export function Timeline({
         metadata: { createdAt: Date.now(), updatedAt: Date.now(), author: '' }
       };
       
-      const nextProject = projectCore.splitClip(tempProject, trackId, regionId, splitTime);
+      const nextProject = projectCore.splitClip(tempProject, cleanTrackId, regionId, splitTime);
       updateTracksWithHistory(nextProject.tracks as any);
     } else if (!e.ctrlKey) {
       if (!isLassoActiveRef.current) {
@@ -2040,13 +2965,26 @@ export function Timeline({
   return (
     <div className="flex flex-col h-full bg-[#1e2124] text-omega-text select-none overflow-hidden relative font-sans text-[13px]" onClick={handleTimelineClick}>
       {showCleaning && <AudioCleaningModal onClose={() => setShowCleaning(false)} trackId={selectedTrack?.id} />}
-      {showProperties && <ObjectPropertiesModal onClose={() => setShowProperties(false)} region={selectedRegion} />}
+      {showProperties && (
+        <ObjectPropertiesModal 
+          onClose={() => setShowProperties(false)} 
+          region={selectedRegion} 
+          onSave={(updatedFields) => {
+            if (!selectedRegionId) return;
+            const newTracks = tracks.map(t => ({
+              ...t,
+              regions: t.regions.map(r => r.id === selectedRegionId ? { ...r, ...updatedFields } : r)
+            }));
+            updateTracksWithHistory(newTracks);
+          }}
+        />
+      )}
 
 
       {contextMenu && (
-        <div className="fixed bg-[#e5e5e5] text-black border border-gray-400 shadow-lg py-1 z-[9999] text-xs w-56 flex flex-col" style={{ top: contextMenu.y, left: contextMenu.x }} onClick={(e) => e.stopPropagation()}>
+        <div className="fixed bg-[#1e2124]/95 backdrop-blur-md text-gray-200 border border-gray-700/60 rounded-lg shadow-2xl py-1.5 z-[9999] text-xs w-56 flex flex-col select-none" style={{ top: contextMenu.y, left: contextMenu.x }} onClick={(e) => e.stopPropagation()}>
           <button 
-            className="text-left px-4 py-1 hover:bg-blue-500 hover:text-white flex items-center justify-between font-semibold border-b border-gray-300 pb-1"
+            className="text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white flex items-center justify-between font-semibold border-b border-gray-700/60 pb-1.5 text-gray-100 group cursor-pointer transition-colors"
             onClick={() => {
               const targetTrack = tracks.find(t => t.regions.some(r => r.id === contextMenu.regionId));
               if (targetTrack && onOpenExport) {
@@ -2057,23 +2995,23 @@ export function Timeline({
           >
             Spur exportieren (Mixdown)...
           </button>
-          <button className="text-left px-4 py-1 hover:bg-blue-500 hover:text-white flex items-center justify-between" onClick={() => { setShowCleaning(true); setContextMenu(null); }}>
-            Audio Cleaning... <span className="text-[10px] text-gray-500 font-mono">Objekt</span>
+          <button className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors flex items-center justify-between text-gray-300 group cursor-pointer" onClick={() => { setShowCleaning(true); setContextMenu(null); }}>
+            Audio Cleaning... <span className="text-[10px] text-gray-500 group-hover:text-gray-200 transition-colors font-mono">Objekt</span>
           </button>
-          <button className="text-left px-4 py-1 hover:bg-blue-500 hover:text-white" onClick={() => { setShowProperties(true); setContextMenu(null); }}>Objekteigenschaften...</button>
+          <button className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors text-gray-300 group cursor-pointer" onClick={() => { setShowProperties(true); setContextMenu(null); }}>Objekteigenschaften...</button>
           
-          <div className="h-px bg-gray-300 my-1 mx-1"></div>
+          <div className="h-px bg-gray-700/50 my-1 mx-1"></div>
 
           <div className="relative" onMouseEnter={() => setNormalizeSubmenuOpen(true)} onMouseLeave={() => setNormalizeSubmenuOpen(false)}>
-            <button className="w-full text-left px-4 py-1 hover:bg-blue-500 hover:text-white flex items-center justify-between">
-              Normalisieren <span className="text-gray-400">▶</span>
+            <button className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors flex items-center justify-between text-gray-300 group cursor-pointer">
+              Normalisieren <ChevronRight size={13} className="text-gray-500 group-hover:text-white transition-colors" />
             </button>
             {normalizeSubmenuOpen && (
-              <div className={`absolute left-full bg-[#e5e5e5] border border-gray-400 shadow-lg py-1 w-56 ${isBottomHalf ? 'bottom-0' : 'top-0'}`}>
-                <button className="w-full text-left px-4 py-1 hover:bg-blue-500 hover:text-white flex items-center justify-between" onClick={() => { normalizePeak(contextMenu.regionId); setContextMenu(null); }}>
-                  Maximalpegel <span className="text-[9px] text-gray-500">Alt+N</span>
+              <div className={`absolute left-full bg-[#1e2124]/95 backdrop-blur-md text-gray-200 border border-gray-700/60 rounded-lg shadow-2xl py-1.5 w-56 z-[10000] ${isBottomHalf ? 'bottom-0' : 'top-0'}`}>
+                <button className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors flex items-center justify-between text-gray-300 group cursor-pointer" onClick={() => { normalizePeak(contextMenu.regionId); setContextMenu(null); }}>
+                  Maximalpegel <span className="text-[9px] text-gray-500 group-hover:text-gray-200 transition-colors">Alt+N</span>
                 </button>
-                <button className="w-full text-left px-4 py-1 hover:bg-blue-500 hover:text-white" onClick={() => { normalizeRMS(contextMenu.regionId); setContextMenu(null); }}>
+                <button className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors text-gray-300 group cursor-pointer" onClick={() => { normalizeRMS(contextMenu.regionId); setContextMenu(null); }}>
                   Lautstärke (EBU R128)
                 </button>
               </div>
@@ -2081,13 +3019,13 @@ export function Timeline({
           </div>
 
           <div className="relative" onMouseEnter={() => setDbSubmenuOpen(true)} onMouseLeave={() => setDbSubmenuOpen(false)}>
-            <button className="w-full text-left px-4 py-1 hover:bg-blue-500 hover:text-white flex items-center justify-between">
-              Lautstärke setzen <span className="text-gray-400">▶</span>
+            <button className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors flex items-center justify-between text-gray-300 group cursor-pointer">
+              Lautstärke setzen <ChevronRight size={13} className="text-gray-500 group-hover:text-white transition-colors" />
             </button>
             {dbSubmenuOpen && (
-              <div className={`absolute left-full bg-[#e5e5e5] border border-gray-400 shadow-lg py-1 w-32 max-h-60 overflow-y-auto z-[10000] ${isBottomHalf ? 'bottom-0' : 'top-0'}`}>
+              <div className={`absolute left-full bg-[#1e2124]/95 backdrop-blur-md text-gray-200 border border-gray-700/60 rounded-lg shadow-2xl py-1.5 w-32 max-h-60 overflow-y-auto z-[10000] ${isBottomHalf ? 'bottom-0' : 'top-0'}`}>
                 {dbOptions.map(opt => (
-                  <button key={opt.label} className="w-full text-left px-4 py-1 hover:bg-blue-500 hover:text-white" onClick={() => { updateRegionGain(contextMenu.regionId, opt.value); setContextMenu(null); }}>
+                  <button key={opt.label} className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors text-gray-300 group cursor-pointer" onClick={() => { updateRegionGain(contextMenu.regionId, opt.value); setContextMenu(null); }}>
                     {opt.label}
                   </button>
                 ))}
@@ -2096,18 +3034,18 @@ export function Timeline({
           </div>
 
           <div className="relative" onMouseEnter={() => setStereoSubmenuOpen(true)} onMouseLeave={() => setStereoSubmenuOpen(false)}>
-            <button className="w-full text-left px-4 py-1 hover:bg-blue-500 hover:text-white flex items-center justify-between">
-              Stereo-Objekt <span className="text-gray-400">▶</span>
+            <button className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors flex items-center justify-between text-gray-300 group cursor-pointer">
+              Stereo-Objekt <ChevronRight size={13} className="text-gray-500 group-hover:text-white transition-colors" />
             </button>
             {stereoSubmenuOpen && (
-              <div className={`absolute left-full bg-[#e5e5e5] border border-gray-400 shadow-lg py-1 w-56 ${isBottomHalf ? 'bottom-0' : 'top-0'}`}>
-                <button className="w-full text-left px-4 py-1 hover:bg-blue-500 hover:text-white" onClick={() => { splitStereoRegion(contextMenu.regionId); setContextMenu(null); }}>
+              <div className={`absolute left-full bg-[#1e2124]/95 backdrop-blur-md text-gray-200 border border-gray-700/60 rounded-lg shadow-2xl py-1.5 w-56 z-[10000] ${isBottomHalf ? 'bottom-0' : 'top-0'}`}>
+                <button className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors text-gray-300 group cursor-pointer" onClick={() => { splitStereoRegion(contextMenu.regionId); setContextMenu(null); }}>
                   In Mono-Objekte aufteilen
                 </button>
-                <button className="w-full text-left px-4 py-1 hover:bg-blue-500 hover:text-white" onClick={() => { setStereoMode(contextMenu.regionId, 'left-only'); setContextMenu(null); }}>
+                <button className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors text-gray-300 group cursor-pointer" onClick={() => { setStereoMode(contextMenu.regionId, 'left-only'); setContextMenu(null); }}>
                   Nur linke Seite verwenden
                 </button>
-                <button className="w-full text-left px-4 py-1 hover:bg-blue-500 hover:text-white" onClick={() => { setStereoMode(contextMenu.regionId, 'right-only'); setContextMenu(null); }}>
+                <button className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors text-gray-300 group cursor-pointer" onClick={() => { setStereoMode(contextMenu.regionId, 'right-only'); setContextMenu(null); }}>
                   Nur rechte Seite verwenden
                 </button>
               </div>
@@ -2115,20 +3053,20 @@ export function Timeline({
           </div>
 
           <div className="relative" onMouseEnter={() => setResetSubmenuOpen(true)} onMouseLeave={() => setResetSubmenuOpen(false)}>
-            <button className="w-full text-left px-4 py-1 hover:bg-blue-500 hover:text-white flex items-center justify-between">
-              Spurkurven <span className="text-gray-400">▶</span>
+            <button className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors flex items-center justify-between text-gray-300 group cursor-pointer">
+              Spurkurven <ChevronRight size={13} className="text-gray-500 group-hover:text-white transition-colors" />
             </button>
             {resetSubmenuOpen && (
-              <div className={`absolute left-full bg-[#e5e5e5] border border-gray-400 shadow-lg py-1 w-52 ${isBottomHalf ? 'bottom-0' : 'top-0'}`}>
-                <button className="w-full text-left px-4 py-1 hover:bg-blue-500 hover:text-white flex items-center justify-between" onClick={() => { setShowAutomation(s => !s); setContextMenu(null); }}>
-                  Spurkurven anzeigen <span className="text-[9px] text-gray-500">Alt+K</span>
+              <div className={`absolute left-full bg-[#1e2124]/95 backdrop-blur-md text-gray-200 border border-gray-700/60 rounded-lg shadow-2xl py-1.5 w-52 z-[10000] ${isBottomHalf ? 'bottom-0' : 'top-0'}`}>
+                <button className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors flex items-center justify-between text-gray-300 group cursor-pointer" onClick={() => { setShowAutomation(s => !s); setContextMenu(null); }}>
+                  Spurkurven anzeigen <span className="text-[9px] text-gray-500 group-hover:text-gray-200 transition-colors">Alt+K</span>
                 </button>
-                <div className="h-px bg-gray-300 my-1 mx-1"></div>
+                <div className="h-px bg-gray-700/50 my-1 mx-1"></div>
                 <div className="px-3 py-0.5 text-[10px] text-gray-500 font-semibold">Spurkurven zurücksetzen:</div>
-                <button className="w-full text-left px-4 py-1 hover:bg-blue-500 hover:text-white pl-6" onClick={() => { resetTrackCurves('volume'); setContextMenu(null); }}>
+                <button className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors pl-6 text-gray-300 group cursor-pointer" onClick={() => { resetTrackCurves('volume'); setContextMenu(null); }}>
                   Lautstärke
                 </button>
-                <button className="w-full text-left px-4 py-1 hover:bg-blue-500 hover:text-white pl-6" onClick={() => { resetTrackCurves('pan'); setContextMenu(null); }}>
+                <button className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors pl-6 text-gray-300 group cursor-pointer" onClick={() => { resetTrackCurves('pan'); setContextMenu(null); }}>
                   Balance
                 </button>
               </div>
@@ -2136,61 +3074,61 @@ export function Timeline({
           </div>
 
           <div className="relative" onMouseEnter={() => setEffectsSubmenuOpen(true)} onMouseLeave={() => setEffectsSubmenuOpen(false)}>
-            <button className="w-full text-left px-4 py-1 hover:bg-blue-500 hover:text-white flex items-center justify-between">
-              Audioeffekte <span className="text-gray-400">▶</span>
+            <button className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors flex items-center justify-between text-gray-300 group cursor-pointer">
+              Audioeffekte <ChevronRight size={13} className="text-gray-500 group-hover:text-white transition-colors" />
             </button>
             {effectsSubmenuOpen && (
-              <div className={`absolute left-full bg-[#e5e5e5] border border-gray-400 shadow-lg py-1 w-64 z-[10000] ${isBottomHalf ? 'bottom-0' : 'top-0'}`}>
-                <button className="w-full text-left px-4 py-1 hover:bg-blue-500 hover:text-white flex items-center justify-between" onClick={() => { loadEffectsPreset(contextMenu.regionId); setContextMenu(null); }}>
-                  Audioeffekt laden... <span className="text-[9px] text-gray-500">Strg++</span>
+              <div className={`absolute left-full bg-[#1e2124]/95 backdrop-blur-md text-gray-200 border border-gray-700/60 rounded-lg shadow-2xl py-1.5 w-64 z-[10000] ${isBottomHalf ? 'bottom-0' : 'top-0'}`}>
+                <button className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors flex items-center justify-between text-gray-300 group cursor-pointer" onClick={() => { loadEffectsPreset(contextMenu.regionId); setContextMenu(null); }}>
+                  Audioeffekt laden... <span className="text-[9px] text-gray-500 group-hover:text-gray-200 transition-colors">Strg++</span>
                 </button>
-                <button className="w-full text-left px-4 py-1 hover:bg-blue-500 hover:text-white flex items-center justify-between" onClick={() => { saveEffectsPreset(contextMenu.regionId); setContextMenu(null); }}>
-                  Audioeffekt speichern... <span className="text-[9px] text-gray-500">Umschalt++</span>
+                <button className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors flex items-center justify-between text-gray-300 group cursor-pointer" onClick={() => { saveEffectsPreset(contextMenu.regionId); setContextMenu(null); }}>
+                  Audioeffekt speichern... <span className="text-[9px] text-gray-500 group-hover:text-gray-200 transition-colors">Umschalt++</span>
                 </button>
-                <button className="w-full text-left px-4 py-1 hover:bg-blue-500 hover:text-white flex items-center justify-between" onClick={() => { resetEffects(contextMenu.regionId); setContextMenu(null); }}>
-                  Audioeffekt zurücksetzen <span className="text-[9px] text-gray-500">Strg+Alt++</span>
+                <button className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors flex items-center justify-between text-gray-300 group cursor-pointer" onClick={() => { resetEffects(contextMenu.regionId); setContextMenu(null); }}>
+                  Audioeffekt zurücksetzen <span className="text-[9px] text-gray-500 group-hover:text-gray-200 transition-colors">Strg+Alt++</span>
                 </button>
-                <div className="h-px bg-gray-300 my-1 mx-1"></div>
-                <button className="w-full text-left px-4 py-1 hover:bg-blue-500 hover:text-white" onClick={() => { copyEffects(contextMenu.regionId); setContextMenu(null); }}>
+                <div className="h-px bg-gray-700/50 my-1 mx-1"></div>
+                <button className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors text-gray-300 group cursor-pointer" onClick={() => { copyEffects(contextMenu.regionId); setContextMenu(null); }}>
                   Audioeffekte kopieren
                 </button>
-                <button className="w-full text-left px-4 py-1 hover:bg-blue-500 hover:text-white flex items-center justify-between" onClick={() => { pasteEffects(contextMenu.regionId); setContextMenu(null); }} disabled={!effectsClipboard}>
-                  Audioeffekte einfügen <span className="text-[9px] text-gray-500">Umschalt+-</span>
+                <button className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors flex items-center justify-between text-gray-300 group cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-300" onClick={() => { pasteEffects(contextMenu.regionId); setContextMenu(null); }} disabled={!effectsClipboard}>
+                  Audioeffekte einfügen <span className="text-[9px] text-gray-500 group-hover:text-gray-200 transition-colors">Umschalt+-</span>
                 </button>
-                <button className="w-full text-left px-4 py-1 hover:bg-blue-500 hover:text-white" onClick={() => { applyEffectsToAll(contextMenu.regionId, false); setContextMenu(null); }}>
+                <button className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors text-gray-300 group cursor-pointer" onClick={() => { applyEffectsToAll(contextMenu.regionId, false); setContextMenu(null); }}>
                   Auf alle anwenden...
                 </button>
-                <button className="w-full text-left px-4 py-1 hover:bg-blue-500 hover:text-white" onClick={() => { applyEffectsToAll(contextMenu.regionId, true); setContextMenu(null); }}>
+                <button className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors text-gray-300 group cursor-pointer" onClick={() => { applyEffectsToAll(contextMenu.regionId, true); setContextMenu(null); }}>
                   Auf alle folgenden anwenden...
                 </button>
               </div>
             )}
           </div>
 
-          <div className="h-px bg-gray-300 my-1 mx-1"></div>
+          <div className="h-px bg-gray-700/50 my-1 mx-1"></div>
 
-          <button className="text-left px-4 py-1 hover:bg-blue-500 hover:text-white flex items-center justify-between" onClick={() => { handleCopy(); setContextMenu(null); }}>
-            Kopieren <span className="text-[10px] text-gray-500">Strg+C</span>
+          <button className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors flex items-center justify-between text-gray-300 group cursor-pointer" onClick={() => { handleCopy(); setContextMenu(null); }}>
+            Kopieren <span className="text-[10px] text-gray-500 group-hover:text-gray-200 transition-colors">Strg+C</span>
           </button>
-          <button className="text-left px-4 py-1 hover:bg-blue-500 hover:text-white flex items-center justify-between" onClick={() => { handleCopy(); updateTracksWithHistory(tracks.map(t => ({ ...t, regions: t.regions.filter(r => r.id !== contextMenu.regionId) }))); setContextMenu(null); }}>
-            Ausschneiden <span className="text-[10px] text-gray-500">Strg+X</span>
+          <button className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors flex items-center justify-between text-gray-300 group cursor-pointer" onClick={() => { handleCopy(); updateTracksWithHistory(tracks.map(t => ({ ...t, regions: t.regions.filter(r => r.id !== contextMenu.regionId) }))); setContextMenu(null); }}>
+            Ausschneiden <span className="text-[10px] text-gray-500 group-hover:text-gray-200 transition-colors">Strg+X</span>
           </button>
-          <button className="text-left px-4 py-1 hover:bg-blue-500 hover:text-white flex items-center justify-between" onClick={() => { updateTracksWithHistory(tracks.map(t => ({ ...t, regions: t.regions.filter(r => r.id !== contextMenu.regionId) }))); setContextMenu(null); }}>
-            Löschen <span className="text-[10px] text-gray-500">Entf</span>
+          <button className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors flex items-center justify-between text-gray-300 group cursor-pointer" onClick={() => { updateTracksWithHistory(tracks.map(t => ({ ...t, regions: t.regions.filter(r => r.id !== contextMenu.regionId) }))); setContextMenu(null); }}>
+            Löschen <span className="text-[10px] text-gray-500 group-hover:text-gray-200 transition-colors">Entf</span>
           </button>
           
-          <div className="h-px bg-gray-300 my-1 mx-1"></div>
+          <div className="h-px bg-gray-700/50 my-1 mx-1"></div>
 
           <div className="relative" onMouseEnter={() => setColorSubmenuOpen(true)} onMouseLeave={() => setColorSubmenuOpen(false)}>
-            <button className="w-full text-left px-4 py-1 hover:bg-blue-500 hover:text-white flex items-center justify-between">
-              Objektfarbe <span className="text-gray-400">▶</span>
+            <button className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors flex items-center justify-between text-gray-300 group cursor-pointer">
+              Objektfarbe <ChevronRight size={13} className="text-gray-500 group-hover:text-white transition-colors" />
             </button>
             {colorSubmenuOpen && (
-              <div className={`absolute left-full bg-[#e5e5e5] border border-gray-400 shadow-lg py-1 w-36 ${isBottomHalf ? 'bottom-0' : 'top-0'}`}>
+              <div className={`absolute left-full bg-[#1e2124]/95 backdrop-blur-md text-gray-200 border border-gray-700/60 rounded-lg shadow-2xl py-1.5 w-36 z-[10000] ${isBottomHalf ? 'bottom-0' : 'top-0'}`}>
                 {REGION_COLORS.map(c => (
                   <button
                     key={c.value}
-                    className="w-full text-left px-3 py-1 hover:bg-blue-500 hover:text-white flex items-center gap-2"
+                    className="w-full text-left px-3 py-1.5 hover:bg-omega-accent hover:text-white transition-colors flex items-center gap-2 text-gray-300 group cursor-pointer"
                     onClick={() => {
                       updateTracksWithHistory(tracks.map(t => ({
                         ...t,
@@ -2211,30 +3149,49 @@ export function Timeline({
       )}
 
       {editorContextMenu && (
-        <div className="fixed bg-[#e5e5e5] text-black border border-gray-400 shadow-lg py-1 z-[9999] text-xs w-56 flex flex-col" style={{ top: editorContextMenu.y, left: editorContextMenu.x }} onClick={(e) => e.stopPropagation()}>
-          <button className="text-left px-4 py-1 hover:bg-blue-500 hover:text-white flex items-center justify-between" onClick={() => { handlePaste(); setEditorContextMenu(null); }}>
-            Objekt einfügen <span className="text-[9px] text-gray-500">Strg+V</span>
+        <div className="fixed bg-[#1e2124]/95 backdrop-blur-md text-gray-200 border border-gray-700/60 rounded-lg shadow-2xl py-1.5 z-[9999] text-xs w-56 flex flex-col select-none" style={{ top: editorContextMenu.y, left: editorContextMenu.x }} onClick={(e) => e.stopPropagation()}>
+          <button className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors flex items-center justify-between text-gray-300 group cursor-pointer" onClick={() => { handlePaste(); setEditorContextMenu(null); }}>
+            Objekt einfügen <span className="text-[9px] text-gray-500 group-hover:text-gray-200 transition-colors font-sans">Strg+V</span>
           </button>
-          <div className="h-px bg-gray-300 my-1 mx-1"></div>
-          <button className="text-left px-4 py-1 hover:bg-blue-500 hover:text-white opacity-50 cursor-not-allowed" disabled>Bereich über Leerraum (Platzhalter)</button>
-          <button className="text-left px-4 py-1 hover:bg-blue-500 hover:text-white opacity-50 cursor-not-allowed" disabled>Leerraum mit Standbild füllen (Platzhalter)</button>
-          <div className="h-px bg-gray-300 my-1 mx-1"></div>
-          <button className="text-left px-4 py-1 hover:bg-blue-500 hover:text-white flex items-center justify-between" onClick={() => { setShowAutomation(s => !s); setEditorContextMenu(null); }}>
-            Spurkurven anzeigen <span className="text-[9px] text-gray-500">Alt+K</span>
+          <div className="h-px bg-gray-700/50 my-1 mx-1"></div>
+          <button className="w-full text-left px-4 py-1.5 text-gray-500 cursor-not-allowed opacity-50" disabled>Bereich über Leerraum (Platzhalter)</button>
+          <button className="w-full text-left px-4 py-1.5 text-gray-500 cursor-not-allowed opacity-50" disabled>Leerraum mit Standbild füllen (Platzhalter)</button>
+          <div className="h-px bg-gray-700/50 my-1 mx-1"></div>
+          <button className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors flex items-center justify-between text-gray-300 group cursor-pointer" onClick={() => { setShowAutomation(s => !s); setEditorContextMenu(null); }}>
+            Spurkurven anzeigen <span className="text-[9px] text-gray-500 group-hover:text-gray-200 transition-colors">Alt+K</span>
           </button>
           <div className="relative group">
-            <button className="w-full text-left px-4 py-1 hover:bg-blue-500 hover:text-white flex items-center justify-between">
-              Spurkurven zurücksetzen <span className="text-gray-400">▶</span>
+            <button className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors flex items-center justify-between text-gray-300 group cursor-pointer">
+              Spurkurven zurücksetzen <ChevronRight size={13} className="text-gray-500 group-hover:text-white transition-colors" />
             </button>
-            <div className={`absolute left-full bg-[#e5e5e5] border border-gray-400 shadow-lg py-1 w-36 hidden group-hover:block ${isEditorBottomHalf ? 'bottom-0' : 'top-0'}`}>
-              <button className="w-full text-left px-3 py-1 hover:bg-blue-500 hover:text-white" onClick={() => { resetTrackCurves('volume'); setEditorContextMenu(null); }}>Lautstärke</button>
-              <button className="w-full text-left px-3 py-1 hover:bg-blue-500 hover:text-white" onClick={() => { resetTrackCurves('pan'); setEditorContextMenu(null); }}>Balance</button>
+            <div className={`absolute left-full bg-[#1e2124]/95 backdrop-blur-md text-gray-200 border border-gray-700/60 rounded-lg shadow-2xl py-1.5 w-36 hidden group-hover:block z-[10000] ${isEditorBottomHalf ? 'bottom-0' : 'top-0'}`}>
+              <button className="w-full text-left px-3 py-1.5 hover:bg-omega-accent hover:text-white transition-colors text-gray-300 cursor-pointer" onClick={() => { resetTrackCurves('volume'); setEditorContextMenu(null); }}>Lautstärke</button>
+              <button className="w-full text-left px-3 py-1.5 hover:bg-omega-accent hover:text-white transition-colors text-gray-300 cursor-pointer" onClick={() => { resetTrackCurves('pan'); setEditorContextMenu(null); }}>Balance</button>
             </div>
           </div>
-          <div className="h-px bg-gray-300 my-1 mx-1"></div>
-          <button className="text-left px-4 py-1 hover:bg-blue-500 hover:text-white flex items-center gap-2 font-semibold" onClick={() => { closeAllGaps(); setEditorContextMenu(null); }}>
+          <div className="h-px bg-gray-700/50 my-1 mx-1"></div>
+          <button className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors flex items-center gap-2 font-semibold text-gray-100 cursor-pointer" onClick={() => { closeAllGaps(); setEditorContextMenu(null); }}>
             <GapCloseIcon />
             Lücken finden & schließen
+          </button>
+        </div>
+      )}
+ 
+      {trackContextMenu && (
+        <div 
+          className="fixed bg-[#1e2124]/95 backdrop-blur-md text-gray-200 border border-gray-700/60 rounded-lg shadow-2xl py-1.5 z-[9999] text-xs w-60 flex flex-col select-none" 
+          style={{ top: trackContextMenu.y, left: trackContextMenu.x }} 
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button 
+            className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors flex items-center justify-between text-gray-300 font-semibold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+            onClick={() => {
+              splitStereoTrack(trackContextMenu.trackId);
+              setTrackContextMenu(null);
+            }}
+            disabled={!tracks.find(t => t.id === trackContextMenu.trackId)?.regions.some(r => r.channels && r.channels !== 1)}
+          >
+            Spur: Stereo in zwei Mono-Spuren aufteilen
           </button>
         </div>
       )}
@@ -2279,7 +3236,7 @@ export function Timeline({
           <button title="Auswahl gruppieren" className="p-1.5 hover:bg-gray-700 rounded" onClick={groupSelected} disabled={selectedRegionIds.size < 2}>
             <Link size={16} className={selectedRegionIds.size >= 2 ? 'text-gray-300' : 'text-gray-600'} />
           </button>
-          <button title="Gruppe auflösen" className="p-1.5 hover:bg-gray-700 rounded" onClick={ungroupSelected} disabled={selectedRegionIds.size === 0}>
+          <button title="Gruppe auflösen" className="p-1.5 hover:bg-gray-700 rounded" onClick={handleUnlinkClick} disabled={selectedRegionIds.size === 0}>
             <Unlink size={16} className={selectedRegionIds.size > 0 ? 'text-gray-300' : 'text-gray-600'} />
           </button>
         </div>
@@ -2295,18 +3252,91 @@ export function Timeline({
           </button>
         </div>
         <div className="flex-1"></div>
-        <button className="px-4 py-1 bg-omega-accent hover:bg-blue-500 text-white text-xs rounded shadow transition-colors" onClick={() => onOpenExport?.(tracks, { selectionStart, selectionEnd }, exportSettings)}>Mixdown Export</button>
+        <button className="px-4 py-1 bg-omega-accent hover:bg-blue-500 text-white text-xs rounded shadow transition-colors" onClick={() => onOpenExport?.(displayedTracks, { selectionStart, selectionEnd }, exportSettings)}>Mixdown Export</button>
       </div>
  
-      <div className="flex-1 flex flex-col overflow-hidden relative">
-        <motion.div 
-          className="absolute top-0 w-[17px] z-[150] cursor-ew-resize flex justify-center pointer-events-auto transform -translate-x-1/2" 
-          style={{ left: playheadMotionX, bottom: 32 }}
-          onMouseDown={handlePlayheadDragMouseDown}
-        >
-           <div className="w-px bg-red-600 h-full shadow-[0_0_8px_rgba(255,0,0,0.5)] pointer-events-none"></div>
-           <div className="absolute top-[22px] w-3.5 h-3.5 bg-red-600 rotate-45 border border-red-400 z-[160] shadow pointer-events-none"></div>
-        </motion.div>
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Master Volume Column */}
+        <div className="w-[72px] h-full bg-[#16181b] border-r border-omega-border z-[160] flex flex-col items-center py-2.5 flex-shrink-0">
+          {/* decibel display */}
+          <div className="text-[10px] font-mono text-[#a8b2c1] bg-[#0c0d0f] border border-[#23262c] px-1.5 py-0.5 rounded shadow-inner mb-3.5 select-none w-14 text-center">
+            {gainToDb(masterVolume)}
+          </div>
+          
+          {/* VU Meters and Fader */}
+          <div className="flex-1 flex gap-1.5 h-full relative items-stretch mb-2">
+            {/* dB Scale */}
+            <div className="flex flex-col justify-between text-[8px] font-mono text-gray-500 select-none pr-1">
+              <span>0</span>
+              <span>-6</span>
+              <span>-12</span>
+              <span>-18</span>
+              <span>-24</span>
+              <span>-36</span>
+              <span>-48</span>
+              <span>-∞</span>
+            </div>
+
+            {/* VU Left */}
+            <div className="w-2 h-full bg-[#0c0d0f] border border-[#23262b] rounded-sm relative overflow-hidden flex flex-col justify-end">
+              <div 
+                className="absolute inset-x-0 bottom-0 top-0" 
+                style={{
+                  background: 'linear-gradient(to top, #22c55e 0%, #22c55e 80%, #eab308 80%, #eab308 95%, #ef4444 95%, #ef4444 100%)'
+                }}
+              />
+              <div ref={vuMaskLRef} className="absolute inset-x-0 top-0 bg-[#0c0d0f]" style={{ height: '100%' }} />
+            </div>
+
+            {/* VU Right */}
+            <div className="w-2 h-full bg-[#0c0d0f] border border-[#23262b] rounded-sm relative overflow-hidden flex flex-col justify-end mr-1">
+              <div 
+                className="absolute inset-x-0 bottom-0 top-0" 
+                style={{
+                  background: 'linear-gradient(to top, #22c55e 0%, #22c55e 80%, #eab308 80%, #eab308 95%, #ef4444 95%, #ef4444 100%)'
+                }}
+              />
+              <div ref={vuMaskRRef} className="absolute inset-x-0 top-0 bg-[#0c0d0f]" style={{ height: '100%' }} />
+            </div>
+
+            {/* Fader */}
+            <div className="flex items-center justify-center relative w-6">
+              <input 
+                type="range"
+                min="0"
+                max="1.5"
+                step="0.01"
+                value={masterVolume}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value);
+                  engine.setMasterVolume(val);
+                }}
+                className="vertical-fader"
+                style={{
+                  WebkitAppearance: 'slider-vertical',
+                  width: '14px',
+                  height: '100%',
+                  background: 'transparent',
+                }}
+              />
+            </div>
+          </div>
+          
+          <span className="text-[9px] font-bold text-gray-500 select-none tracking-wider uppercase mt-1">Master</span>
+        </div>
+
+        <div className="flex-1 flex flex-col overflow-hidden relative">
+        {/* Playhead restricted/clipped container */}
+        <div className="absolute left-[128px] right-0 top-0 bottom-[32px] overflow-hidden pointer-events-none z-[150]">
+          <motion.div 
+            className="absolute top-0 w-[17px] cursor-ew-resize flex justify-center pointer-events-auto transform -translate-x-1/2 h-full" 
+            style={{ left: playheadMotionX }}
+            onMouseDown={handlePlayheadDragMouseDown}
+          >
+             <div className="w-px bg-red-600 h-full shadow-[0_0_8px_rgba(255,0,0,0.5)] pointer-events-none"></div>
+             <div className="absolute top-[22px] w-3.5 h-3.5 bg-red-600 rotate-45 border border-red-400 z-[160] shadow pointer-events-none"></div>
+          </motion.div>
+        </div>
  
         {/* ── Export-Selektion: schmaler Streifen oberhalb des Rulers ────────── */}
         <div className="h-4 flex-shrink-0 flex z-[131] overflow-hidden">
@@ -2348,10 +3378,18 @@ export function Timeline({
              onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
            >
               <div className="absolute inset-0 flex items-center" style={{ transform: `translateX(-${scrollLeft}px)` }}>
-                 {[...Array(300)].map((_, i) => (
-                    <div key={i} className="absolute h-full border-l border-gray-800 text-[9px] text-gray-500 pl-1 flex items-end pb-1.5" style={{ left: pixelsPerSecond * (i * 5) }}>{i * 5}s</div>
-                 ))}
-                 {/* selection markers removed – only the blue strip above the ruler is used */}
+                  {visibleTicks.map((i) => {
+                     const time = i * guidelineInterval;
+                     return (
+                       <div 
+                         key={i} 
+                         className="absolute h-full border-l border-gray-700 text-[11px] text-gray-300 pl-1.5 flex items-end pb-1 whitespace-nowrap" 
+                         style={{ left: pixelsPerSecond * time }}
+                       >
+                         {formatTime(time)}
+                       </div>
+                     );
+                  })}
               </div>
            </div>
            <div className="w-6 border-l border-omega-border bg-[#282b30] h-full z-[160]"></div>
@@ -2362,26 +3400,119 @@ export function Timeline({
            <div className="w-32 bg-omega-panel border-r border-omega-border z-[160] shadow-[2px_0_5px_rgba(0,0,0,0.3)] flex flex-col overflow-hidden relative">
               <div className="flex-1 overflow-hidden relative">
                  <div className="flex flex-col" style={{ transform: `translateY(-${scrollTop}px)` }}>
-                   {tracks.map(track => (
-                       <div key={track.id} className="border-b border-[#282b30] bg-omega-panel flex flex-col justify-center px-1 overflow-hidden" style={{ height: trackHeight }}>
-                           {trackHeight >= 55 && (
-                             <div className="flex items-center gap-1 mb-1 px-1">
-                                <input value={track.name} placeholder="kein Name" onChange={(e) => updateTracksWithHistory(tracks.map(t => t.id === track.id ? { ...t, name: e.target.value } : t))} className="flex-1 h-4 bg-[#1a1d21] border border-gray-600 rounded-sm px-1 text-[9px] text-gray-300 outline-none focus:border-omega-accent" />
-                                <ChevronDown size={8} className="text-gray-500" />
-                                <Plus size={10} className="text-gray-400 hover:text-white cursor-pointer" />
-                             </div>
-                           )}
-                           <div className="flex items-center gap-0.5 px-1 py-1 text-gray-400">
-                              {track.locked ? <Lock size={10} className="cursor-pointer hover:text-white" onClick={() => updateTracksWithHistory(tracks.map(t => t.id === track.id ? { ...t, locked: false } : t))} /> : <Unlock size={10} className="cursor-pointer hover:text-white" onClick={() => updateTracksWithHistory(tracks.map(t => t.id === track.id ? { ...t, locked: true } : t))} />}
-                              <span className={`text-[10px] font-bold px-0.5 cursor-pointer hover:text-white ${track.solo ? 'text-yellow-400' : ''}`} onClick={() => toggleSolo(track.id)}>S</span>
-                              <span className={`text-[10px] font-bold px-0.5 cursor-pointer hover:text-white ${track.muted ? 'text-red-400' : ''}`} onClick={() => toggleMute(track.id)}>M</span>
-                              <div className="relative group flex items-center">
-                                <Volume2 size={10} className="ml-1 cursor-pointer hover:text-white" />
-                                <input type="range" min="0" max="2" step="0.05" value={track.volume} onChange={(e) => updateTrackVolume(track.id, parseFloat(e.target.value))} className="absolute hidden group-hover:block w-16 h-1 top-0 left-4 z-50 accent-omega-accent" />
+                   {displayedTracks.map(track => (
+                        <div 
+                           key={track.id} 
+                           className="border-b border-[#282b30] bg-omega-panel flex flex-col justify-center px-1 overflow-hidden" 
+                           style={{ height: trackHeight }}
+                           onContextMenu={(e) => {
+                             e.preventDefault();
+                             e.stopPropagation();
+                             setTrackContextMenu({ x: e.clientX, y: e.clientY, trackId: track.originalTrackId || track.id });
+                             setContextMenu(null);
+                             setEditorContextMenu(null);
+                           }}
+                        >
+                            {trackHeight >= 55 && (
+                              <div className="flex items-center gap-1 mb-1 px-1">
+                                 <input 
+                                   value={track.name} 
+                                   placeholder="kein Name" 
+                                   onChange={(e) => {
+                                     const isL = track.id.endsWith('_L');
+                                     const isR = track.id.endsWith('_R');
+                                     const cleanTrackId = track.id.replace(/_[LR]$/, '');
+                                     const newTracks = tracks.map(t => {
+                                       if (t.id === cleanTrackId) {
+                                         if (isL) return { ...t, nameL: e.target.value };
+                                         if (isR) return { ...t, nameR: e.target.value };
+                                         return { ...t, name: e.target.value };
+                                       }
+                                       return t;
+                                     });
+                                     updateTracksWithHistory(newTracks);
+                                   }} 
+                                   className="flex-1 h-4 bg-[#1a1d21] border border-gray-600 rounded-sm px-1 text-[9px] text-gray-300 outline-none focus:border-omega-accent" 
+                                 />
+                                 <ChevronDown size={8} className="text-gray-500" />
+                                 <Plus size={10} className="text-gray-400 hover:text-white cursor-pointer" />
                               </div>
-                              <div className="flex-1"></div>
-                              <span className="text-[10px] font-mono">{track.index}</span>
-                           </div>
+                            )}
+                            <div className="flex items-center gap-1 px-1 py-1 text-gray-400">
+                                <button 
+                                  type="button"
+                                  title={track.locked ? "Spur entsperren" : "Spur sperren"}
+                                  className={`w-5 h-5 flex items-center justify-center rounded transition-colors duration-150 ${
+                                    track.locked 
+                                      ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-[0_1px_3px_rgba(0,0,0,0.3)]' 
+                                      : 'bg-blue-950/60 hover:bg-blue-900/80 text-blue-300'
+                                  }`}
+                                  onClick={() => {
+                                    const isL = track.id.endsWith('_L');
+                                    const isR = track.id.endsWith('_R');
+                                    const cleanTrackId = track.id.replace(/_[LR]$/, '');
+                                    const newTracks = tracks.map(t => {
+                                      if (t.id === cleanTrackId) {
+                                        if (isL) return { ...t, lockedL: !(t.lockedL !== undefined ? t.lockedL : t.locked) };
+                                        if (isR) return { ...t, lockedR: !(t.lockedR !== undefined ? t.lockedR : t.locked) };
+                                        return { ...t, locked: !t.locked };
+                                      }
+                                      return t;
+                                    });
+                                    updateTracksWithHistory(newTracks);
+                                  }}
+                                >
+                                  {track.locked ? <Lock size={11} /> : <Unlock size={11} />}
+                                </button>
+                                <button 
+                                  type="button"
+                                  title="Solo"
+                                  className={`w-5 h-5 flex items-center justify-center rounded text-[11px] font-extrabold transition-colors duration-150 ${
+                                    track.solo 
+                                      ? 'bg-amber-600 hover:bg-amber-500 text-white shadow-[0_1px_3px_rgba(0,0,0,0.3)]' 
+                                      : 'bg-amber-950/60 hover:bg-amber-900/80 text-amber-300'
+                                  }`}
+                                  onClick={() => toggleSolo(track.id)}
+                                >
+                                  S
+                                </button>
+                                <button 
+                                  type="button"
+                                  title="Mute"
+                                  className={`w-5 h-5 flex items-center justify-center rounded text-[11px] font-extrabold transition-colors duration-150 ${
+                                    track.muted 
+                                      ? 'bg-red-600 hover:bg-red-500 text-white shadow-[0_1px_3px_rgba(0,0,0,0.3)]' 
+                                      : 'bg-red-950/60 hover:bg-red-900/80 text-red-300'
+                                  }`}
+                                  onClick={() => toggleMute(track.id)}
+                                >
+                                  M
+                                </button>
+                               <div className="flex-1"></div>
+                               <span className="text-[10px] font-mono">{track.index}</span>
+                            </div>
+                            {trackHeight >= 40 && (
+                              <div className="flex items-center gap-1.5 px-1 py-0.5 text-gray-400">
+                                <button 
+                                  type="button"
+                                  title="Lautstärkeregler stummschalten/wiederherstellen"
+                                  className="w-5 h-5 flex items-center justify-center rounded bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 flex-shrink-0 transition-colors duration-150"
+                                  onClick={() => toggleVolumeMute(track.id)}
+                                >
+                                  <Volume2 size={11} />
+                                </button>
+                                <input 
+                                  type="range" 
+                                  min="0" 
+                                  max="2" 
+                                  step="0.05" 
+                                  value={track.volume} 
+                                  onChange={(e) => updateTrackVolume(track.id, parseFloat(e.target.value))} 
+                                  onMouseUp={() => updateTracksWithHistory(tracks)}
+                                  className="w-full h-1 accent-omega-accent bg-gray-700 rounded-lg appearance-none cursor-pointer" 
+                                />
+                              </div>
+                            )}
                         </div>
                      ))}
                      <div style={{ height: 48 }} className="flex-shrink-0" />
@@ -2464,11 +3595,11 @@ export function Timeline({
                      const ly2 = Math.max(prev.startY, prev.endY);
                      // Find all regions whose pixel bounds intersect the lasso
                      const matched = new Set<string>();
-                     tracks.forEach((track, trackIdx) => {
+                     displayedTracks.forEach((track, trackIdx) => {
                        const trackTop = trackIdx * trackHeight;
                        const trackBottom = trackTop + trackHeight;
                        if (trackBottom < ly1 || trackTop > ly2) return;
-                       track.regions.forEach(region => {
+                        track.regions.forEach((region: Region) => {
                          const rx1 = region.startPos * pixelsPerSecond;
                          const rx2 = rx1 + region.duration * pixelsPerSecond;
                          if (rx2 >= lx1 && rx1 <= lx2) {
@@ -2512,12 +3643,23 @@ export function Timeline({
                      />
                    );
                  })()}
+                 {showVerticalGuidelines && visibleTicks.map((i) => {
+                     const time = i * guidelineInterval;
+                     if (time === 0) return null;
+                     return (
+                       <div
+                         key={i}
+                         className="absolute top-0 bottom-0 border-l border-white/15 pointer-events-none z-[5]"
+                         style={{ left: time * pixelsPerSecond }}
+                       />
+                     );
+                  })}
                  {/* track-area selection overlay removed – only the blue strip above is used */}
-                 {tracks.map(track => (
+                 {displayedTracks.map(track => (
                     <div 
                        key={track.id} 
                        data-track-id={track.id}
-                       className="border-b border-[#282b30] hover:bg-[#25282c] relative bg-[repeating-linear-gradient(90deg,#222_0px,#222_1px,transparent_1px,transparent_100%)] bg-[length:50px_100%]" 
+                       className="border-b border-[#282b30] hover:bg-[#25282c] relative" 
                        style={{ height: trackHeight }} 
                        onDrop={(e) => { e.stopPropagation(); onDrop(e, track.id); }} 
                        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
@@ -2534,7 +3676,7 @@ export function Timeline({
                             <span className="absolute left-4 -translate-y-1/2 bg-[#1e2124] text-[8px] text-cyan-400 font-mono px-1 rounded border border-cyan-500/20">Spurkurve: Volume</span>
                           </div>
                         )}
-                        {track.regions.map(region => {
+                        {track.regions.map((region: Region) => {
                            const pitchRate = region.effects?.pitchRate || 1.0;
                            const regionWidthPx = (region.duration / pitchRate) * pixelsPerSecond;
                            const fadeInPx = ((region.fadeIn || 0) / pitchRate) * pixelsPerSecond;
@@ -2553,14 +3695,24 @@ export function Timeline({
 
                            // Crossfade: same-track overlap detection
                            const sortedOnTrack = [...track.regions].sort((a, b) => a.startPos - b.startPos);
-                           const prevOnTrack = sortedOnTrack.find(r => r.id !== region.id && r.startPos + (r.duration / (r.effects?.pitchRate || 1.0)) > region.startPos && r.startPos < region.startPos);
-                           const nextOnTrack = sortedOnTrack.find(r => r.id !== region.id && r.startPos < region.startPos + (region.duration / pitchRate) && r.startPos > region.startPos);
+                           const prevOnTrack = sortedOnTrack.find(r => r.id !== region.id && r.startPos + (r.duration / (r.effects?.pitchRate || 1.0)) > region.startPos && r.startPos < region.startPos && shareChannels(region, r));
+                           const nextOnTrack = sortedOnTrack.find(r => r.id !== region.id && r.startPos < region.startPos + (region.duration / pitchRate) && r.startPos > region.startPos && shareChannels(region, r));
                            const xfadeInPx  = prevOnTrack ? Math.max(0, (prevOnTrack.startPos + (prevOnTrack.duration / (prevOnTrack.effects?.pitchRate || 1.0)) - region.startPos) * pixelsPerSecond) : 0;
                            const xfadeOutPx = nextOnTrack ? Math.max(0, (region.startPos + (region.duration / pitchRate) - nextOnTrack.startPos) * pixelsPerSecond) : 0;
 
                            // Manual fades shown only when no crossfade is active on that side
                            const showFadeIn  = fadeInPx  > 1 && xfadeInPx  < 1;
                            const showFadeOut = fadeOutPx > 1 && xfadeOutPx < 1;
+
+                           // Calculate visible bounds of region in pixel space for floating label
+                           const vw = tracksRef.current?.clientWidth || 1000;
+                           const regionLeft = region.startPos * pixelsPerSecond;
+                           const regionRight = regionLeft + regionWidthPx;
+                           const visibleLeft = Math.max(regionLeft, scrollLeft);
+                           const visibleRight = Math.min(regionRight, scrollLeft + vw);
+                           const localLeft = Math.max(0, visibleLeft - regionLeft);
+                           const localRight = Math.max(0, visibleRight - regionLeft);
+                           const visibleWidth = Math.max(0, localRight - localLeft);
 
                            return (
                              <div
@@ -2576,17 +3728,25 @@ export function Timeline({
                                    ? 'border-[#ffbe00] shadow-[0_0_8px_rgba(255,190,0,0.3)] z-10'
                                    : 'border-black/50 z-1'
                                }`}
-                               style={{ left: `${region.startPos * pixelsPerSecond}px`, width: `${regionWidthPx}px` }}
+                               style={{ left: `${regionLeft}px`, width: `${regionWidthPx}px` }}
                              >
                                {/* Namensleiste (Header) */}
                                <div
-                                 className={`h-[18px] select-none flex-shrink-0 font-semibold flex items-center justify-between px-2 text-[10px] truncate ${
+                                 className={`h-[18px] select-none flex-shrink-0 font-semibold flex items-center justify-between px-2 text-[10px] truncate relative overflow-hidden ${
                                    isSelected ? 'bg-[#ffbe00] text-black font-bold' : `${region.color} text-white`
                                  }`}
                                >
-                                 <span className="truncate flex-1 pr-2">{region.file.name}</span>
+                                 {/* Schwebendes Label, zentriert im sichtbaren Bereich */}
+                                 <div 
+                                   className="absolute inset-y-0 flex items-center justify-center pointer-events-none"
+                                   style={{ left: `${localLeft}px`, width: `${visibleWidth}px` }}
+                                 >
+                                   <span className="truncate px-2 text-center max-w-full">
+                                     {region.name || region.file.name}{region.visualNameSuffix || (region.channels === 1 ? ' [Mono]' : ' [Stereo]')}
+                                   </span>
+                                 </div>
                                  {region.groupId && (
-                                   <div className="w-1.5 h-1.5 bg-yellow-300 rounded-full flex-shrink-0 shadow" title="Gruppiert" />
+                                   <div className="w-1.5 h-1.5 bg-yellow-300 rounded-full flex-shrink-0 shadow absolute right-2 top-[6px] z-10" title="Gruppiert" />
                                  )}
                                </div>
 
@@ -2594,7 +3754,13 @@ export function Timeline({
                                <div className="flex-1 bg-[#15171a] relative overflow-hidden pointer-events-auto">
                                  {/* z-[1]: Waveform — always at bottom */}
                                  <div className="absolute inset-0 z-[1] pointer-events-none">
-                                   <WaveformRenderer filePath={region.file.path} sourceOffset={region.sourceOffset} duration={region.duration} fileDuration={region.fileDuration} />
+                                   <WaveformRenderer 
+                                      filePath={region.file.path} 
+                                      sourceOffset={region.sourceOffset} 
+                                      duration={region.duration} 
+                                      fileDuration={region.fileDuration} 
+                                      channel={region.stereoMode === 'left-only' ? 'left' : (region.stereoMode === 'right-only' ? 'right' : undefined)}
+                                    />
                                  </div>
 
                                  {/* z-[2]: Crossfade-In (left side) */}
@@ -2785,11 +3951,11 @@ export function Timeline({
             </div>
            <div className="flex-1 h-full flex items-center px-1 bg-omega-dark relative overflow-hidden">
               <div className="flex-1 h-3.5 bg-[#1a1d21] rounded relative overflow-hidden border border-gray-800 flex items-center shadow-inner cursor-pointer" onMouseDown={onMouseDownH} ref={hScrollTrackRef}>
-                  <button className="w-4 h-full bg-[#2b2d31] border-r border-gray-700 flex items-center justify-center text-[8px] text-gray-400 hover:text-white">◀</button>
+                  <button className="w-4 h-full bg-[#2b2d31] border-r border-gray-700 flex items-center justify-center text-[8px] text-gray-400 hover:text-white">◂</button>
                   <div className="flex-1 h-full relative">
                      <div className="absolute top-0.5 bottom-0.5 bg-[#4a4d52] rounded shadow-sm hover:bg-gray-500 transition-colors pointer-events-none" style={{ width: `${Math.max(5, hThumbWidth)}%`, left: `${hThumbLeft}%` }}></div>
                   </div>
-                  <button className="w-4 h-full bg-[#2b2d31] border-l border-gray-700 flex items-center justify-center text-[8px] text-gray-400 hover:text-white">▶</button>
+                  <button className="w-4 h-full bg-[#2b2d31] border-l border-gray-700 flex items-center justify-center text-[8px] text-gray-400 hover:text-white">▸</button>
               </div>
            </div>
            <div className="flex items-center gap-1.5 px-2 bg-[#282b30] h-full border-l border-omega-border relative z-[160]">
@@ -2812,6 +3978,7 @@ export function Timeline({
            </div>
            <div className="w-6 bg-[#282b30] h-full border-l border-omega-border flex-shrink-0 z-[160]"></div>
         </div>
+      </div>
       </div>
 
       <div className="h-5 bg-[#141619] border-t border-black flex items-center px-3 text-[10px] text-gray-500 gap-4 z-[160] select-none font-medium">

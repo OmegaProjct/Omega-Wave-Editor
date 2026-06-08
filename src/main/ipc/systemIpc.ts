@@ -12,6 +12,7 @@ import { exec } from 'child_process'
 import * as https from 'https'
 import * as http from 'http'
 import { VstHost } from '../vstBridge/VstHostAddon'
+import { sendEnhancedTelemetryPing } from '../telemetryClient'
 
 function isSafePath(filePath: any): boolean {
   if (typeof filePath !== 'string' || filePath.trim() === '') return false
@@ -322,6 +323,7 @@ export function registerSystemIpc() {
 
   ipcMain.handle('check-for-updates', async () => {
     const currentVersion = app.getVersion()
+    sendEnhancedTelemetryPing('check', currentVersion)
     try {
       const response = await fetch('https://api.github.com/repos/OmegaProjct/Omega-Wave-Editor/releases', {
         headers: {
@@ -358,6 +360,31 @@ export function registerSystemIpc() {
       const latestVersion = latestRelease.tag_name || ''
       const updateAvailable = isNewerVersion(currentVersion, latestVersion)
 
+      // Find the appropriate download asset for the current platform
+      const assets = latestRelease.assets || []
+      let downloadUrl = ''
+      const platform = process.platform
+
+      if (platform === 'win32') {
+        let targetAsset = assets.find((a: any) => a.name.endsWith('.exe') && !a.name.toLowerCase().includes('portable'))
+        if (!targetAsset) {
+          targetAsset = assets.find((a: any) => a.name.endsWith('.exe'))
+        }
+        downloadUrl = targetAsset?.browser_download_url || ''
+      } else if (platform === 'darwin') {
+        let targetAsset = assets.find((a: any) => a.name.endsWith('.dmg'))
+        if (!targetAsset) {
+          targetAsset = assets.find((a: any) => a.name.endsWith('.zip'))
+        }
+        downloadUrl = targetAsset?.browser_download_url || ''
+      } else {
+        let targetAsset = assets.find((a: any) => a.name.endsWith('.AppImage'))
+        if (!targetAsset) {
+          targetAsset = assets.find((a: any) => a.name.endsWith('.deb'))
+        }
+        downloadUrl = targetAsset?.browser_download_url || ''
+      }
+
       // Gather intermediate releases between currentVersion and latestVersion (inclusive)
       const intermediateReleases = releases.filter(r => {
         const v = r.tag_name || ''
@@ -386,6 +413,7 @@ export function registerSystemIpc() {
         currentVersion,
         latestVersion,
         url: latestRelease.html_url || 'https://github.com/OmegaProjct/Omega-Wave-Editor/releases',
+        downloadUrl,
         body: aggregatedChangelog
       }
     } catch (err: any) {

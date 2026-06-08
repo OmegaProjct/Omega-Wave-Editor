@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Omega Wave Editor — Admin Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+  <!-- ===================== LOGIN SCREEN ===================== -->
+  <div id="login-screen" class="login-overlay">
+    <div class="login-card">
+      <div class="login-logo">Ω</div>
+      <h1 class="login-title">Omega Projects</h1>
+      <p class="login-subtitle">Admin Console</p>
+      <p class="login-domain">admin.owe.omegaprojects.de</p>
+
+      <form id="login-form" class="login-form" autocomplete="off">
+        <div class="login-input-wrap">
+          <i data-lucide="lock" class="login-icon"></i>
+          <input
+            id="login-password"
+            type="password"
+            placeholder="Passwort eingeben..."
+            autocomplete="current-password"
+            autofocus
+          />
+        </div>
+        <p id="login-error" class="login-error hidden">Falsches Passwort. Bitte erneut versuchen.</p>
+        <button type="submit" class="btn-login">
+          <span id="login-btn-text">Einloggen</span>
+          <i data-lucide="arrow-right"></i>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===================== DASHBOARD ===================== -->
+  <div id="dashboard-wrapper" class="dashboard-wrapper hidden">
+    <!-- Header -->
+    <header class="main-header">
+      <div class="header-logo-section">
+        <div class="logo-box">Ω</div>
+        <div class="title-box">
+          <h1>Omega Projects</h1>
+          <p class="subtitle">Admin Console — admin.owe.omegaprojects.de</p>
+        </div>
+      </div>
+
+      <div class="header-status-section">
+        <div class="status-badge">
+          <span class="status-indicator-ping"></span>
+          <span class="status-indicator"></span>
+          <span class="status-text">Server Online</span>
+        </div>
+        <button id="btn-refresh" class="btn-icon" title="Daten aktualisieren">
+          <i data-lucide="refresh-cw"></i>
+        </button>
+        <button id="btn-logout" class="btn-icon" title="Abmelden">
+          <i data-lucide="log-out"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Grid -->
+    <div class="main-container">
+      <!-- Sidebar Navigation -->
+      <aside class="sidebar">
+        <nav class="nav-menu">
+          <button class="nav-item active" data-tab="tab-overview">
+            <i data-lucide="layout-dashboard"></i>
+            <span>Übersicht</span>
+          </button>
+          <button class="nav-item" data-tab="tab-releases">
+            <i data-lucide="archive"></i>
+            <span>Releases & Assets</span>
+          </button>
+          <button class="nav-item" data-tab="tab-users">
+            <i data-lucide="users"></i>
+            <span>User-Datenbank</span>
+          </button>
+          <button class="nav-item" data-tab="tab-telemetry">
+            <i data-lucide="activity"></i>
+            <span>Live Telemetrie</span>
+          </button>
+          <button class="nav-item" data-tab="tab-control">
+            <i data-lucide="sliders"></i>
+            <span>Control Center</span>
+          </button>
+        </nav>
+
+        <div class="sidebar-footer">
+          <div class="footer-title">Omega Wave Editor</div>
+          <div class="footer-version">v0.8.28 (STABLE)</div>
+        </div>
+      </aside>
+
+      <!-- Content Area -->
+      <main class="content-viewport">
+
+        <!-- SECTION 1: OVERVIEW -->
+        <section id="tab-overview" class="tab-content active">
+          <div class="metrics-grid">
+            <div class="metric-card">
+              <div class="card-icon blue-glow"><i data-lucide="download-cloud"></i></div>
+              <div class="card-info">
+                <h3>Downloads Gesamt</h3>
+                <p id="stat-total-downloads" class="number">—</p>
+                <span class="trend positive"><i data-lucide="arrow-up-right"></i> GitHub + App</span>
+              </div>
+            </div>
+            <div class="metric-card">
+              <div class="card-icon cyan-glow"><i data-lucide="github"></i></div>
+              <div class="card-info">
+                <h3>GitHub Direct Downloads</h3>
+                <p id="stat-github-downloads" class="number">—</p>
+                <span class="trend"><i data-lucide="git-branch"></i> GitHub Releases</span>
+              </div>
+            </div>
+            <div class="metric-card">
+              <div class="card-icon purple-glow"><i data-lucide="refresh-cw"></i></div>
+              <div class="card-info">
+                <h3>App Auto-Updates</h3>
+                <p id="stat-app-updates" class="number">—</p>
+                <span class="trend positive"><i data-lucide="arrow-up-right"></i> Installationen</span>
+              </div>
+            </div>
+            <div class="metric-card">
+              <div class="card-icon green-glow"><i data-lucide="eye"></i></div>
+              <div class="card-info">
+                <h3>Update-Checks</h3>
+                <p id="stat-update-checks" class="number">—</p>
+                <span class="trend"><i data-lucide="fingerprint"></i> In-App Anfragen</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="charts-row">
+            <div class="chart-card flex-2">
+              <div class="chart-header">
+                <h2>Downloads & Pings (Letzte 30 Tage)</h2>
+                <div class="chart-legend">
+                  <span class="legend-item"><span class="legend-dot app-dot"></span> App Auto-Update</span>
+                  <span class="legend-item"><span class="legend-dot check-dot"></span> In-App Checks</span>
+                </div>
+              </div>
+              <div class="chart-container">
+                <svg id="svg-trend-chart" class="svg-chart" viewBox="0 0 800 300"></svg>
+              </div>
+            </div>
+
+            <div class="chart-card flex-1">
+              <div class="chart-header">
+                <h2>Betriebssysteme (Aktive User)</h2>
+              </div>
+              <div class="chart-container-donut">
+                <div class="donut-wrapper">
+                  <svg id="svg-donut-chart" class="donut-chart" viewBox="0 0 200 200"></svg>
+                  <div class="donut-text">
+                    <span id="donut-total" class="donut-number">0</span>
+                    <span class="donut-label">User</span>
+                  </div>
+                </div>
+                <div id="donut-legend" class="donut-legend-list"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="charts-row">
+            <!-- Länder-Widget -->
+            <div class="chart-card flex-1">
+              <div class="chart-header">
+                <h2>Top Länder</h2>
+              </div>
+              <div class="geo-list-container" id="geo-list-body">
+                <div class="text-muted italic text-center py-4">Lade Geodaten...</div>
+              </div>
+            </div>
+
+            <!-- Hardware Rankings -->
+            <div class="chart-card flex-2">
+              <div class="chart-header">
+                <h2>Hardware-Spezifikationen</h2>
+              </div>
+              <div class="specs-summary-grid">
+                <div class="spec-summary-item">
+                  <h4>Meistgenutzte RAM-Größen</h4>
+                  <div id="hw-ram-list" class="spec-value-list">
+                    <div class="text-muted italic py-2">Warte auf Daten...</div>
+                  </div>
+                </div>
+                <div class="spec-summary-item">
+                  <h4>Meistgenutzte Grafikkarten (GPUs)</h4>
+                  <div id="hw-gpu-list" class="spec-value-list">
+                    <div class="text-muted italic py-2">Warte auf Daten...</div>
+                  </div>
+                </div>
+                <div class="spec-summary-item">
+                  <h4>Meistgenutzte Prozessoren (CPUs)</h4>
+                  <div id="hw-cpu-list" class="spec-value-list">
+                    <div class="text-muted italic py-2">Warte auf Daten...</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 2: RELEASES -->
+        <section id="tab-releases" class="tab-content">
+          <div class="section-card">
+            <div class="card-title-bar">
+              <h2>Releases & Asset Downloads</h2>
+              <p class="description">Live-Übersicht über die bei GitHub hochgeladenen Binärdateien und deren Downloadzahlen.</p>
+            </div>
+            <div class="table-container">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Version</th>
+                    <th>Veröffentlichung</th>
+                    <th>GitHub Downloads</th>
+                    <th>Details & Assets</th>
+                  </tr>
+                </thead>
+                <tbody id="releases-table-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 3: USER DATABASE -->
+        <section id="tab-users" class="tab-content">
+          <div class="section-card">
+            <div class="card-title-bar">
+              <h2>User-Datenbank & Update-Verlauf</h2>
+              <p class="description">Anonym erfasste Client-Installationen, sortiert nach der letzten Aktivität. Ermöglicht die Analyse von Hardware-Spezifikationen und Update-Übergängen.</p>
+            </div>
+            <div class="table-container">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Client ID & OS</th>
+                    <th>Standort</th>
+                    <th>Spezifikationen (CPU / GPU / RAM / SSD)</th>
+                    <th>Version</th>
+                    <th>Update-Historie</th>
+                    <th>Aktivität & Letzter Ping</th>
+                  </tr>
+                </thead>
+                <tbody id="users-table-body">
+                  <tr>
+                    <td colspan="6" class="text-center text-muted">Lade User-Datenbank...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 4: TELEMETRY STREAM -->
+        <section id="tab-telemetry" class="tab-content">
+          <div class="section-card flex-col h-full-card">
+            <div class="card-title-bar">
+              <h2>Echtzeit Telemetrie-Stream</h2>
+              <p class="description">Aktuelle Update-Checks und Downloads inklusive Standort- und Hardwaredaten.</p>
+            </div>
+            <div class="terminal-container">
+              <div class="terminal-header">
+                <div class="terminal-dots">
+                  <span class="dot-red"></span>
+                  <span class="dot-yellow"></span>
+                  <span class="dot-green"></span>
+                </div>
+                <div class="terminal-title">telemetry@omegaprojects.de:~</div>
+                <button id="btn-clear-terminal" class="btn-terminal-clear">Clear</button>
+              </div>
+              <div id="terminal-body" class="terminal-body"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 5: CONTROL CENTER -->
+        <section id="tab-control" class="tab-content">
+          <div class="control-grid">
+            <div class="section-card">
+              <h2>Telemetrie & Hardware simulieren</h2>
+              <p class="description">Sende simulierte Test-Pings an den Server, um den Telemetrie-Stream, Geodaten und die Hardware-Statistiken live zu testen.</p>
+              <div class="control-form">
+                <div class="form-group">
+                  <label for="simulate-client-id">Client ID (UUID)</label>
+                  <select id="simulate-client-id">
+                    <option value="user-7ba2b83d-3d44-4861-a541-b8417c8201a9">User A (RTX 3070, Win11)</option>
+                    <option value="user-31e9c201-9a28-40b3-ae01-44781ca29014">User B (Apple M1 Pro, macOS)</option>
+                    <option value="user-81c9b2d4-ab92-4f10-ae0b-c89b27a01d45">User C (Ryzen 9, RX 7900, Linux)</option>
+                    <option value="random">Zufällige neue Client ID generieren</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="simulate-os">Betriebssystem</label>
+                  <select id="simulate-os">
+                    <option value="win32">Windows (win32)</option>
+                    <option value="darwin">macOS (darwin)</option>
+                    <option value="linux">Linux (linux)</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="simulate-version">Aktuelle Version</label>
+                  <select id="simulate-version">
+                    <option value="0.8.28">v0.8.28 (Latest)</option>
+                    <option value="0.8.27">v0.8.27</option>
+                    <option value="0.8.26">v0.8.26</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="simulate-action">Aktion</label>
+                  <select id="simulate-action">
+                    <option value="check">Update-Check (Anfrage)</option>
+                    <option value="download">Update-Download (Install)</option>
+                  </select>
+                </div>
+                <div id="simulate-update-target-group" class="form-group hidden">
+                  <label for="simulate-update-target">Zielversion (für Update)</label>
+                  <select id="simulate-update-target">
+                    <option value="0.8.28">v0.8.28 (Latest)</option>
+                    <option value="0.8.27">v0.8.27</option>
+                  </select>
+                </div>
+
+                <div class="divider-form">Simulierte Spezifikationen</div>
+
+                <div class="form-row-2">
+                  <div class="form-group">
+                    <label for="simulate-cpu">CPU Modell</label>
+                    <input type="text" id="simulate-cpu" value="Intel Core i7-13700K">
+                  </div>
+                  <div class="form-group">
+                    <label for="simulate-gpu">GPU Grafikkarte</label>
+                    <input type="text" id="simulate-gpu" value="NVIDIA GeForce RTX 4070">
+                  </div>
+                </div>
+                <div class="form-row-2">
+                  <div class="form-group">
+                    <label for="simulate-ram">RAM (GB)</label>
+                    <input type="number" id="simulate-ram" value="32" min="4" max="256">
+                  </div>
+                  <div class="form-group">
+                    <label for="simulate-disk">Systemplatte (GB SSD)</label>
+                    <input type="number" id="simulate-disk" value="1024" min="64" max="8192">
+                  </div>
+                </div>
+
+                <div class="divider-form">Simulierter Standort</div>
+
+                <div class="form-row-3">
+                  <div class="form-group">
+                    <label for="simulate-country">Land</label>
+                    <input type="text" id="simulate-country" value="Germany">
+                  </div>
+                  <div class="form-group">
+                    <label for="simulate-country-code">Ländercode (2-stellig)</label>
+                    <input type="text" id="simulate-country-code" value="DE" maxlength="2">
+                  </div>
+                  <div class="form-group">
+                    <label for="simulate-city">Stadt</label>
+                    <input type="text" id="simulate-city" value="Berlin">
+                  </div>
+                </div>
+
+                <button id="btn-simulate-ping" class="btn-primary">Test-Ping absenden</button>
+              </div>
+            </div>
+
+            <div class="section-card">
+              <h2>Verwaltung & Zurücksetzen</h2>
+              <p class="description">Verwalte die Telemetrie-Logs auf dem VPS-Datenverzeichnis.</p>
+              <div class="danger-zone">
+                <h3>Gefahrenbereich</h3>
+                <div class="danger-row">
+                  <div class="danger-info">
+                    <h4>Datenbank zurücksetzen</h4>
+                    <p>Löscht alle gespeicherten Telemetrie-Logs unwiderruflich.</p>
+                  </div>
+                  <button id="btn-clear-logs" class="btn-danger">Alle Logs löschen</button>
+                </div>
+                <div class="danger-row border-top">
+                  <div class="danger-info">
+                    <h4>Simulations-Daten wiederherstellen</h4>
+                    <p>Setzt die Logs zurück und lädt 30-Tage-Demodaten inklusive diverser Hardware- und Ländereigenschaften.</p>
+                  </div>
+                  <button id="btn-seed-logs" class="btn-warning">Demo-Daten laden</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

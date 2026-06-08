@@ -34,7 +34,7 @@ interface Window {
     getSystemPath: (name: string) => Promise<string>;
     saveRecording: (path: string, buffer: ArrayBuffer) => Promise<{ success: boolean; error?: string }>;
     getDiskSpace: (dirPath: string) => Promise<{ success: boolean; freeBytes: number }>;
-    getMediaInfo: (path: string) => Promise<{ duration: number; tags?: any }>;
+    getMediaInfo: (path: string) => Promise<{ duration: number; channels?: number; tags?: any }>;
     showSaveDialog: (options: any) => Promise<{ canceled: boolean; filePath?: string }>;
     showOpenDialog: (options: any) => Promise<{ canceled: boolean; filePaths: string[] }>;
     savePreset: (path: string, preset: any) => Promise<{ success: boolean; error?: string }>;
@@ -49,7 +49,7 @@ interface Window {
     getWaveformData: (path: string) => Promise<any>;
     exportProject: (tracks: any[], path: string, id3Tags?: any) => Promise<boolean>;
     openExternal: (url: string) => Promise<void>;
-    getPeaks: (path: string, samples?: number) => Promise<number[]>;
+    getPeaks: (path: string, samples?: number, channel?: 'left' | 'right') => Promise<number[]>;
     openPath: (dirPath: string) => Promise<{ success: boolean; error?: string }>;
     downloadPluginFile: (payload: { url: string; fileName?: string; pluginName?: string }) => Promise<{ success: boolean; error?: string; filePath?: string; directory?: string }>;
     transcodeExport: (tempWavPath: string, outputPath: string, options: any, id3Tags?: any) => Promise<boolean>;

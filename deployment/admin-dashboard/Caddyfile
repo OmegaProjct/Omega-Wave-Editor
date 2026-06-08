@@ -1,0 +1,11 @@
+admin.owe.omegaprojects.de {
+  encode zstd gzip
+
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    X-Content-Type-Options "nosniff"
+    Referrer-Policy "strict-origin-when-cross-origin"
+  }
+
+  reverse_proxy telemetry-server:3000
+}

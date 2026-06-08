@@ -29,7 +29,7 @@ import { useTranslation } from 'react-i18next'
 function App(): JSX.Element {
   const { i18n } = useTranslation()
   const [showSettings, setShowSettings] = useState(false)
-  const [settingsTab, setSettingsTab] = useState<'Wiedergabe' | 'Ordner' | 'Import/Audio' | 'System' | 'Tastaturkürzel' | 'Projekteinstellungen' | 'Sprache & Anzeige'>('Projekteinstellungen')
+  const [settingsTab, setSettingsTab] = useState<'Wiedergabe' | 'Ordner' | 'Ansicht' | 'System' | 'Tastaturkürzel' | 'Projekteinstellungen' | 'Sprache & Anzeige'>('Projekteinstellungen')
   const [showExport, setShowExport] = useState(false)
   const [showManual, setShowManual] = useState(false)
   const [showAbout, setShowAbout] = useState(false)
@@ -82,7 +82,7 @@ function App(): JSX.Element {
     }
   }
 
-  const openSettings = (tab: 'Wiedergabe' | 'Ordner' | 'Import/Audio' | 'System' | 'Tastaturkürzel' | 'Projekteinstellungen' | 'Sprache & Anzeige' = 'Projekteinstellungen') => {
+  const openSettings = (tab: 'Wiedergabe' | 'Ordner' | 'Ansicht' | 'System' | 'Tastaturkürzel' | 'Projekteinstellungen' | 'Sprache & Anzeige' = 'Projekteinstellungen') => {
     openModalPopoutOrInline('settings', () => {
       setSettingsTab(tab)
       setShowSettings(true)

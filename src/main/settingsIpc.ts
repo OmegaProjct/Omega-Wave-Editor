@@ -89,7 +89,13 @@ export function setupSettingsIpc() {
       toggleAutomation: 'Alt+K',
       resetEffects: 'Ctrl+Alt+Plus',
       saveEffectsPreset: 'Shift+Plus',
-      pasteEffects: 'Shift+Minus'
+      pasteEffects: 'Shift+Minus',
+      setPlaybackStart: 'ArrowDown',
+      playAtPosition: 'K',
+      playBackward: 'J',
+      playForward: 'L',
+      jumpBackward: 'ArrowLeft',
+      jumpForward: 'ArrowRight'
     }
   }
 
@@ -237,7 +243,12 @@ export function setupSettingsIpc() {
         "text_scale_normal": "Normal (Standard)",
         "text_scale_medium": "Mittel (+10%)",
         "text_scale_large": "Groß (+20%)",
-        "text_scale_xlarge": "Sehr groß (+30%)"
+        "text_scale_xlarge": "Sehr groß (+30%)",
+        "view": {
+          "stereo_display": "Stereo-Spur Darstellung:",
+          "stereo_on_one_track": "Stereo auf einer Spur",
+          "stereo_on_two_tracks": "Stereo auf zwei Spuren"
+        }
       },
       "vst_rack": {
         "title": "VST RACK — DSP SIGNAL CHAIN",
@@ -312,7 +323,12 @@ export function setupSettingsIpc() {
         "text_scale_normal": "Normal (Default)",
         "text_scale_medium": "Medium (+10%)",
         "text_scale_large": "Large (+20%)",
-        "text_scale_xlarge": "Very Large (+30%)"
+        "text_scale_xlarge": "Very Large (+30%)",
+        "view": {
+          "stereo_display": "Stereo Track Display:",
+          "stereo_on_one_track": "Stereo on one track",
+          "stereo_on_two_tracks": "Stereo on two tracks"
+        }
       },
       "vst_rack": {
         "title": "VST RACK — DSP SIGNAL CHAIN",

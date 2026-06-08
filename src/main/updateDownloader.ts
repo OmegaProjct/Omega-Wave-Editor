@@ -7,6 +7,7 @@ import { Readable } from 'stream'
 import * as https from 'https'
 import * as http from 'http'
 import { URL } from 'url'
+import { sendEnhancedTelemetryPing } from './telemetryClient'
 
 let downloadedInstallerPath: string | null = null
 let runInstallerOnQuit = false
@@ -19,53 +20,62 @@ export function setupUpdateDownloader(mainWindow: BrowserWindow) {
   ipcMain.handle('start-update-download', async (_, { url, latestVersion }) => {
     try {
       isDownloadCancelled = false
+      sendEnhancedTelemetryPing('download', app.getVersion(), latestVersion)
       
-      // 1. Suche nach dem passenden Release-Asset auf GitHub
-      // Wir holen die Details über das neueste Release von der GitHub API
-      const response = await fetch('https://api.github.com/repos/OmegaProjct/Omega-Wave-Editor/releases/latest', {
-        headers: {
-          'User-Agent': 'Omega-Wave-Editor-Updater'
-        }
-      })
+      let downloadUrl = url
+      let assetName = ''
 
-      if (!response.ok) {
-        throw new Error(`GitHub API returned status ${response.status}`)
-      }
-
-      const data: any = await response.json()
-      const assets = data.assets || []
-      
-      // Filtere das Asset basierend auf dem Betriebssystem
-      let targetAsset = null
-      const platform = process.platform
-
-      if (platform === 'win32') {
-        // Windows: Bevorzuge das Setup (.exe), vermeide Portable
-        targetAsset = assets.find((a: any) => a.name.endsWith('.exe') && !a.name.toLowerCase().includes('portable'))
-        // Fallback auf irgendetwas mit .exe
-        if (!targetAsset) {
-          targetAsset = assets.find((a: any) => a.name.endsWith('.exe'))
-        }
-      } else if (platform === 'darwin') {
-        // macOS: Bevorzuge .dmg, ansonsten .zip
-        targetAsset = assets.find((a: any) => a.name.endsWith('.dmg'))
-        if (!targetAsset) {
-          targetAsset = assets.find((a: any) => a.name.endsWith('.zip'))
-        }
+      if (downloadUrl && (downloadUrl.includes('/releases/download/') || downloadUrl.endsWith('.exe') || downloadUrl.endsWith('.dmg') || downloadUrl.endsWith('.AppImage') || downloadUrl.endsWith('.deb') || downloadUrl.endsWith('.zip'))) {
+        assetName = decodeURIComponent(downloadUrl.split('/').pop() || '')
+        console.log(`Using direct download URL: ${downloadUrl}`)
       } else {
-        // Linux: Bevorzuge .AppImage, ansonsten .deb
-        targetAsset = assets.find((a: any) => a.name.endsWith('.AppImage'))
-        if (!targetAsset) {
-          targetAsset = assets.find((a: any) => a.name.endsWith('.deb'))
+        // 1. Suche nach dem passenden Release-Asset auf GitHub
+        // Wir holen die Details über das neueste Release von der GitHub API
+        const response = await fetch('https://api.github.com/repos/OmegaProjct/Omega-Wave-Editor/releases/latest', {
+          headers: {
+            'User-Agent': 'Omega-Wave-Editor-Updater'
+          }
+        })
+
+        if (!response.ok) {
+          throw new Error(`GitHub API returned status ${response.status}`)
         }
-      }
 
-      if (!targetAsset || !targetAsset.browser_download_url) {
-        throw new Error(`Kein passendes Download-Asset für Plattform "${platform}" gefunden.`)
-      }
+        const data: any = await response.json()
+        const assets = data.assets || []
+        
+        // Filtere das Asset basierend auf dem Betriebssystem
+        let targetAsset = null
+        const platform = process.platform
 
-      const downloadUrl = targetAsset.browser_download_url
-      const assetName = targetAsset.name
+        if (platform === 'win32') {
+          // Windows: Bevorzuge das Setup (.exe), vermeide Portable
+          targetAsset = assets.find((a: any) => a.name.endsWith('.exe') && !a.name.toLowerCase().includes('portable'))
+          // Fallback auf irgendetwas mit .exe
+          if (!targetAsset) {
+            targetAsset = assets.find((a: any) => a.name.endsWith('.exe'))
+          }
+        } else if (platform === 'darwin') {
+          // macOS: Bevorzuge .dmg, ansonsten .zip
+          targetAsset = assets.find((a: any) => a.name.endsWith('.dmg'))
+          if (!targetAsset) {
+            targetAsset = assets.find((a: any) => a.name.endsWith('.zip'))
+          }
+        } else {
+          // Linux: Bevorzuge .AppImage, ansonsten .deb
+          targetAsset = assets.find((a: any) => a.name.endsWith('.AppImage'))
+          if (!targetAsset) {
+            targetAsset = assets.find((a: any) => a.name.endsWith('.deb'))
+          }
+        }
+
+        if (!targetAsset || !targetAsset.browser_download_url) {
+          throw new Error(`Kein passendes Download-Asset für Plattform "${platform}" gefunden.`)
+        }
+
+        downloadUrl = targetAsset.browser_download_url
+        assetName = targetAsset.name
+      }
       
       let docPath = ''
       try {
