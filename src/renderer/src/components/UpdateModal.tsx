@@ -6,6 +6,7 @@ interface UpdateModalProps {
     latestVersion: string
     currentVersion: string
     url?: string
+    downloadUrl?: string
     body?: string
   }
   onClose: (deferredUpdate?: boolean) => void
@@ -191,7 +192,7 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
     
     try {
       const res = await window.api.startUpdateDownload({
-        url: updateInfo.url || '',
+        url: updateInfo.downloadUrl || updateInfo.url || '',
         latestVersion: updateInfo.latestVersion
       })
       if (!res.success) {

@@ -24,6 +24,13 @@ export type ShortcutAction =
   | 'resetEffects'
   | 'saveEffectsPreset'
   | 'pasteEffects'
+  // Neue Wiedergabe- und Navigationssteuerungen
+  | 'setPlaybackStart'
+  | 'playAtPosition'
+  | 'playBackward'
+  | 'playForward'
+  | 'jumpBackward'
+  | 'jumpForward'
 
 export type KeyboardShortcuts = Record<ShortcutAction, string>
 
@@ -52,7 +59,14 @@ export const DEFAULT_KEYBOARD_SHORTCUTS: KeyboardShortcuts = {
   toggleAutomation: 'Alt+K',
   resetEffects: 'Ctrl+Alt+Plus',
   saveEffectsPreset: 'Shift+Plus',
-  pasteEffects: 'Shift+Minus'
+  pasteEffects: 'Shift+Minus',
+  // Standardbelegungen fuer die neuen Steuerungen
+  setPlaybackStart: 'ArrowDown',
+  playAtPosition: 'K',
+  playBackward: 'J',
+  playForward: 'L',
+  jumpBackward: 'ArrowLeft',
+  jumpForward: 'ArrowRight'
 }
 
 export const SHORTCUT_DEFINITIONS: { id: ShortcutAction; label: string; group: string }[] = [
@@ -80,7 +94,14 @@ export const SHORTCUT_DEFINITIONS: { id: ShortcutAction; label: string; group: s
   { id: 'toggleAutomation', label: 'Automation ein-/ausblenden', group: 'Effekte' },
   { id: 'resetEffects', label: 'Effekte zurücksetzen', group: 'Effekte' },
   { id: 'saveEffectsPreset', label: 'Effekt-Preset speichern', group: 'Effekte' },
-  { id: 'pasteEffects', label: 'Effekte einfügen', group: 'Effekte' }
+  { id: 'pasteEffects', label: 'Effekte einfügen', group: 'Effekte' },
+  // Neue Definitionen fuer die Transport-Gruppe
+  { id: 'setPlaybackStart', label: 'Wiedergabe-Startposition setzen', group: 'Transport' },
+  { id: 'playAtPosition', label: 'Wiedergabe ab aktueller Position starten', group: 'Transport' },
+  { id: 'playBackward', label: 'Rückwärts abspielen', group: 'Transport' },
+  { id: 'playForward', label: 'Vorwärts abspielen', group: 'Transport' },
+  { id: 'jumpBackward', label: 'Zurückspringen', group: 'Transport' },
+  { id: 'jumpForward', label: 'Vorwärtsspringen', group: 'Transport' }
 ]
 
 const modifierKeys = new Set(['Control', 'Shift', 'Alt', 'Meta'])

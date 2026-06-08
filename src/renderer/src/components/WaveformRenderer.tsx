@@ -60,7 +60,7 @@ function getDeterministicPeaks(filePath: string, samples: number = 1000): number
   return peaks
 }
 
-export function WaveformRenderer({ filePath, sourceOffset = 0, duration = 0, fileDuration = 0 }: { filePath: string, sourceOffset?: number, duration?: number, fileDuration?: number }) {
+export function WaveformRenderer({ filePath, sourceOffset = 0, duration = 0, fileDuration = 0, channel }: { filePath: string, sourceOffset?: number, duration?: number, fileDuration?: number, channel?: 'left' | 'right' }) {
   const [peaks, setPeaks] = useState<number[]>([])
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [halfWaveform, setHalfWaveform] = useState<boolean>(false)
@@ -100,7 +100,7 @@ export function WaveformRenderer({ filePath, sourceOffset = 0, duration = 0, fil
     }, 3000)
 
     // Get fast peak data from Main Process via FFmpeg
-    window.api.getPeaks(filePath).then(data => {
+    window.api.getPeaks(filePath, 1000, channel).then(data => {
       clearTimeout(timeout)
       if (active) {
         if (Array.isArray(data) && data.length > 0) {
@@ -121,7 +121,7 @@ export function WaveformRenderer({ filePath, sourceOffset = 0, duration = 0, fil
       active = false
       clearTimeout(timeout)
     }
-  }, [filePath])
+  }, [filePath, channel])
 
   const draw = () => {
     if (!canvasRef.current || peaks.length === 0) return

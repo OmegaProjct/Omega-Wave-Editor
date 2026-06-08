@@ -49,16 +49,34 @@ export function registerAudioIpc() {
     if (!isSafePath(filePath)) return { duration: 10, tags: {} }
     return new Promise((resolve) => {
       ffmpeg.ffprobe(filePath, (err, metadata) => {
-        if (err) {
+        if (err || !metadata) {
           resolve({ duration: 10, tags: {} })
         } else {
-          const rawTags = metadata.format.tags || {}
+          const format = metadata.format || {}
+          const streams = metadata.streams || []
+          const rawTags = format.tags || {}
           const tags: Record<string, string> = {}
           for (const key of Object.keys(rawTags)) {
             tags[key.toLowerCase()] = String(rawTags[key])
           }
+          const audioStream = streams.find((s: any) => s.codec_type === 'audio')
+          const channels = audioStream ? audioStream.channels : 2
+          const sampleRate = audioStream && audioStream.sample_rate ? audioStream.sample_rate : 48000
+          const bitDepth = audioStream ? audioStream.bits_per_sample : undefined
+          const bitrate = format.bit_rate || undefined
+          const codec = audioStream ? audioStream.codec_name : ''
+          const formatName = format.format_long_name || format.format_name || ''
+          const size = format.size || 0
+
           resolve({
-            duration: metadata.format.duration || 10,
+            duration: format.duration || 10,
+            channels: channels,
+            sampleRate: sampleRate,
+            bitDepth: bitDepth,
+            bitrate: bitrate,
+            codec: codec,
+            formatName: formatName,
+            size: size,
             tags: {
               title: tags.title || tags.nam || '',
               artist: tags.artist || tags.composer || tags.performer || '',
@@ -66,7 +84,8 @@ export function registerAudioIpc() {
               year: tags.date || tags.year || tags.creation_time || '',
               genre: tags.genre || '',
               comment: tags.comment || tags.description || '',
-              track: tags.track || tags.track_number || ''
+              track: tags.track || tags.track_number || '',
+              bpm: tags.bpm || tags.tempo || tags.tbpm || ''
             }
           })
         }
@@ -91,7 +110,7 @@ export function registerAudioIpc() {
     })
   })
 
-  ipcMain.handle('get-peaks', async (_, filePath: string, samples: number = 1000) => {
+  ipcMain.handle('get-peaks', async (_, filePath: string, samples: number = 1000, channel?: 'left' | 'right') => {
     if (!isSafePath(filePath)) return Array.from({ length: samples }, () => Math.random() * 0.8)
     return new Promise((resolve) => {
       try {
@@ -102,6 +121,12 @@ export function registerAudioIpc() {
           .audioChannels(1)
           .audioFrequency(sampleRate)
           .format('s16le'); // 16-bit Signed Integer PCM
+
+        if (channel === 'left') {
+          ffmpegCmd.audioFilters('pan=mono|c0=c0');
+        } else if (channel === 'right') {
+          ffmpegCmd.audioFilters('pan=mono|c0=c1');
+        }
 
         ffmpegCmd.on('error', (err) => {
           console.error('get-peaks ffmpeg error:', err);

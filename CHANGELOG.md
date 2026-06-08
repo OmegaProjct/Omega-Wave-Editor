@@ -2,6 +2,84 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.9.0] - 2026-06-08
+
+### English
+
+#### Added
+- **5x Playback Speed**: Expanded fast-forward (L) and rewind (J) speed cycling to support up to 5-fold speeds (cycling through 1.0x -> 1.5x -> 2.0x -> 3.0x -> 4.0x -> 5.0x).
+- **Floating Region Names**: Implemented dynamically floating clip/region names that remain centered in the visible part of the region in the viewport while scrolling horizontally.
+- **Configurable Navigation Steps**: Added settings under the "Playback" ("Wiedergabe") tab to configure different jump step sizes for ArrowLeft and ArrowRight keys when playing vs when stopped (options: 0.5s, 1s, 3s, 5s, 10s).
+- **Customizable Transport Shortcuts**: Added six new actions under the "Keyboard Shortcuts" ("Tastenkürzel") settings tab:
+  - `setPlaybackStart` (default: ArrowDown): Relocates return position for spacebar stop to the current playhead.
+  - `playAtPosition` (default: K): Starts playback forward (1x) or pauses at the current location.
+  - `playBackward` (default: J): Plays backward, cycling speed (-1.0x -> -1.5x -> -2.0x) on consecutive presses.
+  - `playForward` (default: L): Plays forward, cycling speed (1.0x -> 1.5x -> 2.0x) on consecutive presses.
+  - `jumpBackward` (default: ArrowLeft): Jumps backward by configured step size.
+  - `jumpForward` (default: ArrowRight): Jumps forward by configured step size.
+- **Auto-Stop at Project Start**: Automatically stops backward playback and resets playhead to 0 when reaching the start of the project.
+- **Global Gap Closing**: Reformed the "Lücken schließen" (Find and Close Gaps) algorithm to work globally across all tracks using an interval-merging algorithm. This closes timeline gaps while perfectly preserving the relative timing and alignment of overlapping, split stereo, or grouped clips.
+- **Real-Time Gap Closing Audio Rescheduling**: Integrated the real-time audio rescheduling engine with the gap closing mechanism, instantly repositioning playing audio streams for all shifted clips without requiring a manual playback restart.
+- **Real-Time Region Rescheduling**: Implemented dynamic Web Audio rescheduling for audio clips during active playback. Moving, trimming, or dragging a clip on the timeline now updates its play offset and routing instantly in real-time.
+- **Rescheduling Audio Throttling**: Added a 50ms throttle-with-trailing-edge scheduler when dragging timeline clips to guarantee glitch-free, high-performance playback during active movement.
+- **Track Volume Fader Mute Toggle**: Clicking the fader volume icon button now silences the track fader (sets volume to 0) and saves the previous volume state. Clicking it again restores the previous volume level.
+
+#### Changed
+- **Context Menu Theme**: Redesigned all timeline context menus (Region context menu, Editor context menu, Track context menu) and their submenus from light mode to a premium glassmorphic dark theme (`bg-[#1e2124]/95 text-gray-200 border-gray-700/60 rounded-lg shadow-2xl`) matching the rest of the application.
+- **Chevron Submenu Indicators**: Replaced standard text arrows (`▸` / `▶`) with Lucide-React `ChevronRight` icons featuring dynamic hover highlights (`text-gray-500 group-hover:text-white`) to prevent operating system emoji conversion issues on Windows.
+- **Track Volume Slider Layout**: Moved the volume slider to a dedicated, permanently visible row below the other track control buttons (Lock, Solo, Mute) to avoid clipping and overlap. Implemented a responsive vertical layout that hides elements cleanly when the track height is compressed.
+- **Track Controls Styling**: Redesigned track header controls (Lock, Solo, Mute, and Volume) with larger, high-contrast buttons, distinct color-coded backgrounds (Blue for Lock, Yellow/Amber for Solo, Red for Mute, Green/Emerald for Volume), and light readable text/icons for both active and inactive states.
+- **Time Ruler Readability**: Increased time ruler font size to 11px and adjusted text color to a lighter gray for higher visual contrast and readability.
+- **User Manual Shortcuts Section**: Updated the in-app user guide with a dedicated reference for the new transport hotkeys.
+
+#### Fixed
+- **Settings Shortcuts Serialization**: Registered new transport hotkeys inside the settings IPC defaults so they save and load reliably in `settings.json`.
+- **Playhead Containment Clipping**: Bound the playhead rendering and dragging coordinates to the editor workspace (from `128px` onwards) and clipped its overflow, preventing the red playhead line and handle from overlaying the track headers or the master volume column when scrolling.
+- **Timecode Ruler Label Stacking**: Added `whitespace-nowrap` wrapping prevention to timecode ruler tick labels, keeping minute and second numbers (e.g., `1m 2s`) on a single line instead of stacking them vertically.
+- **Unlink/Split Priority for Stereo Regions**: Optimized the "Kettenspreng-Symbol" (unlink button) behavior. Splitting stereo regions into physical left and right mono tracks is now prioritized and executed immediately even if the region belongs to an active group, clearing its `groupId` so they can be dragged independently in the split track view.
+- **Crossfades for Independent Channels**: Excluded regions playing on different channels (like left-only and right-only mono clips) from automatic crossfade calculations. Fades are no longer visually rendered or acoustically scheduled between mismatched channel formats on the same track.
+- **Rigid Group Timeline Boundary**: Enforced a strict negative boundary limit for grouped region dragging. When any region in a linked group hits the beginning of the timeline (`0s`), the entire group's movement locks, preventing regions from shifting or overlapping with each other at the timeline boundary.
+- **Group Dragging Drift**: Fixed a bug where grouped or linked clips would drift apart exponentially during dragging. Grouped region positions are now calculated using their absolute initial coordinates at click time.
+- **Stereo Settings Merging and Splitting**: Toggling between "Stereo auf einer Spur" and "Stereo auf zwei Spuren" in the settings now automatically merges split left/right mono tracks back to a single track (preserving their relative offsets and making the track longer if needed) or splits them back onto adjacent tracks, including real-time audio rescheduling during playback.
+
+### Deutsch
+
+#### Hinzugefügt
+- **5-fache Abspielgeschwindigkeit**: Erweiterung der Geschwindigkeitsstufen für Vorlauf (L) und Rücklauf (J) auf bis zu 5-faches Tempo (Zyklus: 1,0x -> 1,5x -> 2,0x -> 3,0x -> 4,0x -> 5,0x).
+- **Schwebende Region-Namen**: Implementierung von dynamisch schwebenden Clip-/Objekt-Namen, die beim horizontalen Scrollen weich mitwandern und immer zentriert im sichtbaren Bereich des Clips bleiben.
+- **Konfigurierbare Navigations-Sprünge**: Einstellungen im Reiter „Wiedergabe“ zur separaten Definition von Sprungweiten für Links-/Rechtspfeiltasten während des Abspielens und im Stillstand (Optionen: 0,5s, 1s, 3s, 5s, 10s).
+- **Konfigurierbare Transport-Tastaturkürzel**: Integration von sechs neuen Aktionen im Einstellungsreiter „Tastenkürzel“:
+  - `setPlaybackStart` (Standard: PfeilAb): Versetzt die Rückkehrposition für das Stoppen per Leertaste auf die aktuelle Abspielposition.
+  - `playAtPosition` (Standard: K): Startet die Vorwärtswiedergabe (1x) oder pausiert an Ort und Stelle.
+  - `playBackward` (Standard: J): Spielt rückwärts ab und erhöht zyklisch die Geschwindigkeit bei mehrmaligem Drücken (-1,0x -> -1,5x -> -2,0x).
+  - `playForward` (Standard: L): Spielt vorwärts ab und erhöht zyklisch die Geschwindigkeit bei mehrmaligem Drücken (1,0x -> 1,5x -> 2,0x).
+  - `jumpBackward` (Standard: PfeilLinks): Springt um die konfigurierte Schrittgröße zurück.
+  - `jumpForward` (Standard: PfeilRechts): Springt um die konfigurierte Schrittgröße vorwärts.
+- **Automatischer Stopp am Timeline-Anfang**: Stoppt die Rückwärtswiedergabe automatisch und setzt den Playhead auf 0, wenn der Anfang des Projekts erreicht wird.
+- **Spurübergreifendes Lücken-Schließen**: Reformierung des Algorithmus für "Lücken finden & schließen". Durch spurübergreifende Intervallzusammenführung werden Lücken geschlossen, während die relativen zeitlichen Positionen (Relationen) überlappender, gruppierter und geteilter Stereo-Clips exakt erhalten bleiben.
+- **Echtzeit-Audio bei Lücken-Schließung**: Direkte Anbindung des Echtzeit-Reschedulings an die Lücken-Schließfunktion. Bei laufendem Abspielen springen die Audiosignale aller verschobenen Clips sofort knackfrei an die neue Position, ohne Neustart der Wiedergabe.
+- **Echtzeit-Region-Neuplanung**: Dynamische Neuplanung von Audioquellen (Web Audio API) bei laufender Wiedergabe. Das Verschieben oder Trimmen von Clips auf der Timeline wirkt sich nun sofort in Echtzeit auf die Wiedergabeposition und das Audio-Routing aus.
+- **Audio-Rescheduling-Drosselung**: Integration einer 50-ms-Drosselung mit Trailing-Edge-Timeout beim Ziehen von Clips, um Knackser und Engine-Überlastungen während der Bewegung auszuschließen.
+- **Spur-Lautstärkeregler Stummschaltung**: Ein Klick auf das Lautstärkesymbol neben dem Fader setzt die Lautstärke auf 0 und speichert den vorherigen Pegel. Ein erneuter Klick stellt die Originallautstärke wieder her.
+
+#### Geändert
+- **Dunkler Glassmorphismus für Kontextmenüs**: Neugestaltung aller Timeline-Rechtsklick-Menüs (Region-Menü, Editor-Menü, Spur-Menü) sowie deren Untermenüs von hellgrau auf ein edles, dunkles Glassmorphismus-Design (`bg-[#1e2124]/95 text-gray-200 border-gray-700/60 rounded-lg shadow-2xl`) passend zum übrigen DAW-Theme.
+- **Chevron-Submenü-Icons**: Ersetzung der textbasierten Pfeilsymbole (`▸` / `▶`) durch standardisierte Lucide-React `ChevronRight` Icons mit dynamischem Highlight-Verhalten (`text-gray-500 group-hover:text-white`), um fehlerhafte Windows-Emoji-Darstellungen zu umgehen.
+- **Spur-Lautstärkeregler-Layout**: Der Lautstärkeregler wurde in eine eigene, dauerhaft sichtbare Zeile unterhalb der anderen Kontrolltasten (Sperren, Solo, Mute) verschoben, um Überlappungen zu verhindern. Zudem wurde ein adaptives Layout implementiert, das Bedienelemente bei geringerer Spurhöhe automatisch ausblendet.
+- **Spur-Steuerelemente**: Neugestaltung der Spur-Kontrolltasten (Sperren, Solo, Stummschaltung, Lautstärke) mit vergrößerten Symbolen/Schriften, farbcodierten Hintergründen (Blau für Sperren, Gelb/Orange für Solo, Rot für Mute, Grün für Lautstärke) und kontrastreichen hellen Schriftzugen zur besseren Unterscheidbarkeit.
+- **Bessere Lesbarkeit des Time-Rulers**: Schriftgröße auf 11px vergrößert und Farbe auf ein helleres Grau angepasst, um den visuellen Kontrast und die Lesbarkeit deutlich zu verbessern.
+- **Aktualisierung des Benutzerhandbuchs**: Ergänzung der neuen Steuertasten und Tastaturkürzel im integrierten Hilfebereich zur einfachen Referenzierung.
+
+#### Behoben
+- **Tastaturkürzel-Serialisierung**: Registrierung der neuen Shortcuts in den IPC-Einstellungen-Standardwerten, damit sie stabil in `settings.json` gespeichert und geladen werden.
+- **Playhead-Bereichsbegrenzung**: Begrenzung der Abspielnadel (samt rotem Handle) auf den tatsächlichen Editor-Bereich (ab `128px` von links) und Ausblenden bei Links-Überlauf, sodass sie nicht mehr fälschlicherweise die Spur-Steuerungen oder den Master-Volume-Fader überlagert.
+- **Einzeilige Timecode-Ruler-Labels**: Verhinderung von Zeilenumbrüchen bei Zeitcode-Ticks durch Zuweisung von `whitespace-nowrap`, wodurch Labels ab 1 Minute (z. B. `1m 2s`) einzeilig nebeneinander stehen bleiben, statt zweizeilig zu stapeln.
+- **Direktes Stereo-Splitting bei Kettensprengung**: Optimierung des Verhaltens beim Klicken auf das Kettenspreng-Symbol. Das physische Aufteilen einer Stereo-Region in linke und rechte Mono-Spuren wird nun immer sofort und prioritär durchgeführt (unter Löschen der `groupId`), selbst wenn der Clip Teil einer Gruppe ist. Dadurch lassen sich die gesprengten Kanäle in der geteilten Ansicht direkt unabhängig voneinander verschieben.
+- **Keine Crossfades bei ungleichen Audiokanälen**: Automatische Crossfades (sowohl visuell im UI als auch akustisch in der Audio-Engine) werden nun unterdrückt, wenn sich Clips auf getrennten Audiokanälen (z. B. eine left-only und eine right-only Region) auf derselben Spur überlappen.
+- **Starre Gruppenverschiebung am Timeline-Limit**: Begrenzung der negativen Verschiebung von Clip-Gruppen nach links. Sobald ein Element einer verlinkten Gruppe den Anfang der Timeline (`0s`) erreicht, blockiert die Verschiebung für die gesamte Gruppe, sodass sich die Clips nicht mehr übereinander schieben.
+- **Gruppen-Drift beim Ziehen**: Behebung des Fehlers, bei dem verlinkte oder gruppierte Clips beim Verschieben exponentiell auseinanderdrifteten. Gruppenpositionen werden nun präzise auf Basis der absoluten Ausgangsdaten beim Klick ermittelt.
+- **Spuren-Zusammenführung bei Stereo-Umstellung**: Das Umschalten zwischen "Stereo auf einer Spur" und "Stereo auf zwei Spuren" in den Einstellungen führt getrennte linke/rechte Mono-Spuren automatisch wieder zusammen (unter Beibehaltung ihres zeitlichen Versatzes und Anpassung der Spurlänge) bzw. teilt sie wieder auf separate Spuren auf. Die Änderungen werden während des Abspielens in Echtzeit neu eingeplant.
+
 ## [0.8.18] - 2026-06-07
 
 ### English
@@ -77,6 +155,10 @@ The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Sem
 - **Grafik-Bereinigung**: Entfernung funktionsloser Button-Grafiken aus der Benutzeroberfläche.
 
 ## [0.8.14] - 2026-06-02
+
+### English
+
+#### Added
 - **Ehrliche UI-Erklärung**: Integrated a precise, native-feeling German description in the Premium Hybrid Fallback VST Editor when `hasEditor === false` to transparently explain that the plugin does not feature a native GUI by design.
 - **Robust Parameter Flow**: Enhanced `VstEditorWindow.tsx` parameter dispatching to ensure parameter sliders communicate flawlessly with the C++ Native Host for GUI-less VST2 plugins even while fallback UI is active.
 

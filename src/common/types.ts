@@ -41,6 +41,7 @@ export interface Region {
   fileDuration?: number
   color?: string
   groupId?: string
+  channels?: number
   [key: string]: any // allow unknown/extra fields at runtime
 }
 
@@ -54,6 +55,7 @@ export interface Track {
   locked: boolean
   visible: boolean
   volume: number // multiplier (0.0 to 1.5)
+  preMuteVolume?: number // remember volume level before fader mute toggle
   height: number // visual height in pixels
   automation: any[] // reserved for parameter automation curves
   denoise?: number // reduction dB (0 to 24)

@@ -5,6 +5,12 @@
 
 export type EQBand = { freq: number; gain: number; type: BiquadFilterType };
 
+function shareChannels(r1: any, r2: any): boolean {
+  const m1 = r1.stereoMode || 'stereo';
+  const m2 = r2.stereoMode || 'stereo';
+  return m1 === 'stereo' || m2 === 'stereo' || m1 === m2;
+}
+
 class Jungle {
   public input: GainNode;
   public output: GainNode;
@@ -183,6 +189,8 @@ export class AudioEngine {
   private masterGain: GainNode;
   private masterLimiter: DynamicsCompressorNode;
   private masterAnalyser: AnalyserNode;
+  private masterAnalyserL: AnalyserNode;
+  private masterAnalyserR: AnalyserNode;
   private tracks: Map<string, TrackNode> = new Map();
   private vstWorkletLoaded = false;
   private buffers: Map<string, AudioBuffer> = new Map();
@@ -193,6 +201,33 @@ export class AudioEngine {
   private activeDriver: string = 'wave';
   private bufferCount: number = 6;
   
+  // Variable Wiedergabegeschwindigkeit und -richtung (Deutsch)
+  public playbackSpeed: number = 1.0;
+  public playbackDirection: number = 1; // 1 = vorwärts, -1 = rückwärts
+  private playbackStartPos: number = 0;
+  private physicalStartTime: number = 0;
+  private reversedBuffers: Map<string, AudioBuffer> = new Map();
+
+  // Hilfsmethode zur Generierung von umgekehrten Audio-Puffern fuer Rueckwaertsabspielen
+  private getReversedBuffer(filePath: string, forwardBuffer: AudioBuffer): AudioBuffer {
+    if (this.reversedBuffers.has(filePath)) {
+      return this.reversedBuffers.get(filePath)!;
+    }
+    const numChannels = forwardBuffer.numberOfChannels;
+    const length = forwardBuffer.length;
+    const sampleRate = forwardBuffer.sampleRate;
+    const reversedBuffer = this.ctx.createBuffer(numChannels, length, sampleRate);
+    for (let channel = 0; channel < numChannels; channel++) {
+      const forwardData = forwardBuffer.getChannelData(channel);
+      const reversedData = reversedBuffer.getChannelData(channel);
+      for (let i = 0; i < length; i++) {
+        reversedData[i] = forwardData[length - 1 - i];
+      }
+    }
+    this.reversedBuffers.set(filePath, reversedBuffer);
+    return reversedBuffer;
+  }
+
   // LRU cache management
   private bufferAccessTimes: Map<string, number> = new Map();
 
@@ -222,6 +257,8 @@ export class AudioEngine {
     this.masterGain.gain.value = this.masterVolumeValue;
     this.masterLimiter = this.ctx.createDynamicsCompressor();
     this.masterAnalyser = this.ctx.createAnalyser();
+    this.masterAnalyserL = this.ctx.createAnalyser();
+    this.masterAnalyserR = this.ctx.createAnalyser();
     
     // Default Limiter settings
     this.masterLimiter.threshold.value = -0.1;
@@ -231,10 +268,18 @@ export class AudioEngine {
     this.masterLimiter.release.value = 0.050;
 
     this.masterAnalyser.fftSize = 256;
+    this.masterAnalyserL.fftSize = 256;
+    this.masterAnalyserR.fftSize = 256;
     
     this.masterGain.connect(this.masterLimiter);
     this.masterLimiter.connect(this.masterAnalyser);
     this.masterAnalyser.connect(this.ctx.destination);
+
+    // Sidechain split for stereo VU meter
+    const splitter = this.ctx.createChannelSplitter(2);
+    this.masterLimiter.connect(splitter);
+    splitter.connect(this.masterAnalyserL, 0);
+    splitter.connect(this.masterAnalyserR, 1);
   }
 
   public static getInstance(): AudioEngine {
@@ -277,6 +322,7 @@ export class AudioEngine {
           totalSize -= this.getBufferSize(buf);
           this.buffers.delete(filePath);
           this.bufferAccessTimes.delete(filePath);
+          this.reversedBuffers.delete(filePath);
           console.log(`LRU Memory Unloaded buffer: ${filePath}`);
         }
       }
@@ -423,6 +469,7 @@ export class AudioEngine {
         totalSize -= this.getBufferSize(buf);
         this.buffers.delete(filePath);
         this.bufferAccessTimes.delete(filePath);
+        this.reversedBuffers.delete(filePath);
         console.log(`[AudioEngine Window Eviction] Unloaded buffer: ${filePath} (Distance: ${stats ? stats.minDistance.toFixed(1) : 'N/A'}s)`);
       }
     }
@@ -572,21 +619,28 @@ export class AudioEngine {
   }
 
   public async play(project: { tracks: any[] }, startTime: number = 0) {
-    console.log('[AudioEngine] play() called. startTime:', startTime, 'ctx state:', this.ctx?.state);
+    console.log('[AudioEngine] play() called. startTime:', startTime, 'speed:', this.playbackSpeed, 'dir:', this.playbackDirection, 'ctx state:', this.ctx?.state);
 
-    this.isPlaying = true; // Set synchronously before any awaits to prevent React stale state race conditions (e.g. during preloading)
-    this.startTime = this.ctx.currentTime - startTime;
+    this.isPlaying = true; // Setze den Status synchron vor allen Awaits
+    this.playbackStartPos = startTime;
+    this.physicalStartTime = this.ctx.currentTime;
+    
+    // Berechne startTime zur Abwärtskompatibilität (Legacy-Code)
+    if (this.playbackDirection === -1) {
+      this.startTime = this.ctx.currentTime + startTime / this.playbackSpeed;
+    } else {
+      this.startTime = this.ctx.currentTime - startTime / this.playbackSpeed;
+    }
     this.pauseTime = startTime;
 
     try {
-      // 1. Preload any unloaded regions currently overlapping with the starting playhead area
+      // 1. Ungeladene Regionen im Startbereich sofort preladen
       const filesToLoad: string[] = [];
       project.tracks.forEach(t => {
         t.regions.forEach((r: any) => {
           if (r.file && r.file.path && !this.buffers.has(r.file.path)) {
             const regionStart = r.startPos;
             const regionEnd = r.startPos + r.duration;
-            // Preload files within play window (starting 2s before to 5s after the current playhead)
             const isNeededNow = startTime >= regionStart - 2 && startTime <= regionEnd + 5;
             if (isNeededNow) {
               filesToLoad.push(r.file.path);
@@ -602,17 +656,27 @@ export class AudioEngine {
         })));
       }
 
-      this.stop(); // Always destroy previous state to prevent layering
-      this.isPlaying = true; // Restore to true since stop() sets it to false synchronously
-      this.startTime = this.ctx.currentTime - startTime;
+      this.stop(); // Vorherige Wiedergabe beenden
+      this.isPlaying = true; // Wieder auf true setzen, da stop() es zurücksetzt
+      this.playbackStartPos = startTime;
+      this.physicalStartTime = this.ctx.currentTime;
+      if (this.playbackDirection === -1) {
+        this.startTime = this.ctx.currentTime + startTime / this.playbackSpeed;
+      } else {
+        this.startTime = this.ctx.currentTime - startTime / this.playbackSpeed;
+      }
       this.pauseTime = startTime;
 
       if (this.ctx.state === 'suspended') {
         try {
           await this.ctx.resume();
           console.log('[AudioEngine] ctx.resume() succeeded. new state:', this.ctx.state);
-          // Re-update startTime because the audio context's currentTime might have advanced or shifted when resuming
-          this.startTime = this.ctx.currentTime - startTime;
+          this.physicalStartTime = this.ctx.currentTime;
+          if (this.playbackDirection === -1) {
+            this.startTime = this.ctx.currentTime + startTime / this.playbackSpeed;
+          } else {
+            this.startTime = this.ctx.currentTime - startTime / this.playbackSpeed;
+          }
         } catch (e) {
           console.error('[AudioEngine] ctx.resume() failed:', e);
           throw e;
@@ -623,8 +687,6 @@ export class AudioEngine {
       throw e;
     }
     this.currentProject = project;
-    this.startTime = this.ctx.currentTime - startTime;
-    this.pauseTime = startTime;
     this.activeRegions.clear();
 
     this.manageSlidingWindowCache();
@@ -633,56 +695,60 @@ export class AudioEngine {
     const hasSolo = project.tracks.some(t => t.solo);
 
     project.tracks.forEach(t => {
-      if (hasSolo && !t.solo) return;
-      if (t.muted && !t.solo) return;
-
       const trackNode = this.tracks.get(t.id) || this.createTrack(t.id);
       
-      // Re-apply track volume & pan instantly
-      trackNode.output.gain.setValueAtTime(t.volume !== undefined ? t.volume : 1.0, this.ctx.currentTime);
+      let initialVol = t.volume !== undefined ? t.volume : 1.0;
+      if (hasSolo) {
+        initialVol = t.solo ? initialVol : 0.0;
+      } else if (t.muted) {
+        initialVol = 0.0;
+      }
+      trackNode.output.gain.setValueAtTime(initialVol, this.ctx.currentTime);
       trackNode.pan.pan.setValueAtTime(t.pan !== undefined ? t.pan : 0.0, this.ctx.currentTime);
       
-      // Sort regions by start position for crossfade detection
       const sortedRegions = [...t.regions].sort((a: any, b: any) => a.startPos - b.startPos);
 
       sortedRegions.forEach((r: any) => {
         const buffer = this.buffers.get(r.file.path);
         if (buffer) {
           const source = this.ctx.createBufferSource();
-          source.buffer = buffer;
+          
+          // Bei Rückwärtsabspielen den umgekehrten Puffer nutzen
+          let finalBuffer = buffer;
+          if (this.playbackDirection === -1) {
+            finalBuffer = this.getReversedBuffer(r.file.path, buffer);
+          }
+          source.buffer = finalBuffer;
           
           const effects = r.effects || {};
           const pitchRate = effects.pitchRate !== undefined ? effects.pitchRate : 1.0;
           const keepPitch = effects.keepPitch || false;
-          source.playbackRate.value = pitchRate;
+          
+          // Skaliere die Abspielgeschwindigkeit der Quelle
+          source.playbackRate.value = pitchRate * this.playbackSpeed;
           
           let lastNode: AudioNode = source;
           
-          // --- Real-time Stereo split routing ---
           if (r.stereoMode === 'left-only' || r.stereoMode === 'right-only') {
             const splitter = this.ctx.createChannelSplitter(2);
             const merger = this.ctx.createChannelMerger(2);
             source.connect(splitter);
             const channelIndex = r.stereoMode === 'left-only' ? 0 : 1;
-            splitter.connect(merger, channelIndex, 0); // route to left
-            splitter.connect(merger, channelIndex, 1); // route to right
+            splitter.connect(merger, channelIndex, channelIndex);
             lastNode = merger;
           }
 
-          // Pitch shifter (Jungle) - Always instantiated and connected to support dynamic keepPitch hot-toggling
+          // Pitch Shifter (Jungle) - Skalierung mit globaler Wiedergabegeschwindigkeit
           const shifter = new Jungle(this.ctx);
-          shifter.setPitchRatio(keepPitch ? (1 / pitchRate) : 1.0);
+          shifter.setPitchRatio(keepPitch ? (1 / (pitchRate * this.playbackSpeed)) : 1.0);
           lastNode.connect(shifter.input);
           lastNode = shifter.output;
 
-          // Per-region gain node (for volume gain line)
           const regionGain = this.ctx.createGain();
           regionGain.gain.value = r.gain !== undefined ? r.gain : 1.0;
           lastNode.connect(regionGain);
           lastNode = regionGain;
 
-          // --- Per-region isolated effects chain ---
-          // 1. EQ Filters (10 Bands)
           const eqFilters: BiquadFilterNode[] = [];
           const freqs = [60, 170, 310, 600, 800, 1000, 3000, 6000, 12000, 16000];
           const eqGains = effects.eqGains || new Array(10).fill(0);
@@ -696,7 +762,6 @@ export class AudioEngine {
             lastNode = filter;
           });
 
-          // 2. De-Esser (High shelf filter)
           const deEsserFilter = this.ctx.createBiquadFilter();
           deEsserFilter.type = 'highshelf';
           deEsserFilter.frequency.value = 6000;
@@ -706,23 +771,19 @@ export class AudioEngine {
           lastNode.connect(deEsserFilter);
           lastNode = deEsserFilter;
 
-          // 3. Compressor Node
           const compressor = this.ctx.createDynamicsCompressor();
           const compActive = effects.compActive !== undefined ? effects.compActive : false;
           compressor.threshold.value = effects.compThreshold !== undefined ? effects.compThreshold : -20;
-          compressor.ratio.value = compActive ? (effects.compRatio !== undefined ? Math.max(1, effects.compRatio) : 4) : 1; // 1 = bypass
+          compressor.ratio.value = compActive ? (effects.compRatio !== undefined ? Math.max(1, effects.compRatio) : 4) : 1;
           lastNode.connect(compressor);
           lastNode = compressor;
 
-          // 4. Parallel Wet Send for Reverb & Delay
           const regionOutput = this.ctx.createGain();
           
-          // Reverb (Simple Impulse Response Convolution)
           const reverb = this.ctx.createConvolver();
           const reverbGain = this.ctx.createGain();
           reverbGain.gain.value = (effects.reverbMix !== undefined ? effects.reverbMix : 0) / 100;
 
-          // Convolver needs a valid buffer or it will throw
           const reverbTimeValue = effects.reverbTime || 1.5;
           const reverbLength = this.ctx.sampleRate * reverbTimeValue;
           const reverbImpulse = this.ctx.createBuffer(2, reverbLength, this.ctx.sampleRate);
@@ -754,15 +815,12 @@ export class AudioEngine {
           delay.connect(delayGain);
           delayGain.connect(regionOutput);
 
-          // Connect Dry signal to region output
           lastNode.connect(regionOutput);
 
-          // Fade gain node (for fade in/out + crossfade)
           const fadeGain = this.ctx.createGain();
           regionOutput.connect(fadeGain);
           fadeGain.connect(trackNode.pan);
           
-          // Store active region nodes for real-time slider manipulation
           const activeNode: ActiveRegionNode = {
             regionId: r.id,
             source,
@@ -783,130 +841,149 @@ export class AudioEngine {
           }
           this.activeRegions.get(r.id)!.push(activeNode);
           
-          const realDuration = r.duration / pitchRate;
-          const offset = Math.max(0, startTime - r.startPos);
-          const when = Math.max(0, r.startPos - startTime);
-          const regionEnd = r.startPos + realDuration;
-          
-          if (offset < realDuration) {
-            const bufferOffset = (r.sourceOffset || 0) + offset * pitchRate;
-            const playDuration = realDuration - offset;
-            const bufferDurationToRead = playDuration * pitchRate;
-            source.start(this.ctx.currentTime + when, bufferOffset, bufferDurationToRead);
-            shifter.start(this.ctx.currentTime + when);
+          // --- Zeitberechnungen fuer Start und Scheduling ---
+          if (this.playbackDirection === -1) {
+            // Rückwärtsabspielen
+            const regionDuration = r.duration / pitchRate;
+            const entryTime = Math.min(startTime, r.startPos + regionDuration);
             
-            const absStart = this.ctx.currentTime + when;
-            const absEnd = absStart + playDuration;
-
-            // --- Detect overlap with other regions on this track (crossfade) ---
-            const nextRegion = sortedRegions.find((other: any) =>
-              other.id !== r.id &&
-              other.startPos <= regionEnd + 0.02 &&
-              other.startPos > r.startPos
-            );
-            const prevRegion = sortedRegions.find((other: any) =>
-              other.id !== r.id &&
-              other.startPos + (other.duration / (other.effects?.pitchRate || 1.0)) >= r.startPos - 0.02 &&
-              other.startPos < r.startPos
-            );
-
-            const prevPitchRate = prevRegion?.effects?.pitchRate || 1.0;
-            const prevRealDuration = prevRegion ? (prevRegion.duration / prevPitchRate) : 0.0;
-
-            // Knackfreie und dip-freie Schnitte:
-            // Überprüfe, ob benachbarte Regionen nahtlose Schnitte derselben Originaldatei sind
-            const isContinuousPrev = prevRegion &&
-              prevRegion.file.path === r.file.path &&
-              Math.abs((prevRegion.startPos + prevRealDuration) - r.startPos) < 0.02 &&
-              Math.abs(((prevRegion.sourceOffset || 0) + prevRegion.duration) - (r.sourceOffset || 0)) < 0.02;
-
-            const isContinuousNext = nextRegion &&
-              nextRegion.file.path === r.file.path &&
-              Math.abs(regionEnd - nextRegion.startPos) < 0.02 &&
-              Math.abs(((r.sourceOffset || 0) + r.duration) - (nextRegion.sourceOffset || 0)) < 0.02;
-
-            const realFadeIn = (r.fadeIn !== undefined ? r.fadeIn : (isContinuousPrev ? 0.0 : 0.005)) / pitchRate;
-            const realFadeOut = (r.fadeOut !== undefined ? r.fadeOut : (isContinuousNext ? 0.0 : 0.005)) / pitchRate;
-
-            // Crossfade: if next region starts before this one ends, apply crossfade
-            let effectiveFadeOut = realFadeOut;
-            if (nextRegion && !isContinuousNext) {
-              const overlapStart = nextRegion.startPos;
-              const overlapDuration = regionEnd - overlapStart;
-              if (overlapDuration > 0) {
-                effectiveFadeOut = Math.max(overlapDuration, realFadeOut);
-              }
-            }
-
-            let effectiveFadeIn = realFadeIn;
-            if (prevRegion && !isContinuousPrev) {
-              const overlapDuration = (prevRegion.startPos + prevRealDuration) - r.startPos;
-              if (overlapDuration > 0) {
-                effectiveFadeIn = Math.max(overlapDuration, realFadeIn);
-              }
-            }
-
-            // --- Mathematisch präzise Fade-Berechnung unter Berücksichtigung des Start-Offsets ---
-            let startGain = 1.0;
-            let fadeInTimeRemaining = 0;
-
-            if (offset < effectiveFadeIn) {
-              // Wir befinden uns noch mitten im Einblendbereich (Fade-In)
-              startGain = effectiveFadeIn > 0 ? (offset / effectiveFadeIn) : 1.0;
-              fadeInTimeRemaining = effectiveFadeIn - offset;
-            } else {
-              // Der Einblendbereich ist bereits vollständig übersprungen
-              startGain = 1.0;
-            }
-
-            // Überprüfe, ob wir uns im Ausblendbereich (Fade-Out) befinden
-            const fadeOutStartOffset = realDuration - effectiveFadeOut;
-            let inFadeOut = false;
-            let startFadeOutGain = 1.0;
-
-            if (offset >= fadeOutStartOffset) {
-              // Wir starten die Wiedergabe mitten im Fade-Out
-              inFadeOut = true;
-              const remainingTimeInClip = realDuration - offset;
-              startFadeOutGain = effectiveFadeOut > 0 ? (remainingTimeInClip / effectiveFadeOut) : 0.0;
-            }
-
-            // Knisterfreie Initialisierung und exakte Lautstärke-Rampen
-            if (absStart > this.ctx.currentTime) {
+            if (entryTime >= r.startPos) {
+              const playDuration = entryTime - r.startPos;
+              const when = Math.max(0, startTime - entryTime) / this.playbackSpeed;
+              const bufferOffsetReversed = buffer.duration - ((r.sourceOffset || 0) + playDuration * pitchRate);
+              const bufferDurationToRead = playDuration * pitchRate;
+              
+              source.start(this.ctx.currentTime + when, Math.max(0, bufferOffsetReversed), Math.max(0, bufferDurationToRead));
+              shifter.start(this.ctx.currentTime + when);
+              
+              const absStart = this.ctx.currentTime + when;
+              const absEnd = absStart + (playDuration / this.playbackSpeed);
+              
+              // Knackfreie Fades fuer Rueckwaertswiedergabe (5ms Ramps)
               fadeGain.gain.setValueAtTime(0, this.ctx.currentTime);
+              fadeGain.gain.setValueAtTime(0, absStart);
+              fadeGain.gain.linearRampToValueAtTime(1.0, absStart + 0.005);
+              fadeGain.gain.setValueAtTime(1.0, Math.max(absStart + 0.005, absEnd - 0.005));
+              fadeGain.gain.linearRampToValueAtTime(0, absEnd);
             }
+          } else {
+            // Vorwärtsabspielen (mit variablem playbackSpeed)
+            const realDuration = r.duration / pitchRate;
+            const offset = Math.max(0, startTime - r.startPos);
+            const when = Math.max(0, r.startPos - startTime) / this.playbackSpeed;
+            const regionEnd = r.startPos + realDuration;
+            
+            if (offset < realDuration) {
+              const bufferOffset = (r.sourceOffset || 0) + offset * pitchRate;
+              const playDuration = realDuration - offset;
+              const bufferDurationToRead = playDuration * pitchRate;
+              
+              source.start(this.ctx.currentTime + when, bufferOffset, bufferDurationToRead);
+              shifter.start(this.ctx.currentTime + when);
+              
+              const absStart = this.ctx.currentTime + when;
+              const absEnd = absStart + (playDuration / this.playbackSpeed);
 
-            if (inFadeOut) {
-              // Wenn die Wiedergabe direkt im Ausblendbereich einsteigt (Equal-Power Curve)
-              if (effectiveFadeOut > 0) {
-                const curve = this.getEqualPowerFadeOutCurve(startFadeOutGain);
-                fadeGain.gain.setValueCurveAtTime(curve, absStart, playDuration);
-              } else {
-                fadeGain.gain.setValueAtTime(0, absStart);
+              const nextRegion = sortedRegions.find((other: any) =>
+                other.id !== r.id &&
+                other.startPos <= regionEnd + 0.02 &&
+                other.startPos > r.startPos &&
+                shareChannels(r, other)
+              );
+              const prevRegion = sortedRegions.find((other: any) =>
+                other.id !== r.id &&
+                other.startPos + (other.duration / (other.effects?.pitchRate || 1.0)) >= r.startPos - 0.02 &&
+                other.startPos < r.startPos &&
+                shareChannels(r, other)
+              );
+
+              const prevPitchRate = prevRegion?.effects?.pitchRate || 1.0;
+              const prevRealDuration = prevRegion ? (prevRegion.duration / prevPitchRate) : 0.0;
+
+              const isContinuousPrev = prevRegion &&
+                prevRegion.file.path === r.file.path &&
+                Math.abs((prevRegion.startPos + prevRealDuration) - r.startPos) < 0.02 &&
+                Math.abs(((prevRegion.sourceOffset || 0) + prevRegion.duration) - (r.sourceOffset || 0)) < 0.02;
+
+              const isContinuousNext = nextRegion &&
+                nextRegion.file.path === r.file.path &&
+                Math.abs(regionEnd - nextRegion.startPos) < 0.02 &&
+                Math.abs(((r.sourceOffset || 0) + r.duration) - (nextRegion.sourceOffset || 0)) < 0.02;
+
+              const realFadeIn = (r.fadeIn !== undefined ? r.fadeIn : (isContinuousPrev ? 0.0 : 0.005)) / pitchRate;
+              const realFadeOut = (r.fadeOut !== undefined ? r.fadeOut : (isContinuousNext ? 0.0 : 0.005)) / pitchRate;
+
+              let effectiveFadeOut = realFadeOut;
+              if (nextRegion && !isContinuousNext) {
+                const overlapStart = nextRegion.startPos;
+                const overlapDuration = regionEnd - overlapStart;
+                if (overlapDuration > 0) {
+                  effectiveFadeOut = Math.max(overlapDuration, realFadeOut);
+                }
               }
-            } else {
-              // Normaler Ablauf (ggf. mit Rest-Fade-In und späterem Fade-Out)
-              fadeGain.gain.setValueAtTime(startGain, absStart);
 
-              if (fadeInTimeRemaining > 0) {
-                // Ramping vom Teillautstärke-Einstiegspunkt hoch auf 100% (Equal-Power Curve)
-                const curve = this.getEqualPowerFadeInCurve(startGain);
-                fadeGain.gain.setValueCurveAtTime(curve, absStart, fadeInTimeRemaining);
+              let effectiveFadeIn = realFadeIn;
+              if (prevRegion && !isContinuousPrev) {
+                const overlapDuration = (prevRegion.startPos + prevRealDuration) - r.startPos;
+                if (overlapDuration > 0) {
+                  effectiveFadeIn = Math.max(overlapDuration, realFadeIn);
+                }
               }
 
-              // Normalen Fade-Out planen
-              const fadeOutStartAbs = absStart + (fadeOutStartOffset - offset);
-              if (fadeOutStartAbs > absStart + fadeInTimeRemaining) {
-                fadeGain.gain.setValueAtTime(1.0, fadeOutStartAbs);
+              let startGain = 1.0;
+              let fadeInTimeRemaining = 0;
+
+              if (offset < effectiveFadeIn) {
+                startGain = effectiveFadeIn > 0 ? (offset / effectiveFadeIn) : 1.0;
+                fadeInTimeRemaining = effectiveFadeIn - offset;
+              }
+
+              const fadeOutStartOffset = realDuration - effectiveFadeOut;
+              let inFadeOut = false;
+              let startFadeOutGain = 1.0;
+
+              if (offset >= fadeOutStartOffset) {
+                inFadeOut = true;
+                const remainingTimeInClip = realDuration - offset;
+                startFadeOutGain = effectiveFadeOut > 0 ? (remainingTimeInClip / effectiveFadeOut) : 0.0;
+              }
+
+              if (absStart > this.ctx.currentTime) {
+                fadeGain.gain.setValueAtTime(0, this.ctx.currentTime);
+              }
+
+              // Umrechnung in physische Sekunden fuer Fades bei variabler Geschwindigkeit
+              const physFadeInRemaining = fadeInTimeRemaining / this.playbackSpeed;
+              const physPlayDuration = playDuration / this.playbackSpeed;
+              const physFadeOutDuration = effectiveFadeOut / this.playbackSpeed;
+
+              if (inFadeOut) {
                 if (effectiveFadeOut > 0) {
-                  const curve = this.getEqualPowerFadeOutCurve(1.0);
-                  fadeGain.gain.setValueCurveAtTime(curve, fadeOutStartAbs, effectiveFadeOut);
+                  const curve = this.getEqualPowerFadeOutCurve(startFadeOutGain);
+                  fadeGain.gain.setValueCurveAtTime(curve, absStart, physPlayDuration);
+                } else {
+                  fadeGain.gain.setValueAtTime(0, absStart);
                 }
               } else {
-                // Falls das Fade-Out das restliche Fade-In überlappt
-                if (effectiveFadeOut > 0) {
-                  const curve = this.getEqualPowerFadeOutCurve(1.0);
-                  fadeGain.gain.setValueCurveAtTime(curve, absStart + fadeInTimeRemaining, effectiveFadeOut);
+                fadeGain.gain.setValueAtTime(startGain, absStart);
+
+                if (fadeInTimeRemaining > 0) {
+                  const curve = this.getEqualPowerFadeInCurve(startGain);
+                  fadeGain.gain.setValueCurveAtTime(curve, absStart, physFadeInRemaining);
+                }
+
+                const fadeOutStartAbs = absStart + ((fadeOutStartOffset - offset) / this.playbackSpeed);
+                if (fadeOutStartAbs > absStart + physFadeInRemaining) {
+                  fadeGain.gain.setValueAtTime(1.0, fadeOutStartAbs);
+                  if (effectiveFadeOut > 0) {
+                    const curve = this.getEqualPowerFadeOutCurve(1.0);
+                    fadeGain.gain.setValueCurveAtTime(curve, fadeOutStartAbs, physFadeOutDuration);
+                  }
+                } else {
+                  if (effectiveFadeOut > 0) {
+                    const curve = this.getEqualPowerFadeOutCurve(1.0);
+                    fadeGain.gain.setValueCurveAtTime(curve, absStart + physFadeInRemaining, physFadeOutDuration);
+                  }
                 }
               }
             }
@@ -1193,31 +1270,364 @@ export class AudioEngine {
     });
   }
 
+  /**
+   * Plant eine Region waehrend der Wiedergabe in Echtzeit neu.
+   * Stoppt die alten Nodes, erstellt neue und berechnet die Startzeiten
+   * und Fades relativ zum aktuellen Playhead.
+   */
+  public rescheduleRegion(trackId: string, r: any, trackRegions: any[]) {
+    if (!this.isPlaying) return;
+
+    // Spur-Knoten ermitteln oder neu anlegen
+    const trackNode = this.tracks.get(trackId) || this.createTrack(trackId);
+
+    let list = this.activeRegions.get(r.id);
+    if (!list) {
+      const buffer = this.buffers.get(r.file.path);
+      if (!buffer) return;
+
+      const source = this.ctx.createBufferSource();
+      source.buffer = buffer;
+
+      const effects = r.effects || {};
+      const pitchRate = effects.pitchRate !== undefined ? effects.pitchRate : 1.0;
+      const keepPitch = effects.keepPitch || false;
+      source.playbackRate.value = pitchRate;
+
+      let lastNode: AudioNode = source;
+
+      if (r.stereoMode === 'left-only' || r.stereoMode === 'right-only') {
+        const splitter = this.ctx.createChannelSplitter(2);
+        const merger = this.ctx.createChannelMerger(2);
+        source.connect(splitter);
+        const channelIndex = r.stereoMode === 'left-only' ? 0 : 1;
+        splitter.connect(merger, channelIndex, channelIndex);
+        lastNode = merger;
+      }
+
+      const shifter = new Jungle(this.ctx);
+      shifter.setPitchRatio(keepPitch ? (1 / pitchRate) : 1.0);
+      lastNode.connect(shifter.input);
+      lastNode = shifter.output;
+
+      const regionGain = this.ctx.createGain();
+      regionGain.gain.value = r.gain !== undefined ? r.gain : 1.0;
+      lastNode.connect(regionGain);
+      lastNode = regionGain;
+
+      // EQ Filters
+      const eqFilters: BiquadFilterNode[] = [];
+      const freqs = [60, 170, 310, 600, 800, 1000, 3000, 6000, 12000, 16000];
+      const eqGains = effects.eqGains || new Array(10).fill(0);
+      freqs.forEach((f, idx) => {
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'peaking';
+        filter.frequency.value = f;
+        filter.gain.value = eqGains[idx] !== undefined ? eqGains[idx] : 0;
+        lastNode.connect(filter);
+        eqFilters.push(filter);
+        lastNode = filter;
+      });
+
+      // De-Esser
+      const deEsserFilter = this.ctx.createBiquadFilter();
+      deEsserFilter.type = 'highshelf';
+      deEsserFilter.frequency.value = 6000;
+      deEsserFilter.gain.value = (effects.deEsserActive && effects.deEsserReduction !== undefined)
+        ? -effects.deEsserReduction
+        : 0;
+      lastNode.connect(deEsserFilter);
+      lastNode = deEsserFilter;
+
+      // Compressor
+      const compressor = this.ctx.createDynamicsCompressor();
+      const compActive = effects.compActive !== undefined ? effects.compActive : false;
+      compressor.threshold.value = effects.compThreshold !== undefined ? effects.compThreshold : -20;
+      compressor.ratio.value = compActive ? (effects.compRatio !== undefined ? Math.max(1, effects.compRatio) : 4) : 1;
+      lastNode.connect(compressor);
+      lastNode = compressor;
+
+      // Parallel Reverb/Delay
+      const regionOutput = this.ctx.createGain();
+      
+      const reverb = this.ctx.createConvolver();
+      const reverbGain = this.ctx.createGain();
+      reverbGain.gain.value = (effects.reverbMix !== undefined ? effects.reverbMix : 0) / 100;
+      const reverbTimeValue = effects.reverbTime || 1.5;
+      const reverbLength = this.ctx.sampleRate * reverbTimeValue;
+      const reverbImpulse = this.ctx.createBuffer(2, reverbLength, this.ctx.sampleRate);
+      const leftRev = reverbImpulse.getChannelData(0);
+      const rightRev = reverbImpulse.getChannelData(1);
+      for (let i = 0; i < reverbLength; i++) {
+         leftRev[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / reverbLength, 3);
+         rightRev[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / reverbLength, 3);
+      }
+      reverb.buffer = reverbImpulse;
+      lastNode.connect(reverb);
+      reverb.connect(reverbGain);
+      reverbGain.connect(regionOutput);
+
+      const delayGain = this.ctx.createGain();
+      delayGain.gain.value = (effects.delayFeedback !== undefined && effects.delayFeedback > 0) ? 0.5 : 0.0;
+      const delay = this.ctx.createDelay(5.0);
+      delay.delayTime.value = (effects.delayTime !== undefined ? effects.delayTime : 300) / 1000;
+      const delayTimeParam = delay.delayTime;
+      const delayFeedback = this.ctx.createGain();
+      delayFeedback.gain.value = (effects.delayFeedback !== undefined ? effects.delayFeedback : 0) / 100;
+      lastNode.connect(delay);
+      delay.connect(delayFeedback);
+      delayFeedback.connect(delay);
+      delay.connect(delayGain);
+      delayGain.connect(regionOutput);
+
+      lastNode.connect(regionOutput);
+
+      const fadeGain = this.ctx.createGain();
+      regionOutput.connect(fadeGain);
+      fadeGain.connect(trackNode.pan);
+
+      const activeNode: ActiveRegionNode = {
+        regionId: r.id,
+        source,
+        gainNode: regionGain,
+        eqFilters,
+        deEsserFilter,
+        compressor,
+        reverbGain,
+        reverb,
+        delayTime: delayTimeParam,
+        delayFeedback,
+        delayGain,
+        fadeGain,
+        pitchShifter: shifter
+      };
+      
+      list = [activeNode];
+      this.activeRegions.set(r.id, list);
+    }
+
+    list.forEach(node => {
+      // 1. Stoppen und Trennen der alten Nodes
+      try { node.source.stop(); } catch (e) {}
+      try { node.source.disconnect(); } catch (e) {}
+      if (node.pitchShifter) {
+        try { node.pitchShifter.stop(); } catch (e) {}
+        try { node.pitchShifter.output.disconnect(); } catch (e) {}
+      }
+
+      // 2. Erstellen neuer Nodes
+      const buffer = this.buffers.get(r.file.path);
+      if (!buffer) return;
+
+      const newSource = this.ctx.createBufferSource();
+      newSource.buffer = buffer;
+
+      const effects = r.effects || {};
+      const pitchRate = effects.pitchRate !== undefined ? effects.pitchRate : 1.0;
+      const keepPitch = effects.keepPitch || false;
+      newSource.playbackRate.value = pitchRate;
+
+      let lastNode: AudioNode = newSource;
+
+      if (r.stereoMode === 'left-only' || r.stereoMode === 'right-only') {
+        const splitter = this.ctx.createChannelSplitter(2);
+        const merger = this.ctx.createChannelMerger(2);
+        newSource.connect(splitter);
+        const channelIndex = r.stereoMode === 'left-only' ? 0 : 1;
+        splitter.connect(merger, channelIndex, channelIndex);
+        lastNode = merger;
+      }
+
+      const newShifter = new Jungle(this.ctx);
+      newShifter.setPitchRatio(keepPitch ? (1 / pitchRate) : 1.0);
+      lastNode.connect(newShifter.input);
+      lastNode = newShifter.output;
+
+      // Verbindung zum bestehenden gainNode herstellen
+      lastNode.connect(node.gainNode);
+
+      // Falls die Spur gewechselt hat, verbinden wir den fadeGain mit der neuen Spur
+      try { node.fadeGain.disconnect(); } catch (e) {}
+      node.fadeGain.connect(trackNode.pan);
+
+      node.source = newSource;
+      node.pitchShifter = newShifter;
+
+      // 3. Berechnung der Offsets
+      const playhead = this.currentTime;
+      const now = this.ctx.currentTime;
+      
+      const realDuration = r.duration / pitchRate;
+      const offset = Math.max(0, playhead - r.startPos);
+      const when = Math.max(0, r.startPos - playhead);
+      const regionEnd = r.startPos + realDuration;
+
+      if (offset < realDuration) {
+        const bufferOffset = (r.sourceOffset || 0) + offset * pitchRate;
+        const playDuration = realDuration - offset;
+        const bufferDurationToRead = playDuration * pitchRate;
+
+        newSource.start(now + when, bufferOffset, bufferDurationToRead);
+        newShifter.start(now + when);
+
+        const absStart = now + when;
+
+        // Fades- und Crossfades-Berechnung
+        const sortedRegions = [...trackRegions].sort((a: any, b: any) => a.startPos - b.startPos);
+        const nextRegion = sortedRegions.find((other: any) =>
+          other.id !== r.id &&
+          other.startPos <= regionEnd + 0.02 &&
+          other.startPos > r.startPos &&
+          shareChannels(r, other)
+        );
+        const prevRegion = sortedRegions.find((other: any) =>
+          other.id !== r.id &&
+          other.startPos + (other.duration / (other.effects?.pitchRate || 1.0)) >= r.startPos - 0.02 &&
+          other.startPos < r.startPos &&
+          shareChannels(r, other)
+        );
+
+        const prevPitchRate = prevRegion?.effects?.pitchRate || 1.0;
+        const prevRealDuration = prevRegion ? (prevRegion.duration / prevPitchRate) : 0.0;
+
+        const isContinuousPrev = prevRegion &&
+          prevRegion.file?.path === r.file?.path &&
+          Math.abs((prevRegion.startPos + prevRealDuration) - r.startPos) < 0.02 &&
+          Math.abs(((prevRegion.sourceOffset || 0) + prevRegion.duration) - (r.sourceOffset || 0)) < 0.02;
+
+        const isContinuousNext = nextRegion &&
+          nextRegion.file?.path === r.file?.path &&
+          Math.abs(regionEnd - nextRegion.startPos) < 0.02 &&
+          Math.abs(((r.sourceOffset || 0) + r.duration) - (nextRegion.sourceOffset || 0)) < 0.02;
+
+        const realFadeIn = (r.fadeIn !== undefined ? r.fadeIn : (isContinuousPrev ? 0.0 : 0.005)) / pitchRate;
+        const realFadeOut = (r.fadeOut !== undefined ? r.fadeOut : (isContinuousNext ? 0.0 : 0.005)) / pitchRate;
+
+        let effectiveFadeOut = realFadeOut;
+        if (nextRegion && !isContinuousNext) {
+          const overlapStart = nextRegion.startPos;
+          const overlapDuration = regionEnd - overlapStart;
+          if (overlapDuration > 0) {
+            effectiveFadeOut = Math.max(overlapDuration, realFadeOut);
+          }
+        }
+
+        let effectiveFadeIn = realFadeIn;
+        if (prevRegion && !isContinuousPrev) {
+          const overlapDuration = (prevRegion.startPos + prevRealDuration) - r.startPos;
+          if (overlapDuration > 0) {
+            effectiveFadeIn = Math.max(overlapDuration, realFadeIn);
+          }
+        }
+
+        let startGain = 1.0;
+        let fadeInTimeRemaining = 0;
+
+        if (offset < effectiveFadeIn) {
+          startGain = effectiveFadeIn > 0 ? (offset / effectiveFadeIn) : 1.0;
+          fadeInTimeRemaining = effectiveFadeIn - offset;
+        }
+
+        const fadeOutStartOffset = realDuration - effectiveFadeOut;
+        let inFadeOut = false;
+        let startFadeOutGain = 1.0;
+
+        if (offset >= fadeOutStartOffset) {
+          inFadeOut = true;
+          const remainingTimeInClip = realDuration - offset;
+          startFadeOutGain = effectiveFadeOut > 0 ? (remainingTimeInClip / effectiveFadeOut) : 0.0;
+        }
+
+        node.fadeGain.gain.cancelScheduledValues(now);
+
+        if (absStart > now) {
+          node.fadeGain.gain.setValueAtTime(0, now);
+        }
+
+        if (inFadeOut) {
+          if (effectiveFadeOut > 0) {
+            const curve = this.getEqualPowerFadeOutCurve(startFadeOutGain);
+            node.fadeGain.gain.setValueCurveAtTime(curve, absStart, playDuration);
+          } else {
+            node.fadeGain.gain.setValueAtTime(0, absStart);
+          }
+        } else {
+          node.fadeGain.gain.setValueAtTime(startGain, absStart);
+
+          if (fadeInTimeRemaining > 0) {
+            const curve = this.getEqualPowerFadeInCurve(startGain);
+            node.fadeGain.gain.setValueCurveAtTime(curve, absStart, fadeInTimeRemaining);
+          }
+
+          const fadeOutStartAbs = absStart + (fadeOutStartOffset - offset);
+          if (fadeOutStartAbs > absStart + fadeInTimeRemaining) {
+            node.fadeGain.gain.setValueAtTime(1.0, fadeOutStartAbs);
+            if (effectiveFadeOut > 0) {
+              const curve = this.getEqualPowerFadeOutCurve(1.0);
+              node.fadeGain.gain.setValueCurveAtTime(curve, fadeOutStartAbs, effectiveFadeOut);
+            }
+          } else {
+            if (effectiveFadeOut > 0) {
+              const curve = this.getEqualPowerFadeOutCurve(1.0);
+              node.fadeGain.gain.setValueCurveAtTime(curve, absStart + fadeInTimeRemaining, effectiveFadeOut);
+            }
+          }
+        }
+      } else {
+        node.fadeGain.gain.cancelScheduledValues(now);
+        node.fadeGain.gain.setValueAtTime(0, now);
+      }
+    });
+  }
+
   public get currentTime() {
     if (this.isPlaying) {
-      return this.ctx.currentTime - this.startTime;
+      const elapsed = this.ctx.currentTime - this.physicalStartTime;
+      if (this.playbackDirection === -1) {
+        return Math.max(0, this.playbackStartPos - elapsed * this.playbackSpeed);
+      } else {
+        return this.playbackStartPos + elapsed * this.playbackSpeed;
+      }
     }
     return this.pauseTime;
   }
 
   public getMasterLevels(): { left: number, right: number } {
     if (!this.isPlaying) return { left: 0, right: 0 };
-    const dataArray = new Uint8Array(this.masterAnalyser.frequencyBinCount);
-    this.masterAnalyser.getByteTimeDomainData(dataArray);
     
-    let sum = 0;
-    for (let i = 0; i < dataArray.length; i++) {
-      const val = (dataArray[i] - 128) / 128;
-      sum += val * val;
+    // Left channel RMS
+    const dataL = new Uint8Array(this.masterAnalyserL.frequencyBinCount);
+    this.masterAnalyserL.getByteTimeDomainData(dataL);
+    let sumL = 0;
+    for (let i = 0; i < dataL.length; i++) {
+      const val = (dataL[i] - 128) / 128;
+      sumL += val * val;
     }
-    const rms = Math.sqrt(sum / dataArray.length);
-    const level = Math.min(1, rms * 4); // Boost visually
-    return { left: level, right: level }; 
+    const rmsL = Math.sqrt(sumL / dataL.length);
+    const levelL = Math.min(1, rmsL * 4); // Boost visually
+
+    // Right channel RMS
+    const dataR = new Uint8Array(this.masterAnalyserR.frequencyBinCount);
+    this.masterAnalyserR.getByteTimeDomainData(dataR);
+    let sumR = 0;
+    for (let i = 0; i < dataR.length; i++) {
+      const val = (dataR[i] - 128) / 128;
+      sumR += val * val;
+    }
+    const rmsR = Math.sqrt(sumR / dataR.length);
+    const levelR = Math.min(1, rmsR * 4); // Boost visually
+
+    return { left: levelL, right: levelR }; 
+  }
+
+  public getMasterVolume(): number {
+    return this.masterVolumeValue;
   }
 
   public setMasterVolume(linearValue: number) {
     this.masterVolumeValue = linearValue;
     this.rampParam(this.masterGain.gain, linearValue);
+    window.dispatchEvent(new CustomEvent('MASTER_VOLUME_CHANGED', { detail: { volume: linearValue } }));
   }
 
   // --- Master Ducking Support for Recording ---
@@ -1487,8 +1897,7 @@ export class AudioEngine {
           const merger = offlineCtx.createChannelMerger(2);
           source.connect(splitter);
           const channelIndex = r.stereoMode === 'left-only' ? 0 : 1;
-          splitter.connect(merger, channelIndex, 0);
-          splitter.connect(merger, channelIndex, 1);
+          splitter.connect(merger, channelIndex, channelIndex);
           lastNode = merger;
         }
 
@@ -1604,12 +2013,14 @@ export class AudioEngine {
         const nextRegion = sortedRegions.find((other: any) =>
           other.id !== r.id &&
           other.startPos < r.startPos + realDuration &&
-          other.startPos > r.startPos
+          other.startPos > r.startPos &&
+          shareChannels(r, other)
         );
         const prevRegion = sortedRegions.find((other: any) =>
           other.id !== r.id &&
           other.startPos + (other.duration / (other.effects?.pitchRate || 1.0)) > r.startPos &&
-          other.startPos < r.startPos
+          other.startPos < r.startPos &&
+          shareChannels(r, other)
         );
 
         const prevPitchRate = prevRegion?.effects?.pitchRate || 1.0;

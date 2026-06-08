@@ -11,7 +11,7 @@ import {
 import { MidiEngine } from '../lib/MidiEngine'
 import { useTranslation } from 'react-i18next'
 
-type Tab = 'Wiedergabe' | 'Ordner' | 'Import/Audio' | 'System' | 'Tastaturkürzel' | 'Projekteinstellungen' | 'MIDI' | 'Sprache & Anzeige'
+type Tab = 'Wiedergabe' | 'Ordner' | 'Ansicht' | 'System' | 'Tastaturkürzel' | 'Projekteinstellungen' | 'MIDI' | 'Sprache & Anzeige'
 
 export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', onTriggerUpdate }: { onClose: () => void; initialTab?: Tab; onTriggerUpdate?: (info: any) => void }) {
   const { t, i18n } = useTranslation()
@@ -26,6 +26,8 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
     tracksCount: 32,
     maxUndoSteps: 50,
     halfWaveform: false,
+    showVerticalGuidelines: false,
+    videoAudioOnOneTrack: true,
     midiMappings: [],
     midiInputDeviceId: '',
     midiOutputDeviceId: '',
@@ -35,7 +37,10 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
     vstPaths: [],
     keyboardShortcuts: DEFAULT_KEYBOARD_SHORTCUTS,
     language: 'de',
-    textScale: 'normal'
+    textScale: 'normal',
+    // Standard-Sprungweiten fuer Pfeiltasten Links/Rechts
+    jumpSizePlayback: 3.0,
+    jumpSizeStopped: 1.0
   })
   const [capturingShortcut, setCapturingShortcut] = useState<ShortcutAction | null>(null)
 
@@ -588,6 +593,41 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
                {t('settings.playback.spacebar_stops', { defaultValue: 'Leertaste stoppt an aktueller Abspielposition' })}
              </label>
            </div>
+            
+            {/* Sprungweiten fuer Links-/Rechtspfeiltasten */}
+            <div className="mt-4 pt-4 border-t border-gray-700/50">
+              <span className="text-gray-400 block mb-2 font-semibold">{t('settings.playback.jump_sizes', { defaultValue: 'Sprungweiten (Pfeiltasten Links/Rechts)' })}</span>
+              <div className="flex flex-col gap-3">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-gray-400">{t('settings.playback.jump_playback', { defaultValue: 'Während der Wiedergabe:' })}</span>
+                  <select
+                    value={settings.jumpSizePlayback !== undefined ? settings.jumpSizePlayback : 3}
+                    onChange={(e) => setSettings({ ...settings, jumpSizePlayback: parseFloat(e.target.value) })}
+                    className="bg-[#1a1d21] border border-gray-600 rounded px-2 py-1 w-32 outline-none text-xs text-white"
+                  >
+                    <option value="0.5">0.5 Sekunden</option>
+                    <option value="1">1 Sekunde</option>
+                    <option value="3">3 Sekunden</option>
+                    <option value="5">5 Sekunden</option>
+                    <option value="10">10 Sekunden</option>
+                  </select>
+                </div>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-gray-400">{t('settings.playback.jump_stopped', { defaultValue: 'Im Stillstand:' })}</span>
+                  <select
+                    value={settings.jumpSizeStopped !== undefined ? settings.jumpSizeStopped : 1}
+                    onChange={(e) => setSettings({ ...settings, jumpSizeStopped: parseFloat(e.target.value) })}
+                    className="bg-[#1a1d21] border border-gray-600 rounded px-2 py-1 w-32 outline-none text-xs text-white"
+                  >
+                    <option value="0.5">0.5 Sekunden</option>
+                    <option value="1">1 Sekunde</option>
+                    <option value="3">3 Sekunden</option>
+                    <option value="5">5 Sekunden</option>
+                    <option value="10">10 Sekunden</option>
+                  </select>
+                </div>
+              </div>
+            </div>
         </div>
       </div>
     </div>
@@ -670,16 +710,10 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
     </div>
   )
 
-  const renderVideoAudio = () => (
+  const renderAnsicht = () => (
     <div className="border border-gray-700 p-4 rounded bg-[#1e2124] h-full">
-      <h3 className="text-center font-semibold mb-4 text-sm">{t('settings.import.title', { defaultValue: 'Import Einstellungen' })}</h3>
+      <h3 className="text-center font-semibold mb-4 text-sm">{t('settings.view.title', { defaultValue: 'Ansicht Einstellungen' })}</h3>
       <div className="flex flex-col gap-3 text-sm">
-         <label className="flex items-center gap-2 cursor-pointer">
-           <input type="checkbox" defaultChecked /> {t('settings.import.video_import_audio_only', { defaultValue: 'Video-Dateien importieren (Nur Audiospur wird geladen)' })}
-         </label>
-         <label className="flex items-center gap-2 cursor-pointer">
-           <input type="checkbox" defaultChecked /> {t('settings.import.auto_generate_waveform', { defaultValue: 'Wellenform beim Import automatisch erstellen' })}
-         </label>
          <label className="flex items-center gap-2 cursor-pointer">
            <input 
              type="checkbox" 
@@ -688,6 +722,41 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
            /> 
            {t('settings.import.half_waveform', { defaultValue: 'Halbe Wellenformdarstellung' })}
          </label>
+         <label className="flex items-center gap-2 cursor-pointer">
+           <input 
+             type="checkbox" 
+             checked={!!settings.showVerticalGuidelines} 
+             onChange={(e) => setSettings({ ...settings, showVerticalGuidelines: e.target.checked })} 
+           /> 
+           {t('settings.view.show_vertical_guidelines', { defaultValue: 'Hilfslinien vertikal' })}
+         </label>
+          <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-gray-700/40">
+            <span className="text-gray-400 block text-xs font-semibold">{t('settings.view.stereo_display', { defaultValue: 'Stereo-Spur Darstellung:' })}</span>
+            <div className="flex flex-col gap-2 pl-2">
+              <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-200">
+                <input 
+                  type="radio" 
+                  name="stereoDisplay" 
+                  value="oneTrack" 
+                  checked={settings.videoAudioOnOneTrack !== false} 
+                  onChange={() => setSettings({ ...settings, videoAudioOnOneTrack: true })} 
+                  className="text-omega-accent bg-[#1a1d21] border-gray-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
+                />
+                {t('settings.view.stereo_on_one_track', { defaultValue: 'Stereo auf einer Spur' })}
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-200">
+                <input 
+                  type="radio" 
+                  name="stereoDisplay" 
+                  value="twoTracks" 
+                  checked={settings.videoAudioOnOneTrack === false} 
+                  onChange={() => setSettings({ ...settings, videoAudioOnOneTrack: false })} 
+                  className="text-omega-accent bg-[#1a1d21] border-gray-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
+                />
+                {t('settings.view.stereo_on_two_tracks', { defaultValue: 'Stereo auf zwei Spuren' })}
+              </label>
+            </div>
+          </div>
       </div>
     </div>
   )
@@ -1067,14 +1136,14 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
     setOriginalLanguage(settings.language || 'de')
   }
 
-  const tabs: Tab[] = ['Projekteinstellungen', 'Wiedergabe', 'Ordner', 'Import/Audio', 'System', 'Tastaturkürzel', 'MIDI', 'Sprache & Anzeige']
+  const tabs: Tab[] = ['Projekteinstellungen', 'Wiedergabe', 'Ordner', 'Ansicht', 'System', 'Tastaturkürzel', 'MIDI', 'Sprache & Anzeige']
 
   const getTabLabel = (tab: Tab) => {
     switch (tab) {
       case 'Projekteinstellungen': return t('settings.tabs.project', { defaultValue: 'Projekteinstellungen' })
       case 'Wiedergabe': return t('settings.tabs.playback', { defaultValue: 'Wiedergabe' })
       case 'Ordner': return t('settings.tabs.folders', { defaultValue: 'Ordner' })
-      case 'Import/Audio': return t('settings.tabs.import', { defaultValue: 'Import/Audio' })
+      case 'Ansicht': return t('settings.tabs.view', { defaultValue: 'Ansicht' })
       case 'System': return t('settings.tabs.system', { defaultValue: 'System' })
       case 'Tastaturkürzel': return t('settings.tabs.shortcuts', { defaultValue: 'Tastaturkürzel' })
       case 'MIDI': return t('settings.tabs.midi', { defaultValue: 'MIDI' })
@@ -1108,7 +1177,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
         <div className="p-4 flex-1 overflow-hidden">
           {activeTab === 'Wiedergabe' && renderWiedergabe()}
           {activeTab === 'Ordner' && renderOrdner()}
-          {activeTab === 'Import/Audio' && renderVideoAudio()}
+          {activeTab === 'Ansicht' && renderAnsicht()}
           {activeTab === 'System' && renderSystem()}
           {activeTab === 'Tastaturkürzel' && renderTastaturkuerzel()}
           {activeTab === 'Projekteinstellungen' && renderFilmeinstellungen()}

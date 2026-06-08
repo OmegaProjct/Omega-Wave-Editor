@@ -10,9 +10,10 @@ interface ChangelogEntry {
 
 // Parse CHANGELOG.md text into structured entries with DE/EN sections
 function parseChangelog(raw: string): ChangelogEntry[] {
+  const normalized = raw.replace(/\r\n/g, '\n')
   const entries: ChangelogEntry[] = []
   // Split by version headers ## [X.Y.Z]
-  const versionBlocks = raw.split(/\n(?=## \[)/)
+  const versionBlocks = normalized.split(/\n(?=## \[)/)
 
   for (const block of versionBlocks) {
     const versionMatch = block.match(/^## \[([^\]]+)\]\s*-\s*(.+)/)
@@ -26,11 +27,14 @@ function parseChangelog(raw: string): ChangelogEntry[] {
     // Extract ### Deutsch block
     const deutschMatch = block.match(/### Deutsch\n([\s\S]*?)(?=\n### |\n## |\n---|\s*$)/)
 
+    // Falls Abschnitte fehlen, nutzen wir den restlichen Block (ohne Header) als Fallback
+    const fallbackText = block.replace(/^## \[([^\]]+)\]\s*-\s*.+/, '').trim()
+
     entries.push({
       version,
       date,
-      english: englishMatch ? englishMatch[1].trim() : '',
-      deutsch: deutschMatch ? deutschMatch[1].trim() : '',
+      english: englishMatch ? englishMatch[1].trim() : fallbackText,
+      deutsch: deutschMatch ? deutschMatch[1].trim() : fallbackText,
     })
   }
 
@@ -88,7 +92,6 @@ export default function ChangelogModal({ onClose }: Props) {
   const { i18n } = useTranslation()
   const [lang, setLang] = useState<'de' | 'en'>(i18n.language?.startsWith('de') ? 'de' : 'en')
   const [entries, setEntries] = useState<ChangelogEntry[]>([])
-  const [selectedVersion, setSelectedVersion] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const overlayRef = useRef<HTMLDivElement>(null)
 
@@ -99,7 +102,6 @@ export default function ChangelogModal({ onClose }: Props) {
         const raw = await window.api.readChangelog()
         const parsed = parseChangelog(raw)
         setEntries(parsed)
-        if (parsed.length > 0) setSelectedVersion(parsed[0].version)
       } catch (e) {
         console.error('Failed to load changelog:', e)
       } finally {
@@ -120,9 +122,6 @@ export default function ChangelogModal({ onClose }: Props) {
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [onClose])
-
-  const selected = entries.find(e => e.version === selectedVersion)
-  const content = selected ? (lang === 'de' ? selected.deutsch : selected.english) : ''
 
   return (
     <div
@@ -178,45 +177,31 @@ export default function ChangelogModal({ onClose }: Props) {
 
         {/* Body */}
         <div className="flex flex-1 overflow-hidden">
-
-          {/* Version list sidebar */}
-          <div className="w-44 shrink-0 border-r border-gray-700/60 overflow-y-auto py-2">
-            {loading ? (
-              <div className="text-gray-500 text-xs text-center mt-8">Lädt...</div>
-            ) : entries.map(entry => (
-              <button
-                key={entry.version}
-                onClick={() => setSelectedVersion(entry.version)}
-                className={`w-full text-left px-4 py-2.5 transition-colors group ${
-                  selectedVersion === entry.version
-                    ? 'bg-omega-accent/15 border-r-2 border-omega-accent'
-                    : 'hover:bg-gray-800/50'
-                }`}
-              >
-                <div className={`text-sm font-semibold ${
-                  selectedVersion === entry.version ? 'text-omega-accent' : 'text-gray-200 group-hover:text-white'
-                }`}>
-                  v{entry.version}
-                </div>
-                <div className="text-gray-500 text-xs mt-0.5">{entry.date}</div>
-              </button>
-            ))}
-          </div>
-
           {/* Content area */}
-          <div className="flex-1 overflow-y-auto px-6 py-4">
+          <div className="flex-1 overflow-y-auto px-8 py-6 space-y-8">
             {loading ? (
-              <div className="text-gray-500 text-sm text-center mt-16">Lade Changelog...</div>
-            ) : selected ? (
-              <>
-                <div className="flex items-baseline gap-3 mb-4 pb-3 border-b border-gray-700/40">
-                  <h3 className="text-white font-black text-lg">v{selected.version}</h3>
-                  <span className="text-gray-500 text-sm">{selected.date}</span>
-                </div>
-                <div>{renderMarkdownBlock(content || (lang === 'de' ? 'Keine Details verfügbar.' : 'No details available.'))}</div>
-              </>
+              <div className="text-gray-500 text-sm text-center mt-16">
+                {lang === 'de' ? 'Lade Changelog...' : 'Loading changelog...'}
+              </div>
+            ) : entries.length > 0 ? (
+              entries.map(entry => {
+                const content = lang === 'de' ? entry.deutsch : entry.english
+                return (
+                  <div key={entry.version} className="border-b border-gray-700/40 pb-6 last:border-0 last:pb-0">
+                    <div className="flex items-baseline gap-3 mb-4">
+                      <h3 className="text-omega-accent font-black text-lg">v{entry.version}</h3>
+                      <span className="text-gray-500 text-sm">{entry.date}</span>
+                    </div>
+                    <div>
+                      {renderMarkdownBlock(content || (lang === 'de' ? 'Keine Details verfügbar.' : 'No details available.'))}
+                    </div>
+                  </div>
+                )
+              })
             ) : (
-              <div className="text-gray-500 text-sm text-center mt-16">Keine Version ausgewählt.</div>
+              <div className="text-gray-500 text-sm text-center mt-16">
+                {lang === 'de' ? 'Kein Changelog verfügbar.' : 'No changelog available.'}
+              </div>
             )}
           </div>
         </div>

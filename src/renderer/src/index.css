@@ -66,3 +66,40 @@ html.text-scale-xlarge {
   font-size: 130% !important;
 }
 
+/* Custom Vertical Fader styling */
+.vertical-fader {
+  -webkit-appearance: slider-vertical;
+  width: 14px;
+  background: #0f1012;
+  border-radius: 4px;
+  outline: none;
+  cursor: pointer;
+  border: 1px solid #282b30;
+}
+
+.vertical-fader::-webkit-slider-runnable-track {
+  background: #0f1012;
+  border-radius: 4px;
+}
+
+.vertical-fader::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  height: 24px;
+  width: 20px;
+  border-radius: 4px;
+  background: linear-gradient(180deg, #525861 0%, #2e3238 100%);
+  border: 1px solid #18191b;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  cursor: ns-resize;
+  position: relative;
+}
+
+.vertical-fader::-webkit-slider-thumb:hover {
+  background: linear-gradient(180deg, #626973 0%, #3a3e45 100%);
+  border-color: #2b2e33;
+}
+
+.vertical-fader::-webkit-slider-thumb:active {
+  background: linear-gradient(180deg, #464a52 0%, #24272c 100%);
+}
+
