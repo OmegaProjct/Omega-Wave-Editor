@@ -239,6 +239,9 @@ if (gotTheLock) {
 
     // Open Popout Modal Dialog Window (Settings, About, Manual, Update)
     ipcMain.on('open-popout-window', (event, { name, width, height, title }) => {
+      // Update-Fenster bekommt keinen nativen Titelbalken (frame: false),
+      // da der React-Modal seinen eigenen Schließen-Button mitbringt.
+      const useFrameless = name === 'update'
       let win = new BrowserWindow({
         width: width || 800,
         height: height || 700,
@@ -247,6 +250,7 @@ if (gotTheLock) {
         resizable: true,
         minimizable: false,
         autoHideMenuBar: true,
+        frame: !useFrameless,
         title: title || 'Omega Wave Editor',
         webPreferences: {
           preload: join(__dirname, '../preload/index.js'),
