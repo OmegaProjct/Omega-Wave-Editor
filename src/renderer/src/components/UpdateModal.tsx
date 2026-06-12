@@ -1,5 +1,102 @@
 import React, { useState, useEffect } from 'react'
 import { Download, CheckCircle, AlertTriangle, RefreshCw, X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+
+interface UpdateEntry {
+  version?: string
+  date?: string
+  english: string
+  deutsch: string
+}
+
+// Parse update body text into structured entries with DE/EN sections
+function parseUpdateBody(raw: string): UpdateEntry[] {
+  const normalized = raw.replace(/\r\n/g, '\n')
+  
+  // Split by '---' separator
+  const versionBlocks = normalized.split(/\n---\n|\n---(?=\n)/)
+  const entries: UpdateEntry[] = []
+
+  for (const block of versionBlocks) {
+    const trimmedBlock = block.trim()
+    if (!trimmedBlock) continue
+
+    // Check if block starts with '### Version X.Y.Z (Date)'
+    const versionMatch = trimmedBlock.match(/^### Version\s+([^\n(]+)(?:\s*\(([^)]+)\))?/)
+    
+    let version = ''
+    let date = ''
+    let contentBlock = trimmedBlock
+
+    if (versionMatch) {
+      version = versionMatch[1].trim()
+      if (version.startsWith('v')) {
+        version = version.slice(1)
+      }
+      date = versionMatch[2] ? versionMatch[2].trim() : ''
+      contentBlock = trimmedBlock.substring(versionMatch[0].length).trim()
+    }
+
+    // Extract ### English and ### Deutsch blocks
+    const englishMatch = contentBlock.match(/### English\n([\s\S]*?)(?=\n### |\n## |\n---|\s*$)/)
+    const deutschMatch = contentBlock.match(/### Deutsch\n([\s\S]*?)(?=\n### |\n## |\n---|\s*$)/)
+
+    // Fallback if sections are missing
+    const fallbackText = contentBlock.replace(/^### English\n|^### Deutsch\n/, '').trim()
+
+    entries.push({
+      version: version || undefined,
+      date: date || undefined,
+      english: englishMatch ? englishMatch[1].trim() : fallbackText,
+      deutsch: deutschMatch ? deutschMatch[1].trim() : fallbackText,
+    })
+  }
+
+  return entries
+}
+
+// Render inline markdown: **bold** and `code`
+function renderInline(text: string): React.ReactNode[] {
+  const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g)
+  return parts.map((part, i) => {
+    const boldMatch = part.match(/^\*\*(.+)\*\*$/)
+    if (boldMatch) return <strong key={i} className="text-white font-bold">{boldMatch[1]}</strong>
+    const codeMatch = part.match(/^`(.+)`$/)
+    if (codeMatch) return <code key={i} className="bg-gray-800 text-omega-accent px-1 rounded text-sm font-mono">{codeMatch[1]}</code>
+    return <span key={i}>{part}</span>
+  })
+}
+
+// Render a markdown block (#### headers + bullet lists)
+function renderMarkdownBlock(text: string) {
+  if (!text) return <p className="text-gray-500 italic text-sm">No details available.</p>
+  return text.split('\n').map((line, idx) => {
+    if (line.startsWith('#### ')) {
+      const label = line.slice(5)
+      let color = 'text-gray-300'
+      if (label === 'Added' || label === 'Hinzugefügt') color = 'text-green-400'
+      if (label === 'Fixed' || label === 'Behoben') color = 'text-blue-400'
+      if (label === 'Changed' || label === 'Geändert') color = 'text-yellow-400'
+      if (label === 'Removed' || label === 'Entfernt') color = 'text-red-400'
+      return (
+        <h5 key={idx} className={`${color} font-bold text-xs uppercase tracking-widest mt-4 mb-2 first:mt-0`}>
+          {label}
+        </h5>
+      )
+    }
+    if (line.startsWith('- ') || line.startsWith('* ')) {
+      const content = line.slice(2)
+      return (
+        <div key={idx} className="flex items-start gap-2 mb-2">
+          <span className="text-omega-accent mt-1 shrink-0 text-xs">•</span>
+          <p className="text-gray-200 text-sm leading-relaxed">{renderInline(content)}</p>
+        </div>
+      )
+    }
+    if (line.trim() === '') return <div key={idx} className="h-1" />
+    return <p key={idx} className="text-gray-400 text-sm">{renderInline(line)}</p>
+  })
+}
 
 interface UpdateModalProps {
   updateInfo: {
@@ -20,6 +117,18 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const isPopout = new URLSearchParams(window.location.search).get('window') === 'update';
+
+  const { i18n } = useTranslation()
+  const [lang, setLang] = useState<'de' | 'en'>(i18n.language?.startsWith('de') ? 'de' : 'en')
+  const [entries, setEntries] = useState<UpdateEntry[]>([])
+
+  useEffect(() => {
+    if (updateInfo.body) {
+      setEntries(parseUpdateBody(updateInfo.body))
+    } else {
+      setEntries([])
+    }
+  }, [updateInfo.body])
 
   // Dynamically resize popout window to perfectly fit contents
   useEffect(() => {
@@ -77,89 +186,31 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
     return `${mins}m ${secs}s`
   }
 
-  // Parse inline markdown: **bold** → <strong>
-  const renderInlineMarkdown = (text: string) => {
-    const parts = text.split(/(\*\*[^*]+\*\*)/g);
-    return parts.map((part, i) => {
-      const boldMatch = part.match(/^\*\*(.+)\*\*$/);
-      if (boldMatch) {
-        return <strong key={i} className="text-white font-extrabold">{boldMatch[1]}</strong>;
-      }
-      return <span key={i}>{part}</span>;
-    });
-  };
-
-  // HandBrake-style Markdown-Parser for changelogs with prominent text sizes
-  const renderFormattedChangelog = (text: string) => {
-    if (!text) return <p className="text-base text-gray-500 italic">Keine Details für dieses Update verfügbar.</p>;
-    
-    const lines = text.split('\n');
-    return lines.map((line, idx) => {
-      // Horizontal lines / separators between releases
-      if (line.trim() === '---') {
-        return <div key={idx} className="border-t border-gray-800/85 my-6" />;
-      }
-      
-      // Headers (Level 1-6)
-      const headerMatch = line.match(/^(#{1,6})\s+(.*)$/);
-      if (headerMatch) {
-        const level = headerMatch[1].length;
-        const content = headerMatch[2];
-        
-        if (level === 2) {
-          return (
-            <h3 key={idx} className="text-white font-black text-xl mt-7 mb-4 first:mt-0 border-b border-gray-800/80 pb-2 select-none tracking-tight">
-              {renderInlineMarkdown(content)}
-            </h3>
-          );
-        }
-        if (level === 3) {
-          return (
-            <h4 key={idx} className="text-omega-accent font-extrabold text-base uppercase tracking-wider mt-6 mb-3 flex items-center gap-1.5 select-none">
-              <span className="w-1.5 h-1.5 bg-omega-accent rounded-sm inline-block"></span>
-              {renderInlineMarkdown(content)}
-            </h4>
-          );
-        }
-        if (level === 4) {
-          return (
-            <h5 key={idx} className="text-gray-100 font-bold text-base mt-4.5 mb-2.5 border-l-2 border-omega-accent/60 pl-2 select-none">
-              {renderInlineMarkdown(content)}
-            </h5>
-          );
-        }
-        // Fallback for Level 1 or other levels
-        return (
-          <h2 key={idx} className="text-white font-black text-2xl mt-8 mb-4 first:mt-0">
-            {renderInlineMarkdown(content)}
-          </h2>
-        );
-      }
-      
-      // List items with inline markdown support
-      if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
-        const content = line.trim().substring(2);
-        
-        return (
-          <li key={idx} className="list-none pl-4 relative text-base text-gray-200 mb-2.5 leading-relaxed flex items-start gap-1.5">
-            <span className="text-omega-accent select-none mt-1.5 font-bold text-sm">•</span>
-            <div>{renderInlineMarkdown(content)}</div>
-          </li>
-        );
-      }
-      
-      // Empty spaces
-      if (line.trim() === '') {
-        return <div key={idx} className="h-3" />;
-      }
-      
-      // Default text lines
+  const renderParsedEntries = () => {
+    if (entries.length === 0) {
       return (
-        <p key={idx} className="text-base text-gray-300 mb-2 leading-relaxed">
-          {renderInlineMarkdown(line)}
+        <p className="text-gray-500 italic text-sm">
+          {lang === 'de' ? 'Keine Details verfügbar.' : 'No details available.'}
         </p>
-      );
-    });
+      )
+    }
+
+    return entries.map((entry, idx) => {
+      const content = lang === 'de' ? entry.deutsch : entry.english
+      return (
+        <div key={idx} className="border-b border-gray-800/40 pb-6 mb-6 last:border-0 last:pb-0 last:mb-0">
+          {entry.version && (
+            <div className="flex items-baseline gap-3 mb-4 select-none">
+              <h4 className="text-omega-accent font-black text-base">v{entry.version}</h4>
+              {entry.date && <span className="text-gray-500 text-xs">{entry.date}</span>}
+            </div>
+          )}
+          <div>
+            {renderMarkdownBlock(content || (lang === 'de' ? 'Keine Details verfügbar.' : 'No details available.'))}
+          </div>
+        </div>
+      )
+    })
   };
 
   useEffect(() => {
@@ -261,11 +312,36 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
             <RefreshCw className="text-omega-accent animate-spin" size={18} style={{ animationDuration: '4s' }} />
             <span className="text-xs font-bold uppercase tracking-wider text-omega-accent">Software Update</span>
           </div>
-          {step !== 'downloading' && (
-            <button onClick={() => onClose(false)} className="text-gray-500 hover:text-white transition-colors">
-              <X size={16} />
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {/* Language toggle */}
+            <div className="flex items-center bg-gray-800 rounded-lg p-0.5 border border-gray-700/50">
+              <button
+                onClick={() => setLang('de')}
+                className={`px-3 py-0.5 rounded-md text-[11px] font-semibold transition-all duration-150 ${
+                  lang === 'de'
+                    ? 'bg-omega-accent text-white shadow-sm'
+                    : 'text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                DE Deutsch
+              </button>
+              <button
+                onClick={() => setLang('en')}
+                className={`px-3 py-0.5 rounded-md text-[11px] font-semibold transition-all duration-150 ${
+                  lang === 'en'
+                    ? 'bg-omega-accent text-white shadow-sm'
+                    : 'text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                GB English
+              </button>
+            </div>
+            {step !== 'downloading' && !isPopout && (
+              <button onClick={() => onClose(false)} className="text-gray-500 hover:text-white transition-colors ml-1" title="Schließen">
+                <X size={16} />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Content */}
@@ -293,10 +369,10 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
                 
                 {/* Scrollable Changelog box */}
                 <div 
-                  className="overflow-y-auto pr-2 leading-normal text-gray-200 custom-scrollbar select-text mt-2"
+                  className="overflow-y-auto pr-2 leading-normal text-gray-200 custom-scrollbar select-text mt-2 w-full text-left"
                   style={{ maxHeight: 'min(380px, calc(100vh - 380px))' }}
                 >
-                  {renderFormattedChangelog(updateInfo.body || '')}
+                  {renderParsedEntries()}
                 </div>
               </div>
             </div>
@@ -353,7 +429,7 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
                   style={{ maxHeight: 'min(240px, calc(100vh - 380px))' }}
                 >
                   <div className="text-[9px] uppercase font-bold text-gray-500 border-b border-gray-800/40 pb-1 mb-1.5 select-none">Was ist neu:</div>
-                  {renderFormattedChangelog(updateInfo.body || '')}
+                  {renderParsedEntries()}
                 </div>
             </div>
           )}
@@ -376,7 +452,7 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
                   style={{ maxHeight: 'min(220px, calc(100vh - 420px))' }}
                 >
                   <div className="text-[10px] uppercase font-bold text-gray-500 border-b border-gray-800/40 pb-1 mb-2 select-none">Neue Features in diesem Update:</div>
-                  {renderFormattedChangelog(updateInfo.body || '')}
+                  {renderParsedEntries()}
                 </div>
             </div>
           )}

@@ -2,6 +2,34 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.9.3] - 2026-06-12
+
+### English
+
+#### Added
+- **Log Viewer Session History**: Expanded the Diagnostic Log Viewer in the Help menu to include a vertical session log list showing all stored log files, their file sizes, and a total storage indicator.
+- **Feedback & Bug Report System**: Integrated a feedback and bug reporting panel within the Help tabs, allowing users to submit feedback with text descriptions, attach their latest session log, and drag-and-drop or paste up to 10 screenshots from the clipboard.
+- **Bilingual Update Patchnotes**: Added a language switcher (DE/GB) inside the Update dialog to view patchnotes in both German and English.
+
+#### Changed
+- **Removed Duplicate Title Bar Buttons**: Removed unnecessary duplicate close buttons (X) in popout windows (Export Progress, Update, Settings, About, and Manual) to simplify the window chrome.
+
+#### Fixed
+- **Log Management & Cleanup**: Implemented automatic log file rotation/cleanup on startup (keeping maximum 30 logs) and allowed users to delete individual log files directly from the UI.
+
+### Deutsch
+
+#### Hinzugefügt
+- **Protokollverlauf im Log-Viewer**: Erweiterung des Diagnose-Protokoll-Viewers im Hilfe-Menü um eine vertikale Sitzungsliste, die alle gespeicherten Protokolldateien, deren Dateigrößen und eine Anzeige des Gesamtspeicherverbrauchs anzeigt.
+- **Feedback- & Fehlerberichtsystem**: Integration eines Feedback- und Fehlerberichts-Panels in den Hilfe-Tabs. Benutzer können Feedback mit Textbeschreibungen einreichen, ihr aktuelles Sitzungsprotokoll anhängen und bis zu 10 Screenshots per Drag-and-Drop oder aus der Zwischenablage einfügen.
+- **Zweisprachige Update-Patchnotes**: Sprachumschalter (DE/GB) im Update-Dialog integriert, um die Patchnotes wahlweise auf Deutsch oder Englisch anzuzeigen.
+
+#### Geändert
+- **Doppelte X-Buttons in Titelleisten entfernt**: Unnötige, doppelte Schließen-Schaltflächen (X) in Popout-Fenstern (Export-Fortschritt, Updates, Einstellungen, Über uns und Handbuch) wurden entfernt, um das Design aufzuräumen.
+
+#### Behoben
+- **Log-Verwaltung & Bereinigung**: Automatische Protokollbereinigung beim Programmstart (maximal 30 Protokolle bleiben erhalten) und Möglichkeit, einzelne Protokolldateien direkt über die Benutzeroberfläche dauerhaft vom PC zu löschen.
+
 ## [0.9.2] - 2026-06-12
 
 ### English

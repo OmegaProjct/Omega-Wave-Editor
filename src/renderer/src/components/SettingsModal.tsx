@@ -15,6 +15,7 @@ type Tab = 'Wiedergabe' | 'Ordner' | 'Ansicht' | 'System' | 'Tastaturkürzel' | 
 
 export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', onTriggerUpdate }: { onClose: () => void; initialTab?: Tab; onTriggerUpdate?: (info: any) => void }) {
   const { t, i18n } = useTranslation()
+  const isPopout = new URLSearchParams(window.location.search).get('window') === 'settings';
   const [activeTab, setActiveTab] = useState<Tab>(initialTab)
   const [settings, setSettings] = useState<any>({
     defaultExplorerPath: '',
@@ -1157,7 +1158,9 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
       <div className="bg-[#282b30] border border-gray-700 w-[890px] h-[700px] rounded shadow-2xl flex flex-col">
         <div className="p-3 border-b border-gray-700 font-semibold flex justify-between items-center bg-[#1e2124] rounded-t text-sm">
           <span>{t('settings.title', { defaultValue: 'Programmeinstellungen' })}</span>
-          <button onClick={handleCancel} className="hover:text-red-400">✖</button>
+          {!isPopout && (
+            <button onClick={handleCancel} className="hover:text-red-400">✖</button>
+          )}
         </div>
         
         {/* Tab Header */}

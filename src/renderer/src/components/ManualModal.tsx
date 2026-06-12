@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 export function ManualModal({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation()
+  const isPopout = new URLSearchParams(window.location.search).get('window') === 'manual';
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[5000] p-8 animate-in fade-in duration-200">
@@ -15,7 +16,9 @@ export function ManualModal({ onClose }: { onClose: () => void }) {
                 {t('manual.title', { defaultValue: 'Omega Wave Editor – Benutzerhandbuch' })}
               </span>
            </div>
-           <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors text-lg">✖</button>
+           {!isPopout && (
+             <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors text-lg">✖</button>
+           )}
         </div>
 
         {/* Content */}

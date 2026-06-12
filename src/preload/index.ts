@@ -145,13 +145,17 @@ const api = {
     return () => { ipcRenderer.removeListener('seek-timeline', sub) }
   },
   
-  // Diagnose-Protokollierung (Logging)
+  // Diagnose-Protokollierung (Logging) & Feedback
   log: (level: 'debug' | 'info' | 'warn' | 'error', moduleName: string, message: string, details?: any) =>
     ipcRenderer.invoke('write-log', level, moduleName, message, details),
   getLogPath: () => ipcRenderer.invoke('get-log-path'),
   openLogFolder: () => ipcRenderer.invoke('open-log-folder'),
-  getLogContent: () => ipcRenderer.invoke('get-log-content'),
-  clearLog: () => ipcRenderer.invoke('clear-log')
+  getLogContent: (filename?: string) => ipcRenderer.invoke('get-log-content', filename),
+  clearLog: (filename?: string) => ipcRenderer.invoke('clear-log', filename),
+  getSessionLogs: () => ipcRenderer.invoke('get-session-logs'),
+  deleteSessionLog: (filename: string) => ipcRenderer.invoke('delete-session-log', filename),
+  exportSessionLog: (filename: string) => ipcRenderer.invoke('export-session-log', filename),
+  submitFeedback: (data: any) => ipcRenderer.invoke('submit-feedback', data)
 }
 
 if (process.contextIsolated) {
