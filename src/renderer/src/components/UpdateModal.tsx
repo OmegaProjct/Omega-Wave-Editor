@@ -307,12 +307,18 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
     >
         
         {/* Header */}
-        <div className="bg-[#1a1d21]/60 px-5 py-3.5 border-b border-gray-800/80 flex items-center justify-between">
+        <div
+          className="bg-[#1a1d21]/60 px-5 py-3.5 border-b border-gray-800/80 flex items-center justify-between"
+          style={isPopout ? { WebkitAppRegion: 'drag' } as React.CSSProperties : undefined}
+        >
           <div className="flex items-center gap-2">
             <RefreshCw className="text-omega-accent animate-spin" size={18} style={{ animationDuration: '4s' }} />
             <span className="text-xs font-bold uppercase tracking-wider text-omega-accent">Software Update</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div
+            className="flex items-center gap-2"
+            style={isPopout ? { WebkitAppRegion: 'no-drag' } as React.CSSProperties : undefined}
+          >
             {/* Language toggle */}
             <div className="flex items-center bg-gray-800 rounded-lg p-0.5 border border-gray-700/50">
               <button
@@ -336,8 +342,18 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
                 GB English
               </button>
             </div>
-            {step !== 'downloading' && !isPopout && (
-              <button onClick={() => onClose(false)} className="text-gray-500 hover:text-white transition-colors ml-1" title="Schließen">
+            {step !== 'downloading' && (
+              <button
+                onClick={() => {
+                  if (isPopout) {
+                    window.close()
+                  } else {
+                    onClose(false)
+                  }
+                }}
+                className="text-gray-500 hover:text-white transition-colors ml-1"
+                title="Schließen"
+              >
                 <X size={16} />
               </button>
             )}

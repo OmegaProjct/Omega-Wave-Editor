@@ -1,6 +1,6 @@
 {
   "name": "omega-wave-editor",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "description": "Omega Wave Editor",
   "main": "./out/main/index.js",
   "author": "Omega Projects <omegaproject1337@gmail.com>",
@@ -62,7 +62,10 @@
     },
     "asar": true,
     "extraResources": [
-      { "from": "CHANGELOG.md", "to": "CHANGELOG.md" }
+      {
+        "from": "CHANGELOG.md",
+        "to": "CHANGELOG.md"
+      }
     ],
     "asarUnpack": [
       "**/node_modules/ffmpeg-static/**/*",

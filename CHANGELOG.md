@@ -2,6 +2,24 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.9.4] - 2026-06-12
+
+### English
+
+#### Fixed
+- **Update Loop Resolved**: Removed stale installer assets from the v0.9.3 GitHub release that caused the auto-updater to download an older version. The release now only contains the correct 0.9.3 installers and `latest.yml`.
+- **Duplicate X Button in Update Window**: The Update popout window now uses a frameless Electron window, eliminating the native title bar's X button. The Update dialog's own close button now correctly closes the window in both inline and popout mode.
+- **Update Window Draggable**: The header of the frameless Update window is now properly marked as a drag region so the window can still be moved.
+
+### Deutsch
+
+#### Behoben
+- **Update-Schleife behoben**: Veraltete Installer-Assets wurden aus dem v0.9.3-GitHub-Release entfernt, die dazu führten, dass der Auto-Updater eine ältere Version heruntergeladen hat. Das Release enthält nun nur noch die korrekten 0.9.3-Installer und `latest.yml`.
+- **Doppelter X-Button im Update-Fenster**: Das Update-Popout-Fenster verwendet jetzt ein rahmenloses Electron-Fenster, wodurch der native Titelleisten-X-Button entfernt wird. Der eigene Schließen-Button des Update-Dialogs schließt das Fenster jetzt korrekt in beiden Modi (Inline und Popout).
+- **Update-Fenster verschiebbar**: Die Kopfzeile des rahmenlosen Update-Fensters ist jetzt korrekt als Zieh-Bereich markiert, sodass das Fenster weiterhin verschoben werden kann.
+
+---
+
 ## [0.9.3] - 2026-06-12
 
 ### English
