@@ -2,6 +2,20 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.9.6] - 2026-06-12
+
+### English
+
+#### Changed
+- **CI/CD Release Automation**: Restored automated Windows builds to GitHub Actions and retired local installer build steps, ensuring all future releases are built and published completely and consistently via CI.
+
+### Deutsch
+
+#### Geändert
+- **CI/CD-Release-Automatisierung**: Automatische Windows-Builds in GitHub Actions wiederhergestellt und lokale Installer-Build-Schritte entfernt. Alle zukünftigen Releases werden somit vollständig und konsistent über die CI gebaut und veröffentlicht.
+
+---
+
 ## [0.9.5] - 2026-06-12
 
 ### English
