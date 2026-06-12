@@ -2,6 +2,28 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.9.7] - 2026-06-13
+
+### English
+
+#### Added
+- **Separated Logs & Feedback Actions**: Split the Diagnostic log viewer and Feedback / Bug Report into two distinct menu items under the Help menu ("Logs..." and "Feedback...") for clearer navigation.
+- **Dedicated Log Popout Route**: Added a dedicated Electron route for the log viewer window, resolving the critical recursive window launch bug where opening logs in popout mode booted a completely new main editor instance.
+
+#### Changed
+- **Popout Window Layout Optimization**: Log viewer and Feedback windows now render borderless and full-screen in standalone popout mode. The double close headers and footers are concealed, letting the OS titlebar handle window closing for a cleaner user experience.
+
+### Deutsch
+
+#### Hinzugefügt
+- **Getrennte Logs- & Feedback-Aktionen**: Trennung des Diagnose-Log-Viewers und des Feedback- / Bug-Report-Bereichs in zwei eigenständige Menüpunkte im Hilfe-Menü („Logs...“ und „Feedback...“) für eine klarere Menüstruktur.
+- **Eigene Log-Popout-Route**: Einbau einer dedizierten Electron-Route für das Log-Fenster. Dies behebt den Fehler, bei dem das Öffnen von Logs im Popout-Modus fälschlicherweise eine komplett neue DAW-Instanz gestartet hat.
+
+#### Geändert
+- **Optimierung des Popout-Fenster-Layouts**: Die Log- und Feedback-Fenster füllen den Bildschirm im Popout-Modus nun komplett randlos aus. Die doppelten Schließen-Leisten und Footer werden ausgeblendet, wodurch das Fenster sauber über die Windows-Titelleiste geschlossen werden kann.
+
+---
+
 ## [0.9.6] - 2026-06-12
 
 ### English
