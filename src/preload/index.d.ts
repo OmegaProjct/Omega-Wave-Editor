@@ -90,12 +90,16 @@ declare global {
       openPopoutWindow: (name: string, options?: { width?: number; height?: number; title?: string }) => void
       resizeWindow: (width: number, height: number) => void
       
-      // Diagnose-Protokollierung (Logging)
+      // Diagnose-Protokollierung (Logging) & Feedback
       log: (level: 'debug' | 'info' | 'warn' | 'error', moduleName: string, message: string, details?: any) => Promise<void>
       getLogPath: () => Promise<string>
       openLogFolder: () => Promise<void>
-      getLogContent: () => Promise<string>
-      clearLog: () => Promise<void>
+      getLogContent: (filename?: string) => Promise<string>
+      clearLog: (filename?: string) => Promise<void>
+      getSessionLogs: () => Promise<any[]>
+      deleteSessionLog: (filename: string) => Promise<boolean>
+      exportSessionLog: (filename: string) => Promise<{ success: boolean; error?: string }>
+      submitFeedback: (data: any) => Promise<{ success: boolean; folder?: string; error?: string }>
     }
   }
 }

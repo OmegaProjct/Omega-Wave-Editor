@@ -8,6 +8,9 @@ export function ExportProgressWindow() {
   const [filePath, setFilePath] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
 
+  // Check if opened as separate popout window
+  const isPopout = new URLSearchParams(window.location.search).get('window') === 'progress';
+
   // Duration indicators
   const [elapsed, setElapsed] = useState(0)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
@@ -96,7 +99,7 @@ export function ExportProgressWindow() {
       {/* Header */}
       <div className="p-3 border-b border-omega-border bg-[#1a1d21] flex justify-between items-center select-none">
         <span className="text-xs font-semibold">Mixdown-Export</span>
-        {status !== 'running' && (
+        {status !== 'running' && !isPopout && (
           <button onClick={handleClose} className="hover:text-red-400 text-sm transition-colors">
             <X size={14} />
           </button>

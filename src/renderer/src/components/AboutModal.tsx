@@ -9,6 +9,7 @@ interface AboutModalProps {
 
 export function AboutModal({ onClose }: AboutModalProps) {
   const { t } = useTranslation()
+  const isPopout = new URLSearchParams(window.location.search).get('window') === 'about';
   const [version, setVersion] = useState('0.7.5')
 
   useEffect(() => {
@@ -39,9 +40,11 @@ export function AboutModal({ onClose }: AboutModalProps) {
               {t('about.title', { defaultValue: 'Über das Programm' })}
             </span>
           </div>
-          <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors">
-            <X size={16} />
-          </button>
+          {!isPopout && (
+            <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors">
+              <X size={16} />
+            </button>
+          )}
         </div>
 
         {/* Content */}
