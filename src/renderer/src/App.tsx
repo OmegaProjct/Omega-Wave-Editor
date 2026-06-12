@@ -130,6 +130,7 @@ function App(): JSX.Element {
   const [showAbout, setShowAbout] = useState(false)
   const [showChangelog, setShowChangelog] = useState(false)
   const [showLogs, setShowLogs] = useState(false)
+  const [logsActiveTab, setLogsActiveTab] = useState<'logs' | 'feedback'>('logs')
   const [updateAvailable, setUpdateAvailable] = useState<any | null>(null)
   const [keyboardShortcuts, setKeyboardShortcuts] = useState<KeyboardShortcuts>(DEFAULT_KEYBOARD_SHORTCUTS)
   
@@ -539,10 +540,26 @@ function App(): JSX.Element {
        return;
     }
     if (type === 'SHOW_LOGS') {
-      openModalPopoutOrInline('logs', () => setShowLogs(true), {
+      openModalPopoutOrInline('logs', () => {
+        setLogsActiveTab('logs')
+        setShowLogs(true)
+      }, {
         width: 960,
         height: 720,
-        title: 'Diagnose-Protokolle'
+        title: 'Logs',
+        payload: { tab: 'logs' }
+      });
+      return;
+    }
+    if (type === 'SHOW_FEEDBACK') {
+      openModalPopoutOrInline('logs', () => {
+        setLogsActiveTab('feedback')
+        setShowLogs(true)
+      }, {
+        width: 960,
+        height: 720,
+        title: 'Feedback',
+        payload: { tab: 'feedback' }
       });
       return;
     }
@@ -793,7 +810,7 @@ function App(): JSX.Element {
       {showExport && <ExportModal onClose={() => setShowExport(false)} tracks={tracks} />}
       {showManual && <ManualModal onClose={() => setShowManual(false)} />}
       {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
-      {showLogs && <LogViewerModal onClose={() => setShowLogs(false)} />}
+      {showLogs && <LogViewerModal initialTab={logsActiveTab} onClose={() => setShowLogs(false)} />}
       {showChangelog && <ChangelogModal onClose={() => setShowChangelog(false)} />}
       {modalConfig && <MessageModal type={modalConfig.type} title={modalConfig.title} message={modalConfig.message} onClose={handleModalClose} />}
       

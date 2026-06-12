@@ -11,6 +11,7 @@ import { VstEditorWindow } from './components/VstEditorWindow'
 import { VstPluginRackPopout } from './components/VstPluginRack'
 import { VstPluginStorePopout } from './components/VstPluginStore'
 import { AudioRecordingModal } from './components/AudioRecordingModal'
+import { LogViewerModal } from './components/LogViewerModal'
 import './index.css'
 
 import { initI18n } from './lib/i18n'
@@ -122,6 +123,18 @@ async function bootstrap() {
       <React.StrictMode>
         <div className="h-screen w-screen bg-[#282b30] text-omega-text overflow-hidden select-none">
           <VstPluginStorePopout />
+        </div>
+      </React.StrictMode>
+    )
+  } else if (windowParam === 'logs') {
+    const payload = JSON.parse(localStorage.getItem('popout_logs_payload') || '{}')
+    root.render(
+      <React.StrictMode>
+        <div className="h-screen w-screen bg-[#282b30] text-omega-text overflow-hidden select-none">
+          <LogViewerModal 
+            onClose={() => window.close()} 
+            initialTab={payload.tab || 'logs'}
+          />
         </div>
       </React.StrictMode>
     )

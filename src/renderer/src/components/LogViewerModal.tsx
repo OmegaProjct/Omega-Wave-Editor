@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 interface LogViewerModalProps {
   onClose: () => void
+  initialTab?: 'logs' | 'feedback'
 }
 
 interface LogLine {
@@ -42,9 +43,10 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-export function LogViewerModal({ onClose }: LogViewerModalProps) {
+export function LogViewerModal({ onClose, initialTab = 'logs' }: LogViewerModalProps) {
   const { t } = useTranslation()
-  const [activeTab, setActiveTab] = useState<'logs' | 'feedback'>('logs')
+  const isPopout = new URLSearchParams(window.location.search).get('window') === 'logs'
+  const [activeTab, setActiveTab] = useState<'logs' | 'feedback'>(initialTab)
 
   // === State für Logs-Viewer ===
   const [logsList, setLogsList] = useState<SessionLogFile[]>([])
@@ -382,8 +384,8 @@ export function LogViewerModal({ onClose }: LogViewerModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[5000] p-6 animate-in fade-in duration-200">
-      <div className="bg-[#24272c] border border-gray-700/60 w-full max-w-5xl h-[85vh] rounded-xl shadow-2xl flex flex-col overflow-hidden backdrop-blur-md">
+    <div className={isPopout ? "h-screen w-screen bg-[#24272c] flex flex-col overflow-hidden text-omega-text select-none font-sans" : "fixed inset-0 bg-black/80 flex items-center justify-center z-[5000] p-6 animate-in fade-in duration-200"}>
+      <div className={isPopout ? "w-full h-full flex flex-col overflow-hidden bg-transparent" : "bg-[#24272c] border border-gray-700/60 w-full max-w-5xl h-[85vh] rounded-xl shadow-2xl flex flex-col overflow-hidden backdrop-blur-md"}>
         
         {/* Header */}
         <div className="bg-[#1a1d21]/60 px-5 py-3.5 border-b border-gray-800/80 flex items-center justify-between flex-shrink-0">
@@ -391,16 +393,18 @@ export function LogViewerModal({ onClose }: LogViewerModalProps) {
             <FileText className="text-omega-accent w-5 h-5" />
             <div>
               <span className="text-base font-bold text-white tracking-wide block select-none">
-                {t('logs.window_title', { defaultValue: 'Diagnose & Feedback' })}
+                {t('logs.window_title', { defaultValue: 'Protokolle & Feedback' })}
               </span>
               <span className="text-2xs text-gray-500 font-mono block select-all">
                 {logPath}
               </span>
             </div>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
-            <X size={20} />
-          </button>
+          {!isPopout && (
+            <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+              <X size={20} />
+            </button>
+          )}
         </div>
 
         {/* Tab-Navigation */}
@@ -413,7 +417,7 @@ export function LogViewerModal({ onClose }: LogViewerModalProps) {
                 : 'border-transparent text-gray-400 hover:text-white hover:bg-white/2'
             }`}
           >
-            📋 {t('logs.tab_logs', { defaultValue: 'Diagnose-Protokolle' })}
+            📋 {t('logs.tab_logs', { defaultValue: 'Logs' })}
           </button>
           <button
             onClick={() => setActiveTab('feedback')}
@@ -423,7 +427,7 @@ export function LogViewerModal({ onClose }: LogViewerModalProps) {
                 : 'border-transparent text-gray-400 hover:text-white hover:bg-white/2'
             }`}
           >
-            💬 {t('logs.tab_feedback', { defaultValue: 'Feedback & Fehlerbericht' })}
+            💬 {t('logs.tab_feedback', { defaultValue: 'Feedback' })}
           </button>
         </div>
 
@@ -829,14 +833,16 @@ export function LogViewerModal({ onClose }: LogViewerModalProps) {
         </div>
 
         {/* Globaler Footer */}
-        <div className="bg-[#1a1d21]/60 px-5 py-3.5 flex justify-end items-center border-t border-gray-800/80 select-none flex-shrink-0">
-          <button 
-            onClick={onClose} 
-            className="px-6 py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700/60 text-xs rounded-lg shadow font-bold active:scale-[0.98] transition-all"
-          >
-            {t('common.close', { defaultValue: 'Schließen' })}
-          </button>
-        </div>
+        {!isPopout && (
+          <div className="bg-[#1a1d21]/60 px-5 py-3.5 flex justify-end items-center border-t border-gray-800/80 select-none flex-shrink-0">
+            <button 
+              onClick={onClose} 
+              className="px-6 py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700/60 text-xs rounded-lg shadow font-bold active:scale-[0.98] transition-all"
+            >
+              {t('common.close', { defaultValue: 'Schließen' })}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
