@@ -9,6 +9,7 @@ import * as projectCore from '../common/projectCore'
 import { HeadlessRunner } from '../common/headlessRunner'
 import * as fs from 'fs'
 import * as path from 'path'
+import { logger } from './logger'
 
 // Dynamic version retrieval matching package.json
 let appVersion = '0.4.1'
@@ -29,6 +30,7 @@ let activeProject: Project = projectCore.createDefaultProject(4, 48000)
 let activeProjectPath: string | null = null
 
 export function startMcpServer() {
+  process.env.OMEGA_MCP_MODE = 'true'
   process.stdin.setEncoding('utf8')
 
   let buffer = ''
@@ -54,10 +56,12 @@ export function startMcpServer() {
     }
   })
 
-  console.error(`[MCP Server] Omega Wave Editor MCP started (Version: ${appVersion}).`)
+  logger.init()
+  logger.info('MCP', 'Omega Wave Editor MCP Server gestartet', { version: appVersion })
 }
 
 function sendResponse(id: any, result: any) {
+  logger.debug('MCP', 'Sende JSON-RPC Response', { id, result })
   const payload = JSON.stringify({
     jsonrpc: '2.0',
     id,
@@ -67,6 +71,7 @@ function sendResponse(id: any, result: any) {
 }
 
 function sendError(id: any, code: number, message: string, data?: any) {
+  logger.error('MCP', 'Sende JSON-RPC Error', { id, code, message, data })
   const payload = JSON.stringify({
     jsonrpc: '2.0',
     id,
@@ -81,6 +86,7 @@ function sendError(id: any, code: number, message: string, data?: any) {
 
 function handleRequest(req: any) {
   const { jsonrpc, method, params, id } = req
+  logger.debug('MCP', 'Empfange JSON-RPC Request', { method, id, params })
   if (jsonrpc !== '2.0') {
     return sendError(id, -32600, 'Invalid Request: expected jsonrpc "2.0"')
   }

@@ -7,6 +7,7 @@ import { ipcMain, app, dialog } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
+import { logger } from '../logger'
 
 // Local helper checks
 function isSafePath(filePath: any): boolean {
@@ -33,7 +34,7 @@ function getDefaultProjPath(): string {
       }
     }
   } catch (e) {
-    console.error('Error reading projPath from settings.json:', e)
+    logger.warn('System', 'Fehler beim Lesen von projPath aus settings.json', e)
   }
   let docPath = ''
   try {
@@ -68,7 +69,11 @@ export function registerProjectIpc() {
   })
 
   ipcMain.handle('save-project', async (_, filePath: string, data: any) => {
-    if (!isSafePath(filePath)) return { success: false, error: 'Ungültiger Pfad' }
+    logger.info('Project', 'Projekt speichern angefordert', { filePath })
+    if (!isSafePath(filePath)) {
+      logger.warn('Project', 'Speichern abgebrochen: Ungültiger Pfad', { filePath })
+      return { success: false, error: 'Ungültiger Pfad' }
+    }
     try {
       let targetPath = filePath
       if (!targetPath.endsWith('.owep')) {
@@ -96,14 +101,20 @@ export function registerProjectIpc() {
       }
 
       await fs.promises.writeFile(targetPath, JSON.stringify(data, null, 2), 'utf-8')
+      logger.info('Project', 'Projekt erfolgreich gespeichert', { targetPath })
       return { success: true, filePath: targetPath }
     } catch (err: any) {
+      logger.error('Project', 'Fehler beim Speichern des Projekts', { filePath, error: err.message })
       return { success: false, error: err.message }
     }
   })
 
   ipcMain.handle('save-project-backup', async (_, filePath: string, data: any) => {
-    if (!isSafePath(filePath)) return { success: false, error: 'Ungültiger Pfad' }
+    logger.debug('Project', 'Backup speichern angefordert', { filePath })
+    if (!isSafePath(filePath)) {
+      logger.warn('Project', 'Backup abgebrochen: Ungültiger Pfad', { filePath })
+      return { success: false, error: 'Ungültiger Pfad' }
+    }
     try {
       const targetPath = filePath
       if (filePath.includes('Recovery')) {
@@ -130,14 +141,20 @@ export function registerProjectIpc() {
       }
 
       await fs.promises.writeFile(targetPath, JSON.stringify(data, null, 2), 'utf-8')
+      logger.debug('Project', 'Backup erfolgreich gespeichert', { targetPath })
       return { success: true }
     } catch (err: any) {
+      logger.error('Project', 'Fehler beim Speichern des Backups', { filePath, error: err.message })
       return { success: false, error: err.message }
     }
   })
 
   ipcMain.handle('load-project', async (_, filePath: string) => {
-    if (!isSafePath(filePath)) return { success: false, error: 'Ungültiger Pfad' }
+    logger.info('Project', 'Projekt laden angefordert', { filePath })
+    if (!isSafePath(filePath)) {
+      logger.warn('Project', 'Laden abgebrochen: Ungültiger Pfad', { filePath })
+      return { success: false, error: 'Ungültiger Pfad' }
+    }
     try {
       const content = await fs.promises.readFile(filePath, 'utf-8')
       const mainData = JSON.parse(content)
@@ -176,22 +193,30 @@ export function registerProjectIpc() {
             hasBackup = true
           }
         } catch (bakErr) {
-          console.error('Error reading backup file:', bakErr)
+          logger.error('Project', 'Fehler beim Lesen der Backup-Datei', { bakPath, error: bakErr })
         }
       }
 
+      logger.info('Project', 'Projekt erfolgreich geladen', { filePath, hasBackup })
       return { success: true, data: mainData, hasBackup, backupData }
     } catch (err: any) {
+      logger.error('Project', 'Fehler beim Laden des Projekts', { filePath, error: err.message })
       return { success: false, error: err.message }
     }
   })
 
   ipcMain.handle('save-preset', async (_, filePath: string, data: any) => {
-    if (!isSafePath(filePath)) return { success: false, error: 'Ungültiger Pfad' }
+    logger.info('Project', 'Preset speichern angefordert', { filePath })
+    if (!isSafePath(filePath)) {
+      logger.warn('Project', 'Preset-Speichern abgebrochen: Ungültiger Pfad', { filePath })
+      return { success: false, error: 'Ungültiger Pfad' }
+    }
     try {
       await fs.promises.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8')
+      logger.info('Project', 'Preset erfolgreich gespeichert', { filePath })
       return { success: true }
     } catch (err: any) {
+      logger.error('Project', 'Fehler beim Speichern des Presets', { filePath, error: err.message })
       return { success: false, error: err.message }
     }
   })

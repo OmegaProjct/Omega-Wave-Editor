@@ -1,5 +1,6 @@
 import { ipcMain, BrowserWindow, screen } from 'electron'
 import { VstHost } from '../vstBridge/VstHostAddon'
+import { logger } from '../logger'
 
 const editorWindows = new Map<number, BrowserWindow>()
 
@@ -7,10 +8,12 @@ export function setupVstBridgeIpc(): void {
   // Load Plugin
   ipcMain.handle('vst-load-plugin', async (_, dllPath: string) => {
     try {
-      console.log('IPC Request: vst-load-plugin for', dllPath)
-      return VstHost.loadPlugin(dllPath)
+      logger.info('VST-Bridge', 'Lade Plugin angefordert', { dllPath })
+      const res = VstHost.loadPlugin(dllPath)
+      logger.info('VST-Bridge', 'Plugin erfolgreich geladen', { dllPath, instanceId: res.instanceId })
+      return res
     } catch (err: any) {
-      console.error('IPC Error: vst-load-plugin failed:', err)
+      logger.error('VST-Bridge', 'Fehler beim Laden des Plugins', { dllPath, error: err.message })
       throw err
     }
   })
@@ -18,11 +21,11 @@ export function setupVstBridgeIpc(): void {
   // Set Shared Array Buffers
   ipcMain.handle('vst-set-shared-buffer', async (_, instanceId: number, inputSAB: SharedArrayBuffer, outputSAB: SharedArrayBuffer, midiSAB: SharedArrayBuffer) => {
     try {
-      console.log(`IPC Request: vst-set-shared-buffer for instance ${instanceId}`)
+      logger.debug('VST-Bridge', 'Setze Shared Array Buffer', { instanceId })
       VstHost.setSharedBuffer(instanceId, inputSAB, outputSAB, midiSAB)
       return { success: true }
     } catch (err: any) {
-      console.error(`IPC Error: vst-set-shared-buffer failed for instance ${instanceId}:`, err)
+      logger.error('VST-Bridge', 'Fehler beim Setzen des Shared Array Buffers', { instanceId, error: err.message })
       throw err
     }
   })
@@ -30,11 +33,11 @@ export function setupVstBridgeIpc(): void {
   // Start Audio Thread
   ipcMain.handle('vst-start-audio', async (_, instanceId: number, sampleRate: number, blockSize: number) => {
     try {
-      console.log(`IPC Request: vst-start-audio (instanceId: ${instanceId}, sampleRate: ${sampleRate}, blockSize: ${blockSize})`)
+      logger.info('VST-Bridge', 'Starte Audio-Thread', { instanceId, sampleRate, blockSize })
       VstHost.startAudioThread(instanceId, sampleRate, blockSize)
       return { success: true }
     } catch (err: any) {
-      console.error(`IPC Error: vst-start-audio failed for instance ${instanceId}:`, err)
+      logger.error('VST-Bridge', 'Fehler beim Starten des Audio-Threads', { instanceId, error: err.message })
       throw err
     }
   })
@@ -42,11 +45,11 @@ export function setupVstBridgeIpc(): void {
   // Stop Audio Thread
   ipcMain.handle('vst-stop-audio', async (_, instanceId: number) => {
     try {
-      console.log(`IPC Request: vst-stop-audio for instance ${instanceId}`)
+      logger.info('VST-Bridge', 'Stoppe Audio-Thread', { instanceId })
       VstHost.stopAudioThread(instanceId)
       return { success: true }
     } catch (err: any) {
-      console.error(`IPC Error: vst-stop-audio failed for instance ${instanceId}:`, err)
+      logger.error('VST-Bridge', 'Fehler beim Stoppen des Audio-Threads', { instanceId, error: err.message })
       throw err
     }
   })
@@ -241,14 +244,14 @@ export function setupVstBridgeIpc(): void {
   // Close Editor Window
   ipcMain.handle('vst-close-editor', async (_, instanceId: number) => {
     try {
-      console.log(`IPC Request: vst-close-editor for instance ${instanceId}`)
+      logger.info('VST-Bridge', 'Schließe VST-Editor angefordert', { instanceId })
       const editorWindow = editorWindows.get(instanceId)
       if (editorWindow) {
         editorWindow.close()
       }
       return { success: true }
     } catch (err: any) {
-      console.error(`IPC Error: vst-close-editor failed for instance ${instanceId}:`, err)
+      logger.error('VST-Bridge', 'Fehler beim Schließen des VST-Editors', { instanceId, error: err.message })
       throw err
     }
   })
@@ -256,15 +259,16 @@ export function setupVstBridgeIpc(): void {
   // Unload Plugin
   ipcMain.handle('vst-unload-plugin', async (_, instanceId: number) => {
     try {
-      console.log(`IPC Request: vst-unload-plugin for instance ${instanceId}`)
+      logger.info('VST-Bridge', 'Entlade VST-Plugin angefordert', { instanceId })
       VstHost.unloadPlugin(instanceId)
       const editorWindow = editorWindows.get(instanceId)
       if (editorWindow) {
         editorWindow.close()
       }
+      logger.info('VST-Bridge', 'VST-Plugin erfolgreich entladen', { instanceId })
       return { success: true }
     } catch (err: any) {
-      console.error(`IPC Error: vst-unload-plugin failed for instance ${instanceId}:`, err)
+      logger.error('VST-Bridge', 'Fehler beim Entladen des VST-Plugins', { instanceId, error: err.message })
       throw err
     }
   })

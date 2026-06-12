@@ -2,6 +2,38 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.9.1] - 2026-06-12
+
+### English
+
+#### Added
+- **Diagnostic Logging System**: Integrated a comprehensive file logger (`app.log` in AppData) with automatic log rotation (max 5 MB, renaming to `app.log.old`) that captures main process initialization, unhandled exceptions, IPC communication, audio and VST operations, and system events.
+- **Timeline Event Tracking**: Real-time millisecond-precise logging of all timeline actions, including clip dragging/repositioning, volume adjustments, fades (in/out), track mute/solo toggles, and lock states.
+- **Diagnostic Log Viewer**: Added a premium dark glassmorphic Log Viewer modal accessible via `Help -> Diagnose-Protokolle...` with log level filtering (Info, Warning, Error, Debug), real-time auto-refresh, search capabilities, clipboard copy, and file explorer linkage.
+- **Unhandled Crash Handling**: Main and renderer process exception hooks to capture and log crashes or unhandled promise rejections directly into the log file.
+
+#### Changed
+- **CLI and Headless Stderr Redirection**: Automatic redirection of all server logs to `console.error` (stderr) when run in MCP mode (via `--mcp` or `OMEGA_MCP_MODE=true`) to avoid protocol collisions on stdout.
+- **User Manual Chapter 9**: Added a dedicated section detailing diagnostic features, error reporting, and log directory locations in the in-app manual.
+
+#### Fixed
+- **Preload and Renderer Type Alignment**: Exposed unified typescript type definitions and declarations in both preload and renderer configurations for robust window context APIs.
+
+### Deutsch
+
+#### Hinzugefügt
+- **Diagnose-Protokollierung**: Integration eines umfassenden Logging-Systems (`app.log` im AppData-Verzeichnis) mit automatischer Dateirotation (max. 5 MB, Umbenennung in `app.log.old`). Protokolliert Applikationsstart, unbehandelte Ausnahmen, IPC-Aufrufe, VST-Bridge-Aktivitäten und Systemereignisse.
+- **Timeline-Event-Tracking**: Echtzeit-Protokollierung aller timeline-relevanten Aktionen (Verschiebungen von Audio-Clips auf die Millisekunde genau, Volume-Änderungen, Fades, Stummschaltungen, Solo-Modi und Spur-Sperren).
+- **Diagnose-Protokolle Viewer**: Premium-Log-Viewer-Modal im edlen dunklen Glassmorphismus-Design (aufrufbar über `Hilfe -> Diagnose-Protokolle...`). Bietet Pegelfilter (Info, Warnung, Fehler, Debug), Echtzeit-Aktualisierung, Suchfunktion, Kopieren in die Zwischenablage und Direktlink zum Datei-Explorer.
+- **Abfangen von Abstürzen**: Globale Listener im Haupt- und Renderer-Prozess, die unbehandelte Ausnahmen (Exceptions) und Rejections abfangen und mit vollständigen Stacktraces im Logfile dokumentieren.
+
+#### Geändert
+- **Standardfehler-Umleitung im MCP-Modus**: Automatische Umleitung aller Logausgaben im MCP-Modus (via `--mcp` oder `OMEGA_MCP_MODE=true`) auf `console.error` (stderr), um Protokollkollisionen über `stdout` zu verhindern.
+- **Ergänzung des Benutzerhandbuchs (Kapitel 9)**: Neues Kapitel „Diagnose & Fehlerbehebung“ im Handbuch, das die Funktionsweise des Loggers und die Speicherpfade beschreibt.
+
+#### Behoben
+- **Typdeklarationen-Angleichung**: Bereitstellung konsistenter TypeScript-Typdeklarationen in Preload- und Renderer-Konfigurationen für die neuen Window-APIs.
+
 ## [0.9.0] - 2026-06-08
 
 ### English

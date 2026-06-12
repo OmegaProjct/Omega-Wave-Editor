@@ -10,6 +10,7 @@ import * as path from 'path'
 import ffmpeg from 'fluent-ffmpeg'
 import ffmpegStatic from 'ffmpeg-static'
 import ffprobeStatic from 'ffprobe-static'
+import { logger } from '../logger'
 
 // Setup static ffmpeg/ffprobe binary paths (with app.asar.unpacked support)
 let ffmpegPath = ffmpegStatic
@@ -46,6 +47,7 @@ function isSafePath(filePath: any): boolean {
 
 export function registerAudioIpc() {
   ipcMain.handle('get-media-info', async (_, filePath: string) => {
+    logger.debug('Audio', 'Lese Medien-Info angefordert', { filePath })
     if (!isSafePath(filePath)) return { duration: 10, tags: {} }
     return new Promise((resolve) => {
       ffmpeg.ffprobe(filePath, (err, metadata) => {
@@ -99,18 +101,29 @@ export function registerAudioIpc() {
   })
 
   ipcMain.handle('extract-audio', async (_, videoPath: string, outputPath: string) => {
-    if (!isSafePath(videoPath) || !isSafePath(outputPath)) throw new Error('Ungültige Pfade')
+    logger.info('Audio', 'Audio-Extraktion aus Video gestartet', { videoPath, outputPath })
+    if (!isSafePath(videoPath) || !isSafePath(outputPath)) {
+      logger.warn('Audio', 'Extraktion abgebrochen: Ungültige Pfade')
+      throw new Error('Ungültige Pfade')
+    }
     return new Promise((resolve, reject) => {
       ffmpeg(videoPath)
         .noVideo()
         .audioCodec('libmp3lame')
         .save(outputPath)
-        .on('end', () => resolve(true))
-        .on('error', (err) => reject(err))
+        .on('end', () => {
+          logger.info('Audio', 'Audio-Extraktion erfolgreich abgeschlossen', { outputPath })
+          resolve(true)
+        })
+        .on('error', (err) => {
+          logger.error('Audio', 'Fehler bei der Audio-Extraktion', err)
+          reject(err)
+        })
     })
   })
 
   ipcMain.handle('get-peaks', async (_, filePath: string, samples: number = 1000, channel?: 'left' | 'right') => {
+    logger.debug('Audio', 'Berechne Peaks für Datei', { filePath, samples, channel })
     if (!isSafePath(filePath)) return Array.from({ length: samples }, () => Math.random() * 0.8)
     return new Promise((resolve) => {
       try {
@@ -129,7 +142,7 @@ export function registerAudioIpc() {
         }
 
         ffmpegCmd.on('error', (err) => {
-          console.error('get-peaks ffmpeg error:', err);
+          logger.error('Audio', 'Fehler bei get-peaks (FFmpeg)', { filePath, error: err.message })
           resolve(Array.from({ length: samples }, () => Math.random() * 0.8));
         });
 
@@ -164,9 +177,10 @@ export function registerAudioIpc() {
               // Boost slightly for visual quality
               peaks.push(Math.max(0.04, Math.min(0.95, normalized * 1.5)));
             }
+            logger.debug('Audio', 'Peaks erfolgreich berechnet', { filePath, samples })
             resolve(peaks);
           } catch (e) {
-            console.error('get-peaks end processing error:', e);
+            logger.error('Audio', 'Fehler bei get-peaks (Verarbeitung)', e)
             resolve(Array.from({ length: samples }, () => Math.random() * 0.8));
           }
         });
@@ -176,15 +190,17 @@ export function registerAudioIpc() {
           pcmBuffer = Buffer.concat([pcmBuffer, chunk]);
         });
       } catch (err) {
-        console.error('get-peaks general error:', err);
+        logger.error('Audio', 'Allgemeiner Fehler bei get-peaks', err)
         resolve(Array.from({ length: samples }, () => Math.random() * 0.8));
       }
     });
   })
 
   ipcMain.handle('export-project', async (_, tracksData: any, outputPath: string, id3Tags?: any) => {
+    logger.info('Audio', 'Mixdown Export-Projekt gestartet', { outputPath, id3Tags })
     return new Promise((resolve, reject) => {
       if (!Array.isArray(tracksData)) {
+        logger.warn('Audio', 'Mixdown abgebrochen: Ungültige Spurdaten')
         return reject(new Error('Ungültige Spurdaten übergeben'))
       }
 
@@ -235,21 +251,26 @@ export function registerAudioIpc() {
         if (id3Tags.comment) metadataOpts.push('-metadata', `comment=${id3Tags.comment}`)
         if (id3Tags.track) metadataOpts.push('-metadata', `track=${id3Tags.track}`)
         metadataOpts.push('-id3v2_version', '3')
-        command.outputOptions(metadataOpts)
+        command.outputOptions(...metadataOpts)
       }
 
       command
         .save(outputPath)
-        .on('end', () => resolve(true))
+        .on('end', () => {
+          logger.info('Audio', 'Mixdown erfolgreich abgeschlossen', { outputPath })
+          resolve(true)
+        })
         .on('error', (err) => {
-          console.error('Mixdown Error:', err)
+          logger.error('Audio', 'Mixdown fehlgeschlagen (FFmpeg)', err)
           reject(err)
         })
     })
   })
 
   ipcMain.handle('transcode-export', async (_, tempWavPath: string, outputPath: string, options: any, id3Tags?: any) => {
+    logger.info('Audio', 'Transcodierung für Export gestartet', { tempWavPath, outputPath, options, id3Tags })
     if (!isSafePath(tempWavPath) || !isSafePath(outputPath)) {
+      logger.error('Audio', 'Transcodierung abgebrochen: Ungültige Pfade', { tempWavPath, outputPath })
       throw new Error('Ungültige Pfade für Transcodierung')
     }
     return new Promise((resolve, reject) => {
@@ -320,7 +341,7 @@ export function registerAudioIpc() {
         if (format === 'mp3' || format === 'm4a') {
           metadataOpts.push('-id3v2_version', '3')
         }
-        command.outputOptions(metadataOpts)
+        command.outputOptions(...metadataOpts)
       }
 
       if (hasCover) {
@@ -336,14 +357,16 @@ export function registerAudioIpc() {
           try {
             if (fs.existsSync(tempWavPath)) {
               fs.unlinkSync(tempWavPath)
+              logger.debug('Audio', 'Temporäre WAV-Datei gelöscht', { tempWavPath })
             }
           } catch (err) {
-            console.error('Failed to delete temp WAV file:', err)
+            logger.error('Audio', 'Fehler beim Löschen der temporären WAV-Datei', err)
           }
+          logger.info('Audio', 'Transcodierung erfolgreich abgeschlossen', { outputPath })
           resolve(true)
         })
         .on('error', (err) => {
-          console.error('Transcode Error:', err)
+          logger.error('Audio', 'Transcodierung fehlgeschlagen (FFmpeg)', err)
           reject(err)
         })
     })

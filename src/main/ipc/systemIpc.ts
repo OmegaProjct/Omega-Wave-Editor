@@ -13,6 +13,7 @@ import * as https from 'https'
 import * as http from 'http'
 import { VstHost } from '../vstBridge/VstHostAddon'
 import { sendEnhancedTelemetryPing } from '../telemetryClient'
+import { logger } from '../logger'
 
 function isSafePath(filePath: any): boolean {
   if (typeof filePath !== 'string' || filePath.trim() === '') return false
@@ -309,20 +310,22 @@ export function registerSystemIpc() {
   })
 
   ipcMain.handle('save-recording', async (_, outputPath: string, arrayBuffer: ArrayBuffer) => {
+    logger.info('System', 'Speichere Audioaufnahme', { outputPath })
     try {
       const dir = path.dirname(outputPath)
       await fs.promises.mkdir(dir, { recursive: true })
       await fs.promises.writeFile(outputPath, Buffer.from(arrayBuffer))
-      console.log(`Real recording saved to: ${outputPath}`)
+      logger.info('System', 'Audioaufnahme erfolgreich gespeichert', { outputPath })
       return { path: outputPath, success: true }
     } catch (err: any) {
-      console.error('Failed to save recording:', err)
+      logger.error('System', 'Fehler beim Speichern der Audioaufnahme', { outputPath, error: err.message })
       return { success: false, error: err.message }
     }
   })
 
   ipcMain.handle('check-for-updates', async () => {
     const currentVersion = app.getVersion()
+    logger.info('Updater', 'Prüfe auf Updates...', { currentVersion })
     sendEnhancedTelemetryPing('check', currentVersion)
     try {
       const response = await fetch('https://api.github.com/repos/OmegaProjct/Omega-Wave-Editor/releases', {
@@ -417,7 +420,7 @@ export function registerSystemIpc() {
         body: aggregatedChangelog
       }
     } catch (err: any) {
-      console.error('Update-Prüfung fehlgeschlagen:', err)
+      logger.error('Updater', 'Update-Prüfung fehlgeschlagen', err)
       return {
         error: err.message,
         currentVersion,

@@ -2,6 +2,7 @@ import { ipcMain, app } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
+import { logger } from './logger'
 
 export function setupSettingsIpc() {
   let docPath = ''
@@ -22,9 +23,9 @@ export function setupSettingsIpc() {
     try {
       fs.mkdirSync(path.dirname(settingsPath), { recursive: true })
       fs.copyFileSync(oldSettingsJsonPath, settingsPath)
-      console.log('Successfully migrated settings.json from old AppData to new OmegaProjects AppData.')
+      logger.info('Settings', 'Einstellungen erfolgreich vom alten Pfad migriert.')
     } catch (err) {
-      console.error('Failed to migrate settings from old AppData:', err)
+      logger.error('Settings', 'Fehler bei der Migration alter Einstellungen', err)
     }
   }
 
@@ -38,7 +39,7 @@ export function setupSettingsIpc() {
       }
     })
   } catch (err) {
-    console.error('Could not create standard folders', err)
+    logger.error('Settings', 'Standardordner konnten nicht erstellt werden', err)
   }
 
   const defaults = {
@@ -114,9 +115,9 @@ export function setupSettingsIpc() {
           
           fs.mkdirSync(path.dirname(settingsPath), { recursive: true })
           fs.writeFileSync(settingsPath, JSON.stringify(currentSettings, null, 2))
-          console.log('Settings successfully migrated from home folder to AppData.')
+          logger.info('Settings', 'Einstellungen erfolgreich vom Home-Verzeichnis migriert.')
         } catch (err) {
-          console.error('Failed to migrate old settings', err)
+          logger.error('Settings', 'Fehler bei der Migration der Einstellungen vom Home-Verzeichnis', err)
         }
       } else if (fs.existsSync(settingsPath)) {
         const fileContent = fs.readFileSync(settingsPath, 'utf-8')
@@ -137,7 +138,7 @@ export function setupSettingsIpc() {
 
       return currentSettings
     } catch (e) {
-      console.error('Could not read settings', e)
+      logger.error('Settings', 'Einstellungen konnten nicht gelesen werden', e)
     }
     return defaults
   })
@@ -146,9 +147,10 @@ export function setupSettingsIpc() {
     try {
       fs.mkdirSync(path.dirname(settingsPath), { recursive: true })
       fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2))
+      logger.info('Settings', 'Einstellungen erfolgreich gespeichert')
       return true
     } catch (e) {
-      console.error('Could not save settings', e)
+      logger.error('Settings', 'Fehler beim Speichern der Einstellungen', e)
       return false
     }
   })
