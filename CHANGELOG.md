@@ -2,6 +2,18 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.9.2] - 2026-06-12
+
+### English
+
+#### Fixed
+- **Update Progress in Popouts**: Fixed a bug where progress events during software updates were sent only to the main window, causing the progress bar to remain stuck at 0% when the update dialog was opened as a separate popout window.
+
+### Deutsch
+
+#### Behoben
+- **Update-Fortschritt im Popout**: Behebung eines Fehlers, bei dem die Fortschritts-Events während des Update-Downloads nur an das Hauptfenster gesendet wurden. Dies verhinderte die Aktualisierung des Ladebalkens (blieb bei 0 % stehen), wenn der Update-Dialog als separates Popout-Fenster geöffnet war.
+
 ## [0.9.1] - 2026-06-12
 
 ### English
