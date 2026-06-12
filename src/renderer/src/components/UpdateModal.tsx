@@ -319,29 +319,6 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
             className="flex items-center gap-2"
             style={isPopout ? { WebkitAppRegion: 'no-drag' } as React.CSSProperties : undefined}
           >
-            {/* Language toggle */}
-            <div className="flex items-center bg-gray-800 rounded-lg p-0.5 border border-gray-700/50">
-              <button
-                onClick={() => setLang('de')}
-                className={`px-3 py-0.5 rounded-md text-[11px] font-semibold transition-all duration-150 ${
-                  lang === 'de'
-                    ? 'bg-omega-accent text-white shadow-sm'
-                    : 'text-gray-400 hover:text-gray-200'
-                }`}
-              >
-                DE Deutsch
-              </button>
-              <button
-                onClick={() => setLang('en')}
-                className={`px-3 py-0.5 rounded-md text-[11px] font-semibold transition-all duration-150 ${
-                  lang === 'en'
-                    ? 'bg-omega-accent text-white shadow-sm'
-                    : 'text-gray-400 hover:text-gray-200'
-                }`}
-              >
-                GB English
-              </button>
-            </div>
             {step !== 'downloading' && (
               <button
                 onClick={() => {
@@ -351,7 +328,7 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
                     onClose(false)
                   }
                 }}
-                className="text-gray-500 hover:text-white transition-colors ml-1"
+                className="text-gray-500 hover:text-white transition-colors"
                 title="Schließen"
               >
                 <X size={16} />
@@ -381,6 +358,31 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
                 <div className="flex justify-between items-center border-b border-gray-800/40 pb-2.5">
                   <span className="text-gray-400 font-semibold">Neueste Version:</span>
                   <span className="font-mono text-green-400 font-extrabold">{updateInfo.latestVersion.startsWith('v') ? updateInfo.latestVersion : `v${updateInfo.latestVersion}`}</span>
+                </div>
+                <div className="flex justify-between items-center border-b border-gray-800/40 pb-2.5">
+                  <span className="text-gray-400 font-semibold">Sprache / Language:</span>
+                  <div className="flex items-center bg-gray-850/60 rounded-lg p-0.5 border border-gray-750/80">
+                    <button
+                      onClick={() => setLang('de')}
+                      className={`px-3 py-0.5 rounded-md text-[11px] font-semibold transition-all duration-150 ${
+                        lang === 'de'
+                          ? 'bg-omega-accent text-white shadow-sm'
+                          : 'text-gray-400 hover:text-gray-200'
+                      }`}
+                    >
+                      DE Deutsch
+                    </button>
+                    <button
+                      onClick={() => setLang('en')}
+                      className={`px-3 py-0.5 rounded-md text-[11px] font-semibold transition-all duration-150 ${
+                        lang === 'en'
+                          ? 'bg-omega-accent text-white shadow-sm'
+                          : 'text-gray-400 hover:text-gray-200'
+                      }`}
+                    >
+                      GB English
+                    </button>
+                  </div>
                 </div>
                 
                 {/* Scrollable Changelog box */}
@@ -444,7 +446,31 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
                   className="w-full bg-[#16181b]/50 border border-gray-800/40 rounded-lg p-4 text-xs text-left text-gray-400 mt-3 flex flex-col gap-1.5 overflow-y-auto select-text shadow-inner"
                   style={{ maxHeight: 'min(240px, calc(100vh - 380px))' }}
                 >
-                  <div className="text-[9px] uppercase font-bold text-gray-500 border-b border-gray-800/40 pb-1 mb-1.5 select-none">Was ist neu:</div>
+                  <div className="flex justify-between items-center border-b border-gray-800/40 pb-1 mb-1.5 select-none">
+                    <span className="text-[9px] uppercase font-bold text-gray-500">Was ist neu:</span>
+                    <div className="flex items-center bg-gray-855/60 rounded-lg p-0.5 border border-gray-755/80 scale-90 origin-right">
+                      <button
+                        onClick={() => setLang('de')}
+                        className={`px-2 py-0.5 rounded-md text-[10px] font-semibold transition-all duration-150 ${
+                          lang === 'de'
+                            ? 'bg-omega-accent text-white shadow-sm'
+                            : 'text-gray-400 hover:text-gray-200'
+                        }`}
+                      >
+                        DE
+                      </button>
+                      <button
+                        onClick={() => setLang('en')}
+                        className={`px-2 py-0.5 rounded-md text-[10px] font-semibold transition-all duration-150 ${
+                          lang === 'en'
+                            ? 'bg-omega-accent text-white shadow-sm'
+                            : 'text-gray-400 hover:text-gray-200'
+                        }`}
+                      >
+                        EN
+                      </button>
+                    </div>
+                  </div>
                   {renderParsedEntries()}
                 </div>
             </div>
@@ -467,7 +493,31 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
                   className="w-full bg-[#16181b]/50 border border-gray-800/40 rounded-lg p-5 text-sm text-left text-gray-305 mt-3 flex flex-col gap-2 overflow-y-auto custom-scrollbar select-text shadow-inner"
                   style={{ maxHeight: 'min(220px, calc(100vh - 420px))' }}
                 >
-                  <div className="text-[10px] uppercase font-bold text-gray-500 border-b border-gray-800/40 pb-1 mb-2 select-none">Neue Features in diesem Update:</div>
+                  <div className="flex justify-between items-center border-b border-gray-800/40 pb-1 mb-2 select-none">
+                    <span className="text-[9px] uppercase font-bold text-gray-500">Neue Features in diesem Update:</span>
+                    <div className="flex items-center bg-gray-855/60 rounded-lg p-0.5 border border-gray-755/80 scale-90 origin-right">
+                      <button
+                        onClick={() => setLang('de')}
+                        className={`px-2 py-0.5 rounded-md text-[10px] font-semibold transition-all duration-150 ${
+                          lang === 'de'
+                            ? 'bg-omega-accent text-white shadow-sm'
+                            : 'text-gray-400 hover:text-gray-200'
+                        }`}
+                      >
+                        DE
+                      </button>
+                      <button
+                        onClick={() => setLang('en')}
+                        className={`px-2 py-0.5 rounded-md text-[10px] font-semibold transition-all duration-150 ${
+                          lang === 'en'
+                            ? 'bg-omega-accent text-white shadow-sm'
+                            : 'text-gray-400 hover:text-gray-200'
+                        }`}
+                      >
+                        EN
+                      </button>
+                    </div>
+                  </div>
                   {renderParsedEntries()}
                 </div>
             </div>

@@ -12,6 +12,7 @@ The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Sem
 
 #### Changed
 - **Popout Window Layout Optimization**: Log viewer and Feedback windows now render borderless and full-screen in standalone popout mode. The double close headers and footers are concealed, letting the OS titlebar handle window closing for a cleaner user experience.
+- **Update Dialog Language Switcher**: Moved the DE/EN buttons from the window titlebar to the inside of the version card right under the new version info, making the language toggle significantly more prominent.
 
 ### Deutsch
 
@@ -21,6 +22,7 @@ The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Sem
 
 #### Geändert
 - **Optimierung des Popout-Fenster-Layouts**: Die Log- und Feedback-Fenster füllen den Bildschirm im Popout-Modus nun komplett randlos aus. Die doppelten Schließen-Leisten und Footer werden ausgeblendet, wodurch das Fenster sauber über die Windows-Titelleiste geschlossen werden kann.
+- **Sprachumschalter im Update-Dialog**: Die DE/EN-Schaltflächen wurden aus der Titelleiste in das Innere der Infokarte direkt unter die Anzeige der neuen Version verschoben, wodurch der Sprachwechsel wesentlich deutlicher sichtbar ist.
 
 ---
 
