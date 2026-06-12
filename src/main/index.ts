@@ -4,11 +4,24 @@ import { setupIpc, setStartupFile } from './ipc'
 import { setupSettingsIpc } from './settingsIpc'
 import { setupUpdateDownloader } from './updateDownloader'
 import { setupVstBridgeIpc } from './ipc/vstBridgeIpc'
+import { logger } from './logger'
 
 // Set custom AppData folder structure: AppData/Roaming/OmegaProjects/Omega Wave Editor
 const appDataPath = app.getPath('appData')
 const customUserDataPath = join(appDataPath, 'OmegaProjects', 'Omega Wave Editor')
 app.setPath('userData', customUserDataPath)
+
+// Logger initialisieren und unhandled Exceptions abfangen
+logger.init()
+
+process.on('uncaughtException', (err) => {
+  logger.error('System', 'Uncaught Exception im Hauptprozess', err)
+})
+process.on('unhandledRejection', (reason) => {
+  logger.error('System', 'Unhandled Rejection im Hauptprozess', reason)
+})
+
+logger.info('System', 'Hauptprozess startet', { args: process.argv })
 
 // Helper to find .owep files in command arguments
 function findProjectFile(args: string[]): string | null {
@@ -58,6 +71,7 @@ async function installDevTools(): Promise<void> {
 }
 
 function createWindow(): void {
+  logger.info('System', 'Erstelle Hauptfenster...')
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 720,
@@ -74,6 +88,7 @@ function createWindow(): void {
   })
 
   mainWindow.on('ready-to-show', () => {
+    logger.info('System', 'Hauptfenster bereit zur Anzeige.')
     mainWindow?.show()
     if (!app.isPackaged) {
       mainWindow?.webContents.openDevTools()
@@ -82,6 +97,7 @@ function createWindow(): void {
 
   // Intercept window close to check for unsaved changes in frontend
   mainWindow.on('close', (e) => {
+    logger.info('System', 'Schließanforderung für Hauptfenster erhalten.')
     if (!forceQuit) {
       e.preventDefault()
       mainWindow?.webContents.send('window-close-request')
@@ -89,7 +105,9 @@ function createWindow(): void {
   })
 
   mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
-    console.log(`[RENDERER] ${message} (${sourceId}:${line})`)
+    const levels = ['debug', 'info', 'warn', 'error'] as const
+    const lvl = (level >= 0 && level < levels.length) ? levels[level] : 'info'
+    logger.write(lvl, 'Renderer-Console', `${message} (${sourceId}:${line})`)
   })
 
   if (!app.isPackaged && process.env['ELECTRON_RENDERER_URL']) {

@@ -8,6 +8,7 @@ import { registerProjectIpc, setStartupFile } from './ipc/projectIpc'
 import { registerAudioIpc } from './ipc/audioIpc'
 import { registerSystemIpc } from './ipc/systemIpc'
 import { registerPluginIpc } from './ipc/pluginIpc'
+import { registerLogIpc } from './ipc/logIpc'
 
 // Re-export setStartupFile for index.ts compatibility
 export { setStartupFile }
@@ -17,6 +18,7 @@ export { setStartupFile }
  * Executed once during the Electron application bootstrap.
  */
 export function setupIpc() {
+  registerLogIpc()
   registerProjectIpc()
   registerAudioIpc()
   registerSystemIpc()

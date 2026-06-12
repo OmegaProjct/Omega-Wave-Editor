@@ -8,6 +8,7 @@ import * as https from 'https'
 import * as http from 'http'
 import { URL } from 'url'
 import { sendEnhancedTelemetryPing } from './telemetryClient'
+import { logger } from './logger'
 
 let downloadedInstallerPath: string | null = null
 let runInstallerOnQuit = false
@@ -27,7 +28,7 @@ export function setupUpdateDownloader(mainWindow: BrowserWindow) {
 
       if (downloadUrl && (downloadUrl.includes('/releases/download/') || downloadUrl.endsWith('.exe') || downloadUrl.endsWith('.dmg') || downloadUrl.endsWith('.AppImage') || downloadUrl.endsWith('.deb') || downloadUrl.endsWith('.zip'))) {
         assetName = decodeURIComponent(downloadUrl.split('/').pop() || '')
-        console.log(`Using direct download URL: ${downloadUrl}`)
+        logger.info('Updater', `Nutze direkte Download-URL: ${downloadUrl}`)
       } else {
         // 1. Suche nach dem passenden Release-Asset auf GitHub
         // Wir holen die Details über das neueste Release von der GitHub API
@@ -90,7 +91,7 @@ export function setupUpdateDownloader(mainWindow: BrowserWindow) {
       const tempFilePath = path.join(downloadsDir, assetName)
       downloadedInstallerPath = tempFilePath // Set early so cancel can delete it
 
-      console.log(`Starting download from ${downloadUrl} to ${tempFilePath}`)
+      logger.info('Updater', `Starte Download von ${downloadUrl} nach ${tempFilePath}`)
 
       // Remove existing 0-byte or corrupt temporary installer files if any
       if (fs.existsSync(tempFilePath)) {
@@ -126,7 +127,7 @@ export function setupUpdateDownloader(mainWindow: BrowserWindow) {
       }
 
       downloadedInstallerPath = tempFilePath
-      console.log(`Download completed successfully: ${tempFilePath}`)
+      logger.info('Updater', `Download erfolgreich abgeschlossen: ${tempFilePath}`)
       
       mainWindow.webContents.send('download-progress', {
         percent: 100,
@@ -139,7 +140,7 @@ export function setupUpdateDownloader(mainWindow: BrowserWindow) {
 
       return { success: true, filePath: tempFilePath }
     } catch (error: any) {
-      console.error('Fehler beim Download:', error)
+      logger.error('Updater', 'Fehler beim Download', error)
       const isCanceled = isDownloadCancelled || error.message === 'Canceled'
       mainWindow.webContents.send('download-progress', { 
         percent: 0, 
@@ -152,7 +153,7 @@ export function setupUpdateDownloader(mainWindow: BrowserWindow) {
 
   // Cancel Update Download Handler
   ipcMain.handle('cancel-update-download', async () => {
-    console.log('IPC Request: cancel-update-download')
+    logger.info('Updater', 'Update-Download abgebrochen angefordert')
     isDownloadCancelled = true
     
     if (activeDownloadRequest) {
@@ -169,9 +170,9 @@ export function setupUpdateDownloader(mainWindow: BrowserWindow) {
     if (downloadedInstallerPath && fs.existsSync(downloadedInstallerPath)) {
       try {
         fs.unlinkSync(downloadedInstallerPath)
-        console.log(`Cleaned up cancelled partial installer: ${downloadedInstallerPath}`)
+        logger.info('Updater', `Teilweise heruntergeladener Installer bereinigt: ${downloadedInstallerPath}`)
       } catch (err) {
-        console.warn('Failed to delete partial installer file during cancel:', err)
+        logger.warn('Updater', 'Fehler beim Löschen des teilweise heruntergeladenen Installers beim Abbrechen', err)
       }
     }
     
@@ -207,7 +208,7 @@ export function setupUpdateDownloader(mainWindow: BrowserWindow) {
 
 function executeInstaller(filePath: string) {
   try {
-    console.log(`Executing installer: ${filePath}`)
+    logger.info('Updater', `Führe Installer aus: ${filePath}`)
     const isWin = process.platform === 'win32'
     
     if (isWin) {
@@ -232,7 +233,7 @@ function executeInstaller(filePath: string) {
       }).unref()
     }
   } catch (err) {
-    console.error('Fehler beim Ausführen des Installers:', err)
+    logger.error('Updater', 'Fehler beim Ausführen des Installers', err)
   }
 }
 

@@ -143,7 +143,15 @@ const api = {
     const sub = (_e: any, position: number) => callback(position)
     ipcRenderer.on('seek-timeline', sub)
     return () => { ipcRenderer.removeListener('seek-timeline', sub) }
-  }
+  },
+  
+  // Diagnose-Protokollierung (Logging)
+  log: (level: 'debug' | 'info' | 'warn' | 'error', moduleName: string, message: string, details?: any) =>
+    ipcRenderer.invoke('write-log', level, moduleName, message, details),
+  getLogPath: () => ipcRenderer.invoke('get-log-path'),
+  openLogFolder: () => ipcRenderer.invoke('open-log-folder'),
+  getLogContent: () => ipcRenderer.invoke('get-log-content'),
+  clearLog: () => ipcRenderer.invoke('clear-log')
 }
 
 if (process.contextIsolated) {

@@ -89,6 +89,13 @@ declare global {
       onSeekTimeline: (callback: (position: number) => void) => () => void
       openPopoutWindow: (name: string, options?: { width?: number; height?: number; title?: string }) => void
       resizeWindow: (width: number, height: number) => void
+      
+      // Diagnose-Protokollierung (Logging)
+      log: (level: 'debug' | 'info' | 'warn' | 'error', moduleName: string, message: string, details?: any) => Promise<void>
+      getLogPath: () => Promise<string>
+      openLogFolder: () => Promise<void>
+      getLogContent: () => Promise<string>
+      clearLog: () => Promise<void>
     }
   }
 }

@@ -10,6 +10,7 @@ import { MessageModal, ModalType } from './components/MessageModal'
 import { ManualModal } from './components/ManualModal'
 import { AboutModal } from './components/AboutModal'
 import ChangelogModal from './components/ChangelogModal'
+import { LogViewerModal } from './components/LogViewerModal'
 import { StartDashboard } from './components/StartDashboard'
 import { SaveConfirmationModal } from './components/SaveConfirmationModal'
 import { UpdateModal } from './components/UpdateModal'
@@ -26,6 +27,100 @@ import appIcon from './assets/app_icon.png'
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+function logTimelineChanges(oldTracks: any[], newTracks: any[]) {
+  if (!oldTracks || !newTracks) return
+
+  try {
+    // 1. Spurenanzahl geändert
+    if (newTracks.length !== oldTracks.length) {
+      window.api.log('info', 'Timeline', `Spurenanzahl geändert von ${oldTracks.length} auf ${newTracks.length}`)
+    }
+
+    // 2. Einzelne Spuren vergleichen
+    newTracks.forEach((newTrack, index) => {
+      const oldTrack = oldTracks.find(t => t.id === newTrack.id)
+      if (!oldTrack) {
+        window.api.log('info', 'Timeline', `Neue Spur hinzugefügt: ID=${newTrack.id}, Name=${newTrack.name || 'Unbenannt'}`)
+        return
+      }
+
+      const trackName = newTrack.name || oldTrack.name || `Spur ${index + 1}`
+      if (newTrack.name !== oldTrack.name) {
+        window.api.log('info', 'Timeline', `Spur ${index + 1} umbenannt von '${oldTrack.name}' zu '${newTrack.name}'`)
+      }
+      if (newTrack.muted !== oldTrack.muted) {
+        window.api.log('info', 'Timeline', `Spur '${trackName}': Mute geändert von ${oldTrack.muted} auf ${newTrack.muted}`)
+      }
+      if (newTrack.solo !== oldTrack.solo) {
+        window.api.log('info', 'Timeline', `Spur '${trackName}': Solo geändert von ${oldTrack.solo} auf ${newTrack.solo}`)
+      }
+      if (newTrack.locked !== oldTrack.locked) {
+        window.api.log('info', 'Timeline', `Spur '${trackName}': Sperrung geändert von ${oldTrack.locked} auf ${newTrack.locked}`)
+      }
+      if (Math.abs(newTrack.volume - oldTrack.volume) > 0.001) {
+        window.api.log('info', 'Timeline', `Spur '${trackName}': Lautstärke geändert von ${oldTrack.volume.toFixed(2)} auf ${newTrack.volume.toFixed(2)}`)
+      }
+
+      // Audio-Objekte (Regions) vergleichen
+      const oldRegions = oldTrack.regions || []
+      const newRegions = newTrack.regions || []
+
+      // Neue oder geänderte Objekte
+      newRegions.forEach((newReg: any) => {
+        const oldReg = oldRegions.find((r: any) => r.id === newReg.id)
+        const regName = newReg.name || newReg.file?.name || 'Unbekanntes Audio'
+        if (!oldReg) {
+          window.api.log('info', 'Timeline', `Audio-Objekt '${regName}' in Spur '${trackName}' hinzugefügt bei ${newReg.startPos.toFixed(3)}s (Dauer: ${newReg.duration.toFixed(3)}s)`)
+          return
+        }
+
+        // Positions- und Dauer-Änderungen prüfen
+        if (Math.abs(newReg.startPos - oldReg.startPos) > 0.0001) {
+          const delta = newReg.startPos - oldReg.startPos
+          const deltaStr = delta > 0 ? `+${delta.toFixed(3)}s` : `${delta.toFixed(3)}s`
+          window.api.log('info', 'Timeline', `Audio-Objekt '${regName}' in Spur '${trackName}' verschoben: ${oldReg.startPos.toFixed(3)}s -> ${newReg.startPos.toFixed(3)}s (Verschiebung: ${deltaStr})`)
+        }
+        if (Math.abs(newReg.duration - oldReg.duration) > 0.0001) {
+          const delta = newReg.duration - oldReg.duration
+          const deltaStr = delta > 0 ? `+${delta.toFixed(3)}s` : `${delta.toFixed(3)}s`
+          window.api.log('info', 'Timeline', `Audio-Objekt '${regName}' in Spur '${trackName}' Dauer geändert: ${oldReg.duration.toFixed(3)}s -> ${newReg.duration.toFixed(3)}s (Änderung: ${deltaStr})`)
+        }
+        if (Math.abs((newReg.sourceOffset || 0) - (oldReg.sourceOffset || 0)) > 0.0001) {
+          window.api.log('info', 'Timeline', `Audio-Objekt '${regName}' in Spur '${trackName}' Start-Offset geändert: ${(oldReg.sourceOffset || 0).toFixed(3)}s -> ${(newReg.sourceOffset || 0).toFixed(3)}s`)
+        }
+        if (Math.abs((newReg.gain || 1) - (oldReg.gain || 1)) > 0.001) {
+          window.api.log('info', 'Timeline', `Audio-Objekt '${regName}' in Spur '${trackName}' Gain geändert: ${(oldReg.gain || 1.0).toFixed(2)} -> ${(newReg.gain || 1.0).toFixed(2)}`)
+        }
+        if (Math.abs((newReg.fadeIn || 0) - (oldReg.fadeIn || 0)) > 0.0001 || Math.abs((newReg.fadeOut || 0) - (oldReg.fadeOut || 0)) > 0.0001) {
+          window.api.log('info', 'Timeline', `Audio-Objekt '${regName}' in Spur '${trackName}' Fades geändert: Einblenden=${(newReg.fadeIn || 0).toFixed(3)}s, Ausblenden=${(newReg.fadeOut || 0).toFixed(3)}s`)
+        }
+        if (newReg.stereoMode !== oldReg.stereoMode) {
+          window.api.log('info', 'Timeline', `Audio-Objekt '${regName}' in Spur '${trackName}' Stereo-Modus geändert: ${oldReg.stereoMode || 'stereo'} -> ${newReg.stereoMode || 'stereo'}`)
+        }
+      })
+
+      // Gelöschte Objekte
+      oldRegions.forEach((oldReg: any) => {
+        const newReg = newRegions.find((r: any) => r.id === oldReg.id)
+        if (!newReg) {
+          const regName = oldReg.name || oldReg.file?.name || 'Unbekanntes Audio'
+          window.api.log('info', 'Timeline', `Audio-Objekt '${regName}' aus Spur '${trackName}' entfernt`)
+        }
+      })
+    })
+
+    // Gelöschte Spuren
+    oldTracks.forEach((oldTrack) => {
+      const newTrack = newTracks.find(t => t.id === oldTrack.id)
+      if (!newTrack) {
+        window.api.log('info', 'Timeline', `Spur '${oldTrack.name || 'Unbenannt'}' (ID=${oldTrack.id}) wurde gelöscht`)
+      }
+    })
+  } catch (err) {
+    console.error('Fehler bei logTimelineChanges:', err)
+  }
+}
+
 function App(): JSX.Element {
   const { i18n } = useTranslation()
   const [showSettings, setShowSettings] = useState(false)
@@ -34,6 +129,7 @@ function App(): JSX.Element {
   const [showManual, setShowManual] = useState(false)
   const [showAbout, setShowAbout] = useState(false)
   const [showChangelog, setShowChangelog] = useState(false)
+  const [showLogs, setShowLogs] = useState(false)
   const [updateAvailable, setUpdateAvailable] = useState<any | null>(null)
   const [keyboardShortcuts, setKeyboardShortcuts] = useState<KeyboardShortcuts>(DEFAULT_KEYBOARD_SHORTCUTS)
   
@@ -67,7 +163,7 @@ function App(): JSX.Element {
   }, [tracks]);
 
   const openModalPopoutOrInline = (
-    name: 'settings' | 'manual' | 'about' | 'update',
+    name: 'settings' | 'manual' | 'about' | 'update' | 'logs',
     openInline: () => void,
     popoutOptions: { width: number; height: number; title: string; payload?: any }
   ) => {
@@ -377,6 +473,7 @@ function App(): JSX.Element {
   const [timelineAction, setTimelineAction] = useState<{ type: string; payload?: any } | undefined>()
 
   const handleTracksUpdate = (updatedTracks: any[]) => {
+    logTimelineChanges(tracks, updatedTracks)
     pushTracks(updatedTracks)
     setIsDirty(true)
   }
@@ -440,6 +537,14 @@ function App(): JSX.Element {
          title: 'Über Omega Wave Editor'
        });
        return;
+    }
+    if (type === 'SHOW_LOGS') {
+      openModalPopoutOrInline('logs', () => setShowLogs(true), {
+        width: 960,
+        height: 720,
+        title: 'Diagnose-Protokolle'
+      });
+      return;
     }
     if (type === 'SHOW_CHANGELOG') {
       setShowChangelog(true)
@@ -688,6 +793,7 @@ function App(): JSX.Element {
       {showExport && <ExportModal onClose={() => setShowExport(false)} tracks={tracks} />}
       {showManual && <ManualModal onClose={() => setShowManual(false)} />}
       {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
+      {showLogs && <LogViewerModal onClose={() => setShowLogs(false)} />}
       {showChangelog && <ChangelogModal onClose={() => setShowChangelog(false)} />}
       {modalConfig && <MessageModal type={modalConfig.type} title={modalConfig.title} message={modalConfig.message} onClose={handleModalClose} />}
       

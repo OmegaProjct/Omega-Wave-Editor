@@ -205,6 +205,16 @@ export function ManualModal({ onClose }: { onClose: () => void }) {
             </div>
           </section>
 
+          {/* 9. Diagnose & Fehleranalyse */}
+          <section>
+            <h2 className="text-xl font-bold text-omega-accent mb-4 border-b border-gray-800 pb-2">
+              {t('manual.sec9_title', { defaultValue: '9. Diagnose & Fehleranalyse' })}
+            </h2>
+            <p className="leading-relaxed text-gray-300 text-sm">
+              {t('manual.sec9_text', { defaultValue: 'Der Editor verfügt über ein integriertes Diagnose-Protokollierungssystem (Logging). Alle Hintergrundprozesse, FFmpeg-Aufrufe, VST-Bridge-Interaktionen und Timeline-Änderungen (Verschiebungen um Millisekunden, Splits, Gain-Änderungen) werden lückenlos aufgezeichnet. Über das Hilfe-Menü -> „Diagnose-Protokolle...“ können Sie das Protokollfenster öffnen, um Logs zu filtern, in die Zwischenablage zu kopieren oder den Speicherordner zu öffnen.' })}
+            </p>
+          </section>
+
         </div>
 
         {/* Footer */}

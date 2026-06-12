@@ -11,6 +11,7 @@ import * as os from 'os'
 import { spawn } from 'child_process'
 import { PluginDescriptor } from '../../common/types'
 import { VstHost } from '../vstBridge/VstHostAddon'
+import { logger } from '../logger'
 
 // Cryptographic-like simple unique hash for plugin paths
 function generatePluginId(filePath: string, name: string): string {
@@ -36,7 +37,7 @@ export function registerPluginIpc() {
         return JSON.parse(content) || {}
       }
     } catch (err) {
-      console.error('Failed to read plugin registry:', err)
+      logger.error('Plugin', 'Fehler beim Lesen der Plugin-Registry', err)
     }
     return {}
   }
@@ -45,12 +46,14 @@ export function registerPluginIpc() {
   function writeRegistry(registry: Record<string, PluginDescriptor>) {
     try {
       fs.writeFileSync(registryPath, JSON.stringify(registry, null, 2), 'utf-8')
+      logger.debug('Plugin', 'Plugin-Registry erfolgreich gespeichert', { count: Object.keys(registry).length })
     } catch (err) {
-      console.error('Failed to write plugin registry:', err)
+      logger.error('Plugin', 'Fehler beim Schreiben der Plugin-Registry', err)
     }
   }
 
   ipcMain.handle('scan-vst-plugins', async () => {
+    logger.info('Plugin', 'VST-Plugin-Scan gestartet')
     const platform = process.platform
     const scanPaths: string[] = []
 
@@ -103,7 +106,7 @@ export function registerPluginIpc() {
           })
         }
       } catch (err) {
-        console.error('Failed to read custom VST paths from settings.json:', err)
+        logger.error('Plugin', 'Fehler beim Lesen der benutzerdefinierten VST-Pfade aus settings.json', err)
       }
     }
 
@@ -203,22 +206,21 @@ export function registerPluginIpc() {
             unsupportedReason
           }
 
-          if (plugin.crashCount && plugin.crashCount >= 3) {
-            plugin.blocked = true
-            plugin.scanStatus = 'failed'
-            plugin.error = 'Plugin stürzte wiederholt ab und wurde blockiert.'
+          if (plugin.blocked) {
+            logger.warn('Plugin', `Plugin blockiert (wiederholte Abstürze): ${name} (${format})`, { path: fullPath })
           }
 
           currentRegistry[pluginId] = plugin
           if (!plugin.blocked) foundPlugins.push(plugin)
         }
       } catch (err) {
-        console.error(`Fehler beim Scannen von ${scanDir}:`, err)
+        logger.error('Plugin', `Fehler beim Scannen des Verzeichnisses ${scanDir}`, err)
       }
     }
 
     // Write updated registry to disk
     writeRegistry(currentRegistry)
+    logger.info('Plugin', 'VST-Plugin-Scan abgeschlossen', { gefundenePlugins: foundPlugins.length })
 
     return foundPlugins
   })

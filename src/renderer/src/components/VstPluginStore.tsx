@@ -714,7 +714,7 @@ export function VstPluginStore({ isPopout: propIsPopout }: { isPopout?: boolean,
             <ShieldAlert size={12} className="text-gray-500 flex-shrink-0" />
             <span>Direktdownloads werden nur für verifizierte Hersteller-Dateien angeboten. Was keinen echten Dateilink hat, bleibt bewusst als externer Hersteller-Link markiert.</span>
           </div>
-          <span className="font-mono flex-shrink-0">Store v0.9.0</span>
+          <span className="font-mono flex-shrink-0">Store v0.9.1</span>
         </div>
       </div>
     )
@@ -796,7 +796,7 @@ export function VstPluginStore({ isPopout: propIsPopout }: { isPopout?: boolean,
             <ShieldAlert size={12} className="text-gray-500 flex-shrink-0" />
             <span>Direktdownloads werden nur für verifizierte Hersteller-Dateien angeboten. Was keinen echten Dateilink hat, bleibt bewusst als externer Hersteller-Link markiert.</span>
         </div>
-        <span className="font-mono flex-shrink-0">Store v0.9.0</span>
+        <span className="font-mono flex-shrink-0">Store v0.9.1</span>
       </div>
 
       {selectedPlugin ? (
