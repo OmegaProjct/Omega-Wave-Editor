@@ -6,13 +6,14 @@ on:
       - 'v*'
 
 jobs:
-  publish:
-    name: Build & Publish Release on ${{ matrix.os }}
+  # macOS und Linux werden auf GitHub Actions gebaut und direkt hochgeladen
+  build-cross-platform:
+    name: Build & Upload on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
 
     strategy:
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
+        os: [macos-latest, ubuntu-latest]
 
     permissions:
       contents: write
@@ -37,18 +38,16 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [ "$RUNNER_OS" == "Windows" ]; then
-            npx electron-builder --win --publish always
-          elif [ "$RUNNER_OS" == "macOS" ]; then
+          if [ "$RUNNER_OS" == "macOS" ]; then
             npx electron-builder --mac --publish always
           else
             npx electron-builder --linux --publish always
           fi
-        shell: bash
 
+  # Release-Notizen werden aktualisiert sobald alle Builds fertig sind
   publish-release:
     name: Release veröffentlichen
-    needs: publish
+    needs: build-cross-platform
     runs-on: ubuntu-latest
     permissions:
       contents: write
