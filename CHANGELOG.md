@@ -2,6 +2,22 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.9.5] - 2026-06-12
+
+### English
+
+#### Fixed
+- **Auto-Updater Stability**: Ensured the update pipeline is clean and stable after the 0.9.4 hotfix. The auto-updater now correctly identifies and downloads only the current version's installers.
+- **Frameless Update Window Polish**: Minor stability improvements to the frameless Update popup window introduced in 0.9.4.
+
+### Deutsch
+
+#### Behoben
+- **Stabilität des Auto-Updaters**: Die Update-Pipeline wurde nach dem 0.9.4-Hotfix bereinigt und stabilisiert. Der Auto-Updater erkennt und lädt nun korrekt nur die Installer der aktuellen Version herunter.
+- **Rahmenloses Update-Fenster verfeinert**: Kleine Stabilitätsverbesserungen am rahmenlosen Update-Popup-Fenster, das in 0.9.4 eingeführt wurde.
+
+---
+
 ## [0.9.4] - 2026-06-12
 
 ### English
