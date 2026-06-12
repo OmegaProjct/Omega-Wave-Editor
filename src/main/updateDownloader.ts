@@ -18,7 +18,8 @@ let activeFileStream: fs.WriteStream | null = null
 let isDownloadCancelled = false
 
 export function setupUpdateDownloader(mainWindow: BrowserWindow) {
-  ipcMain.handle('start-update-download', async (_, { url, latestVersion }) => {
+  ipcMain.handle('start-update-download', async (event, { url, latestVersion }) => {
+    const targetWebContents = event.sender || mainWindow.webContents
     try {
       isDownloadCancelled = false
       sendEnhancedTelemetryPing('download', app.getVersion(), latestVersion)
@@ -111,7 +112,7 @@ export function setupUpdateDownloader(mainWindow: BrowserWindow) {
           const remainingBytes = totalBytes - downloadedBytes
           const remainingSeconds = speedBps > 0 ? (remainingBytes / speedBps) : 0
 
-          mainWindow.webContents.send('download-progress', {
+          targetWebContents.send('download-progress', {
             percent,
             status: 'downloading',
             downloadedBytes,
@@ -129,7 +130,7 @@ export function setupUpdateDownloader(mainWindow: BrowserWindow) {
       downloadedInstallerPath = tempFilePath
       logger.info('Updater', `Download erfolgreich abgeschlossen: ${tempFilePath}`)
       
-      mainWindow.webContents.send('download-progress', {
+      targetWebContents.send('download-progress', {
         percent: 100,
         status: 'completed',
         downloadedBytes: 198000000,
@@ -142,7 +143,7 @@ export function setupUpdateDownloader(mainWindow: BrowserWindow) {
     } catch (error: any) {
       logger.error('Updater', 'Fehler beim Download', error)
       const isCanceled = isDownloadCancelled || error.message === 'Canceled'
-      mainWindow.webContents.send('download-progress', { 
+      targetWebContents.send('download-progress', { 
         percent: 0, 
         status: isCanceled ? 'cancelled' : 'error', 
         error: isCanceled ? 'Canceled' : error.message 
