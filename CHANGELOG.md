@@ -2,6 +2,20 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.11.4] - 2026-06-13
+
+### English
+
+#### Fixed
+- **CI macOS Runner**: Pinned the macOS build runner to `macos-13` (Intel x64) to resolve code signing, APFS disk image packaging (`hdiutil`), and native C++ compilation errors caused by the recent transition of `macos-latest` to Apple Silicon (M1/M2).
+
+### Deutsch
+
+#### Behoben
+- **CI-macOS-Runner**: Den macOS-Build-Runner explizit auf `macos-13` (Intel x64) gepinnt. Dies behebt Fehler beim Code-Signing, bei der DMG-Paketierung (`hdiutil`) und bei der nativen C++-Kompilierung, die durch die kürzliche Umstellung des Standard-Labels `macos-latest` auf Apple Silicon (M1/M2) aufgetreten sind.
+
+---
+
 ## [0.11.3] - 2026-06-13
 
 ### English
