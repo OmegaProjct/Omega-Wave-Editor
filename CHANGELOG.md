@@ -2,6 +2,20 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.11.3] - 2026-06-13
+
+### English
+
+#### Fixed
+- **CI Build Environment**: Resolved AppImage packaging failures by mapping FUSE 2 library installation dynamically to `libfuse2t64` for modern Ubuntu 24.04+ runners, with a fallback to legacy `libfuse2`.
+
+### Deutsch
+
+#### Behoben
+- **CI-Build-Umgebung**: AppImage-Paketierungsfehler behoben, indem die Installation der FUSE-2-Bibliothek dynamisch auf `libfuse2t64` für moderne Ubuntu-24.04+-Runner abgebildet wird, mit einem Fallback auf das klassische `libfuse2`.
+
+---
+
 ## [0.11.2] - 2026-06-13
 
 ### English
