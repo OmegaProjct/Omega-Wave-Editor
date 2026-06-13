@@ -68,7 +68,7 @@ Var deleteEverything
 !macroend
 
 !macro customUnInstall
-  IfSilent done_uninstall ; Bei silent Updates löschen wir die Shortcuts hier nicht
+  StrCmp $deleteEverything "1" 0 done_uninstall
   DetailPrint "Lösche Desktop- und Startmenü-Verknüpfungen..."
   Delete "$DESKTOP\Omega Wave Editor.lnk"
   Delete "$SMPROGRAMS\Omega Wave Editor.lnk"
