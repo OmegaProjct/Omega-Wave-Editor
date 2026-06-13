@@ -12,6 +12,7 @@ import { VstPluginRackPopout } from './components/VstPluginRack'
 import { VstPluginStorePopout } from './components/VstPluginStore'
 import { AudioRecordingModal } from './components/AudioRecordingModal'
 import { LogViewerModal } from './components/LogViewerModal'
+import { MessageCenterModal } from './components/MessageCenterModal'
 import './index.css'
 
 import { initI18n } from './lib/i18n'
@@ -133,8 +134,16 @@ async function bootstrap() {
         <div className="h-screen w-screen bg-[#282b30] text-omega-text overflow-hidden select-none">
           <LogViewerModal 
             onClose={() => window.close()} 
-            initialTab={payload.tab || 'logs'}
+            mode={payload.tab}
           />
+        </div>
+      </React.StrictMode>
+    )
+  } else if (windowParam === 'messages') {
+    root.render(
+      <React.StrictMode>
+        <div className="h-screen w-screen bg-[#282b30] text-omega-text overflow-hidden select-none">
+          <MessageCenterModal onClose={() => window.close()} />
         </div>
       </React.StrictMode>
     )

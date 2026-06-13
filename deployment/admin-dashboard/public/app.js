@@ -116,12 +116,56 @@ function bootDashboard() {
       tabContents.forEach(c => c.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById(targetTab).classList.add('active');
+      
       if (targetTab === 'tab-telemetry') scrollTerminalToBottom();
+      
+      // Feedback polling start/stop
+      if (feedbackPollInterval) {
+        clearInterval(feedbackPollInterval);
+        feedbackPollInterval = null;
+      }
+      if (targetTab === 'tab-feedback') {
+        fetchAndRenderTickets();
+        feedbackPollInterval = setInterval(fetchAndRenderTickets, 10000);
+      }
     });
   });
 
+  // Feedback Filters
+  document.getElementById('filter-project').addEventListener('change', renderTicketsList);
+  document.getElementById('filter-type').addEventListener('change', renderTicketsList);
+  document.getElementById('filter-status').addEventListener('change', renderTicketsList);
+
+  // Feedback Details Actions
+  document.getElementById('btn-send-reply').addEventListener('click', sendSupportReply);
+  document.getElementById('btn-close-ticket').addEventListener('click', closeSupportTicket);
+  
+  // Copy logs button
+  document.getElementById('btn-copy-ticket-logs').addEventListener('click', () => {
+    const logContent = document.getElementById('ticket-detail-logs').textContent;
+    navigator.clipboard.writeText(logContent).then(() => {
+      alert('Logs in die Zwischenablage kopiert!');
+    }).catch(err => {
+      console.error(err);
+      alert('Kopieren fehlgeschlagen.');
+    });
+  });
+
+  // Enter triggers reply send (Ctrl+Enter)
+  document.getElementById('chat-reply-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && e.ctrlKey) {
+      e.preventDefault();
+      sendSupportReply();
+    }
+  });
+
   // Refresh
-  document.getElementById('btn-refresh').addEventListener('click', fetchAndRenderStats);
+  document.getElementById('btn-refresh').addEventListener('click', () => {
+    fetchAndRenderStats();
+    if (document.getElementById('tab-feedback').classList.contains('active')) {
+      fetchAndRenderTickets();
+    }
+  });
 
   // Terminal Clear
   document.getElementById('btn-clear-terminal').addEventListener('click', () => {
@@ -654,6 +698,238 @@ function renderTerminalLogs(recentLogs) {
 function scrollTerminalToBottom() {
   const terminal = document.getElementById('terminal-body');
   if (terminal) terminal.scrollTop = terminal.scrollHeight;
+}
+
+// ============================================================
+//  FEEDBACK & SUPPORT
+// ============================================================
+let currentTickets = [];
+let selectedTicketId = null;
+let feedbackPollInterval = null;
+
+async function fetchAndRenderTickets() {
+  try {
+    const res = await authedFetch('/api/admin/feedback');
+    if (!res.ok) throw new Error('Fehler beim Laden der Tickets');
+    const data = await res.json();
+    currentTickets = data.tickets || [];
+    renderTicketsList();
+    
+    // Refresh detail view if a ticket is currently selected
+    if (selectedTicketId) {
+      const updatedTicket = currentTickets.find(t => t.id === selectedTicketId);
+      if (updatedTicket) {
+        renderTicketDetail(updatedTicket);
+      }
+    }
+  } catch (err) {
+    console.error('[Feedback] error loading tickets:', err);
+  }
+}
+
+function renderTicketsList() {
+  const container = document.getElementById('tickets-list');
+  if (!container) return;
+
+  const projectFilter = document.getElementById('filter-project').value;
+  const typeFilter = document.getElementById('filter-type').value;
+  const statusFilter = document.getElementById('filter-status').value;
+
+  const filtered = currentTickets.filter(t => {
+    if (projectFilter !== 'all' && t.project !== projectFilter) return false;
+    if (typeFilter !== 'all' && t.type !== typeFilter) return false;
+    if (statusFilter !== 'all' && t.status !== statusFilter) return false;
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    container.innerHTML = `<div class="text-center text-muted py-4">Keine Tickets gefunden.</div>`;
+    return;
+  }
+
+  container.innerHTML = '';
+  filtered.forEach(t => {
+    const dateStr = new Date(t.createdAt).toLocaleDateString('de-DE', {
+      day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
+    });
+    
+    const div = document.createElement('div');
+    div.className = `ticket-item ${t.id === selectedTicketId ? 'selected' : ''} ${t.status === 'closed' ? 'closed' : ''}`;
+    div.innerHTML = `
+      <div class="ticket-item-header">
+        <span class="type-badge ${t.type}">${t.type.toUpperCase()}</span>
+        <span class="ticket-date">${dateStr}</span>
+      </div>
+      <h3 class="ticket-title" title="${t.title}">${t.title}</h3>
+      <div class="ticket-meta">
+        <span>${t.project}</span>
+        <span class="status-dot ${t.status}"></span>
+      </div>
+    `;
+
+    div.addEventListener('click', () => {
+      document.querySelectorAll('.ticket-item').forEach(el => el.classList.remove('selected'));
+      div.classList.add('selected');
+      selectTicket(t.id);
+    });
+
+    container.appendChild(div);
+  });
+}
+
+function selectTicket(ticketId) {
+  selectedTicketId = ticketId;
+  const ticket = currentTickets.find(t => t.id === ticketId);
+  if (ticket) {
+    renderTicketDetail(ticket);
+  }
+}
+
+function renderTicketDetail(ticket) {
+  document.getElementById('ticket-detail-empty').classList.add('hidden');
+  const content = document.getElementById('ticket-detail-content');
+  content.classList.remove('hidden');
+
+  // Fill Header
+  const typeBadge = document.getElementById('ticket-detail-type');
+  typeBadge.className = `type-badge ${ticket.type}`;
+  typeBadge.textContent = ticket.type.toUpperCase();
+
+  document.getElementById('ticket-detail-title').textContent = ticket.title;
+
+  const statusBadge = document.getElementById('ticket-detail-status');
+  statusBadge.className = `status-badge-inline ${ticket.status}`;
+  statusBadge.textContent = ticket.status.toUpperCase();
+
+  document.getElementById('ticket-detail-project').innerHTML = `<b>Projekt:</b> ${ticket.project}`;
+  document.getElementById('ticket-detail-device').innerHTML = `<b>Device ID:</b> ${ticket.deviceId}`;
+  
+  const osClean = ticket.os === 'win32' ? 'Windows' : ticket.os === 'darwin' ? 'macOS' : ticket.os === 'linux' ? 'Linux' : ticket.os;
+  document.getElementById('ticket-detail-os').innerHTML = `<b>System:</b> ${osClean} (v${ticket.version})`;
+  
+  const dateStr = new Date(ticket.createdAt).toLocaleString('de-DE');
+  document.getElementById('ticket-detail-date').innerHTML = `<b>Erstellt:</b> ${dateStr}`;
+
+  // Description
+  document.getElementById('ticket-detail-desc').textContent = ticket.description;
+
+  // Images
+  const attachmentsSection = document.getElementById('attachments-section');
+  const imagesGrid = document.getElementById('ticket-detail-images');
+  imagesGrid.innerHTML = '';
+  if (ticket.images && ticket.images.length > 0) {
+    attachmentsSection.classList.remove('hidden');
+    ticket.images.forEach((imgBase64, idx) => {
+      const img = document.createElement('img');
+      img.src = imgBase64;
+      img.alt = `Screenshot ${idx + 1}`;
+      img.className = 'ticket-detail-image';
+      img.addEventListener('click', () => {
+        const w = window.open();
+        w.document.write(`<img src="${imgBase64}" style="max-width:100%; max-height:100vh; display:block; margin:auto;" />`);
+      });
+      imagesGrid.appendChild(img);
+    });
+  } else {
+    attachmentsSection.classList.add('hidden');
+  }
+
+  // Logs
+  const logsSection = document.getElementById('logs-section');
+  if (ticket.logs && ticket.logs.trim().length > 0) {
+    logsSection.classList.remove('hidden');
+    document.getElementById('ticket-detail-logs').textContent = ticket.logs;
+  } else {
+    logsSection.classList.add('hidden');
+  }
+
+  // Chat history
+  const chatMessages = document.getElementById('chat-messages');
+  chatMessages.innerHTML = '';
+  
+  if (ticket.chat && ticket.chat.length > 0) {
+    ticket.chat.forEach(msg => {
+      const timeStr = new Date(msg.timestamp).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+      const msgDiv = document.createElement('div');
+      msgDiv.className = `chat-msg ${msg.sender}`;
+      msgDiv.innerHTML = `
+        <div class="chat-msg-bubble">
+          <div class="chat-msg-text">${msg.text}</div>
+          <div class="chat-msg-time">${timeStr}</div>
+        </div>
+      `;
+      chatMessages.appendChild(msgDiv);
+    });
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  } else {
+    chatMessages.innerHTML = `<div class="text-center text-muted py-4 italic">Noch keine Chat-Nachrichten vorhanden. Schreib eine Antwort unten!</div>`;
+  }
+
+  // Close form actions if ticket is closed
+  const chatReplyForm = document.getElementById('chat-reply-form');
+  const btnClose = document.getElementById('btn-close-ticket');
+  if (ticket.status === 'closed') {
+    btnClose.style.display = 'none';
+    chatReplyForm.classList.add('ticket-closed-state');
+  } else {
+    btnClose.style.display = 'inline-flex';
+    chatReplyForm.classList.remove('ticket-closed-state');
+  }
+
+  lucide.createIcons();
+}
+
+async function sendSupportReply() {
+  if (!selectedTicketId) return;
+  const textarea = document.getElementById('chat-reply-input');
+  const text = textarea.value.trim();
+  if (!text) return;
+
+  const btnSend = document.getElementById('btn-send-reply');
+  btnSend.disabled = true;
+
+  try {
+    const res = await authedFetch('/api/admin/feedback/reply', {
+      method: 'POST',
+      body: JSON.stringify({ ticketId: selectedTicketId, text })
+    });
+    if (res.ok) {
+      textarea.value = '';
+      await fetchAndRenderTickets();
+    } else {
+      alert('Antwort konnte nicht gesendet werden.');
+    }
+  } catch (err) {
+    console.error(err);
+    alert('Verbindungsfehler beim Senden.');
+  } finally {
+    btnSend.disabled = false;
+  }
+}
+
+async function closeSupportTicket() {
+  if (!selectedTicketId) return;
+  if (!confirm('Möchtest du dieses Ticket wirklich schließen?')) return;
+
+  const btnClose = document.getElementById('btn-close-ticket');
+  btnClose.disabled = true;
+
+  try {
+    const res = await authedFetch('/api/admin/feedback/close', {
+      method: 'POST',
+      body: JSON.stringify({ ticketId: selectedTicketId })
+    });
+    if (res.ok) {
+      await fetchAndRenderTickets();
+    } else {
+      alert('Ticket konnte nicht geschlossen werden.');
+    }
+  } catch (err) {
+    console.error(err);
+    alert('Verbindungsfehler.');
+  } finally {
+    btnClose.disabled = false;
+  }
 }
 
 // ============================================================

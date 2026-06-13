@@ -1,4 +1,5 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, clipboard } from 'electron'
+
 
 export type FileEntry = {
   name: string
@@ -155,7 +156,12 @@ const api = {
   getSessionLogs: () => ipcRenderer.invoke('get-session-logs'),
   deleteSessionLog: (filename: string) => ipcRenderer.invoke('delete-session-log', filename),
   exportSessionLog: (filename: string) => ipcRenderer.invoke('export-session-log', filename),
-  submitFeedback: (data: any) => ipcRenderer.invoke('submit-feedback', data)
+  submitFeedback: (data: any) => ipcRenderer.invoke('submit-feedback', data),
+  readClipboardImage: () => {
+    const img = clipboard.readImage()
+    return img.isEmpty() ? null : img.toDataURL()
+  },
+  getDeviceId: () => ipcRenderer.invoke('get-device-id')
 }
 
 if (process.contextIsolated) {

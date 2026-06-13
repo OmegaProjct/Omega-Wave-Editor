@@ -518,6 +518,436 @@ app.post('/api/control/seed', requireAuth, (req, res) => {
   res.json({ success: true, message: 'Erweiterte Demo-Daten geladen.' })
 })
 
+// ------------------------------------------------------------------
+// Support-Tickets & Telegram Bot Integration
+// ------------------------------------------------------------------
+const FEEDBACK_FILE = path.join(DATA_DIR, 'feedback.json')
+const TELEGRAM_MAPPINGS_FILE = path.join(DATA_DIR, 'telegram-mappings.json')
+const BOT_TOKEN = '8829793594:AAGfpXXZ_QDiPhe-_Lsvyf8wHjUsoeBKk70'
+const RECIPIENTS = ['7045186168']
+
+if (!fs.existsSync(FEEDBACK_FILE)) {
+  fs.writeFileSync(FEEDBACK_FILE, '[]', 'utf-8')
+}
+if (!fs.existsSync(TELEGRAM_MAPPINGS_FILE)) {
+  fs.writeFileSync(TELEGRAM_MAPPINGS_FILE, '{}', 'utf-8')
+}
+
+function loadFeedbacks() {
+  if (!fs.existsSync(FEEDBACK_FILE)) return []
+  try {
+    return JSON.parse(fs.readFileSync(FEEDBACK_FILE, 'utf-8'))
+  } catch {
+    return []
+  }
+}
+
+function saveFeedbacks(feedbacks) {
+  try {
+    fs.writeFileSync(FEEDBACK_FILE, JSON.stringify(feedbacks, null, 2), 'utf-8')
+  } catch (err) {
+    console.error('Fehler beim Schreiben des Feedback-Files:', err)
+  }
+}
+
+function loadTelegramMappings() {
+  if (!fs.existsSync(TELEGRAM_MAPPINGS_FILE)) return {}
+  try {
+    return JSON.parse(fs.readFileSync(TELEGRAM_MAPPINGS_FILE, 'utf-8'))
+  } catch {
+    return {}
+  }
+}
+
+function saveTelegramMappings(mappings) {
+  try {
+    fs.writeFileSync(TELEGRAM_MAPPINGS_FILE, JSON.stringify(mappings, null, 2), 'utf-8')
+  } catch (err) {
+    console.error('Fehler beim Schreiben des Telegram-Mappings-Files:', err)
+  }
+}
+
+function escapeHTML(str) {
+  if (!str) return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+async function registerTelegramWebhook() {
+  const webhookUrl = 'https://admin.omc.omegaprojects.de/api/telegram-webhook'
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/setWebhook`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: webhookUrl })
+    })
+    const data = await res.json()
+    console.log('[Telegram Bot] Webhook registriert:', data)
+  } catch (err) {
+    console.error('[Telegram Bot] Fehler bei Webhook-Registrierung:', err)
+  }
+}
+
+// 1. Webhook Route für Telegram Updates (Callback Queries & Replies)
+app.post('/api/telegram-webhook', async (req, res) => {
+  const { message, callback_query } = req.body
+
+  // Verarbeite Callback Queries (Inline-Schließen-Button)
+  if (callback_query) {
+    const callbackData = callback_query.data
+    if (callbackData && callbackData.startsWith('close_ticket:')) {
+      const ticketId = callbackData.split(':')[1]
+      const tickets = loadFeedbacks()
+      const ticket = tickets.find(t => t.id === ticketId)
+      if (ticket) {
+        ticket.status = 'closed'
+        ticket.updatedAt = Date.now()
+        saveFeedbacks(tickets)
+
+        // Callback Query beantworten
+        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            callback_query_id: callback_query.id,
+            text: 'Ticket wurde geschlossen.'
+          })
+        }).catch(err => console.error('[Telegram] answerCallbackQuery failed:', err))
+
+        // Nachricht aktualisieren (Button entfernen, „✅ GESCHLOSSEN“ einfügen)
+        if (callback_query.message) {
+          const originalText = callback_query.message.text || ''
+          const closedText = originalText + '\n\n✅ GESCHLOSSEN'
+          await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageText`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: callback_query.message.chat.id,
+              message_id: callback_query.message.message_id,
+              text: closedText,
+              reply_markup: null
+            })
+          }).catch(err => console.error('[Telegram] editMessageText failed:', err))
+        }
+      }
+    }
+    return res.json({ ok: true })
+  }
+
+  // Verarbeite Antworten (Replies) auf Bot-Nachrichten
+  if (message && message.reply_to_message) {
+    const replyToId = message.reply_to_message.message_id
+    const chatId = message.chat.id
+    const mappings = loadTelegramMappings()
+    const ticketId = mappings[`${chatId}:${replyToId}`]
+
+    if (ticketId) {
+      const tickets = loadFeedbacks()
+      const ticket = tickets.find(t => t.id === ticketId)
+      if (ticket) {
+        const senderName = message.from.first_name || 'Admin'
+        ticket.chat.push({
+          sender: 'admin',
+          text: `[Telegram ${senderName}]: ${message.text || ''}`,
+          timestamp: Date.now()
+        })
+        ticket.updatedAt = Date.now()
+        saveFeedbacks(tickets)
+        console.log(`[Telegram Bot] Antwort zu Ticket ${ticketId} hinzugefügt: ${message.text}`)
+      }
+    }
+  }
+
+  res.json({ ok: true })
+})
+
+// 2. Client API: Neues Feedback senden
+app.post('/api/feedback', async (req, res) => {
+  const { deviceId, project, type, title, description, logs, images } = req.body
+
+  if (!deviceId || !title || !description) {
+    return res.status(400).json({ error: 'Fehlende Pflichtfelder (deviceId, title, description).' })
+  }
+
+  const os = req.body.os || 'unknown'
+  const version = req.body.version || 'unknown'
+  const ticketId = crypto.randomUUID()
+
+  // Sammle Screenshots
+  let imagesArray = []
+  if (Array.isArray(images)) {
+    imagesArray = images
+  } else if (req.body.image) {
+    imagesArray = [req.body.image]
+  }
+
+  const newTicket = {
+    id: ticketId,
+    deviceId,
+    os,
+    version,
+    project: project || 'Omega Wave Editor',
+    type: type || 'other',
+    title,
+    description,
+    status: 'open',
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    images: imagesArray,
+    logs: logs || '',
+    chat: []
+  }
+
+  const tickets = loadFeedbacks()
+  tickets.push(newTicket)
+  saveFeedbacks(tickets)
+
+  // Benachrichtigung an Telegram Empfänger
+  for (const recipient of RECIPIENTS) {
+    try {
+      const textMsg = `<b>🎫 NEUES SUPPORT-TICKET</b>\n` +
+        `<b>Projekt:</b> ${escapeHTML(newTicket.project)}\n` +
+        `<b>Typ:</b> ${escapeHTML(newTicket.type.toUpperCase())}\n` +
+        `<b>Status:</b> OFFEN\n` +
+        `<b>Device ID:</b> <code>${escapeHTML(deviceId)}</code>\n` +
+        `<b>OS:</b> ${escapeHTML(os)} | <b>Version:</b> ${escapeHTML(version)}\n\n` +
+        `<b>Titel:</b> ${escapeHTML(title)}\n` +
+        `<b>Beschreibung:</b>\n${escapeHTML(description)}`
+
+      const replyMarkup = {
+        inline_keyboard: [
+          [
+            {
+              text: '❌ Schließen',
+              callback_data: `close_ticket:${ticketId}`
+            }
+          ]
+        ]
+      }
+
+      // Hauptnachricht senden
+      const textRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: recipient,
+          text: textMsg,
+          parse_mode: 'HTML',
+          reply_markup: replyMarkup
+        })
+      })
+
+      if (textRes.ok) {
+        const textData = await textRes.json()
+        const messageId = textData.result?.message_id
+        if (messageId) {
+          const mappings = loadTelegramMappings()
+          mappings[`${recipient}:${messageId}`] = ticketId
+          saveTelegramMappings(mappings)
+        }
+      } else {
+        console.error(`[Telegram] Fehler beim Senden der Text-Nachricht an ${recipient}:`, await textRes.text())
+      }
+
+      // Bilder senden
+      if (imagesArray.length > 0) {
+        for (let i = 0; i < imagesArray.length; i++) {
+          const imgBase64 = imagesArray[i]
+          const base64Data = imgBase64.replace(/^data:image\/\w+;base64,/, "")
+          const buffer = Buffer.from(base64Data, 'base64')
+          const blob = new Blob([buffer], { type: 'image/png' })
+
+          const formData = new FormData()
+          formData.append('chat_id', recipient)
+          formData.append('photo', blob, `screenshot_${i}.png`)
+          formData.append('caption', `Screenshot ${i + 1} für Ticket: ${title}`)
+
+          const photoRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
+            method: 'POST',
+            body: formData
+          })
+          if (!photoRes.ok) {
+            console.error(`[Telegram] Fehler beim Senden des Fotos ${i} an ${recipient}:`, await photoRes.text())
+          }
+        }
+      }
+
+      // Logs senden
+      if (logs && logs.trim().length > 0) {
+        const blob = new Blob([logs], { type: 'text/plain' })
+        const formData = new FormData()
+        formData.append('chat_id', recipient)
+        formData.append('document', blob, 'logs.txt')
+        formData.append('caption', `Logs für Ticket: ${title}`)
+
+        const docRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendDocument`, {
+          method: 'POST',
+          body: formData
+        })
+        if (!docRes.ok) {
+          console.error(`[Telegram] Fehler beim Senden des Log-Dokuments an ${recipient}:`, await docRes.text())
+        }
+      }
+    } catch (err) {
+      console.error(`[Telegram] Exception beim Senden an ${recipient}:`, err)
+    }
+  }
+
+  res.json({ success: true, ticketId })
+})
+
+// 3. Client API: Tickets & Chats für eine deviceId holen
+app.get('/api/messages', (req, res) => {
+  const { deviceId } = req.query
+  if (!deviceId) {
+    return res.status(400).json({ error: 'Parameter deviceId ist erforderlich.' })
+  }
+
+  const tickets = loadFeedbacks()
+  const filtered = tickets.filter(t => t.deviceId === deviceId)
+  res.json({ success: true, tickets: filtered })
+})
+
+// 4. Client API: User-Nachricht senden
+app.post('/api/messages', async (req, res) => {
+  const { ticketId, text } = req.body
+
+  if (!ticketId || !text) {
+    return res.status(400).json({ error: 'Ticket ID und Text sind erforderlich.' })
+  }
+
+  const tickets = loadFeedbacks()
+  const ticket = tickets.find(t => t.id === ticketId)
+  if (!ticket) {
+    return res.status(404).json({ error: 'Ticket nicht gefunden.' })
+  }
+
+  ticket.chat.push({
+    sender: 'user',
+    text,
+    timestamp: Date.now()
+  })
+  ticket.updatedAt = Date.now()
+  saveFeedbacks(tickets)
+
+  // Benachrichtigung an Telegram Empfänger
+  for (const recipient of RECIPIENTS) {
+    try {
+      const msg = `💬 <b>Antwort von User</b> für Ticket: "<i>${escapeHTML(ticket.title)}</i>"\n` +
+        `<b>Nachricht:</b> ${escapeHTML(text)}`
+      await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: recipient,
+          text: msg,
+          parse_mode: 'HTML'
+        })
+      })
+    } catch (err) {
+      console.error('[Telegram] Fehler bei Benachrichtigung über User-Antwort:', err)
+    }
+  }
+
+  res.json({ success: true })
+})
+
+// 5. Admin API: Alle Tickets laden (geschützt)
+app.get('/api/admin/feedback', requireAuth, (req, res) => {
+  const tickets = loadFeedbacks()
+  const sorted = [...tickets].sort((a, b) => b.updatedAt - a.updatedAt)
+  res.json({ success: true, tickets: sorted })
+})
+
+// 6. Admin API: Antwort schreiben (geschützt)
+app.post('/api/admin/feedback/reply', requireAuth, async (req, res) => {
+  const { ticketId, text } = req.body
+
+  if (!ticketId || !text) {
+    return res.status(400).json({ error: 'Ticket ID und Text sind erforderlich.' })
+  }
+
+  const tickets = loadFeedbacks()
+  const ticket = tickets.find(t => t.id === ticketId)
+  if (!ticket) {
+    return res.status(404).json({ error: 'Ticket nicht gefunden.' })
+  }
+
+  ticket.chat.push({
+    sender: 'admin',
+    text,
+    timestamp: Date.now()
+  })
+  ticket.updatedAt = Date.now()
+  saveFeedbacks(tickets)
+
+  // Telegram-Benachrichtigung, dass der Admin geantwortet hat
+  for (const recipient of RECIPIENTS) {
+    try {
+      const msg = `💬 <b>Admin-Antwort via Web UI</b> für Ticket: "<i>${escapeHTML(ticket.title)}</i>"\n` +
+        `<b>Antwort:</b> ${escapeHTML(text)}`
+      await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: recipient,
+          text: msg,
+          parse_mode: 'HTML'
+        })
+      })
+    } catch (err) {
+      console.error('[Telegram] Fehler bei Benachrichtigung über Admin-Antwort:', err)
+    }
+  }
+
+  res.json({ success: true })
+})
+
+// 7. Admin API: Ticket schließen (geschützt)
+app.post('/api/admin/feedback/close', requireAuth, async (req, res) => {
+  const { ticketId } = req.body
+
+  if (!ticketId) {
+    return res.status(400).json({ error: 'Ticket ID ist erforderlich.' })
+  }
+
+  const tickets = loadFeedbacks()
+  const ticket = tickets.find(t => t.id === ticketId)
+  if (!ticket) {
+    return res.status(404).json({ error: 'Ticket nicht gefunden.' })
+  }
+
+  ticket.status = 'closed'
+  ticket.updatedAt = Date.now()
+  saveFeedbacks(tickets)
+
+  // In Telegram melden
+  for (const recipient of RECIPIENTS) {
+    try {
+      const msg = `❌ <b>Ticket geschlossen (Web UI)</b>: "<i>${escapeHTML(ticket.title)}</i>"`
+      await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: recipient,
+          text: msg,
+          parse_mode: 'HTML'
+        })
+      })
+    } catch (err) {
+      console.error('[Telegram] Fehler bei Schließen-Meldung:', err)
+    }
+  }
+
+  res.json({ success: true })
+})
+
 app.listen(PORT, () => {
   console.log(`Erweiterter Admin-Telemetrie-Server läuft auf Port ${PORT}`)
+  registerTelegramWebhook()
 })
+

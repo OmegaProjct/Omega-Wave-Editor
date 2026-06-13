@@ -1,4 +1,4 @@
-admin.owe.omegaprojects.de {
+admin.omc.omegaprojects.de {
   encode zstd gzip
 
   header {

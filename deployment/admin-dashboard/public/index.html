@@ -84,6 +84,10 @@
             <i data-lucide="users"></i>
             <span>User-Datenbank</span>
           </button>
+          <button class="nav-item" data-tab="tab-feedback">
+            <i data-lucide="message-square"></i>
+            <span>Feedback & Support</span>
+          </button>
           <button class="nav-item" data-tab="tab-telemetry">
             <i data-lucide="activity"></i>
             <span>Live Telemetrie</span>
@@ -394,6 +398,115 @@
                     <p>Setzt die Logs zurück und lädt 30-Tage-Demodaten inklusive diverser Hardware- und Ländereigenschaften.</p>
                   </div>
                   <button id="btn-seed-logs" class="btn-warning">Demo-Daten laden</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 6: FEEDBACK & SUPPORT -->
+        <section id="tab-feedback" class="tab-content">
+          <div class="feedback-layout">
+            <!-- Left panel: Ticket list -->
+            <div class="ticket-list-panel section-card">
+              <div class="card-title-bar">
+                <h2>Feedback & Tickets</h2>
+                <p class="description">Nutzeranfragen, Fehlerberichte und Verbesserungsvorschläge.</p>
+              </div>
+              
+              <!-- Filters -->
+              <div class="feedback-filters">
+                <div class="filter-group">
+                  <label for="filter-project">Projekt</label>
+                  <select id="filter-project">
+                    <option value="all">Alle Projekte</option>
+                    <option value="Omega Wave Editor">Omega Wave Editor</option>
+                  </select>
+                </div>
+                <div class="filter-group">
+                  <label for="filter-type">Typ</label>
+                  <select id="filter-type">
+                    <option value="all">Alle Typen</option>
+                    <option value="bug">Bug (Fehler)</option>
+                    <option value="feature">Feature (Wunsch)</option>
+                    <option value="other">Sonstiges</option>
+                  </select>
+                </div>
+                <div class="filter-group">
+                  <label for="filter-status">Status</label>
+                  <select id="filter-status">
+                    <option value="all">Alle</option>
+                    <option value="open">Offen</option>
+                    <option value="closed">Geschlossen</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- List container -->
+              <div class="tickets-container">
+                <div id="tickets-list" class="tickets-list">
+                  <div class="text-center text-muted py-4">Lade Support-Tickets...</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right panel: Ticket details & chat -->
+            <div class="ticket-detail-panel section-card">
+              <div id="ticket-detail-empty" class="ticket-detail-empty">
+                <i data-lucide="message-square" class="empty-icon"></i>
+                <h3>Kein Ticket ausgewählt</h3>
+                <p>Wähle links ein Ticket aus der Liste aus, um die Details, Logs, Bilder und den Support-Chat anzuzeigen.</p>
+              </div>
+
+              <div id="ticket-detail-content" class="ticket-detail-content hidden">
+                <div class="ticket-detail-header">
+                  <div class="ticket-header-main">
+                    <span id="ticket-detail-type" class="type-badge">BUG</span>
+                    <h2 id="ticket-detail-title">Problem beim Laden von VST3-Plugins</h2>
+                    <span id="ticket-detail-status" class="status-badge-inline open">OFFEN</span>
+                  </div>
+                  <div class="ticket-header-meta">
+                    <span id="ticket-detail-project"><b>Projekt:</b> Omega Wave Editor</span>
+                    <span id="ticket-detail-device"><b>Device ID:</b> client-12345</span>
+                    <span id="ticket-detail-os"><b>System:</b> Win64 (v0.8.28)</span>
+                    <span id="ticket-detail-date"><b>Erstellt:</b> 12.06.2026, 14:30</span>
+                  </div>
+                </div>
+
+                <div class="ticket-detail-body">
+                  <div class="description-section">
+                    <h3>Beschreibung</h3>
+                    <p id="ticket-detail-desc">Das Plugin lädt nicht und wirft einen Fehler...</p>
+                  </div>
+
+                  <div id="attachments-section" class="attachments-section hidden">
+                    <h3>Bilder & Screenshots</h3>
+                    <div id="ticket-detail-images" class="ticket-images-grid"></div>
+                  </div>
+
+                  <div id="logs-section" class="logs-section hidden">
+                    <h3>Client-Logs</h3>
+                    <div class="log-code-wrap">
+                      <pre><code id="ticket-detail-logs">...logs...</code></pre>
+                      <button id="btn-copy-ticket-logs" class="btn-copy-logs"><i data-lucide="copy"></i> Kopieren</button>
+                    </div>
+                  </div>
+
+                  <!-- Support Chat History -->
+                  <div class="chat-section">
+                    <h3>Support-Chatverlauf</h3>
+                    <div id="chat-messages" class="chat-messages">
+                      <!-- Chat messages rendered dynamically -->
+                    </div>
+                    
+                    <div id="chat-reply-form" class="chat-reply-form">
+                      <textarea id="chat-reply-input" placeholder="Support-Antwort eingeben (wird an App & Telegram gesendet)..." rows="3"></textarea>
+                      <div class="chat-reply-actions">
+                        <button id="btn-close-ticket" class="btn-warning"><i data-lucide="check-circle"></i> Ticket Schließen</button>
+                        <button id="btn-send-reply" class="btn-primary"><i data-lucide="send"></i> Antwort senden</button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

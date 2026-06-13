@@ -12,8 +12,9 @@ import { exec } from 'child_process'
 import * as https from 'https'
 import * as http from 'http'
 import { VstHost } from '../vstBridge/VstHostAddon'
-import { sendEnhancedTelemetryPing } from '../telemetryClient'
+import { sendEnhancedTelemetryPing, getHardwareFingerprint } from '../telemetryClient'
 import { logger } from '../logger'
+
 
 function isSafePath(filePath: any): boolean {
   if (typeof filePath !== 'string' || filePath.trim() === '') return false
@@ -550,5 +551,9 @@ export function registerSystemIpc() {
       console.error('IPC Error: open-asio-control-panel failed:', err)
       throw err
     }
+  })
+
+  ipcMain.handle('get-device-id', async () => {
+    return getHardwareFingerprint()
   })
 }

@@ -48,3 +48,8 @@ scratch-setup.exe
 cache/
 Anschaungsmaterial/
 
+# Dashboard runtime data
+deployment/admin-dashboard/data/
+deployment/admin-dashboard/node_modules/
+
+

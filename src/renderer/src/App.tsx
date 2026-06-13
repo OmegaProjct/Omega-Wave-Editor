@@ -129,8 +129,6 @@ function App(): JSX.Element {
   const [showManual, setShowManual] = useState(false)
   const [showAbout, setShowAbout] = useState(false)
   const [showChangelog, setShowChangelog] = useState(false)
-  const [showLogs, setShowLogs] = useState(false)
-  const [logsActiveTab, setLogsActiveTab] = useState<'logs' | 'feedback'>('logs')
   const [updateAvailable, setUpdateAvailable] = useState<any | null>(null)
   const [keyboardShortcuts, setKeyboardShortcuts] = useState<KeyboardShortcuts>(DEFAULT_KEYBOARD_SHORTCUTS)
   
@@ -540,28 +538,18 @@ function App(): JSX.Element {
        return;
     }
     if (type === 'SHOW_LOGS') {
-      openModalPopoutOrInline('logs', () => {
-        setLogsActiveTab('logs')
-        setShowLogs(true)
-      }, {
-        width: 960,
-        height: 720,
-        title: 'Logs',
-        payload: { tab: 'logs' }
-      });
-      return;
+      localStorage.setItem('popout_logs_payload', JSON.stringify({ tab: 'logs' }))
+      window.api.openPopoutWindow('logs', { width: 980, height: 750, title: 'Logs' })
+      return
     }
     if (type === 'SHOW_FEEDBACK') {
-      openModalPopoutOrInline('logs', () => {
-        setLogsActiveTab('feedback')
-        setShowLogs(true)
-      }, {
-        width: 960,
-        height: 720,
-        title: 'Feedback',
-        payload: { tab: 'feedback' }
-      });
-      return;
+      localStorage.setItem('popout_logs_payload', JSON.stringify({ tab: 'feedback' }))
+      window.api.openPopoutWindow('logs', { width: 980, height: 750, title: 'Logs' })
+      return
+    }
+    if (type === 'SHOW_MESSAGES') {
+      window.api.openPopoutWindow('messages', { width: 550, height: 700, title: 'Nachrichtencenter' })
+      return
     }
     if (type === 'SHOW_CHANGELOG') {
       setShowChangelog(true)
@@ -810,7 +798,6 @@ function App(): JSX.Element {
       {showExport && <ExportModal onClose={() => setShowExport(false)} tracks={tracks} />}
       {showManual && <ManualModal onClose={() => setShowManual(false)} />}
       {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
-      {showLogs && <LogViewerModal initialTab={logsActiveTab} onClose={() => setShowLogs(false)} />}
       {showChangelog && <ChangelogModal onClose={() => setShowChangelog(false)} />}
       {modalConfig && <MessageModal type={modalConfig.type} title={modalConfig.title} message={modalConfig.message} onClose={handleModalClose} />}
       
