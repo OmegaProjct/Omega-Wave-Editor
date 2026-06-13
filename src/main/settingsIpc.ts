@@ -64,6 +64,7 @@ export function setupSettingsIpc() {
     showStartScreen: true,
     halfWaveform: false,
     showExportGapWarning: true,
+    showDeleteConfirmation: true,
     recentProjects: [],
     keyboardShortcuts: {
       newProject: 'Ctrl+N',
@@ -268,13 +269,13 @@ export function setupSettingsIpc() {
       },
       "menu": {
         "file": "Datei",
-        "new_project": "Neues Projekt...",
-        "open_project": "Projekt Öffnen...",
+        "new_project": "Neues Projekt",
+        "open_project": "Projekt Öffnen",
         "save_project": "Projekt speichern",
-        "save_project_as": "Projekt speichern unter...",
-        "export_audio": "Audio exportieren (Mixdown)...",
-        "export_arrangement": "Arrangement exportieren (.owea)...",
-        "export_layer": "Layer exportieren (.owel)...",
+        "save_project_as": "Projekt speichern unter",
+        "export_audio": "Audio exportieren (Mixdown)",
+        "export_arrangement": "Arrangement exportieren (.owea)",
+        "export_layer": "Layer exportieren (.owel)",
         "settings": "Einstellungen",
         "quit": "Beenden",
         "edit": "Bearbeiten",
@@ -286,13 +287,13 @@ export function setupSettingsIpc() {
         "delete": "Objekte löschen",
         "select_all": "Alles auswählen",
         "plugins": "Plugins",
-        "scan_vst": "VST Plugins laden/scannen...",
+        "scan_vst": "VST Plugins laden/scannen",
         "help": "Hilfe",
         "manual": "Benutzerhandbuch",
-        "check_updates": "Auf Updates prüfen...",
-        "open_logs": "Logs...",
-        "open_feedback": "Feedback...",
-        "about": "Über Omega Wave Editor...",
+        "check_updates": "Auf Updates prüfen",
+        "open_logs": "Logs",
+        "open_feedback": "Feedback",
+        "about": "Über Omega Wave Editor",
         "support_paypal": "❤️ Projekt unterstützen (PayPal)",
         "vst_scan_finished": "VST Scan abgeschlossen. {{count}} Plugins gefunden:\n\n",
         "checking_updates": "Prüfe auf Updates...\n\nBitte warten...",
@@ -351,13 +352,13 @@ export function setupSettingsIpc() {
       },
       "menu": {
         "file": "File",
-        "new_project": "New Project...",
-        "open_project": "Open Project...",
+        "new_project": "New Project",
+        "open_project": "Open Project",
         "save_project": "Save Project",
-        "save_project_as": "Save Project As...",
-        "export_audio": "Export Audio (Mixdown)...",
-        "export_arrangement": "Export Arrangement (.owea)...",
-        "export_layer": "Export Layer (.owel)...",
+        "save_project_as": "Save Project As",
+        "export_audio": "Export Audio (Mixdown)",
+        "export_arrangement": "Export Arrangement (.owea)",
+        "export_layer": "Export Layer (.owel)",
         "settings": "Settings",
         "quit": "Exit",
         "edit": "Edit",
@@ -369,13 +370,13 @@ export function setupSettingsIpc() {
         "delete": "Delete Objects",
         "select_all": "Select All",
         "plugins": "Plugins",
-        "scan_vst": "Load/Scan VST Plugins...",
+        "scan_vst": "Load/Scan VST Plugins",
         "help": "Help",
         "manual": "User Manual",
-        "check_updates": "Check for Updates...",
-        "open_logs": "Logs...",
-        "open_feedback": "Feedback...",
-        "about": "About Omega Wave Editor...",
+        "check_updates": "Check for Updates",
+        "open_logs": "Logs",
+        "open_feedback": "Feedback",
+        "about": "About Omega Wave Editor",
         "support_paypal": "❤️ Support Project (PayPal)",
         "vst_scan_finished": "VST Scan completed. {{count}} plugins found:\n\n",
         "checking_updates": "Checking for updates...\n\nPlease wait...",
@@ -394,8 +395,8 @@ export function setupSettingsIpc() {
       Object.keys(defaults).forEach(key => {
         if (existing[key] !== undefined) {
           if (typeof existing[key] === 'object' && existing[key] !== null && defaults[key]) {
-            if (key === 'vst_store') {
-              // Special case: force override vst_store to sanitize copywriting
+            if (key === 'vst_store' || key === 'menu') {
+              // Special case: force override vst_store and menu to sanitize copywriting / format menu items
               merged[key] = { ...defaults[key] };
             } else {
               merged[key] = { ...defaults[key], ...existing[key] };

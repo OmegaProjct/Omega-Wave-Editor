@@ -766,7 +766,8 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
     setSettings((prev: any) => ({
       ...prev,
       showStartScreen: true,
-      showExportGapWarning: true
+      showExportGapWarning: true,
+      showDeleteConfirmation: true
     }))
     window.dispatchEvent(new CustomEvent('SHOW_GLOBAL_MODAL', {
       detail: {

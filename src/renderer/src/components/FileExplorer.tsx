@@ -123,11 +123,15 @@ export function FileExplorer() {
   }, [])
 
   useEffect(() => {
-    const handleGlobalClick = () => {
-      setContextMenu(null)
+    const handleGlobalClose = () => {
+      setContextMenu(c => c ? null : null)
     }
-    document.addEventListener('click', handleGlobalClick)
-    return () => document.removeEventListener('click', handleGlobalClick)
+    document.addEventListener('click', handleGlobalClose)
+    window.addEventListener('keydown', handleGlobalClose, true)
+    return () => {
+      document.removeEventListener('click', handleGlobalClose)
+      window.removeEventListener('keydown', handleGlobalClose, true)
+    }
   }, [])
 
   const pinFolder = async () => {
@@ -496,28 +500,51 @@ export function FileExplorer() {
     }
   }
 
-  const handleDelete = (file: FileEntry) => {
-    window.dispatchEvent(new CustomEvent('SHOW_GLOBAL_MODAL', {
-      detail: {
-        type: 'confirm',
-        title: 'Löschen bestätigen',
-        message: `Möchten Sie "${file.name}" wirklich in den Papierkorb verschieben?`,
-        onConfirm: async () => {
-          const res = await window.api.deleteFile(file.path)
-          if (res.success) {
-            loadDirectory(currentPath)
-          } else {
-            window.dispatchEvent(new CustomEvent('SHOW_GLOBAL_MODAL', {
-              detail: {
-                type: 'error',
-                title: 'Fehler beim Löschen',
-                message: `Die Datei konnte nicht gelöscht werden: ${res.error}`
-              }
-            }))
+  const handleDelete = async (file: FileEntry) => {
+    const stopIfPlaying = async () => {
+      if (playingAudio === file.path) {
+        await stopPreview()
+      }
+    }
+
+    const settings = await window.api.getSettings()
+    const doDelete = async () => {
+      await stopIfPlaying()
+      const res = await window.api.deleteFile(file.path)
+      if (res.success) {
+        loadDirectory(currentPath)
+      } else {
+        window.dispatchEvent(new CustomEvent('SHOW_GLOBAL_MODAL', {
+          detail: {
+            type: 'error',
+            title: 'Fehler beim Löschen',
+            message: `Die Datei konnte nicht gelöscht werden: ${res.error}`
+          }
+        }))
+      }
+    }
+
+    if (settings.showDeleteConfirmation !== false) {
+      window.dispatchEvent(new CustomEvent('SHOW_GLOBAL_MODAL', {
+        detail: {
+          type: 'confirm',
+          title: 'Löschen bestätigen',
+          message: `Möchten Sie "${file.name}" wirklich in den Papierkorb verschieben?`,
+          checkboxLabel: 'Nicht erneut fragen',
+          defaultCheckboxChecked: false,
+          onConfirm: async (dontAskAgain?: boolean) => {
+            if (dontAskAgain) {
+              const updatedSettings = { ...settings, showDeleteConfirmation: false }
+              await window.api.saveSettings(updatedSettings)
+              window.dispatchEvent(new CustomEvent('SETTINGS_UPDATED', { detail: updatedSettings }))
+            }
+            await doDelete()
           }
         }
-      }
-    }))
+      }))
+    } else {
+      await doDelete()
+    }
   }
 
   const filteredFiles = files.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()))

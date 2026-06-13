@@ -1,4 +1,4 @@
-﻿import React from 'react'
+import React from 'react'
 import { Info, AlertTriangle, CheckCircle, XCircle } from 'lucide-react'
 
 export type ModalType = 'info' | 'warn' | 'success' | 'error' | 'confirm'
@@ -7,10 +7,13 @@ interface MessageModalProps {
   type: ModalType
   title: string
   message: string
-  onClose: (result?: boolean) => void
+  onClose: (result?: boolean, checkboxChecked?: boolean) => void
+  checkboxLabel?: string
+  defaultCheckboxChecked?: boolean
 }
 
-export function MessageModal({ type, title, message, onClose }: MessageModalProps) {
+export function MessageModal({ type, title, message, onClose, checkboxLabel, defaultCheckboxChecked }: MessageModalProps) {
+  const [checkboxVal, setCheckboxVal] = React.useState(defaultCheckboxChecked || false)
   const getIcon = () => {
     switch (type) {
       case 'info': return <Info className="text-blue-400" size={24} />
@@ -39,18 +42,33 @@ export function MessageModal({ type, title, message, onClose }: MessageModalProp
           {message}
         </div>
 
+        {/* Checkbox if label is provided */}
+        {checkboxLabel && (
+          <div className="px-6 pb-4">
+            <label className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer select-none">
+              <input 
+                type="checkbox" 
+                checked={checkboxVal} 
+                onChange={(e) => setCheckboxVal(e.target.checked)} 
+                className="accent-omega-accent"
+              />
+              {checkboxLabel}
+            </label>
+          </div>
+        )}
+
         {/* Footer */}
         <div className="bg-[#1e2124] px-4 py-3 flex justify-end gap-2 border-t border-gray-700">
           {type === 'confirm' ? (
             <>
               <button 
-                onClick={() => onClose(true)} 
+                onClick={() => onClose(true, checkboxVal)} 
                 className="px-6 py-1.5 bg-omega-accent hover:bg-blue-500 text-white text-xs rounded shadow transition-all font-bold"
               >
                 OK
               </button>
               <button 
-                onClick={() => onClose(false)} 
+                onClick={() => onClose(false, checkboxVal)} 
                 className="px-6 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-xs rounded shadow transition-all"
               >
                 Abbrechen

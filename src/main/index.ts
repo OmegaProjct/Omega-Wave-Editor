@@ -1,4 +1,4 @@
-import { app, BrowserWindow, protocol, ipcMain, session } from 'electron'
+import { app, BrowserWindow, protocol, ipcMain, session, Menu } from 'electron'
 import { join } from 'path'
 import { setupIpc, setStartupFile } from './ipc'
 import { setupSettingsIpc } from './settingsIpc'
@@ -130,6 +130,9 @@ if (gotTheLock) {
   })
 
   app.whenReady().then(async () => {
+    // Disable default menu bar (prevents Alt key from showing/focusing it)
+    Menu.setApplicationMenu(null)
+
     // Scan initial process arguments for .owep association file
     const initialFile = findProjectFile(process.argv)
     if (initialFile) {
