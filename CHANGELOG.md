@@ -2,6 +2,32 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.13.1] - 2026-06-13
+
+### English
+
+#### Added
+- **Focus Zoom on Playhead**: Horizontal zooming via shortcuts or mouse wheel now maintains visual focus on the playhead, centering it automatically if off-screen.
+- **Enhanced Keyboard Shortcut Capturing**: Shortcut learning now displays key combinations in real-time on keydown and saves the combination of up to three keys upon key release.
+
+#### Changed
+- **Audio File Icons in Explorer**: Replaced plain clef icons with a custom document sheet icon containing a colored treble clef and no format text.
+- **Static Alert and Warning Symbols**: Removed pulse animations from all status, alert, and recording indicators to prevent distracting flickering.
+- **Warning Colors**: Changed non-critical warning icon colors to yellow/amber, reserving red strictly for critical failures.
+
+### Deutsch
+
+#### Hinzugefügt
+- **Zoom-Fokus auf Playhead**: Das horizontale Zoomen per Tastenkombination oder Mausrad behält nun den optischen Fokus auf dem Playhead und zentriert diesen automatisch, wenn er sich außerhalb des Sichtfelds befindet.
+- **Verbesserte Shortcuts-Erfassung**: Die Shortcuts-Zuweisung zeigt Tastenkombinationen in Echtzeit beim Drücken an und speichert die Kombination von bis zu drei Tasten erst beim Loslassen.
+
+#### Geändert
+- **Audiodatei-Symbole im Explorer**: Die reinen Notenschlüssel-Icons wurden durch ein eigenes Dokumenten-Blattsymbol mit farbigen Notenschlüsseln ohne Formattext ersetzt.
+- **Statische Warn- und Hinweissymbole**: Sämtliche pulsierenden Animationen an Status- und Warnanzeigen wurden entfernt, um störendes Flackern zu vermeiden.
+- **Farbgebung für Warnungen**: Unkritische Warnzeichen wurden auf Gelb/Bernstein umgestellt, während Rot strikt für kritische Fehler reserviert bleibt.
+
+---
+
 ## [0.13.0] - 2026-06-13
 
 ### English

@@ -20,7 +20,7 @@ export function MessageModal({ type, title, message, onClose, checkboxLabel, def
       case 'warn': return <AlertTriangle className="text-yellow-400" size={24} />
       case 'success': return <CheckCircle className="text-green-400" size={24} />
       case 'error': return <XCircle className="text-red-400" size={24} />
-      case 'confirm': return <AlertTriangle className="text-omega-accent" size={24} />
+      case 'confirm': return <AlertTriangle className="text-yellow-400" size={24} />
       default: return <Info className="text-blue-400" size={24} />
     }
   }

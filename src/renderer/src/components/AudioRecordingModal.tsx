@@ -852,7 +852,7 @@ export function AudioRecordingModal({
                     <button
                       onClick={handleRecord}
                       disabled={isRecording}
-                      className={`w-3.5 h-3.5 rounded-full hover:brightness-125 active:scale-90 transition-all ${isRecording ? 'bg-red-500 animate-pulse cursor-default' : 'bg-[#e53935] cursor-pointer shadow-red-500/50 shadow'}`}
+                      className={`w-3.5 h-3.5 rounded-full hover:brightness-125 active:scale-90 transition-all ${isRecording ? 'bg-red-500 cursor-default' : 'bg-[#e53935] cursor-pointer shadow-red-500/50 shadow'}`}
                       title={t('recording.start_tooltip', { defaultValue: 'Aufnahme starten' })}
                     />
                   </div>

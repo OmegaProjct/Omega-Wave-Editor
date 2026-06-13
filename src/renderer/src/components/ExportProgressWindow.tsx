@@ -120,9 +120,7 @@ export function ExportProgressWindow() {
                   key={i} 
                   className="w-1.5 bg-omega-accent rounded-t-full shadow-[0_0_8px_rgba(59,130,246,0.6)]"
                   style={{ 
-                    height: `${heightPct}%`,
-                    animation: `pulse ${animDuration}s ease-in-out infinite alternate`,
-                    animationDelay: `${i * 0.05}s`
+                    height: `${heightPct}%`
                   }}
                 />
               )
@@ -133,7 +131,7 @@ export function ExportProgressWindow() {
         {/* Status Section */}
         <div className="flex items-start gap-4 z-10">
           {status === 'running' && (
-            <div className="w-12 h-12 bg-omega-accent/10 border border-omega-accent/30 rounded-xl flex items-center justify-center text-omega-accent shadow-[0_0_15px_rgba(59,130,246,0.2)] animate-pulse">
+            <div className="w-12 h-12 bg-omega-accent/10 border border-omega-accent/30 rounded-xl flex items-center justify-center text-omega-accent shadow-[0_0_15px_rgba(59,130,246,0.2)]">
               <Loader2 className="animate-spin" size={24} />
             </div>
           )}

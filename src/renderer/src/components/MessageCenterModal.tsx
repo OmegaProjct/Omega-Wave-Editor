@@ -399,7 +399,7 @@ export function MessageCenterModal({ onClose }: MessageCenterModalProps) {
         {/* Right Pane: Chat Window */}
         <div className="flex-1 flex flex-col bg-[#16181b] min-w-0">
           {error && (
-            <div className="p-3 bg-red-950/20 border-b border-red-500/20 text-red-400 text-xs flex items-center gap-2 flex-shrink-0 animate-pulse">
+            <div className="p-3 bg-red-950/20 border-b border-red-500/20 text-red-400 text-xs flex items-center gap-2 flex-shrink-0">
               <AlertCircle size={14} className="shrink-0" />
               <span>{error}</span>
             </div>
@@ -588,7 +588,7 @@ export function MessageCenterModal({ onClose }: MessageCenterModalProps) {
                   <>
                     {/* Error display */}
                     {replyError && (
-                      <div className="text-[10px] text-red-400 bg-red-950/20 border border-red-500/20 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 animate-pulse select-text">
+                      <div className="text-[10px] text-red-400 bg-red-950/20 border border-red-500/20 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 select-text">
                         <AlertCircle size={12} className="shrink-0" />
                         <span>{replyError}</span>
                       </div>
@@ -663,7 +663,7 @@ export function MessageCenterModal({ onClose }: MessageCenterModalProps) {
                           disabled={isSending || (!replyText.trim() && attachedImages.length === 0 && !attachLog)}
                           className="px-4 py-2 bg-omega-accent hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg flex items-center justify-center transition-colors shrink-0 shadow h-[32px] w-[40px]"
                         >
-                          <Send size={14} className={isSending ? 'animate-pulse' : ''} />
+                          <Send size={14} />
                         </button>
                       </form>
 
