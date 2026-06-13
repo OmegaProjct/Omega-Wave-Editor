@@ -13,8 +13,13 @@ interface UpdateEntry {
 function parseUpdateBody(raw: string): UpdateEntry[] {
   const normalized = raw.replace(/\r\n/g, '\n')
   
+  // Clean up the upgrade notice block if present
+  // Matches "### English", "#### Upgrade Notice", its contents, "### Deutsch", "#### Wichtiger Hinweis zum Update", its contents, and the "---" separator
+  const noticeRegex = /###\s*English\s*[\r\n]+####\s*Upgrade\s*Notice\s*[\r\n]+[\s\S]*?###\s*Deutsch\s*[\r\n]+####\s*Wichtiger\s*Hinweis\s*zum\s*Update\s*[\r\n]+[\s\S]*?(?:\n---\n|\n---(?=\n)|$)/gi;
+  const cleaned = normalized.replace(noticeRegex, '')
+
   // Split by '---' separator
-  const versionBlocks = normalized.split(/\n---\n|\n---(?=\n)/)
+  const versionBlocks = cleaned.split(/\n---\n|\n---(?=\n)/)
   const entries: UpdateEntry[] = []
 
   for (const block of versionBlocks) {
@@ -393,10 +398,25 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
                   </div>
                 </div>
                 
+                {/* Warning notice banner */}
+                <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-200 text-xs flex gap-2.5 items-start mt-1 mb-2 leading-relaxed">
+                  <AlertTriangle className="text-red-500 shrink-0 mt-0.5" size={16} />
+                  <div>
+                    <strong className="text-red-400 block mb-0.5 uppercase tracking-wider text-[10px] font-black">
+                      {lang === 'de' ? 'Wichtiger Hinweis zum Update' : 'Important Upgrade Notice'}
+                    </strong>
+                    <span>
+                      {lang === 'de' 
+                        ? 'Bitte stelle vor dem Update des Omega Wave Editors sicher, dass deine aktiven Projekte (.owep) gespeichert sind. Wenn du von einer älteren Version aktualisierst, bleiben deine Einstellungen und die Liste der letzten Projekte sicher erhalten.' 
+                        : 'Before updating the Omega Wave Editor, please make sure to save your active projects (.owep). If you are upgrading from an older version, your settings and recent project lists will be preserved safely.'}
+                    </span>
+                  </div>
+                </div>
+
                 {/* Scrollable Changelog box */}
                 <div 
                   className="overflow-y-auto pr-2 leading-normal text-gray-200 custom-scrollbar select-text mt-2 w-full text-left"
-                  style={{ maxHeight: 'min(380px, calc(100vh - 380px))' }}
+                  style={{ maxHeight: 'min(300px, calc(100vh - 440px))' }}
                 >
                   {renderParsedEntries()}
                 </div>
