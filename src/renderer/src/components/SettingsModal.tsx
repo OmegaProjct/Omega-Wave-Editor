@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { AudioEngine } from '../lib/AudioEngine'
 import {
   DEFAULT_KEYBOARD_SHORTCUTS,
@@ -10,6 +10,7 @@ import {
 } from '../lib/keyboardShortcuts'
 import { MidiEngine } from '../lib/MidiEngine'
 import { useTranslation } from 'react-i18next'
+import { AlertTriangle } from 'lucide-react'
 
 type Tab = 'Wiedergabe' | 'Ordner' | 'Ansicht' | 'System' | 'Tastaturkürzel' | 'Projekteinstellungen' | 'MIDI' | 'Sprache & Anzeige'
 
@@ -41,8 +42,112 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
     textScale: 'normal',
     // Standard-Sprungweiten fuer Pfeiltasten Links/Rechts
     jumpSizePlayback: 3.0,
-    jumpSizeStopped: 1.0
+    jumpSizeStopped: 1.0,
+    showDiscardWarning: true,
+    discardBehavior: 'discard'
   })
+  const initialSettingsRef = useRef<any>(null)
+  const [showUnsavedConfirmDialog, setShowUnsavedConfirmDialog] = useState(false)
+  const [dontShowUnsavedAgain, setDontShowUnsavedAgain] = useState(false)
+
+  const hasUnsavedChanges = (current: any, initial: any): boolean => {
+    if (!initial) return false
+    
+    const keysToCompare = [
+      'defaultExplorerPath', 'driverType', 'bufferCount', 'midiInputDeviceId', 
+      'midiOutputDeviceId', 'midiChannel', 'autoScroll', 'spacebarStops', 
+      'autoSave', 'autoSaveInterval', 'sampleRate', 'tracksCount', 
+      'maxUndoSteps', 'showStartScreen', 'halfWaveform', 'showExportGapWarning', 
+      'showDeleteConfirmation', 'importOverlapBehavior', 'language', 'textScale',
+      'showDiscardWarning', 'discardBehavior'
+    ]
+    
+    for (const key of keysToCompare) {
+      if (current[key] !== initial[key]) {
+        return true
+      }
+    }
+    
+    if (JSON.stringify(current.vstPaths) !== JSON.stringify(initial.vstPaths)) {
+      return true
+    }
+    
+    if (JSON.stringify(current.midiMappings) !== JSON.stringify(initial.midiMappings)) {
+      return true
+    }
+    
+    if (JSON.stringify(current.keyboardShortcuts) !== JSON.stringify(initial.keyboardShortcuts)) {
+      return true
+    }
+    
+    return false
+  }
+
+  const handleConfirmSave = async () => {
+    const finalSettings = {
+      ...settings,
+      showDiscardWarning: !dontShowUnsavedAgain,
+      discardBehavior: dontShowUnsavedAgain ? 'save' : (settings.discardBehavior || 'discard')
+    }
+    const settingsToSave = {
+      ...finalSettings,
+      keyboardShortcuts: normalizeKeyboardShortcuts(finalSettings.keyboardShortcuts)
+    }
+    await window.api.saveSettings(settingsToSave)
+    initialSettingsRef.current = settingsToSave
+    AudioEngine.getInstance().setAudioDriver(settingsToSave.driverType || 'wave', settingsToSave.bufferCount || 6)
+    
+    localStorage.setItem('settings_updated_trigger', JSON.stringify({ 
+      timestamp: Date.now(), 
+      settings: settingsToSave 
+    }))
+    window.dispatchEvent(new CustomEvent('SETTINGS_UPDATED', { detail: settingsToSave }))
+    
+    setShowUnsavedConfirmDialog(false)
+    onClose()
+  }
+
+  const handleConfirmDiscard = async () => {
+    if (dontShowUnsavedAgain) {
+      const currentSaved = await window.api.getSettings()
+      const updatedSaved = {
+        ...currentSaved,
+        showDiscardWarning: false,
+        discardBehavior: 'discard'
+      }
+      await window.api.saveSettings(updatedSaved)
+      window.dispatchEvent(new CustomEvent('SETTINGS_UPDATED', { detail: updatedSaved }))
+    }
+    
+    document.documentElement.className = `text-scale-${originalScale}`
+    if (i18n.language !== originalLanguage) {
+      i18n.changeLanguage(originalLanguage)
+    }
+    
+    setShowUnsavedConfirmDialog(false)
+    onClose()
+  }
+
+  const handleConfirmCancel = () => {
+    setShowUnsavedConfirmDialog(false)
+  }
+
+  const handleCancelClick = () => {
+    const hasChanges = hasUnsavedChanges(settings, initialSettingsRef.current)
+    if (hasChanges && settings.showDiscardWarning !== false) {
+      setShowUnsavedConfirmDialog(true)
+    } else {
+      if (hasChanges && settings.showDiscardWarning === false) {
+        if (settings.discardBehavior === 'save') {
+          handleSave()
+        } else {
+          handleCancel()
+        }
+      } else {
+        handleCancel()
+      }
+    }
+  }
   const [capturingShortcut, setCapturingShortcut] = useState<ShortcutAction | null>(null)
   const [tempShortcut, setTempShortcut] = useState<string | null>(null)
 
@@ -128,11 +233,14 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
           ...prev,
           language: 'de',
           textScale: 'normal',
+          showDiscardWarning: true,
+          discardBehavior: 'discard',
           ...s,
           keyboardShortcuts: normalizeKeyboardShortcuts(s?.keyboardShortcuts)
         }
         setOriginalScale(merged.textScale || 'normal')
         setOriginalLanguage(merged.language || 'de')
+        initialSettingsRef.current = merged
         if (merged.activeDeviceId && merged.activeDeviceId !== 'default' && merged.driverType !== 'asio') {
           AudioEngine.getInstance().setOutputDevice(merged.activeDeviceId)
         }
@@ -177,6 +285,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
       keyboardShortcuts: normalizeKeyboardShortcuts(settings.keyboardShortcuts)
     }
     await window.api.saveSettings(settingsToSave)
+    initialSettingsRef.current = settingsToSave
     AudioEngine.getInstance().setAudioDriver(settingsToSave.driverType || 'wave', settingsToSave.bufferCount || 6)
     
     // Write trigger to localStorage so the main window can synchronize instantly
@@ -768,7 +877,8 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
       ...prev,
       showStartScreen: true,
       showExportGapWarning: true,
-      showDeleteConfirmation: true
+      showDeleteConfirmation: true,
+      showDiscardWarning: true
     }))
     window.dispatchEvent(new CustomEvent('SHOW_GLOBAL_MODAL', {
       detail: {
@@ -785,11 +895,34 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
         <div className="border border-gray-700 p-4 rounded bg-[#1e2124]">
           <h3 className="text-center font-semibold mb-3 text-sm">{t('settings.system.ui', { defaultValue: 'Programmoberfläche' })}</h3>
           <button 
-            className="w-full py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors text-white" 
+            className="w-full py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors text-white mb-3" 
             onClick={handleReactivateWarnings}
           >
             {t('settings.system.reactivate_warnings', { defaultValue: 'Hinweisdialoge reaktivieren' })}
           </button>
+          <div className="border-t border-gray-750 pt-3 flex flex-col gap-1.5 text-xs text-gray-300">
+            <span className="text-gray-400 font-semibold">{t('settings.system.discard_warning_label', { defaultValue: 'Ungespeicherte Änderungen beim Schließen:' })}</span>
+            <select
+              value={
+                settings.showDiscardWarning === false
+                  ? (settings.discardBehavior || 'discard')
+                  : 'ask'
+              }
+              onChange={(e) => {
+                const val = e.target.value
+                if (val === 'ask') {
+                  setSettings({ ...settings, showDiscardWarning: true })
+                } else {
+                  setSettings({ ...settings, showDiscardWarning: false, discardBehavior: val })
+                }
+              }}
+              className="bg-[#1a1d21] border border-gray-650 rounded px-2 py-1 outline-none text-white focus:border-omega-accent cursor-pointer"
+            >
+              <option value="ask">{t('settings.system.discard_warning_ask', { defaultValue: 'Nachfragen' })}</option>
+              <option value="save">{t('settings.system.discard_warning_save', { defaultValue: 'Speichern und Schließen' })}</option>
+              <option value="discard">{t('settings.system.discard_warning_discard', { defaultValue: 'Änderungen verwerfen' })}</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -1169,6 +1302,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
       keyboardShortcuts: normalizeKeyboardShortcuts(settings.keyboardShortcuts)
     }
     await window.api.saveSettings(settingsToSave)
+    initialSettingsRef.current = settingsToSave
     AudioEngine.getInstance().setAudioDriver(settingsToSave.driverType || 'wave', settingsToSave.bufferCount || 6)
     
     // Write trigger to localStorage so other windows synchronize instantly
@@ -1202,11 +1336,11 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[2000]" data-settings-modal="true">
-      <div className="bg-[#282b30] border border-gray-700 w-[890px] h-[700px] rounded shadow-2xl flex flex-col">
+      <div className="bg-[#282b30] border border-gray-700 w-[890px] h-[700px] rounded shadow-2xl flex flex-col relative">
         <div className="p-3 border-b border-gray-700 font-semibold flex justify-between items-center bg-[#1e2124] rounded-t text-sm">
           <span>{t('settings.title', { defaultValue: 'Programmeinstellungen' })}</span>
           {!isPopout && (
-            <button onClick={handleCancel} className="hover:text-red-400">✖</button>
+            <button onClick={handleCancelClick} className="hover:text-red-400">✖</button>
           )}
         </div>
         
@@ -1237,11 +1371,64 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
 
         {/* Footer Buttons */}
         <div className="p-3 border-t border-gray-700 flex justify-end gap-2 bg-[#1e2124] rounded-b text-sm">
-          <button onClick={handleCancel} className="px-6 py-1.5 text-xs bg-gray-600 hover:bg-gray-500 rounded text-white">{t('common.cancel', { defaultValue: 'Abbrechen' })}</button>
+          <button onClick={handleCancelClick} className="px-6 py-1.5 text-xs bg-gray-600 hover:bg-gray-500 rounded text-white">{t('common.cancel', { defaultValue: 'Abbrechen' })}</button>
           <button onClick={handleApply} className="px-6 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 rounded text-white font-semibold shadow-sm">{t('common.apply', { defaultValue: 'Übernehmen' })}</button>
           <button onClick={handleSave} className="px-6 py-1.5 text-xs bg-omega-accent hover:bg-blue-500 rounded text-white shadow font-semibold">{t('common.ok', { defaultValue: 'OK' })}</button>
           <button className="px-6 py-1.5 text-xs bg-gray-600 hover:bg-gray-500 rounded ml-4 text-white" onClick={() => window.api.openExternal('https://github.com/OmegaProjct/Omega-Wave-Editor/issues')}>{t('common.help', { defaultValue: 'Hilfe' })}</button>
         </div>
+
+        {/* Unsaved Changes Confirmation Modal Overlay */}
+        {showUnsavedConfirmDialog && (
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px] flex items-center justify-center z-[3000] rounded animate-fade-in">
+            <div className="bg-[#1e2124] border border-gray-700 p-6 rounded-lg shadow-2xl max-w-md w-full flex flex-col gap-4 text-omega-text">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-full bg-yellow-500/10 text-yellow-500 flex items-center justify-center flex-shrink-0">
+                  <AlertTriangle size={20} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <h4 className="font-bold text-sm text-white">{t('settings.unsaved.title', { defaultValue: 'Ungespeicherte Änderungen' })}</h4>
+                  <p className="text-xs text-gray-400 leading-relaxed">
+                    {t('settings.unsaved.message', { defaultValue: 'Sie haben Änderungen an den Einstellungen vorgenommen. Möchten Sie diese Änderungen speichern oder verwerfen?' })}
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-2 pl-1">
+                <input 
+                  id="dont-show-unsaved-again"
+                  type="checkbox" 
+                  checked={dontShowUnsavedAgain}
+                  onChange={(e) => setDontShowUnsavedAgain(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded text-omega-accent bg-[#1a1d21] border-gray-600 focus:ring-0 cursor-pointer"
+                />
+                <label htmlFor="dont-show-unsaved-again" className="text-xs text-gray-400 select-none cursor-pointer hover:text-white">
+                  {t('settings.unsaved.dont_show_again', { defaultValue: 'Diese Meldung in Zukunft nicht mehr anzeigen' })}
+                </label>
+              </div>
+              
+              <div className="flex justify-end gap-2 border-t border-gray-800 pt-3 mt-1 text-xs">
+                <button 
+                  onClick={handleConfirmCancel}
+                  className="px-4 py-1.5 bg-gray-700 hover:bg-gray-650 rounded text-white font-medium transition-colors"
+                >
+                  {t('common.cancel', { defaultValue: 'Abbrechen' })}
+                </button>
+                <button 
+                  onClick={handleConfirmDiscard}
+                  className="px-4 py-1.5 bg-red-650 hover:bg-red-600 rounded text-white font-medium transition-colors"
+                >
+                  {t('settings.unsaved.discard', { defaultValue: 'Verwerfen' })}
+                </button>
+                <button 
+                  onClick={handleConfirmSave}
+                  className="px-4 py-1.5 bg-omega-accent hover:bg-blue-500 rounded text-white font-bold transition-colors"
+                >
+                  {t('common.save', { defaultValue: 'Speichern' })}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
