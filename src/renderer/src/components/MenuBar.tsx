@@ -132,6 +132,10 @@ export function MenuBar({
       onFileAction('SHOW_FEEDBACK')
       return
     }
+    if (action === 'open_messages') {
+      onFileAction('SHOW_MESSAGES')
+      return
+    }
     if (action === 'help' || action === 'manual') return onFileAction('SHOW_MANUAL')
     if (action === 'changelog') return onFileAction('SHOW_CHANGELOG')
     
@@ -225,6 +229,7 @@ export function MenuBar({
             <MenuItem label={t('menu.check_updates', { defaultValue: 'Auf Updates prüfen...' })} action="updates" />
             <MenuItem label={t('menu.open_logs', { defaultValue: 'Logs...' })} action="open_logs" />
             <MenuItem label={t('menu.open_feedback', { defaultValue: 'Feedback...' })} action="open_feedback" />
+            <MenuItem label={t('menu.open_messages', { defaultValue: 'Nachrichtencenter...' })} action="open_messages" />
             <MenuItem label={t('menu.about', { defaultValue: 'Über Omega Wave Editor...' })} action="about" />
             <MenuItem divider />
             <MenuItem label={t('menu.support_paypal', { defaultValue: '❤️ Projekt unterstützen (PayPal)' })} action="paypal" />

@@ -4,6 +4,8 @@ import fs from 'fs'
 import path from 'path'
 import https from 'https'
 import crypto from 'crypto'
+import { execSync } from 'child_process'
+
 
 export interface TelemetrySpecs {
   cpu: string
@@ -177,3 +179,48 @@ export async function sendEnhancedTelemetryPing(
     console.warn('[Telemetry] Fehler beim Zusammenstellen der Telemetriedaten:', err.message)
   }
 }
+
+/**
+ * Ermittelt die MAC-Adresse der primären (nicht-internen) Netzwerkschnittstelle.
+ */
+export function getMacAddress(): string {
+  try {
+    const interfaces = os.networkInterfaces()
+    for (const name of Object.keys(interfaces)) {
+      const iface = interfaces[name]
+      if (iface) {
+        for (const item of iface) {
+          if (!item.internal && item.mac && item.mac !== '00:00:00:00:00:00') {
+            return item.mac
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[Telemetry] Fehler beim Ermitteln der MAC-Adresse:', err)
+  }
+  return 'UnknownMAC'
+}
+
+/**
+ * Erzeugt einen SHA-256 Hardware-Fingerprint im Format OMC-XXXX-XXXX-XXXX-XXXX.
+ */
+export async function getHardwareFingerprint(): Promise<string> {
+  const hostname = os.hostname()
+  const cpus = os.cpus()
+  const cpu = cpus.length > 0 ? cpus[0].model : 'Unbekannt'
+  const ramGB = Math.round(os.totalmem() / (1024 * 1024 * 1024))
+  const gpu = await getGPUModel()
+  const mac = getMacAddress()
+
+  const rawString = `${hostname}|${cpu}|${ramGB}|${gpu}|${mac}`
+  const hash = crypto.createHash('sha256').update(rawString).digest('hex').toUpperCase()
+
+  const part1 = hash.substring(0, 4)
+  const part2 = hash.substring(4, 8)
+  const part3 = hash.substring(8, 12)
+  const part4 = hash.substring(12, 16)
+
+  return `OMC-${part1}-${part2}-${part3}-${part4}`
+}
+

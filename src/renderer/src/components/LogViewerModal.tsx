@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 interface LogViewerModalProps {
   onClose: () => void
   initialTab?: 'logs' | 'feedback'
+  mode?: 'logs' | 'feedback'
 }
 
 interface LogLine {
@@ -43,10 +44,10 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-export function LogViewerModal({ onClose, initialTab = 'logs' }: LogViewerModalProps) {
+export function LogViewerModal({ onClose, initialTab = 'logs', mode }: LogViewerModalProps) {
   const { t } = useTranslation()
   const isPopout = new URLSearchParams(window.location.search).get('window') === 'logs'
-  const [activeTab, setActiveTab] = useState<'logs' | 'feedback'>(initialTab)
+  const activeTab = mode || initialTab || 'logs'
 
   // === State für Logs-Viewer ===
   const [logsList, setLogsList] = useState<SessionLogFile[]>([])
@@ -325,6 +326,29 @@ export function LogViewerModal({ onClose, initialTab = 'logs' }: LogViewerModalP
     setFeedbackError('')
   }
 
+  const handlePasteFromClipboard = async () => {
+    try {
+      const dataUrl = window.api.readClipboardImage()
+      if (dataUrl) {
+        if (attachedImages.length >= 10) {
+          setFeedbackError(t('feedback.max_images_error', { defaultValue: 'Maximal 10 Bilder sind erlaubt!' }))
+          return
+        }
+        const name = `screenshot_${new Date().toLocaleDateString()}_${new Date().toLocaleTimeString().replace(/:/g, '-')}.png`
+        setAttachedImages(prev => {
+          if (prev.length >= 10) return prev
+          return [...prev, { name, dataUrl }]
+        })
+        setFeedbackError('')
+      } else {
+        alert('Kein Bild in der Zwischenablage gefunden. Bitte kopiere zuerst ein Bild/Screenshot.')
+      }
+    } catch (err: any) {
+      console.error('Fehler beim Lesen der Zwischenablage:', err)
+      setFeedbackError(err.message || 'Fehler beim Lesen der Zwischenablage.')
+    }
+  }
+
   // Absenden des Feedbacks
   const handleSubmitFeedback = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -351,7 +375,7 @@ export function LogViewerModal({ onClose, initialTab = 'logs' }: LogViewerModalP
       })
 
       if (res.success) {
-        setFeedbackSuccess(t('feedback.success_msg', { defaultValue: `Dein Bericht wurde erfolgreich lokal gespeichert unter:\n${res.folder}` }))
+        setFeedbackSuccess(t('feedback.success_msg', { defaultValue: `Dein Bericht wurde erfolgreich an den Support gesendet und lokal gespeichert unter:\n${res.folder}` }))
         setFeedbackTitle('')
         setFeedbackText('')
         setAttachedImages([])
@@ -393,11 +417,13 @@ export function LogViewerModal({ onClose, initialTab = 'logs' }: LogViewerModalP
             <FileText className="text-omega-accent w-5 h-5" />
             <div>
               <span className="text-base font-bold text-white tracking-wide block select-none">
-                {t('logs.window_title', { defaultValue: 'Protokolle & Feedback' })}
+                {activeTab === 'logs' ? 'Sitzungs-Protokolle' : 'Feedback & Fehlerbericht'}
               </span>
-              <span className="text-2xs text-gray-500 font-mono block select-all">
-                {logPath}
-              </span>
+              {activeTab === 'logs' && (
+                <span className="text-2xs text-gray-500 font-mono block select-all">
+                  {logPath}
+                </span>
+              )}
             </div>
           </div>
           {!isPopout && (
@@ -405,30 +431,6 @@ export function LogViewerModal({ onClose, initialTab = 'logs' }: LogViewerModalP
               <X size={20} />
             </button>
           )}
-        </div>
-
-        {/* Tab-Navigation */}
-        <div className="flex border-b border-gray-800 bg-[#1e2124]/40 px-6 flex-shrink-0 select-none">
-          <button
-            onClick={() => setActiveTab('logs')}
-            className={`px-5 py-3 text-xs font-bold border-b-2 transition-all duration-150 flex items-center gap-2 ${
-              activeTab === 'logs'
-                ? 'border-omega-accent text-omega-accent bg-white/5'
-                : 'border-transparent text-gray-400 hover:text-white hover:bg-white/2'
-            }`}
-          >
-            📋 {t('logs.tab_logs', { defaultValue: 'Logs' })}
-          </button>
-          <button
-            onClick={() => setActiveTab('feedback')}
-            className={`px-5 py-3 text-xs font-bold border-b-2 transition-all duration-150 flex items-center gap-2 ${
-              activeTab === 'feedback'
-                ? 'border-omega-accent text-omega-accent bg-white/5'
-                : 'border-transparent text-gray-400 hover:text-white hover:bg-white/2'
-            }`}
-          >
-            💬 {t('logs.tab_feedback', { defaultValue: 'Feedback' })}
-          </button>
         </div>
 
         {/* Tab-Content */}
@@ -758,13 +760,28 @@ export function LogViewerModal({ onClose, initialTab = 'logs' }: LogViewerModalP
                 </label>
 
                 <div
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={(e) => {
+                    if ((e.target as HTMLElement).closest('.clipboard-btn')) {
+                      return
+                    }
+                    fileInputRef.current?.click()
+                  }}
                   className="border-2 border-dashed border-gray-800 hover:border-omega-accent/40 rounded-xl p-6 text-center cursor-pointer bg-black/5 hover:bg-black/10 transition-colors flex flex-col items-center gap-2 select-none group"
                 >
                   <Upload className="w-8 h-8 text-gray-600 group-hover:text-omega-accent transition-colors" />
                   <div className="text-xs text-gray-400">
-                    Klicke hier, um Bilder auszuwählen oder mache Screenshots mit dem <strong className="text-gray-250 font-bold">Snipping-Tool</strong> und drücke einfach <kbd className="bg-gray-800 px-1 py-0.5 rounded text-[10px] font-mono">Strg+V</kbd> zum Einfügen!
+                    Klicke hier, um Bilder auszuwählen.
                   </div>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handlePasteFromClipboard()
+                    }}
+                    className="clipboard-btn mt-2 px-4 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-200 hover:text-white rounded-lg border border-gray-700 text-xs font-semibold transition-all flex items-center gap-1.5"
+                  >
+                    <span>Aus Zwischenablage einfügen</span>
+                  </button>
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -816,12 +833,12 @@ export function LogViewerModal({ onClose, initialTab = 'logs' }: LogViewerModalP
                   {isSubmitting ? (
                     <>
                       <RefreshCw className="animate-spin w-3.5 h-3.5" />
-                      <span>Bericht wird gespeichert...</span>
+                      <span>Bericht wird gesendet...</span>
                     </>
                   ) : (
                     <>
                       <Send className="w-3.5 h-3.5" />
-                      <span>Bericht lokal speichern</span>
+                      <span>Bericht an Support senden</span>
                     </>
                   )}
                 </button>

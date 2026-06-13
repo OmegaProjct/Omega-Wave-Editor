@@ -2,6 +2,24 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.10.0] - 2026-06-13
+
+### English
+
+#### Added
+- **Separate Logs & Feedback Popouts**: Popouts for "Session Logs" and "Feedback & Bug Report" are now launched in separate native windows. Removed tabs and headers.
+- **Clipboard screenshot paste**: Added a "Paste from Clipboard" button to the feedback form to import screenshots directly from the OS clipboard.
+- **In-App Message Center**: A premium dark-themed support chat interface (Help -> Message Center...) allows users to view ticket history and chat with support.
+
+### Deutsch
+
+#### Hinzugefügt
+- **Getrennte Logs- & Feedback-Popouts**: Logs („Sitzungs-Protokolle“) und Feedback („Feedback & Fehlerbericht“) öffnen sich jetzt in getrennten, verschiebbaren nativen Popout-Fenstern. Tabs und geteilte Header wurden entfernt.
+- **Screenshot-Import aus Zwischenablage**: Neuer Button „Aus Zwischenablage einfügen“ im Feedback-Formular zum direkten Importieren von Screenshots.
+- **In-App-Nachrichtencenter**: Premium Support-Chat-Oberfläche („Hilfe -> Nachrichtencenter...“) zur Ticketverfolgung und Kommunikation mit dem Support.
+
+---
+
 ## [0.9.7] - 2026-06-13
 
 ### English

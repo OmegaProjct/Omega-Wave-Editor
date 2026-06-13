@@ -100,6 +100,8 @@ declare global {
       deleteSessionLog: (filename: string) => Promise<boolean>
       exportSessionLog: (filename: string) => Promise<{ success: boolean; error?: string }>
       submitFeedback: (data: any) => Promise<{ success: boolean; folder?: string; error?: string }>
+      readClipboardImage: () => string | null
+      getDeviceId: () => Promise<string>
     }
   }
 }

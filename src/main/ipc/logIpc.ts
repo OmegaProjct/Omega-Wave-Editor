@@ -2,6 +2,8 @@ import { ipcMain, app, dialog } from 'electron'
 import { logger, LogLevel } from '../logger'
 import * as path from 'path'
 import * as fs from 'fs'
+import { getHardwareFingerprint } from '../telemetryClient'
+
 
 /**
  * Registriert alle IPC-Schnittstellen für das Logging-System und Feedback-System.
@@ -124,7 +126,62 @@ export function registerLogIpc() {
       }
 
       logger.info('System', 'Feedback/Bug-Report erfolgreich gespeichert', { folder: reportFolder })
+
+      // Sende parallel an die API (leise im Hintergrund fehlschlagend)
+      getHardwareFingerprint().then((deviceId) => {
+        let logs: string | undefined = undefined
+        if (logFilename) {
+          try {
+            if (path.basename(logFilename) === logFilename) {
+              const logDir = path.dirname(logger.getLogPath())
+              const logSource = path.join(logDir, logFilename)
+              if (fs.existsSync(logSource)) {
+                logs = fs.readFileSync(logSource, 'utf-8')
+              }
+            }
+          } catch (e) {
+            console.warn('[Feedback API] Konnte Logdatei nicht lesen:', e)
+          }
+        }
+
+        const payload = {
+          deviceId,
+          project: 'wave-editor',
+          title,
+          type,
+          text,
+          logs,
+          images
+        }
+
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 8000)
+
+        fetch('https://admin.omc.omegaprojects.de/api/feedback', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'Omega-Wave-Editor-Client'
+          },
+          body: JSON.stringify(payload),
+          signal: controller.signal
+        })
+          .then((response) => {
+            clearTimeout(timeoutId)
+            if (!response.ok) {
+              console.warn(`[Feedback API] Server antwortete mit Status: ${response.status}`)
+            }
+          })
+          .catch((error) => {
+            clearTimeout(timeoutId)
+            console.warn('[Feedback API] Fehler beim Senden des Feedbacks:', error)
+          })
+      }).catch((err) => {
+        console.warn('[Feedback API] Fehler beim Ermitteln der DeviceID:', err)
+      })
+
       return { success: true, folder: reportFolder }
+
     } catch (err: any) {
       logger.error('System', 'Fehler beim Speichern des Feedbacks', err)
       return { success: false, error: err.message }

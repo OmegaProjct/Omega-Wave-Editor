@@ -513,7 +513,14 @@ export function Timeline({
     initialSourceOffset: number;
     initialFileDuration: number;
     pitchRate?: number;
-    initialGroupPositions?: { id: string; initialStartPos: number }[];
+    initialGroupPositions?: {
+      id: string;
+      initialStartPos: number;
+      initialDuration: number;
+      initialSourceOffset: number;
+      initialFileDuration: number;
+      pitchRate: number;
+    }[];
   } | null>(null)
   // Lasso / Rubber-Band Selection
   const [lassoRect, setLassoRect] = useState<{ startX: number; startY: number; endX: number; endY: number } | null>(null)
@@ -677,10 +684,13 @@ export function Timeline({
     const currentTrack = tracks.find(t => t.regions.some(r => r.id === regionId));
     if (!currentTrack) return;
     
+    const groupId = region.groupId || Math.random().toString(36).substr(2, 9);
+
     const leftRegion = {
       ...region,
       channels: 1,
       stereoMode: 'left-only' as const,
+      groupId,
       file: { ...region.file, name: region.file.name + ' (Mono L)' }
     };
 
@@ -689,6 +699,7 @@ export function Timeline({
       id: Math.random().toString(36).substr(2, 9),
       channels: 1,
       stereoMode: 'right-only' as const,
+      groupId,
       file: { ...region.file, name: region.file.name + ' (Mono R)' }
     };
 
@@ -722,6 +733,7 @@ export function Timeline({
     });
 
     updateTracksWithHistory(updatedTracks);
+    setSelectedRegionIds(new Set([leftRegion.id, rightRegion.id]));
   };
 
   const splitStereoTrack = (trackId: string) => {
@@ -754,11 +766,12 @@ export function Timeline({
 
     targetTrack.regions.forEach(region => {
       if (region.channels && region.channels !== 1) {
+        const groupId = region.groupId || Math.random().toString(36).substr(2, 9);
         const leftRegion = {
           ...region,
           channels: 1,
           stereoMode: 'left-only' as const,
-          groupId: undefined,
+          groupId,
           file: { ...region.file, name: region.file.name + ' (Mono L)' }
         };
 
@@ -767,7 +780,7 @@ export function Timeline({
           id: Math.random().toString(36).substr(2, 9),
           channels: 1,
           stereoMode: 'right-only' as const,
-          groupId: undefined,
+          groupId,
           file: { ...region.file, name: region.file.name + ' (Mono R)' }
         };
 
@@ -2457,29 +2470,57 @@ export function Timeline({
     const region = tracks.flatMap(t => t.regions).find(r => r.id === regionId);
     if (!region) return;
     
+    let targetIds = [regionId];
+    if (region.groupId) {
+      const groupIds: string[] = [];
+      tracks.forEach(t => {
+        t.regions.forEach(r => {
+          if (r.groupId === region.groupId) {
+            groupIds.push(r.id);
+          }
+        });
+      });
+      targetIds = groupIds;
+    }
+
     if (e.ctrlKey) {
       const next = new Set(selectedRegionIds);
-      if (next.has(regionId)) {
-        next.delete(regionId);
+      const allSelected = targetIds.every(id => next.has(id));
+      if (allSelected) {
+        targetIds.forEach(id => next.delete(id));
       } else {
-        next.add(regionId);
+        targetIds.forEach(id => next.add(id));
       }
       setSelectedRegionIds(next);
       return;
     }
     
-    if (!selectedRegionIds.has(regionId)) {
-      setSelectedRegionIds(new Set([regionId]));
+    if (!targetIds.every(id => selectedRegionIds.has(id))) {
+      setSelectedRegionIds(new Set(targetIds));
     }
     
     HistoryManager.pushState(tracks); 
     
-    const initialGroupPositions: { id: string; initialStartPos: number }[] = [];
+    const initialGroupPositions: {
+      id: string;
+      initialStartPos: number;
+      initialDuration: number;
+      initialSourceOffset: number;
+      initialFileDuration: number;
+      pitchRate: number;
+    }[] = [];
     if (region.groupId) {
       tracks.forEach(t => {
         t.regions.forEach(r => {
           if (r.groupId === region.groupId && r.id !== regionId) {
-            initialGroupPositions.push({ id: r.id, initialStartPos: r.startPos });
+            initialGroupPositions.push({
+              id: r.id,
+              initialStartPos: r.startPos,
+              initialDuration: r.duration,
+              initialSourceOffset: r.sourceOffset || 0,
+              initialFileDuration: r.fileDuration || r.duration,
+              pitchRate: r.effects?.pitchRate || 1.0
+            });
           }
         });
       });
@@ -2539,15 +2580,18 @@ export function Timeline({
 
     if (stereoRegions.length > 0) {
       let updatedTracks = [...tracks];
+      const newSelectedIds = new Set<string>();
       for (const region of stereoRegions) {
         const currentTrack = updatedTracks.find(t => t.regions.some(r => r.id === region.id));
         if (!currentTrack) continue;
+
+        const groupId = region.groupId || Math.random().toString(36).substr(2, 9);
 
         const leftRegion = {
           ...region,
           channels: 1,
           stereoMode: 'left-only' as const,
-          groupId: undefined,
+          groupId,
           file: { ...region.file, name: region.file.name + ' (Mono L)' }
         };
 
@@ -2556,7 +2600,7 @@ export function Timeline({
           id: Math.random().toString(36).substr(2, 9),
           channels: 1,
           stereoMode: 'right-only' as const,
-          groupId: undefined,
+          groupId,
           file: { ...region.file, name: region.file.name + ' (Mono R)' }
         };
 
@@ -2587,8 +2631,12 @@ export function Timeline({
           }
           return t;
         });
+
+        newSelectedIds.add(leftRegion.id);
+        newSelectedIds.add(rightRegion.id);
       }
       updateTracksWithHistory(updatedTracks);
+      setSelectedRegionIds(newSelectedIds);
     } else {
       const hasGroup = selectedRegions.some(r => r.groupId !== undefined);
       if (hasGroup) {
@@ -2749,10 +2797,30 @@ export function Timeline({
           sourceOffset: draggingRegion.initialSourceOffset + actualDeltaClamped * pitchRate
         };
 
-        newTracks[sourceTrackIdx] = {
-            ...newTracks[sourceTrackIdx],
-            regions: newTracks[sourceTrackIdx].regions.map(r => r.id === draggingRegion.id ? updatedRegion : r)
-        }
+        newTracks = newTracks.map(t => ({
+          ...t,
+          regions: t.regions.map(r => {
+            if (r.id === draggingRegion.id) {
+              return updatedRegion;
+            }
+            const gp = draggingRegion.initialGroupPositions?.find(g => g.id === r.id);
+            if (gp) {
+              const gpPitchRate = gp.pitchRate || 1.0;
+              const gpMinPos = Math.max(0, gp.initialStartPos - (gp.initialSourceOffset / gpPitchRate));
+              const gpMaxDelta = (gp.initialDuration / gpPitchRate) - 0.1;
+              const gpActualDelta = Math.min(deltaTime, gpMaxDelta);
+              const gpNewPos = Math.max(gpMinPos, gp.initialStartPos + gpActualDelta);
+              const gpActualDeltaClamped = gpNewPos - gp.initialStartPos;
+              return {
+                ...r,
+                startPos: gpNewPos,
+                duration: gp.initialDuration - gpActualDeltaClamped * gpPitchRate,
+                sourceOffset: gp.initialSourceOffset + gpActualDeltaClamped * gpPitchRate
+              };
+            }
+            return r;
+          })
+        }));
       } else if (draggingRegion.action === 'trimEnd') {
         const pitchRate = draggingRegion.pitchRate || 1.0;
         const fileDur = draggingRegion.initialFileDuration;
@@ -2762,10 +2830,27 @@ export function Timeline({
         
         updatedRegion = { ...region, duration: newDuration };
 
-        newTracks[sourceTrackIdx] = {
-            ...newTracks[sourceTrackIdx],
-            regions: newTracks[sourceTrackIdx].regions.map(r => r.id === draggingRegion.id ? updatedRegion : r)
-        }
+        newTracks = newTracks.map(t => ({
+          ...t,
+          regions: t.regions.map(r => {
+            if (r.id === draggingRegion.id) {
+              return updatedRegion;
+            }
+            const gp = draggingRegion.initialGroupPositions?.find(g => g.id === r.id);
+            if (gp) {
+              const gpPitchRate = gp.pitchRate || 1.0;
+              const gpFileDur = gp.initialFileDuration;
+              const gpSrcOff = gp.initialSourceOffset;
+              const gpMaxDur = Math.max(0.1, gpFileDur - gpSrcOff);
+              const gpNewDuration = Math.min(gpMaxDur, Math.max(0.1, gp.initialDuration + deltaTime * gpPitchRate));
+              return {
+                ...r,
+                duration: gpNewDuration
+              };
+            }
+            return r;
+          })
+        }));
       }
       
       // Update UI state immediately for smooth 60fps movement
@@ -2892,11 +2977,12 @@ export function Timeline({
   const handleRegionClick = (e: React.MouseEvent, trackId: string, regionId: string) => {
     e.stopPropagation();
     const cleanTrackId = trackId.replace(/_[LR]$/, '');
+    const region = tracks.flatMap(t => t.regions).find(r => r.id === regionId);
+    if (!region) return;
+
     if (toolMode === 'scissors') {
       const rect = e.currentTarget.getBoundingClientRect();
       const clickX = e.clientX - rect.left;
-      const region = tracks.flatMap(t => t.regions).find(r => r.id === regionId);
-      if (!region) return;
       const splitTime = (clickX / pixelsPerSecond) + region.startPos;
       
       const tempProject: any = {
@@ -2911,7 +2997,19 @@ export function Timeline({
       updateTracksWithHistory(nextProject.tracks as any);
     } else if (!e.ctrlKey) {
       if (!isLassoActiveRef.current) {
-        setSelectedRegionIds(new Set([regionId]));
+        let targetIds = [regionId];
+        if (region.groupId) {
+          const groupIds: string[] = [];
+          tracks.forEach(t => {
+            t.regions.forEach(r => {
+              if (r.groupId === region.groupId) {
+                groupIds.push(r.id);
+              }
+            });
+          });
+          targetIds = groupIds;
+        }
+        setSelectedRegionIds(new Set(targetIds));
       }
     }
   }
