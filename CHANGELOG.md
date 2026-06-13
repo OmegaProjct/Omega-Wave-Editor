@@ -2,6 +2,20 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.11.8] - 2026-06-13
+
+### English
+
+#### Changed
+- **CI macOS Runner**: Switched the macOS build runner back to `macos-latest` (Apple Silicon arm64) to bypass the extremely long queue times of Intel `macos-13` runners. This drops support for older Intel-based Macs but ensures instant runner provisioning and significantly faster build pipelines.
+
+### Deutsch
+
+#### Geändert
+- **CI-macOS-Runner**: Den macOS-Build-Runner zurück auf `macos-latest` (Apple Silicon arm64) umgestellt, um die extrem langen Wartezeiten der Intel-basierten `macos-13`-Runner zu umgehen. Dies stellt die Unterstützung für ältere Intel-Macs ein, gewährleistet aber eine sofortige Zuweisung von Build-Instanzen und eine wesentlich schnellere Pipeline.
+
+---
+
 ## [0.11.7] - 2026-06-13
 
 ### English
