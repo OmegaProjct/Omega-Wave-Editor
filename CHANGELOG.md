@@ -2,6 +2,22 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.11.5] - 2026-06-13
+
+### English
+
+#### Fixed
+- **NSIS Build Configuration**: Removed the deprecated and unsupported `isKeepShortcuts` parameter from the installer configuration schema, resolving the electron-builder validation and compilation errors.
+- **Shortcut Preservation**: Implemented a robust backup-and-restore routine in the custom NSIS installer script to ensure desktop and Start Menu shortcuts are preserved during application updates while still being properly cleaned up on full manual uninstallation.
+
+### Deutsch
+
+#### Behoben
+- **NSIS-Build-Konfiguration**: Den veralteten und nicht unterstützten Parameter `isKeepShortcuts` aus dem Schema der Installer-Konfiguration entfernt, um Validierungs- und Kompilierungsfehler von electron-builder zu beheben.
+- **Erhalt von Verknüpfungen**: Eine robuste Backup- und Wiederherstellungsroutine im benutzerdefinierten NSIS-Installer-Skript implementiert, damit Desktop- und Startmenü-Verknüpfungen bei Anwendungs-Updates erhalten bleiben, aber bei einer vollständigen manuellen Deinstallation ordnungsgemäß gelöscht werden.
+
+---
+
 ## [0.11.4] - 2026-06-13
 
 ### English

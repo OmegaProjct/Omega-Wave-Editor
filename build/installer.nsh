@@ -5,6 +5,17 @@ Var deleteEverything
 !macroend
 
 !macro customInit
+  ; Sichern der Verknüpfungen vor der Deinstallation bei Updates
+  CreateDirectory "$TEMP\OmegaWaveEditorBackup"
+  IfFileExists "$DESKTOP\Omega Wave Editor.lnk" 0 +2
+    CopyFiles "$DESKTOP\Omega Wave Editor.lnk" "$TEMP\OmegaWaveEditorBackup\desktop.lnk"
+
+  IfFileExists "$SMPROGRAMS\Omega Wave Editor.lnk" 0 +2
+    CopyFiles "$SMPROGRAMS\Omega Wave Editor.lnk" "$TEMP\OmegaWaveEditorBackup\startmenu.lnk"
+
+  IfFileExists "$SMPROGRAMS\Omega Projects\Omega Wave Editor.lnk" 0 +2
+    CopyFiles "$SMPROGRAMS\Omega Projects\Omega Wave Editor.lnk" "$TEMP\OmegaWaveEditorBackup\startmenu_proj.lnk"
+
   ; 1. Prüfe "$PROGRAMFILES\Omega Wave Editor"
   IfFileExists "$PROGRAMFILES\Omega Wave Editor\Uninstall Omega Wave Editor.exe" 0 +4
     DetailPrint "Alte Version unter ProgramFiles gefunden. Deinstalliere..."
@@ -30,6 +41,23 @@ Var deleteEverything
     RMDir /r "$LOCALAPPDATA\Programs\Omega Wave Editor"
 !macroend
 
+!macro customInstall
+  ; Wiederherstellen der Verknüpfungen nach der Installation
+  IfFileExists "$TEMP\OmegaWaveEditorBackup\desktop.lnk" 0 +3
+    CopyFiles "$TEMP\OmegaWaveEditorBackup\desktop.lnk" "$DESKTOP\Omega Wave Editor.lnk"
+    Delete "$TEMP\OmegaWaveEditorBackup\desktop.lnk"
+
+  IfFileExists "$TEMP\OmegaWaveEditorBackup\startmenu.lnk" 0 +3
+    CopyFiles "$TEMP\OmegaWaveEditorBackup\startmenu.lnk" "$SMPROGRAMS\Omega Wave Editor.lnk"
+    Delete "$TEMP\OmegaWaveEditorBackup\startmenu.lnk"
+
+  IfFileExists "$TEMP\OmegaWaveEditorBackup\startmenu_proj.lnk" 0 +3
+    CopyFiles "$TEMP\OmegaWaveEditorBackup\startmenu_proj.lnk" "$SMPROGRAMS\Omega Projects\Omega Wave Editor.lnk"
+    Delete "$TEMP\OmegaWaveEditorBackup\startmenu_proj.lnk"
+
+  RMDir "$TEMP\OmegaWaveEditorBackup"
+!macroend
+
 !macro customUnInit
   StrCpy $deleteEverything "0"
   IfSilent done_cleanup
@@ -40,10 +68,11 @@ Var deleteEverything
 !macroend
 
 !macro customUnInstall
-  StrCmp $deleteEverything "1" 0 done_uninstall
+  IfSilent done_uninstall ; Bei silent Updates löschen wir die Shortcuts hier nicht
   DetailPrint "Lösche Desktop- und Startmenü-Verknüpfungen..."
-  Delete "$oldDesktopLink"
-  Delete "$oldStartMenuLink"
+  Delete "$DESKTOP\Omega Wave Editor.lnk"
+  Delete "$SMPROGRAMS\Omega Wave Editor.lnk"
+  Delete "$SMPROGRAMS\Omega Projects\Omega Wave Editor.lnk"
   System::Call 'shell32::SHChangeNotify(i, i, i, i) v (0x08000000, 0, 0, 0)'
   done_uninstall:
 !macroend
