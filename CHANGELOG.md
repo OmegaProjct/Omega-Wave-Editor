@@ -2,6 +2,20 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.11.2] - 2026-06-13
+
+### English
+
+#### Fixed
+- **CI Build Environment**: Added `libfuse2` installation dependency to the Linux release job to prevent AppImage compilation failures on newer GitHub Actions runners.
+
+### Deutsch
+
+#### Behoben
+- **CI-Build-Umgebung**: Installation von `libfuse2` im Linux-Release-Job hinzugefügt, um Kompilierungsfehler bei der AppImage-Erstellung auf neueren GitHub Actions Runnern zu verhindern.
+
+---
+
 ## [0.11.1] - 2026-06-13
 
 ### English
