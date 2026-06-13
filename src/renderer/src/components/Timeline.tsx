@@ -1259,11 +1259,32 @@ export function Timeline({
           await ProjectManager.exportLayer(res.filePath, selectedTrack);
           window.dispatchEvent(new CustomEvent('SHOW_GLOBAL_MODAL', { detail: { type: 'info', title: 'Erfolg', message: 'Layer exportiert (.owel)' } }));
         }
+      } else if (externalAction.type === 'CUT') {
+        handleCopy();
+        if (selectedRegionIds.size > 0) {
+          deleteSelectedRegions();
+        }
+      } else if (externalAction.type === 'COPY') {
+        handleCopy();
+      } else if (externalAction.type === 'PASTE') {
+        handlePaste();
+      } else if (externalAction.type === 'DELETE') {
+        if (selectedRegionIds.size > 0) {
+          deleteSelectedRegions();
+        }
+      } else if (externalAction.type === 'SELECT_ALL') {
+        const allIds = new Set<string>();
+        tracks.forEach(t => {
+          t.regions.forEach(r => {
+            allIds.add(r.id);
+          });
+        });
+        setSelectedRegionIds(allIds);
       }
     };
 
     handleAction();
-  }, [externalAction, tracks, onTracksChange, zoomLevel, playheadPos, selectedRegionId, exportSettings]);
+  }, [externalAction, tracks, onTracksChange, zoomLevel, playheadPos, selectedRegionId, selectedRegionIds, exportSettings, handleCopy, handlePaste, deleteSelectedRegions]);
 
   useEffect(() => {
     const unsubscribe = window.api.onExportSettingsUpdated((settings: any) => {

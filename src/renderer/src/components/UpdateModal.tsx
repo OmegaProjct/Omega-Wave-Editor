@@ -70,14 +70,22 @@ function renderInline(text: string): React.ReactNode[] {
 // Render a markdown block (#### headers + bullet lists)
 function renderMarkdownBlock(text: string) {
   if (!text) return <p className="text-gray-500 italic text-sm">No details available.</p>
+  let isImportant = false
   return text.split('\n').map((line, idx) => {
     if (line.startsWith('#### ')) {
       const label = line.slice(5)
       let color = 'text-gray-300'
-      if (label === 'Added' || label === 'Hinzugefügt') color = 'text-green-400'
-      if (label === 'Fixed' || label === 'Behoben') color = 'text-blue-400'
-      if (label === 'Changed' || label === 'Geändert') color = 'text-yellow-400'
-      if (label === 'Removed' || label === 'Entfernt') color = 'text-red-400'
+      const labelLower = label.toLowerCase()
+      if (labelLower.includes('notice') || labelLower.includes('hinweis') || labelLower.includes('important') || labelLower.includes('wichtig')) {
+        color = 'text-red-500 font-extrabold'
+        isImportant = true
+      } else {
+        isImportant = false
+        if (label === 'Added' || label === 'Hinzugefügt') color = 'text-green-400'
+        if (label === 'Fixed' || label === 'Behoben') color = 'text-blue-400'
+        if (label === 'Changed' || label === 'Geändert') color = 'text-yellow-400'
+        if (label === 'Removed' || label === 'Entfernt') color = 'text-red-400'
+      }
       return (
         <h5 key={idx} className={`${color} font-bold text-xs uppercase tracking-widest mt-4 mb-2 first:mt-0`}>
           {label}
@@ -88,13 +96,13 @@ function renderMarkdownBlock(text: string) {
       const content = line.slice(2)
       return (
         <div key={idx} className="flex items-start gap-2 mb-2">
-          <span className="text-omega-accent mt-1 shrink-0 text-xs">•</span>
-          <p className="text-gray-200 text-sm leading-relaxed">{renderInline(content)}</p>
+          <span className={`${isImportant ? 'text-red-500' : 'text-omega-accent'} mt-1 shrink-0 text-xs`}>•</span>
+          <p className={`${isImportant ? 'text-red-400 font-semibold' : 'text-gray-200'} text-sm leading-relaxed`}>{renderInline(content)}</p>
         </div>
       )
     }
     if (line.trim() === '') return <div key={idx} className="h-1" />
-    return <p key={idx} className="text-gray-400 text-sm">{renderInline(line)}</p>
+    return <p key={idx} className={`${isImportant ? 'text-red-400 font-semibold' : 'text-gray-400'} text-sm`}>{renderInline(line)}</p>
   })
 }
 

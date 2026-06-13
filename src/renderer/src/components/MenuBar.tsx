@@ -43,6 +43,11 @@ export function MenuBar({
     // Undo/Redo
     if (action === 'undo') return onFileAction('UNDO')
     if (action === 'redo') return onFileAction('REDO')
+    if (action === 'cut') return onFileAction('CUT')
+    if (action === 'copy') return onFileAction('COPY')
+    if (action === 'paste') return onFileAction('PASTE')
+    if (action === 'delete') return onFileAction('DELETE')
+    if (action === 'select_all') return onFileAction('SELECT_ALL')
 
     // Integrated File Actions
     if (action === 'new_project') return onFileAction('NEW_PROJECT')
@@ -204,6 +209,8 @@ export function MenuBar({
             <MenuItem label={t('menu.copy', { defaultValue: 'Objekte kopieren' })} shortcut={formatShortcut(activeShortcuts.copy)} action="copy" />
             <MenuItem label={t('menu.paste', { defaultValue: 'Objekte einfügen' })} shortcut={formatShortcut(activeShortcuts.paste)} action="paste" />
             <MenuItem label={t('menu.delete', { defaultValue: 'Objekte löschen' })} shortcut={formatShortcut(activeShortcuts.deleteSelection)} action="delete" />
+            <MenuItem divider />
+            <MenuItem label={t('menu.select_all', { defaultValue: 'Alles auswählen' })} shortcut={formatShortcut(activeShortcuts.selectAllRegions)} action="select_all" />
           </div>
         )}
       </div>

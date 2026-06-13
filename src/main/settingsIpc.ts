@@ -96,7 +96,10 @@ export function setupSettingsIpc() {
       playBackward: 'J',
       playForward: 'L',
       jumpBackward: 'ArrowLeft',
-      jumpForward: 'ArrowRight'
+      jumpForward: 'ArrowRight',
+      selectAllRegions: 'Ctrl+A',
+      scrollVertical: 'Shift',
+      zoomVertical: 'Ctrl+Shift'
     }
   }
 
@@ -281,6 +284,7 @@ export function setupSettingsIpc() {
         "copy": "Objekte kopieren",
         "paste": "Objekte einfügen",
         "delete": "Objekte löschen",
+        "select_all": "Alles auswählen",
         "plugins": "Plugins",
         "scan_vst": "VST Plugins laden/scannen...",
         "help": "Hilfe",
@@ -363,6 +367,7 @@ export function setupSettingsIpc() {
         "copy": "Copy Objects",
         "paste": "Paste Objects",
         "delete": "Delete Objects",
+        "select_all": "Select All",
         "plugins": "Plugins",
         "scan_vst": "Load/Scan VST Plugins...",
         "help": "Help",
