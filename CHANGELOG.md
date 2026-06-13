@@ -2,6 +2,20 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.11.7] - 2026-06-13
+
+### English
+
+#### Fixed
+- **NSIS Installer Warning**: Fixed the compiler warning 6001 by referencing `$deleteEverything` in the installer's `customInit` macro, ensuring that variables shared with the uninstaller compile cleanly on Windows without failing warning-strict CI builds.
+
+### Deutsch
+
+#### Behoben
+- **NSIS-Installer-Warnung**: Die Compiler-Warnung 6001 behoben, indem `$deleteEverything` im `customInit`-Makro des Installers referenziert wird. Dies stellt sicher, dass Variablen, die mit dem Uninstaller geteilt werden, auf Windows sauber kompilieren, ohne die CI-Pipeline abzubrechen.
+
+---
+
 ## [0.11.6] - 2026-06-13
 
 ### English

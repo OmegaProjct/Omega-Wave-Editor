@@ -5,6 +5,7 @@ Var deleteEverything
 !macroend
 
 !macro customInit
+  StrCpy $deleteEverything "0"
   ; Sichern der Verknüpfungen vor der Deinstallation bei Updates
   CreateDirectory "$TEMP\OmegaWaveEditorBackup"
   IfFileExists "$DESKTOP\Omega Wave Editor.lnk" 0 +2
