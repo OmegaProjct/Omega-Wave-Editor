@@ -26,6 +26,56 @@
     background: #1e2124;
   }
 
+  ::-webkit-scrollbar-button {
+    display: block;
+    width: 10px;
+    height: 10px;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-color: #1e2124;
+  }
+  ::-webkit-scrollbar-button:hover {
+    background-color: #282b30;
+  }
+  ::-webkit-scrollbar-button:active {
+    background-color: #383c42;
+  }
+  ::-webkit-scrollbar-button:vertical {
+    border-left: 1px solid #282b30;
+  }
+
+  /* Vertical Up Arrow */
+  ::-webkit-scrollbar-button:vertical:decrement {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'><path d='M5 3L2 7h6Z' fill='%238a8e95'/></svg>");
+  }
+  ::-webkit-scrollbar-button:vertical:decrement:hover {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'><path d='M5 3L2 7h6Z' fill='%23c1c4c9'/></svg>");
+  }
+
+  /* Vertical Down Arrow */
+  ::-webkit-scrollbar-button:vertical:increment {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'><path d='M5 7L2 3h6Z' fill='%238a8e95'/></svg>");
+  }
+  ::-webkit-scrollbar-button:vertical:increment:hover {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'><path d='M5 7L2 3h6Z' fill='%23c1c4c9'/></svg>");
+  }
+
+  /* Horizontal Left Arrow */
+  ::-webkit-scrollbar-button:horizontal:decrement {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'><path d='M3 5l4-3v6Z' fill='%238a8e95'/></svg>");
+  }
+  ::-webkit-scrollbar-button:horizontal:decrement:hover {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'><path d='M3 5l4-3v6Z' fill='%23c1c4c9'/></svg>");
+  }
+
+  /* Horizontal Right Arrow */
+  ::-webkit-scrollbar-button:horizontal:increment {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'><path d='M7 5L3 2v6Z' fill='%238a8e95'/></svg>");
+  }
+  ::-webkit-scrollbar-button:horizontal:increment:hover {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'><path d='M7 5L3 2v6Z' fill='%23c1c4c9'/></svg>");
+  }
+
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }

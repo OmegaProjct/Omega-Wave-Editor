@@ -161,7 +161,7 @@ export function FileExplorer() {
         audioObj.src = ''
       }
       if (audioCtx) {
-        audioCtx.close()
+        audioCtx.close().catch(() => {})
       }
     }
   }, [audioObj, audioCtx])

@@ -14,7 +14,8 @@ import {
   DEFAULT_KEYBOARD_SHORTCUTS,
   KeyboardShortcuts,
   matchesShortcut,
-  normalizeKeyboardShortcuts
+  normalizeKeyboardShortcuts,
+  matchesMouseModifiers
 } from '../lib/keyboardShortcuts'
 
 export type RegionEffects = {
@@ -350,6 +351,8 @@ export function Timeline({
   const [jumpSizeStopped, setJumpSizeStopped] = useState<number>(1.0)
   const [activeShortcuts, setActiveShortcuts] = useState<KeyboardShortcuts>(normalizeKeyboardShortcuts(keyboardShortcuts))
   const playbackStartPosRef = useRef<number>(0)
+  const prevWasEmptyRef = useRef<boolean>(true)
+  const isProjectLoadingRef = useRef<boolean>(false)
 
   const [playheadPos, setPlayheadPos] = useState<number>(0)
   const playheadPosRef = useRef(0)
@@ -357,6 +360,40 @@ export function Timeline({
   const currentTracksRef = useRef<Track[]>(tracks)
   useEffect(() => {
     currentTracksRef.current = tracks
+  }, [tracks])
+
+  useEffect(() => {
+    const isEmpty = tracks.every(t => t.regions.length === 0)
+    if (!isEmpty && prevWasEmptyRef.current) {
+      if (!isProjectLoadingRef.current) {
+        setTimeout(() => {
+          if (tracksRef.current) {
+            let maxRegionEnd = 0
+            currentTracksRef.current.forEach(t => {
+              t.regions.forEach(r => {
+                const pitchRate = r.effects?.pitchRate || 1.0
+                const end = r.startPos + (r.duration / pitchRate)
+                if (end > maxRegionEnd) {
+                  maxRegionEnd = end
+                }
+              })
+            })
+
+            if (maxRegionEnd > 0) {
+              const containerWidth = tracksRef.current.clientWidth
+              const calculatedZoom = containerWidth / (maxRegionEnd * 1.05 * 50)
+              const finalZoom = Math.min(20, Math.max(0.05, calculatedZoom))
+              setZoomLevel(finalZoom)
+              tracksRef.current.scrollLeft = 0
+            }
+          }
+        }, 50)
+      }
+    }
+    prevWasEmptyRef.current = isEmpty
+    if (isProjectLoadingRef.current) {
+      isProjectLoadingRef.current = false
+    }
   }, [tracks])
 
   const lastRescheduleTimeRef = useRef<number>(0)
@@ -520,7 +557,9 @@ export function Timeline({
       initialSourceOffset: number;
       initialFileDuration: number;
       pitchRate: number;
+      initialTrackIdx: number;
     }[];
+    initialTrackIdx: number;
   } | null>(null)
   // Lasso / Rubber-Band Selection
   const [lassoRect, setLassoRect] = useState<{ startX: number; startY: number; endX: number; endY: number } | null>(null)
@@ -691,7 +730,8 @@ export function Timeline({
       channels: 1,
       stereoMode: 'left-only' as const,
       groupId,
-      file: { ...region.file, name: region.file.name + ' (Mono L)' }
+      file: { ...region.file, name: region.file.name + ' (Mono L)' },
+      name: (region.name || region.file?.name || 'Audio').replace(/\s*\(Mono [LR]\)/g, '') + ' (Mono L)'
     };
 
     const rightRegion = {
@@ -700,7 +740,8 @@ export function Timeline({
       channels: 1,
       stereoMode: 'right-only' as const,
       groupId,
-      file: { ...region.file, name: region.file.name + ' (Mono R)' }
+      file: { ...region.file, name: region.file.name + ' (Mono R)' },
+      name: (region.name || region.file?.name || 'Audio').replace(/\s*\(Mono [LR]\)/g, '') + ' (Mono R)'
     };
 
     const trackIdx = tracks.findIndex(t => t.id === currentTrack.id);
@@ -772,7 +813,8 @@ export function Timeline({
           channels: 1,
           stereoMode: 'left-only' as const,
           groupId,
-          file: { ...region.file, name: region.file.name + ' (Mono L)' }
+          file: { ...region.file, name: region.file.name + ' (Mono L)' },
+          name: (region.name || region.file?.name || 'Audio').replace(/\s*\(Mono [LR]\)/g, '') + ' (Mono L)'
         };
 
         const rightRegion = {
@@ -781,7 +823,8 @@ export function Timeline({
           channels: 1,
           stereoMode: 'right-only' as const,
           groupId,
-          file: { ...region.file, name: region.file.name + ' (Mono R)' }
+          file: { ...region.file, name: region.file.name + ' (Mono R)' },
+          name: (region.name || region.file?.name || 'Audio').replace(/\s*\(Mono [LR]\)/g, '') + ' (Mono R)'
         };
 
         leftRegionsMap.set(region.id, leftRegion);
@@ -1188,6 +1231,7 @@ export function Timeline({
             return { ...track, regions };
           }));
 
+          isProjectLoadingRef.current = true;
           setTracks(loadedTracks);
           if (onTracksChange) onTracksChange(loadedTracks);
           setZoomLevel(result.data.settings.zoomLevel || 1);
@@ -1610,12 +1654,62 @@ export function Timeline({
         if (isChanged) {
           updateTracksWithHistory(newTracks);
         }
+      } else if (matchesShortcut(e, activeShortcuts.selectAllRegions)) {
+        e.preventDefault();
+        const allIds = new Set<string>();
+        tracks.forEach(t => {
+          t.regions.forEach(r => {
+            allIds.add(r.id);
+          });
+        });
+        setSelectedRegionIds(allIds);
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [selectedRegionId, selectedRegionIds, deleteSelectedRegions, togglePlayback, tracks, handleCopy, handlePaste, activeShortcuts]);
+
+  useEffect(() => {
+    const container = tracksRef.current;
+    if (!container) return;
+
+    const handleWheelNative = (e: WheelEvent) => {
+      // 1. Zoom Vertical (e.g. Ctrl + Shift)
+      if (matchesMouseModifiers(e, activeShortcuts.zoomVertical)) {
+        e.preventDefault();
+        if (e.deltaY < 0) {
+          setTrackHeight(h => Math.min(300, h + 8));
+        } else {
+          setTrackHeight(h => Math.max(40, h - 8));
+        }
+      }
+      // 2. Zoom Horizontal (Ctrl)
+      else if (e.ctrlKey) {
+        e.preventDefault();
+        if (e.deltaY < 0) {
+          setZoomLevel(z => Math.min(z + 0.2, 20));
+        } else {
+          setZoomLevel(z => Math.max(z - 0.2, 0.05));
+        }
+      }
+      // 3. Scroll Vertical (e.g. Shift)
+      else if (matchesMouseModifiers(e, activeShortcuts.scrollVertical)) {
+        e.preventDefault();
+        container.scrollTop += e.deltaY;
+      }
+      // 4. Scroll Horizontal (No modifiers)
+      else {
+        e.preventDefault();
+        container.scrollLeft += e.deltaY;
+      }
+    };
+
+    container.addEventListener('wheel', handleWheelNative, { passive: false });
+    return () => {
+      container.removeEventListener('wheel', handleWheelNative);
+    };
+  }, [activeShortcuts.zoomVertical, activeShortcuts.scrollVertical]);
 
   const [vuLevel, setVuLevel] = useState(0);
   const [masterVolume, setMasterVolume] = useState(engine.getMasterVolume ? engine.getMasterVolume() : 0.8);
@@ -2501,6 +2595,8 @@ export function Timeline({
     
     HistoryManager.pushState(tracks); 
     
+    const startTrackIdx = tracks.findIndex(t => t.regions.some(r => r.id === regionId));
+
     const initialGroupPositions: {
       id: string;
       initialStartPos: number;
@@ -2508,9 +2604,10 @@ export function Timeline({
       initialSourceOffset: number;
       initialFileDuration: number;
       pitchRate: number;
+      initialTrackIdx: number;
     }[] = [];
     if (region.groupId) {
-      tracks.forEach(t => {
+      tracks.forEach((t, tIdx) => {
         t.regions.forEach(r => {
           if (r.groupId === region.groupId && r.id !== regionId) {
             initialGroupPositions.push({
@@ -2519,7 +2616,8 @@ export function Timeline({
               initialDuration: r.duration,
               initialSourceOffset: r.sourceOffset || 0,
               initialFileDuration: r.fileDuration || r.duration,
-              pitchRate: r.effects?.pitchRate || 1.0
+              pitchRate: r.effects?.pitchRate || 1.0,
+              initialTrackIdx: tIdx
             });
           }
         });
@@ -2535,7 +2633,8 @@ export function Timeline({
       startX: e.clientX,
       action,
       pitchRate: region.effects?.pitchRate || 1.0,
-      initialGroupPositions
+      initialGroupPositions,
+      initialTrackIdx: startTrackIdx
     });
   }
 
@@ -2751,6 +2850,23 @@ export function Timeline({
         const hoverTrackId = trackEl ? trackEl.getAttribute('data-track-id') : null;
         const cleanHoverTrackId = hoverTrackId ? hoverTrackId.replace(/_[LR]$/, '') : null;
 
+        let deltaTrackIdx = 0;
+        if (cleanHoverTrackId) {
+          const hoverTrackIdx = prevTracks.findIndex(t => t.id === cleanHoverTrackId);
+          if (hoverTrackIdx !== -1) {
+            deltaTrackIdx = hoverTrackIdx - draggingRegion.initialTrackIdx;
+          }
+        }
+
+        // Clamping-Schutz: Berechne min/max Spurindizes der Gruppe, um out-of-bounds zu verhindern
+        const allInitialTrackIndices = [
+          draggingRegion.initialTrackIdx,
+          ...(draggingRegion.initialGroupPositions || []).map(gp => gp.initialTrackIdx)
+        ];
+        const minTrackIdx = Math.min(...allInitialTrackIndices);
+        const maxTrackIdx = Math.max(...allInitialTrackIndices);
+        deltaTrackIdx = Math.max(-minTrackIdx, Math.min(newTracks.length - 1 - maxTrackIdx, deltaTrackIdx));
+
         const groupId = region.groupId;
         const groupMoveOffsets: Map<string, number> = new Map();
         if (groupId && draggingRegion.initialGroupPositions) {
@@ -2761,25 +2877,35 @@ export function Timeline({
 
         updatedRegion = { ...region, startPos: newPos };
 
-        if (cleanHoverTrackId && currentTrackId !== cleanHoverTrackId) {
-            newTracks[sourceTrackIdx] = { ...newTracks[sourceTrackIdx], regions: newTracks[sourceTrackIdx].regions.filter(r => r.id !== region.id) };
-            const targetTrackIdx = newTracks.findIndex(t => t.id === cleanHoverTrackId);
-            if (targetTrackIdx !== -1) {
-                newTracks[targetTrackIdx] = { ...newTracks[targetTrackIdx], regions: [...newTracks[targetTrackIdx].regions, updatedRegion] };
-                targetTrackId = cleanHoverTrackId;
-            }
-        } else {
-            newTracks[sourceTrackIdx] = {
-                ...newTracks[sourceTrackIdx],
-                regions: newTracks[sourceTrackIdx].regions.map(r => r.id === draggingRegion.id ? updatedRegion : r)
-            }
-        }
+        // Alle bewegten IDs aus allen Spuren filtern
+        const movingIds = new Set([draggingRegion.id, ...(draggingRegion.initialGroupPositions || []).map(gp => gp.id)]);
+        newTracks = newTracks.map(t => ({
+          ...t,
+          regions: t.regions.filter(r => !movingIds.has(r.id))
+        }));
 
-        if (groupMoveOffsets.size > 0) {
-          newTracks = newTracks.map(t => ({
-            ...t,
-            regions: t.regions.map(r => groupMoveOffsets.has(r.id) ? { ...r, startPos: groupMoveOffsets.get(r.id)! } : r)
-          }));
+        // Gezogenes Objekt auf neuer Spur einsetzen
+        const targetTrackIdx = draggingRegion.initialTrackIdx + deltaTrackIdx;
+        newTracks[targetTrackIdx] = {
+          ...newTracks[targetTrackIdx],
+          regions: [...newTracks[targetTrackIdx].regions, updatedRegion]
+        };
+        targetTrackId = newTracks[targetTrackIdx].id;
+
+        // Gruppenmitglieder auf ihren neuen Spuren einsetzen
+        if (draggingRegion.initialGroupPositions && draggingRegion.initialGroupPositions.length > 0) {
+          draggingRegion.initialGroupPositions.forEach(gp => {
+            const gpRegion = prevTracks.flatMap(t => t.regions).find(r => r.id === gp.id);
+            if (gpRegion) {
+              const gpNewPos = groupMoveOffsets.get(gp.id)!;
+              const updatedGpRegion = { ...gpRegion, startPos: gpNewPos };
+              const gpTargetTrackIdx = gp.initialTrackIdx + deltaTrackIdx;
+              newTracks[gpTargetTrackIdx] = {
+                ...newTracks[gpTargetTrackIdx],
+                regions: [...newTracks[gpTargetTrackIdx].regions, updatedGpRegion]
+              };
+            }
+          });
         }
 
       } else if (draggingRegion.action === 'trimStart') {
@@ -3633,22 +3759,6 @@ export function Timeline({
                 setEditorContextMenu({ x: constrainedX, y: constrainedY });
                 setContextMenu(null);
               }}
-             onWheel={(e) => {
-               if (e.ctrlKey) {
-                 e.preventDefault();
-                 if (e.deltaY < 0) {
-                   setZoomLevel(z => Math.min(z + 0.2, 20));
-                 } else {
-                   setZoomLevel(z => Math.max(z - 0.2, 0.05));
-                 }
-               } else {
-                 // Normales Scrollen: horizontal durch die Timeline
-                 e.preventDefault();
-                 if (tracksRef.current) {
-                   tracksRef.current.scrollLeft += e.deltaY;
-                 }
-               }
-             }}
              onMouseDown={(e) => {
                // Only start lasso on primary click on the track area itself (not on a region)
                if (e.button !== 0 || e.ctrlKey) return;
@@ -4069,8 +4179,80 @@ export function Timeline({
                  )}
               </div>
               <div className="w-px h-4 bg-gray-700 mx-0.5"></div>
-              <button className="p-1 hover:bg-gray-700 rounded text-gray-400 hover:text-white"><MoveHorizontal size={14} /></button>
-              <button className="p-1 hover:bg-gray-700 rounded text-gray-400 hover:text-white" onClick={() => setZoomLevel(1)}><Maximize2 size={14} /></button>
+              <button 
+                className="p-1 hover:bg-gray-700 rounded text-gray-400 hover:text-white"
+                onClick={() => {
+                  if (!tracksRef.current) return
+                  let maxRegionEnd = 0
+                  tracks.forEach(t => {
+                    t.regions.forEach(r => {
+                      const pitchRate = r.effects?.pitchRate || 1.0
+                      const end = r.startPos + (r.duration / pitchRate)
+                      if (end > maxRegionEnd) {
+                        maxRegionEnd = end
+                      }
+                    })
+                  })
+                  if (maxRegionEnd > 0) {
+                    const containerWidth = tracksRef.current.clientWidth
+                    const calculatedZoom = containerWidth / (maxRegionEnd * 1.05 * 50)
+                    const finalZoom = Math.min(20, Math.max(0.05, calculatedZoom))
+                    setZoomLevel(finalZoom)
+                    tracksRef.current.scrollLeft = 0
+                  } else {
+                    setZoomLevel(1)
+                    tracksRef.current.scrollLeft = 0
+                  }
+                }}
+                title="Horizontale maximale Länge anzeigen (Zoom-to-Fit)"
+              >
+                <MoveHorizontal size={14} />
+              </button>
+              <button 
+                className="p-1 hover:bg-gray-700 rounded text-gray-400 hover:text-white"
+                onClick={() => {
+                  if (!tracksRef.current) return
+                  
+                  // 1. Horizontal Fit
+                  let maxRegionEnd = 0
+                  tracks.forEach(t => {
+                    t.regions.forEach(r => {
+                      const pitchRate = r.effects?.pitchRate || 1.0
+                      const end = r.startPos + (r.duration / pitchRate)
+                      if (end > maxRegionEnd) {
+                        maxRegionEnd = end
+                      }
+                    })
+                  })
+                  if (maxRegionEnd > 0) {
+                    const containerWidth = tracksRef.current.clientWidth
+                    const calculatedZoom = containerWidth / (maxRegionEnd * 1.05 * 50)
+                    const finalZoom = Math.min(20, Math.max(0.05, calculatedZoom))
+                    setZoomLevel(finalZoom)
+                  } else {
+                    setZoomLevel(1)
+                  }
+
+                  // 2. Vertical Fit
+                  const displayed = getDisplayedTracks(tracks, videoAudioOnOneTrack)
+                  const numTracks = displayed.length
+                  if (numTracks > 0) {
+                    const containerHeight = tracksRef.current.clientHeight
+                    const calculatedHeight = Math.floor(containerHeight / numTracks)
+                    const finalHeight = Math.min(300, Math.max(40, calculatedHeight))
+                    setTrackHeight(finalHeight)
+                  } else {
+                    setTrackHeight(64)
+                  }
+
+                  // 3. Reset scroll positions
+                  tracksRef.current.scrollLeft = 0
+                  tracksRef.current.scrollTop = 0
+                }}
+                title="Ganzes Projekt anzeigen (Horizontal & Vertikal anpassen)"
+              >
+                <Maximize2 size={14} />
+              </button>
               <button className="p-1 hover:bg-gray-700 rounded text-gray-400 hover:text-white" onClick={() => setZoomLevel(z => Math.max(0.05, z - 0.1))}><Minus size={14} /></button>
               <button className="p-1 hover:bg-gray-700 rounded text-gray-400 hover:text-white" onClick={() => setZoomLevel(z => Math.min(20, z + 0.1))}><Plus size={14} /></button>
            </div>

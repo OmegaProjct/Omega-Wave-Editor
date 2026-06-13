@@ -194,7 +194,7 @@ export class RecordingEngine {
     if (this.sourceNode) this.sourceNode.disconnect();
     if (this.processorNode) this.processorNode.disconnect();
     if (this.audioCtx) {
-      await this.audioCtx.close();
+      await this.audioCtx.close().catch(() => {});
     }
 
     const durationSec = (Date.now() - this.startTime) / 1000;

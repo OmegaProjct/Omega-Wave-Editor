@@ -69,8 +69,22 @@ function logTimelineChanges(oldTracks: any[], newTracks: any[]) {
       newRegions.forEach((newReg: any) => {
         const oldReg = oldRegions.find((r: any) => r.id === newReg.id)
         const regName = newReg.name || newReg.file?.name || 'Unbekanntes Audio'
+        const groupSuffix = newReg.groupId ? ` [Gruppe: ${newReg.groupId}]` : ''
+        
         if (!oldReg) {
-          window.api.log('info', 'Timeline', `Audio-Objekt '${regName}' in Spur '${trackName}' hinzugefügt bei ${newReg.startPos.toFixed(3)}s (Dauer: ${newReg.duration.toFixed(3)}s)`)
+          // Prüfe, ob dieses Objekt von einer anderen Spur hierher verschoben wurde
+          let movedFromTrackName = ''
+          oldTracks.forEach(ot => {
+            if (ot.id !== newTrack.id && (ot.regions || []).some((r: any) => r.id === newReg.id)) {
+              movedFromTrackName = ot.name || `Spur ${ot.index}`
+            }
+          })
+
+          if (movedFromTrackName) {
+            window.api.log('info', 'Timeline', `Audio-Objekt '${regName}'${groupSuffix} von Spur '${movedFromTrackName}' in Spur '${trackName}' verschoben (bei ${newReg.startPos.toFixed(3)}s)`)
+          } else {
+            window.api.log('info', 'Timeline', `Audio-Objekt '${regName}'${groupSuffix} in Spur '${trackName}' hinzugefügt bei ${newReg.startPos.toFixed(3)}s (Dauer: ${newReg.duration.toFixed(3)}s)`)
+          }
           return
         }
 
@@ -78,24 +92,24 @@ function logTimelineChanges(oldTracks: any[], newTracks: any[]) {
         if (Math.abs(newReg.startPos - oldReg.startPos) > 0.0001) {
           const delta = newReg.startPos - oldReg.startPos
           const deltaStr = delta > 0 ? `+${delta.toFixed(3)}s` : `${delta.toFixed(3)}s`
-          window.api.log('info', 'Timeline', `Audio-Objekt '${regName}' in Spur '${trackName}' verschoben: ${oldReg.startPos.toFixed(3)}s -> ${newReg.startPos.toFixed(3)}s (Verschiebung: ${deltaStr})`)
+          window.api.log('info', 'Timeline', `Audio-Objekt '${regName}'${groupSuffix} in Spur '${trackName}' verschoben: ${oldReg.startPos.toFixed(3)}s -> ${newReg.startPos.toFixed(3)}s (Verschiebung: ${deltaStr})`)
         }
         if (Math.abs(newReg.duration - oldReg.duration) > 0.0001) {
           const delta = newReg.duration - oldReg.duration
           const deltaStr = delta > 0 ? `+${delta.toFixed(3)}s` : `${delta.toFixed(3)}s`
-          window.api.log('info', 'Timeline', `Audio-Objekt '${regName}' in Spur '${trackName}' Dauer geändert: ${oldReg.duration.toFixed(3)}s -> ${newReg.duration.toFixed(3)}s (Änderung: ${deltaStr})`)
+          window.api.log('info', 'Timeline', `Audio-Objekt '${regName}'${groupSuffix} in Spur '${trackName}' Dauer geändert: ${oldReg.duration.toFixed(3)}s -> ${newReg.duration.toFixed(3)}s (Änderung: ${deltaStr})`)
         }
         if (Math.abs((newReg.sourceOffset || 0) - (oldReg.sourceOffset || 0)) > 0.0001) {
-          window.api.log('info', 'Timeline', `Audio-Objekt '${regName}' in Spur '${trackName}' Start-Offset geändert: ${(oldReg.sourceOffset || 0).toFixed(3)}s -> ${(newReg.sourceOffset || 0).toFixed(3)}s`)
+          window.api.log('info', 'Timeline', `Audio-Objekt '${regName}'${groupSuffix} in Spur '${trackName}' Start-Offset geändert: ${(oldReg.sourceOffset || 0).toFixed(3)}s -> ${(newReg.sourceOffset || 0).toFixed(3)}s`)
         }
         if (Math.abs((newReg.gain || 1) - (oldReg.gain || 1)) > 0.001) {
-          window.api.log('info', 'Timeline', `Audio-Objekt '${regName}' in Spur '${trackName}' Gain geändert: ${(oldReg.gain || 1.0).toFixed(2)} -> ${(newReg.gain || 1.0).toFixed(2)}`)
+          window.api.log('info', 'Timeline', `Audio-Objekt '${regName}'${groupSuffix} in Spur '${trackName}' Gain geändert: ${(oldReg.gain || 1.0).toFixed(2)} -> ${(newReg.gain || 1.0).toFixed(2)}`)
         }
         if (Math.abs((newReg.fadeIn || 0) - (oldReg.fadeIn || 0)) > 0.0001 || Math.abs((newReg.fadeOut || 0) - (oldReg.fadeOut || 0)) > 0.0001) {
-          window.api.log('info', 'Timeline', `Audio-Objekt '${regName}' in Spur '${trackName}' Fades geändert: Einblenden=${(newReg.fadeIn || 0).toFixed(3)}s, Ausblenden=${(newReg.fadeOut || 0).toFixed(3)}s`)
+          window.api.log('info', 'Timeline', `Audio-Objekt '${regName}'${groupSuffix} in Spur '${trackName}' Fades geändert: Einblenden=${(newReg.fadeIn || 0).toFixed(3)}s, Ausblenden=${(newReg.fadeOut || 0).toFixed(3)}s`)
         }
         if (newReg.stereoMode !== oldReg.stereoMode) {
-          window.api.log('info', 'Timeline', `Audio-Objekt '${regName}' in Spur '${trackName}' Stereo-Modus geändert: ${oldReg.stereoMode || 'stereo'} -> ${newReg.stereoMode || 'stereo'}`)
+          window.api.log('info', 'Timeline', `Audio-Objekt '${regName}'${groupSuffix} in Spur '${trackName}' Stereo-Modus geändert: ${oldReg.stereoMode || 'stereo'} -> ${newReg.stereoMode || 'stereo'}`)
         }
       })
 
@@ -103,8 +117,13 @@ function logTimelineChanges(oldTracks: any[], newTracks: any[]) {
       oldRegions.forEach((oldReg: any) => {
         const newReg = newRegions.find((r: any) => r.id === oldReg.id)
         if (!newReg) {
-          const regName = oldReg.name || oldReg.file?.name || 'Unbekanntes Audio'
-          window.api.log('info', 'Timeline', `Audio-Objekt '${regName}' aus Spur '${trackName}' entfernt`)
+          // Nur loggen, wenn das Objekt nicht in eine andere Spur verschoben wurde
+          const isMovedToOtherTrack = newTracks.some(nt => (nt.regions || []).some((r: any) => r.id === oldReg.id))
+          if (!isMovedToOtherTrack) {
+            const regName = oldReg.name || oldReg.file?.name || 'Unbekanntes Audio'
+            const groupSuffix = oldReg.groupId ? ` [Gruppe: ${oldReg.groupId}]` : ''
+            window.api.log('info', 'Timeline', `Audio-Objekt '${regName}'${groupSuffix} aus Spur '${trackName}' entfernt`)
+          }
         }
       })
     })
@@ -771,7 +790,7 @@ function App(): JSX.Element {
   }, []);
 
   return (
-    <div className="h-full w-full flex flex-col bg-omega-dark text-omega-text relative">
+    <div className="h-full w-full flex flex-col bg-omega-dark text-omega-text relative select-none">
       {showSettings && (
         <SettingsModal 
           onClose={() => {

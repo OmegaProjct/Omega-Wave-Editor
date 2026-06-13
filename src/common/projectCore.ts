@@ -283,7 +283,7 @@ export function splitClip(project: Project, trackId: string, regionId: string, s
     startPos: splitPos,
     duration: r.duration - offsetDiff,
     sourceOffset: (r.sourceOffset || 0) + offsetDiff,
-    name: `${r.name} (Teil 2)`
+    name: `${r.name || r.file?.name || 'Audio'} (Teil 2)`
   }
 
   // Replace original clip with left and right adjacent parts
