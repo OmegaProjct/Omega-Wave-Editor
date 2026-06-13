@@ -2,6 +2,20 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.12.3] - 2026-06-13
+
+### English
+
+#### Fixed
+- **Feedback Styling & Validation**: Removed pulse animation and improved error alert visibility in the feedback panel. Mapped feedback message text to the correct description parameter, resolving API validation failure that was preventing tickets from sending.
+
+### Deutsch
+
+#### Behoben
+- **Feedback-Styling & -Validierung**: Die pulsierende Fehler-Animation im Feedback-Panel wurde entfernt und die Lesbarkeit der Fehlermeldung verbessert. Zudem wurde der Parametername für den Feedback-Text im Backend-Payload angepasst, sodass Fehlerberichte nun korrekt validiert und an den Server gesendet werden.
+
+---
+
 ## [0.12.2] - 2026-06-13
 
 ### English

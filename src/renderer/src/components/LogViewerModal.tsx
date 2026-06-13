@@ -651,8 +651,8 @@ export function LogViewerModal({ onClose, initialTab = 'logs', mode }: LogViewer
             <form onSubmit={handleSubmitFeedback} className="flex-1 overflow-y-auto p-7 flex flex-col gap-5 custom-scrollbar bg-[#16181b]/10">
               
               {feedbackError && (
-                <div className="p-3 bg-red-950/20 border border-red-500/20 text-red-400 rounded-lg text-xs flex items-start gap-2 select-text animate-pulse">
-                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <div className="p-3 bg-red-600 border border-red-500 text-white font-semibold rounded-lg text-xs flex items-start gap-2.5 select-text shadow-[0_2px_8px_rgba(239,68,68,0.2)]">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-white" />
                   <div>{feedbackError}</div>
                 </div>
               )}
