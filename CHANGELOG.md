@@ -2,6 +2,22 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.12.7] - 2026-06-13
+
+### English
+
+#### Fixed
+- **Update Dialog Warning Duplication**: Resolved standard update warning notices appearing multiple times in the update details panel and breaking the version block structure.
+- **Taskbar & Desktop Shortcut Positions**: Configured NSIS installer to manually manage shortcuts, skipping recreation if they already exist, preserving desktop icon grid coordinates and pinned taskbar links on Windows during application updates.
+
+### Deutsch
+
+#### Behoben
+- **Update-Hinweis-Duplizierung**: Das Problem wurde behoben, bei dem die Update-Warnhinweise mehrfach in der Versionsliste des Update-Modals angezeigt wurden und die Versionsblöcke fehlerhaft trennten.
+- **Taskleisten- & Desktop-Shortcuts**: Der NSIS-Installer verwaltet Verknüpfungen nun manuell und überspringt die Neuerstellung, falls diese bereits existieren. Dies verhindert das Zurücksetzen der Desktop-Icon-Positionen und das Verschwinden von an der Taskleiste angehefteten Symbolen bei Updates unter Windows.
+
+---
+
 ## [0.12.6] - 2026-06-13
 
 ### English

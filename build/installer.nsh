@@ -43,17 +43,36 @@ Var deleteEverything
 !macroend
 
 !macro customInstall
-  ; Wiederherstellen der Verknüpfungen nach der Installation
-  IfFileExists "$TEMP\OmegaWaveEditorBackup\desktop.lnk" 0 +3
-    CopyFiles "$TEMP\OmegaWaveEditorBackup\desktop.lnk" "$DESKTOP\Omega Wave Editor.lnk"
+  ; --- DESKTOP SHORTCUT ---
+  IfFileExists "$DESKTOP\Omega Wave Editor.lnk" desktop_exists
+    ; Desktop-Shortcut existiert nicht. Wiederherstellen aus Backup oder neu erstellen.
+    IfFileExists "$TEMP\OmegaWaveEditorBackup\desktop.lnk" 0 +3
+      CopyFiles "$TEMP\OmegaWaveEditorBackup\desktop.lnk" "$DESKTOP\Omega Wave Editor.lnk"
+      Goto desktop_done
+    CreateShortCut "$DESKTOP\Omega Wave Editor.lnk" "$INSTDIR\Omega Wave Editor.exe"
+    Goto desktop_done
+  desktop_exists:
+    ; Desktop-Shortcut existiert bereits. Nicht überschreiben, um die Position auf dem Desktop zu wahren!
+  desktop_done:
     Delete "$TEMP\OmegaWaveEditorBackup\desktop.lnk"
 
-  IfFileExists "$TEMP\OmegaWaveEditorBackup\startmenu.lnk" 0 +3
-    CopyFiles "$TEMP\OmegaWaveEditorBackup\startmenu.lnk" "$SMPROGRAMS\Omega Wave Editor.lnk"
+  ; --- START MENU SHORTCUT (LEGACY PATH) ---
+  IfFileExists "$SMPROGRAMS\Omega Wave Editor.lnk" startmenu_exists
+    IfFileExists "$TEMP\OmegaWaveEditorBackup\startmenu.lnk" 0 +2
+      CopyFiles "$TEMP\OmegaWaveEditorBackup\startmenu.lnk" "$SMPROGRAMS\Omega Wave Editor.lnk"
+  startmenu_exists:
     Delete "$TEMP\OmegaWaveEditorBackup\startmenu.lnk"
 
-  IfFileExists "$TEMP\OmegaWaveEditorBackup\startmenu_proj.lnk" 0 +3
-    CopyFiles "$TEMP\OmegaWaveEditorBackup\startmenu_proj.lnk" "$SMPROGRAMS\Omega Projects\Omega Wave Editor.lnk"
+  ; --- START MENU SHORTCUT (NEW PATH IN OMEGA PROJECTS FOLDER) ---
+  IfFileExists "$SMPROGRAMS\Omega Projects\Omega Wave Editor.lnk" startmenu_proj_exists
+    IfFileExists "$TEMP\OmegaWaveEditorBackup\startmenu_proj.lnk" 0 +3
+      CopyFiles "$TEMP\OmegaWaveEditorBackup\startmenu_proj.lnk" "$SMPROGRAMS\Omega Projects\Omega Wave Editor.lnk"
+      Goto startmenu_proj_done
+    CreateDirectory "$SMPROGRAMS\Omega Projects"
+    CreateShortCut "$SMPROGRAMS\Omega Projects\Omega Wave Editor.lnk" "$INSTDIR\Omega Wave Editor.exe"
+    Goto startmenu_proj_done
+  startmenu_proj_exists:
+  startmenu_proj_done:
     Delete "$TEMP\OmegaWaveEditorBackup\startmenu_proj.lnk"
 
   RMDir "$TEMP\OmegaWaveEditorBackup"
@@ -69,11 +88,10 @@ Var deleteEverything
 !macroend
 
 !macro customUnInstall
-  StrCmp $deleteEverything "1" 0 done_uninstall
   DetailPrint "Lösche Desktop- und Startmenü-Verknüpfungen..."
   Delete "$DESKTOP\Omega Wave Editor.lnk"
   Delete "$SMPROGRAMS\Omega Wave Editor.lnk"
   Delete "$SMPROGRAMS\Omega Projects\Omega Wave Editor.lnk"
+  RMDir "$SMPROGRAMS\Omega Projects"
   System::Call 'shell32::SHChangeNotify(i, i, i, i) v (0x08000000, 0, 0, 0)'
-  done_uninstall:
 !macroend

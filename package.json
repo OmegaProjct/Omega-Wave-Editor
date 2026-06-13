@@ -1,6 +1,6 @@
 {
   "name": "omega-wave-editor",
-  "version": "0.12.6",
+  "version": "0.12.7",
   "description": "Omega Wave Editor",
   "main": "./out/main/index.js",
   "author": "Omega Projects <omegaproject1337@gmail.com>",
@@ -105,8 +105,8 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
+      "createDesktopShortcut": false,
+      "createStartMenuShortcut": false,
       "shortcutName": "Omega Wave Editor",
       "include": "build/installer.nsh"
     }
