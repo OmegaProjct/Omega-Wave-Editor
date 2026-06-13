@@ -229,7 +229,7 @@ function seedBaselineTelemetry() {
   saveLogs(seeded)
 }
 
-seedBaselineTelemetry()
+// seedBaselineTelemetry() // Deaktiviert, um das automatische Generieren von Demo-Daten zu stoppen
 
 // ------------------------------------------------------------------
 // Telemetrie Ping (Öffentlich)
