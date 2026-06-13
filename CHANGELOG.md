@@ -2,6 +2,26 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.13.2] - 2026-06-13
+
+### English
+
+#### Added
+- **Unsaved Changes Confirmation**: Introduced a confirmation overlay warning in the Settings modal when attempting to close/cancel with unsaved changes. Features a "Don't show again" option and configurable preference under the "System" settings tab to save or discard by default.
+
+#### Fixed
+- **Playhead Zoom Jitter**: Resolved playhead and background track frame jitter during horizontal zooming by executing scroll adjustments and playhead coordinates synchronously inside `useLayoutEffect`. Uses real-time audio playback time for centering.
+
+### Deutsch
+
+#### Hinzugefügt
+- **Ungespeicherte Änderungen Warnung**: Ein Bestätigungs-Overlay beim Schließen des Einstellungsfensters mit ungespeicherten Änderungen wurde hinzugefügt. Bietet Optionen zum Speichern, Verwerfen oder Abbrechen sowie eine "Meldung nicht mehr anzeigen"-Option, die unter "System" konfiguriert werden kann.
+
+#### Behoben
+- **Playhead Zoom-Jitter**: Das kurzzeitige Springen/Zittern des Playheads und der Spuren beim Zoomen wurde durch synchrone Scroll- und Koordinatenanpassungen im `useLayoutEffect` behoben. Verwendet die Echtzeit-Audiolaufzeit für präzise Zentrierung während der Wiedergabe.
+
+---
+
 ## [0.13.1] - 2026-06-13
 
 ### English

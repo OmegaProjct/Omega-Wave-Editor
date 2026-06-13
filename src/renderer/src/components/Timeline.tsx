@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import React, { useState, useRef, useEffect, useCallback, useMemo, useLayoutEffect } from 'react'
 import { motion, useMotionValue, useAnimationFrame } from 'framer-motion'
 import { WaveformRenderer } from './WaveformRenderer'
 import { HistoryManager } from '../lib/HistoryManager'
@@ -1521,17 +1521,18 @@ export function Timeline({
   const vScrollTrackRef = useRef<HTMLDivElement>(null)
 
   const prevZoomLevelRef = useRef(zoomLevel)
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (tracksRef.current) {
       const oldZoom = prevZoomLevelRef.current
       const newZoom = zoomLevel
       
       if (oldZoom !== newZoom) {
+        const currentPlayhead = isPlaying ? (engine.isPlaying ? engine.currentTime : playheadPosRef.current) : playheadPos
         const pixelsPerSecondOld = PIXELS_PER_SECOND_BASE * oldZoom
         const pixelsPerSecondNew = PIXELS_PER_SECOND_BASE * newZoom
         
-        const playheadXOld = playheadPos * pixelsPerSecondOld
-        const playheadXNew = playheadPos * pixelsPerSecondNew
+        const playheadXOld = currentPlayhead * pixelsPerSecondOld
+        const playheadXNew = currentPlayhead * pixelsPerSecondNew
         
         const currentScroll = tracksRef.current.scrollLeft
         const viewportWidth = tracksRef.current.clientWidth
@@ -1547,16 +1548,12 @@ export function Timeline({
         
         const finalScrollLeft = Math.max(0, newScrollLeft)
         
-        requestAnimationFrame(() => {
-          if (tracksRef.current) {
-            tracksRef.current.scrollLeft = finalScrollLeft
-            setScrollLeft(tracksRef.current.scrollLeft)
-          }
-        })
+        tracksRef.current.scrollLeft = finalScrollLeft
+        setScrollLeft(finalScrollLeft)
       }
     }
     prevZoomLevelRef.current = zoomLevel
-  }, [zoomLevel, playheadPos])
+  }, [zoomLevel, playheadPos, isPlaying])
 
   const skipToStart = () => {
     setPlayheadPos(0);
@@ -2216,10 +2213,10 @@ export function Timeline({
     }
   }, [engine.isPlaying, isPlaying]);
   
-  useEffect(() => {
-    if (isPlaying) return;
-    playheadPosRef.current = playheadPos;
-    playheadMotionX.set((playheadPos * pixelsPerSecond) - scrollLeft);
+  useLayoutEffect(() => {
+    const currentPos = isPlaying ? (engine.isPlaying ? engine.currentTime : playheadPosRef.current) : playheadPos;
+    playheadPosRef.current = currentPos;
+    playheadMotionX.set((currentPos * pixelsPerSecond) - scrollLeft);
   }, [playheadPos, pixelsPerSecond, scrollLeft, isPlaying]);
 
   useEffect(() => {
