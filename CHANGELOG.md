@@ -2,6 +2,20 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.11.6] - 2026-06-13
+
+### English
+
+#### Fixed
+- **NSIS Installer Compilation**: Resolved NSIS `warning 6001` (unreferenced variable treated as error) that prevented the Windows installer from being built on CI. The `customUnInstall` macro now correctly references the `$deleteEverything` variable to conditionally delete shortcuts only when the user explicitly requests a full data cleanup.
+
+### Deutsch
+
+#### Behoben
+- **NSIS-Installer-Kompilierung**: NSIS-Warnung 6001 (nicht referenzierte Variable wird als Fehler behandelt) behoben, die den Bau des Windows-Installers in der CI-Pipeline verhinderte. Das Makro `customUnInstall` referenziert die Variable `$deleteEverything` nun korrekt und löscht Verknüpfungen nur, wenn der Benutzer bei der Deinstallation explizit eine vollständige Datenbereinigung wählt.
+
+---
+
 ## [0.11.5] - 2026-06-13
 
 ### English
