@@ -46,6 +46,12 @@ export function StartDashboard({
       } else {
         setDefaultProjectsDir('C:\\Users\\Dave1\\Documents\\OmegaProjects\\Omega Wave Editor\\Projects')
       }
+      if (settings.tracksCount !== undefined) {
+        setTracksCount(settings.tracksCount)
+      }
+      if (settings.sampleRate !== undefined) {
+        setSampleRate(settings.sampleRate)
+      }
     }).catch(e => console.error(e))
   }, [])
 

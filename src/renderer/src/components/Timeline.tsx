@@ -496,20 +496,45 @@ export function Timeline({
     return result;
   }, []);
 
+  const getInterpolatedAutomationValue = (automation: { time: number, value: number }[], time: number, defaultValue: number): number => {
+    if (!automation || automation.length === 0) return defaultValue;
+    if (automation.length === 1) return automation[0].value;
+    
+    // Find the segment
+    if (time <= automation[0].time) return automation[0].value;
+    if (time >= automation[automation.length - 1].time) return automation[automation.length - 1].value;
+    
+    for (let i = 0; i < automation.length - 1; i++) {
+      const p1 = automation[i];
+      const p2 = automation[i + 1];
+      if (time >= p1.time && time <= p2.time) {
+        const t = (time - p1.time) / (p2.time - p1.time);
+        return p1.value + t * (p2.value - p1.value);
+      }
+    }
+    return defaultValue;
+  };
+
   const recalculateTrackVolumes = useCallback((currentTracks: Track[]) => {
     const dispTracks = getDisplayedTracks(currentTracks, videoAudioOnOneTrack);
     const hasSolo = dispTracks.some(t => t.solo);
+    const time = engine.isPlaying ? engine.currentTime : playheadPos;
     
     dispTracks.forEach(t => {
-      let effectiveVolume = t.volume;
+      let baseVolume = t.volume;
+      if (t.automation && t.automation.length > 0) {
+        baseVolume = getInterpolatedAutomationValue(t.automation, time, t.volume);
+      }
+      
+      let effectiveVolume = baseVolume;
       if (hasSolo) {
-        effectiveVolume = t.solo ? t.volume : 0;
+        effectiveVolume = t.solo ? baseVolume : 0;
       } else {
-        effectiveVolume = t.muted ? 0 : t.volume;
+        effectiveVolume = t.muted ? 0 : baseVolume;
       }
       engine.setTrackVolume(t.id, effectiveVolume);
     });
-  }, [videoAudioOnOneTrack, engine, getDisplayedTracks]);
+  }, [videoAudioOnOneTrack, engine, getDisplayedTracks, playheadPos]);
 
   const displayedTracks = useMemo(() => {
     return getDisplayedTracks(tracks, videoAudioOnOneTrack);
@@ -590,6 +615,58 @@ export function Timeline({
   const [trackContextMenu, setTrackContextMenu] = useState<{ x: number; y: number; trackId: string } | null>(null)
   const [showAutomation, setShowAutomation] = useState(false)
   const [effectsClipboard, setEffectsClipboard] = useState<RegionEffects | null>(null)
+  const [draggingNode, setDraggingNode] = useState<{ trackId: string, index: number } | null>(null)
+
+  useEffect(() => {
+    if (!draggingNode) return;
+
+    const onMove = (e: MouseEvent) => {
+      const trackEl = document.querySelector(`[data-track-id="${draggingNode.trackId}"]`);
+      if (!trackEl) return;
+
+      const rect = trackEl.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const clickY = e.clientY - rect.top;
+
+      const time = Math.max(0, (clickX + scrollLeft) / pixelsPerSecond);
+      const value = Math.max(0, Math.min(1.5, 1.5 * (1 - clickY / trackHeight)));
+
+      setTracks(prev => prev.map(t => {
+        if (t.id === draggingNode.trackId) {
+          const updated = [...(t.automation || [])];
+          if (updated[draggingNode.index]) {
+            updated[draggingNode.index] = { time, value };
+          }
+          return { ...t, automation: updated };
+        }
+        return t;
+      }));
+    };
+
+    const onUp = () => {
+      setTracks(prev => prev.map(t => {
+        if (t.id === draggingNode.trackId) {
+          const sorted = [...(t.automation || [])].sort((a, b) => a.time - b.time);
+          return { ...t, automation: sorted };
+        }
+        return t;
+      }));
+      setDraggingNode(null);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [draggingNode, scrollLeft, pixelsPerSecond, trackHeight]);
+
+  useEffect(() => {
+    if (!engine.isPlaying) {
+      recalculateTrackVolumes(tracks);
+    }
+  }, [playheadPos, recalculateTrackVolumes, tracks]);
 
   const [perfStats, setPerfStats] = useState<{ cpuUsage: number; processRamBytes: number; systemRamPct: number; systemCpuPct: number }>({ cpuUsage: 0, processRamBytes: 0, systemRamPct: 0, systemCpuPct: 0 });
   const [globalProgress, setGlobalProgress] = useState<number | null>(null);
@@ -630,6 +707,22 @@ export function Timeline({
       window.removeEventListener('SET_GLOBAL_PROGRESS', handleProgress);
     };
   }, []);
+
+  useEffect(() => {
+    const handleGlobalClose = () => {
+      setContextMenu(c => c ? null : null);
+      setEditorContextMenu(c => c ? null : null);
+      setTrackContextMenu(c => c ? null : null);
+      setZoomMenuOpen(z => z ? false : false);
+    };
+    document.addEventListener('click', handleGlobalClose);
+    window.addEventListener('keydown', handleGlobalClose, true);
+    return () => {
+      document.removeEventListener('click', handleGlobalClose);
+      window.removeEventListener('keydown', handleGlobalClose, true);
+    };
+  }, []);
+
 
   const isInternalUpdateRef = useRef(false);
 
@@ -874,11 +967,42 @@ export function Timeline({
     const newTracks = tracks.map(t => {
       if (type === 'volume') {
         engine.setTrackVolume(t.id, 1.0);
-        return { ...t, volume: 1.0 };
+        return { ...t, volume: 1.0, automation: [] };
       } else {
         engine.setTrackPan(t.id, 0.0);
         return { ...t, pan: 0.0 };
       }
+    });
+    updateTracksWithHistory(newTracks);
+  };
+
+  const addAutomationNode = (trackId: string, time: number, value: number) => {
+    const newTracks = tracks.map(t => {
+      if (t.id === trackId) {
+        const existing = t.automation || [];
+        const updated = [...existing, { time, value }].sort((a, b) => a.time - b.time);
+        return { ...t, automation: updated };
+      }
+      return t;
+    });
+    updateTracksWithHistory(newTracks);
+  };
+
+  const handleNodeMouseDown = (e: React.MouseEvent, trackId: string, nodeIndex: number) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setDraggingNode({ trackId, index: nodeIndex });
+  };
+
+  const handleNodeContextMenu = (e: React.MouseEvent, trackId: string, nodeIndex: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const newTracks = tracks.map(t => {
+      if (t.id === trackId) {
+        const updated = (t.automation || []).filter((_, idx) => idx !== nodeIndex);
+        return { ...t, automation: updated };
+      }
+      return t;
     });
     updateTracksWithHistory(newTracks);
   };
@@ -1783,6 +1907,7 @@ export function Timeline({
     }
 
     if (engine.isPlaying && !isDraggingPlayheadRef.current) {
+      recalculateTrackVolumes(tracks);
       playheadPosRef.current = current;
       
       let currentScrollLeft = scrollLeft;
@@ -1932,44 +2057,6 @@ export function Timeline({
           if (onTracksChange) {
             onTracksChange(updatedTracks);
           }
-          return updatedTracks;
-        });
-      }
-
-      if (newSettings.tracksCount !== undefined) {
-        const targetCount = newSettings.tracksCount;
-        setTracks(prevTracks => {
-          let updatedTracks = [...prevTracks];
-          if (updatedTracks.length < targetCount) {
-            for (let i = updatedTracks.length + 1; i <= targetCount; i++) {
-              updatedTracks.push({
-                id: i.toString(),
-                index: i,
-                name: '',
-                regions: [],
-                muted: false,
-                solo: false,
-                locked: false,
-                visible: true,
-                volume: 1,
-                height: 64,
-                automation: []
-              });
-            }
-          } else if (updatedTracks.length > targetCount) {
-            let currentCount = updatedTracks.length;
-            while (currentCount > targetCount) {
-              const lastTrack = updatedTracks[currentCount - 1];
-              if (lastTrack.regions.length === 0) {
-                updatedTracks.pop();
-                currentCount--;
-              } else {
-                break;
-              }
-            }
-          }
-          updatedTracks = updatedTracks.map((t, idx) => ({ ...t, index: idx + 1 }));
-          if (onTracksChange) onTracksChange(updatedTracks);
           return updatedTracks;
         });
       }
@@ -3926,28 +4013,90 @@ export function Timeline({
                        />
                      );
                   })}
-                 {/* track-area selection overlay removed – only the blue strip above is used */}
                  {displayedTracks.map(track => (
-                    <div 
-                       key={track.id} 
-                       data-track-id={track.id}
-                       className="border-b border-[#282b30] hover:bg-[#25282c] relative" 
-                       style={{ height: trackHeight }} 
-                       onDrop={(e) => { e.stopPropagation(); onDrop(e, track.id); }} 
-                       onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
-                       onClick={(e) => {
-                          if (justDraggedRef.current) return;
-                          if (!(e.target as HTMLElement).closest('[data-region-id]')) {
-                            setSelectedRegionIds(new Set());
-                            setEditorContextMenu(null);
-                          }
-                       }}
-                    >
-                        {showAutomation && (
-                          <div className="absolute left-0 right-0 top-1/2 border-t border-dashed border-cyan-500/40 pointer-events-none z-[8]" title="Spurkurve: Lautstärke">
-                            <span className="absolute left-4 -translate-y-1/2 bg-[#1e2124] text-[8px] text-cyan-400 font-mono px-1 rounded border border-cyan-500/20">Spurkurve: Volume</span>
-                          </div>
-                        )}
+                     <div 
+                        key={track.id} 
+                        data-track-id={track.id}
+                        className="border-b border-[#282b30] hover:bg-[#25282c] relative" 
+                        style={{ height: trackHeight }} 
+                        onDrop={(e) => { e.stopPropagation(); onDrop(e, track.id); }} 
+                        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
+                        onClick={(e) => {
+                           if (justDraggedRef.current) return;
+                           if (!(e.target as HTMLElement).closest('[data-region-id]')) {
+                             setSelectedRegionIds(new Set());
+                             setEditorContextMenu(null);
+                           }
+                        }}
+                        onDoubleClick={(e) => {
+                          if (!showAutomation) return;
+                          if ((e.target as HTMLElement).closest('[data-region-id]') || (e.target as HTMLElement).closest('circle')) return;
+                          
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const clickX = e.clientX - rect.left;
+                          const clickY = e.clientY - rect.top;
+                          const time = Math.max(0, (clickX + scrollLeft) / pixelsPerSecond);
+                          const value = Math.max(0, Math.min(1.5, 1.5 * (1 - clickY / trackHeight)));
+                          
+                          addAutomationNode(track.id, time, value);
+                        }}
+                     >
+                         {showAutomation && (
+                           <svg 
+                             className="absolute inset-0 w-full h-full pointer-events-none z-[8]"
+                             style={{ overflow: 'visible' }}
+                           >
+                             {(() => {
+                               const pts = track.automation || [];
+                               if (pts.length === 0) {
+                                 const y = trackHeight * (1 - track.volume / 1.5);
+                                 return (
+                                   <line
+                                     x1={0}
+                                     y1={y}
+                                     x2={100000}
+                                     y2={y}
+                                     className="stroke-cyan-500/40 stroke-1 stroke-dashed"
+                                   />
+                                 );
+                               }
+                               
+                               let pathD = `M 0 ${trackHeight * (1 - pts[0].value / 1.5)}`;
+                               pts.forEach((p: { time: number; value: number }) => {
+                                 const x = p.time * pixelsPerSecond;
+                                 const y = trackHeight * (1 - p.value / 1.5);
+                                 pathD += ` L ${x} ${y}`;
+                               });
+                               const lastX = pts[pts.length - 1].time * pixelsPerSecond;
+                               const lastY = trackHeight * (1 - pts[pts.length - 1].value / 1.5);
+                               pathD += ` L ${Math.max(100000, lastX + 10000)} ${lastY}`;
+                               
+                               return (
+                                 <path
+                                   d={pathD}
+                                   className="stroke-cyan-400 stroke-2 fill-none opacity-80"
+                                 />
+                               );
+                             })()}
+                             {(track.automation || []).map((node: { time: number; value: number }, nodeIdx: number) => {
+                               const cx = node.time * pixelsPerSecond;
+                               const cy = trackHeight * (1 - node.value / 1.5);
+                               return (
+                                 <g key={nodeIdx} className="pointer-events-auto">
+                                   <circle
+                                     cx={cx}
+                                     cy={cy}
+                                     r={5}
+                                     className="fill-cyan-400 stroke-[#1e2124] stroke-2 cursor-pointer hover:fill-cyan-300 hover:scale-125 transition-transform"
+                                     onMouseDown={(e) => handleNodeMouseDown(e, track.id, nodeIdx)}
+                                     onContextMenu={(e) => handleNodeContextMenu(e, track.id, nodeIdx)}
+                                   />
+                                   <title>{`Zeit: ${node.time.toFixed(2)}s, Vol: ${(node.value * 100).toFixed(0)}%`}</title>
+                                 </g>
+                               );
+                             })}
+                           </svg>
+                         )}
                         {track.regions.map((region: Region) => {
                            const pitchRate = region.effects?.pitchRate || 1.0;
                            const regionWidthPx = (region.duration / pitchRate) * pixelsPerSecond;

@@ -163,7 +163,14 @@ function App(): JSX.Element {
   const [autoSaveInterval, setAutoSaveInterval] = useState(10)
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(true)
   // Global Modal State
-  const [modalConfig, setModalConfig] = useState<{ type: ModalType, title: string, message: string, onConfirm?: () => void } | null>(null)
+  const [modalConfig, setModalConfig] = useState<{ 
+    type: ModalType, 
+    title: string, 
+    message: string, 
+    onConfirm?: (checkboxChecked?: boolean) => void,
+    checkboxLabel?: string,
+    defaultCheckboxChecked?: boolean
+  } | null>(null)
 
   // Initial Tracks
   const initialTracks = [
@@ -474,15 +481,23 @@ function App(): JSX.Element {
     return () => clearTimeout(timer)
   }, [])
 
-  const showModal = (type: ModalType, title: string, message: string, onConfirm?: () => void) => {
-    setModalConfig({ type, title, message, onConfirm })
+  const showModal = (
+    type: ModalType, 
+    title: string, 
+    message: string, 
+    onConfirm?: (checkboxChecked?: boolean) => void,
+    checkboxLabel?: string,
+    defaultCheckboxChecked?: boolean
+  ) => {
+    setModalConfig({ type, title, message, onConfirm, checkboxLabel, defaultCheckboxChecked })
   }
 
-  const handleModalClose = (result?: boolean) => {
-    if (result && modalConfig?.onConfirm) {
-      modalConfig.onConfirm()
-    }
+  const handleModalClose = (result?: boolean, checkboxChecked?: boolean) => {
+    const callback = modalConfig?.onConfirm;
     setModalConfig(null)
+    if (result && callback) {
+      callback(checkboxChecked)
+    }
   }
   
   const [selectedRegionIds, setSelectedRegionIds] = useState<Set<string>>(new Set())
@@ -648,7 +663,14 @@ function App(): JSX.Element {
     const handleGlobalModal = (e: Event) => {
       const customEvent = e as CustomEvent;
       if (customEvent.detail) {
-        showModal(customEvent.detail.type, customEvent.detail.title, customEvent.detail.message);
+        showModal(
+          customEvent.detail.type,
+          customEvent.detail.title,
+          customEvent.detail.message,
+          customEvent.detail.onConfirm,
+          customEvent.detail.checkboxLabel,
+          customEvent.detail.defaultCheckboxChecked
+        );
       }
     };
 
@@ -818,7 +840,16 @@ function App(): JSX.Element {
       {showManual && <ManualModal onClose={() => setShowManual(false)} />}
       {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
       {showChangelog && <ChangelogModal onClose={() => setShowChangelog(false)} />}
-      {modalConfig && <MessageModal type={modalConfig.type} title={modalConfig.title} message={modalConfig.message} onClose={handleModalClose} />}
+      {modalConfig && (
+        <MessageModal 
+          type={modalConfig.type} 
+          title={modalConfig.title} 
+          message={modalConfig.message} 
+          checkboxLabel={modalConfig.checkboxLabel}
+          defaultCheckboxChecked={modalConfig.defaultCheckboxChecked}
+          onClose={handleModalClose} 
+        />
+      )}
       
       {/* Premium Start Dashboard */}
       {showStartDashboard && (

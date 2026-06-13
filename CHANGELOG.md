@@ -2,6 +2,30 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.12.2] - 2026-06-13
+
+### English
+
+#### Added
+- **Track Volume Automation Curves**: Implemented fully interactive SVG-based volume automation curves on the timeline (Alt+K). Users can double-click to add nodes, drag nodes to adjust value (0.0 to 1.5) and time, and right-click to delete nodes. Playback volume updates in real-time.
+- **Delete Confirmation Checkbox**: Added a "Don't ask again" checkbox to the file delete confirmation dialog. If checked, future files are deleted immediately. This can be re-enabled under Settings -> System.
+
+#### Fixed
+- **File Deletion & Locking**: Fixed file explorer deletion failing to execute due to event callback forwarding. Also resolved Windows file handle locking by stopping the audio preview player before deletion.
+- **Clean Menu Items**: Cleaned up the file and help menus by removing trailing ellipses ("...") from all labels.
+
+### Deutsch
+
+#### Hinzugefügt
+- **Spur-Lautstärke-Automationskurven**: Vollständig interaktive SVG-basierte Lautstärke-Automationskurven auf der Timeline (Alt+K) implementiert. Benutzer können per Doppelklick Punkte hinzufügen, Punkte ziehen, um Wert (0,0 bis 1,5) und Zeit anzupassen, und per Rechtsklick Punkte löschen. Die Lautstärke wird in Echtzeit während der Wiedergabe und beim Navigieren angepasst.
+- **Hinweisdialog-Checkbox beim Löschen**: Eine Checkbox „Nicht erneut fragen“ im Löschbestätigungsdialog hinzugefügt. Wenn aktiviert, werden zukünftige Dateien direkt gelöscht. Diese Warnung kann unter Einstellungen -> System wieder reaktiviert werden.
+
+#### Behoben
+- **Dateilöschung & Dateisperrung**: Fehler behoben, bei dem das Löschen im Datei-Browser aufgrund verworfener Event-Callbacks nicht ausgeführt wurde. Zudem werden geöffnete Audio-Previews vor dem Löschen gestoppt, um Dateisperren unter Windows aufzuheben.
+- **Menüeinträge bereinigt**: Die Menüs „Datei“ und „Hilfe“ wurden bereinigt, indem die nachfolgenden Punkte („...“) bei allen Einträgen entfernt wurden.
+
+---
+
 ## [0.12.1] - 2026-06-13
 
 ### English
