@@ -393,7 +393,7 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
                           : 'text-gray-400 hover:text-gray-200'
                       }`}
                     >
-                      GB English
+                      EN English
                     </button>
                   </div>
                 </div>
