@@ -131,6 +131,9 @@ function bootDashboard() {
     });
   });
 
+  // Init user table column sorting
+  initUserTableSort();
+
   // Feedback Filters
   document.getElementById('filter-project').addEventListener('change', renderTicketsList);
   document.getElementById('filter-type').addEventListener('change', renderTicketsList);
@@ -279,18 +282,110 @@ async function fetchAndRenderStats() {
 
     const data = await response.json();
     renderStatsOverview(data);
-    renderTrendChart(data.internal.dailyTrend);
-    renderDonutChart(data.internal.osBreakdown);
+    renderTrendChart(data.internal.dailyTrend, 'svg-trend-chart');
+    renderDonutChart(data.internal.osBreakdown, 'svg-donut-chart', 'donut-legend', 'donut-total');
     renderReleasesTable(data.github.releases, data.internal.versionBreakdown);
     renderGeoList(data.internal.geoList);
     renderHardwareRankings(data.internal.hardware, data.internal.users.length);
     renderUsersTable(data.internal.users);
     renderTerminalLogs(data.internal.recentLogs);
+    renderStatsTab(data);
+
+    // Update sidebar version with latest GitHub release
+    const sidebarVersion = document.getElementById('sidebar-version');
+    if (sidebarVersion && data.github.releases && data.github.releases.length > 0) {
+      sidebarVersion.textContent = data.github.releases[0].tag + ' (STABLE)';
+    }
   } catch (err) {
     console.error('Fehler beim Laden der Statistiken:', err);
   } finally {
     if (icon) setTimeout(() => icon.classList.remove('animate-spin'), 600);
   }
+}
+
+// ============================================================
+//  STATS TAB RENDERER
+// ============================================================
+function renderStatsTab(data) {
+  const users = data.internal.users || [];
+  const dailyTrend = data.internal.dailyTrend || [];
+  const now = Date.now();
+  const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+
+  // Unique users & 7-day active
+  const active7d = users.filter(u => u.lastSeen >= sevenDaysAgo).length;
+  const el = id => document.getElementById(id);
+  el('stats-unique-users').textContent = users.length.toLocaleString('de-DE');
+  el('stats-active-7d').textContent = `${active7d} aktiv in 7 Tagen`;
+
+  // 7-day updates & checks from trend
+  const recent7 = dailyTrend.slice(-7);
+  const updates7d = recent7.reduce((s, d) => s + d.downloads, 0);
+  const checks7d = recent7.reduce((s, d) => s + d.checks, 0);
+  el('stats-total-updates').textContent = (data.internal.totalDownloads || 0).toLocaleString('de-DE');
+  el('stats-updates-7d').textContent = `${updates7d.toLocaleString('de-DE')} in den letzten 7 Tagen`;
+  el('stats-total-checks').textContent = (data.internal.totalChecks || 0).toLocaleString('de-DE');
+  el('stats-checks-7d').textContent = `${checks7d.toLocaleString('de-DE')} in den letzten 7 Tagen`;
+
+  // OS donut (reuse with separate IDs)
+  renderDonutChart(data.internal.osBreakdown, 'svg-donut-chart-stats', 'donut-legend-stats', 'donut-total-stats');
+
+  // Trend chart (reuse with separate ID)
+  renderTrendChart(dailyTrend, 'svg-trend-chart-stats');
+
+  // Geo list for stats tab
+  renderGeoListTo(data.internal.geoList, 'stats-geo-list');
+
+  // Version distribution bar chart
+  const versionDist = el('stats-version-dist');
+  if (versionDist) {
+    versionDist.innerHTML = '';
+    const vBreakdown = data.internal.versionBreakdown || {};
+    const sorted = Object.entries(vBreakdown).sort((a, b) => b[1] - a[1]);
+    const totalU = users.length || 1;
+    sorted.forEach(([ver, count]) => {
+      const pct = ((count / totalU) * 100).toFixed(1);
+      const bar = document.createElement('div');
+      bar.className = 'version-dist-row';
+      bar.innerHTML = `
+        <div class="version-dist-label">
+          <span class="version-tag">v${ver}</span>
+          <span class="version-dist-count">${count} User (${pct}%)</span>
+        </div>
+        <div class="version-dist-bar-bg">
+          <div class="version-dist-bar-fill" style="width: ${pct}%"></div>
+        </div>
+      `;
+      versionDist.appendChild(bar);
+    });
+  }
+}
+
+function renderGeoListTo(geoList, targetId) {
+  const container = document.getElementById(targetId);
+  if (!container) return;
+  container.innerHTML = '';
+  if (!geoList || geoList.length === 0) {
+    container.innerHTML = `<div class="text-muted italic text-center py-4">Noch keine Standorte erfasst.</div>`;
+    return;
+  }
+  geoList.forEach(geo => {
+    const flag = getFlagEmoji(geo.code);
+    const row = document.createElement('div');
+    row.className = 'geo-row';
+    row.innerHTML = `
+      <div class="geo-country-label">
+        <span class="geo-flag">${flag}</span>
+        <span class="geo-country-name">${geo.name}</span>
+        <span class="geo-country-code">${geo.code}</span>
+      </div>
+      <div class="geo-values">
+        <span class="geo-val-check">${geo.checks.toLocaleString('de-DE')} checks</span>
+        <span class="geo-val-dl">${geo.downloads.toLocaleString('de-DE')} updates</span>
+      </div>
+    `;
+    container.appendChild(row);
+  });
 }
 
 // ============================================================
@@ -328,8 +423,9 @@ function renderStatsOverview(data) {
   document.getElementById('stat-update-checks').innerText = checksTotal.toLocaleString('de-DE');
 }
 
-function renderTrendChart(trendData) {
-  const svg = document.getElementById('svg-trend-chart');
+function renderTrendChart(trendData, svgId = 'svg-trend-chart') {
+  const svg = document.getElementById(svgId);
+  if (!svg) return;
   svg.innerHTML = '';
   if (!trendData || trendData.length === 0) return;
 
@@ -427,13 +523,14 @@ function renderTrendChart(trendData) {
   });
 }
 
-function renderDonutChart(osBreakdown) {
-  const svg = document.getElementById('svg-donut-chart');
-  const legend = document.getElementById('donut-legend');
+function renderDonutChart(osBreakdown, svgId = 'svg-donut-chart', legendId = 'donut-legend', totalId = 'donut-total') {
+  const svg = document.getElementById(svgId);
+  const legend = document.getElementById(legendId);
+  if (!svg || !legend) return;
   svg.innerHTML = ''; legend.innerHTML = '';
 
   const total = (osBreakdown.win32 || 0) + (osBreakdown.darwin || 0) + (osBreakdown.linux || 0);
-  document.getElementById('donut-total').innerText = total.toLocaleString('de-DE');
+  document.getElementById(totalId).innerText = total.toLocaleString('de-DE');
 
   if (total === 0) {
     const empty = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
@@ -595,36 +692,82 @@ function renderSpecList(elementId, distribution, totalUsers) {
   });
 }
 
+// ============================================================
+//  USER TABLE STATE (SORT)
+// ============================================================
+let usersData = [];
+let usersSortCol = 'lastSeen';
+let usersSortDir = -1; // -1 = desc, +1 = asc
+
+function initUserTableSort() {
+  document.querySelectorAll('#users-table th.sortable').forEach(th => {
+    th.style.cursor = 'pointer';
+    th.addEventListener('click', () => {
+      const col = th.dataset.col;
+      if (usersSortCol === col) {
+        usersSortDir *= -1;
+      } else {
+        usersSortCol = col;
+        usersSortDir = col === 'lastSeen' || col === 'firstSeen' ? -1 : 1;
+      }
+      // Update sort icons
+      document.querySelectorAll('#users-table th.sortable').forEach(h => {
+        const icon = h.querySelector('.sort-icon');
+        if (icon) icon.textContent = h.dataset.col === usersSortCol
+          ? (usersSortDir === -1 ? '↓' : '↑')
+          : '⇅';
+        h.classList.toggle('sort-active', h.dataset.col === usersSortCol);
+      });
+      renderUsersTable(usersData);
+    });
+  });
+}
+
 function renderUsersTable(users) {
+  usersData = users || [];
   const tbody = document.getElementById('users-table-body');
   tbody.innerHTML = '';
 
-  if (!users || users.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">Keine User-Profile registriert.</td></tr>`;
+  if (!usersData || usersData.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">Keine User-Profile registriert.</td></tr>`;
     return;
   }
 
-  users.forEach(u => {
-    const flag = getFlagEmoji(u.geo.countryCode);
+  // Sort
+  const sorted = [...usersData].sort((a, b) => {
+    let valA = a[usersSortCol];
+    let valB = b[usersSortCol];
+    if (usersSortCol === 'geo') { valA = (a.geo?.city || a.geo?.country || ''); valB = (b.geo?.city || b.geo?.country || ''); }
+    if (typeof valA === 'string') return usersSortDir * valA.localeCompare(valB);
+    return usersSortDir * ((valA || 0) - (valB || 0));
+  });
+
+  sorted.forEach(u => {
+    const flag = getFlagEmoji(u.geo?.countryCode);
     const osClean = u.os === 'win32' ? 'Windows' : u.os === 'darwin' ? 'macOS' : u.os === 'linux' ? 'Linux' : u.os;
-    const locationStr = u.geo.city ? `${flag} ${u.geo.city}, ${u.geo.countryCode}` : `${flag} ${u.geo.country}`;
+    const locationStr = u.geo?.city ? `${flag} ${u.geo.city}, ${u.geo.countryCode}` : `${flag} ${u.geo?.country || '?'}`;
     
-    // Hardware String
-    const sp = u.specs;
+    // Hardware String — full text, wrap naturally
+    const sp = u.specs || {};
+    const cpuClean = (sp.cpu || 'Unbekannt').replace('(R)', '').replace('(TM)', '').replace('Processor', '').trim();
+    const gpuClean = (sp.gpu || 'Unbekannt').replace('/PCIe/SSE2', '').trim();
     const hardwareStr = `
-      <span class="spec-pill" title="Prozessor">CPU: <strong>${sp.cpu.replace('(R)', '').replace('(TM)', '').replace('Processor', '').substring(0, 20)}</strong></span>
-      <span class="spec-pill" title="Grafikkarte">GPU: <strong>${sp.gpu.replace('/PCIe/SSE2', '').substring(0, 20)}</strong></span>
-      <span class="spec-pill" title="Arbeitsspeicher">RAM: <strong>${sp.ramGB} GB</strong></span>
-      <span class="spec-pill" title="SSD Hauptplatte">SSD: <strong>${sp.diskGB > 0 ? sp.diskGB + ' GB' : 'Unbekannt'}</strong></span>
+      <span class="spec-pill" title="${cpuClean}">CPU: <strong>${cpuClean.length > 30 ? cpuClean.substring(0,30)+'…' : cpuClean}</strong></span>
+      <span class="spec-pill gpu-pill" title="${gpuClean}">GPU: <strong>${gpuClean.length > 32 ? gpuClean.substring(0,32)+'…' : gpuClean}</strong></span>
+      <span class="spec-pill">RAM: <strong>${sp.ramGB || '?'} GB</strong></span>
+      <span class="spec-pill">SSD: <strong>${sp.diskGB > 0 ? sp.diskGB + ' GB' : 'Unbek.'}</strong></span>
     `;
 
     // Activity Status
-    const isOnline = Date.now() - u.lastSeen < 120000; // Letzte 2 Minuten = Aktiv
+    const isOnline = Date.now() - u.lastSeen < 120000;
     const statusClass = isOnline ? 'activity-active' : 'activity-inactive';
     const statusLabel = isOnline ? 'Online' : 'Offline';
-    const lastSeenStr = new Date(u.lastSeen).toLocaleString('de-DE', {
-      day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
-    });
+
+    const fmtDate = (ts) => ts ? new Date(ts).toLocaleString('de-DE', {
+      day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit'
+    }) : '—';
+    const firstSeenStr = fmtDate(u.firstSeen);
+    const lastSeenStr = fmtDate(u.lastSeen);
 
     // Version Transitions
     let transitionsHtml = '';
@@ -636,24 +779,29 @@ function renderUsersTable(users) {
     tr.innerHTML = `
       <td>
         <span class="client-id-label" title="${u.clientId}">${u.clientId}</span>
-        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">OS: <strong>${osClean}</strong></div>
+        <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;">OS: <strong>${osClean}</strong></div>
       </td>
       <td>
-        <div style="font-weight: 500;">${locationStr}</div>
+        <div style="font-weight: 500; white-space: nowrap;">${locationStr}</div>
       </td>
       <td>
-        <div style="max-width: 380px;">${hardwareStr}</div>
+        <div class="hw-pill-wrap">${hardwareStr}</div>
       </td>
       <td>
         <span class="version-tag">v${u.lastVersion}</span>
+        <div style="font-size:0.68rem;color:var(--text-muted);margin-top:3px;">seit v${u.firstVersion || '?'}</div>
       </td>
       <td>
         <div class="transition-list">${transitionsHtml || '<span style="color:var(--text-muted);font-size:0.75rem;">Keine Updates</span>'}</div>
+        <div style="font-size:0.68rem;color:var(--text-muted);margin-top:3px;">${u.checksCount} checks / ${u.downloadsCount} dl</div>
       </td>
-      <td>
+      <td style="white-space:nowrap;">
+        <div style="font-size:0.78rem;color:var(--text-secondary);">${firstSeenStr}</div>
+        <div style="font-size:0.68rem;color:var(--text-muted);margin-top:2px;">v${u.firstVersion || '?'}</div>
+      </td>
+      <td style="white-space:nowrap;">
         <span class="activity-badge ${statusClass}">${statusLabel}</span>
-        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Pings: <strong>${u.checksCount} checks / ${u.downloadsCount} dl</strong></div>
-        <div style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 2px;">Letzter Ping: ${lastSeenStr}</div>
+        <div style="font-size:0.78rem;color:var(--text-secondary);margin-top:4px;">${lastSeenStr}</div>
       </td>
     `;
     tbody.appendChild(tr);

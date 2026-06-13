@@ -18,7 +18,7 @@
       <div class="login-logo">Ω</div>
       <h1 class="login-title">Omega Projects</h1>
       <p class="login-subtitle">Admin Console</p>
-      <p class="login-domain">admin.owe.omegaprojects.de</p>
+      <p class="login-domain">admin.omc.omegaprojects.de</p>
 
       <form id="login-form" class="login-form" autocomplete="off">
         <div class="login-input-wrap">
@@ -48,7 +48,7 @@
         <div class="logo-box">Ω</div>
         <div class="title-box">
           <h1>Omega Projects</h1>
-          <p class="subtitle">Admin Console — admin.owe.omegaprojects.de</p>
+          <p class="subtitle">Admin Console — admin.omc.omegaprojects.de</p>
         </div>
       </div>
 
@@ -88,6 +88,10 @@
             <i data-lucide="message-square"></i>
             <span>Feedback & Support</span>
           </button>
+          <button class="nav-item" data-tab="tab-stats">
+            <i data-lucide="bar-chart-2"></i>
+            <span>Stats</span>
+          </button>
           <button class="nav-item" data-tab="tab-telemetry">
             <i data-lucide="activity"></i>
             <span>Live Telemetrie</span>
@@ -100,7 +104,7 @@
 
         <div class="sidebar-footer">
           <div class="footer-title">Omega Wave Editor</div>
-          <div class="footer-version">v0.8.28 (STABLE)</div>
+          <div class="footer-version" id="sidebar-version">v— (–)</div>
         </div>
       </aside>
 
@@ -242,27 +246,94 @@
         <section id="tab-users" class="tab-content">
           <div class="section-card">
             <div class="card-title-bar">
-              <h2>User-Datenbank & Update-Verlauf</h2>
+              <h2>User-Datenbank &amp; Update-Verlauf</h2>
               <p class="description">Anonym erfasste Client-Installationen, sortiert nach der letzten Aktivität. Ermöglicht die Analyse von Hardware-Spezifikationen und Update-Übergängen.</p>
             </div>
             <div class="table-container">
-              <table class="data-table">
+              <table class="data-table" id="users-table">
                 <thead>
                   <tr>
-                    <th>Client ID & OS</th>
-                    <th>Standort</th>
+                    <th class="sortable" data-col="clientId">Client ID &amp; OS <span class="sort-icon">⇅</span></th>
+                    <th class="sortable" data-col="geo">Standort <span class="sort-icon">⇅</span></th>
                     <th>Spezifikationen (CPU / GPU / RAM / SSD)</th>
-                    <th>Version</th>
+                    <th class="sortable" data-col="lastVersion">Version <span class="sort-icon">⇅</span></th>
                     <th>Update-Historie</th>
-                    <th>Aktivität & Letzter Ping</th>
+                    <th class="sortable" data-col="firstSeen">Erste Aktivität <span class="sort-icon">⇅</span></th>
+                    <th class="sortable" data-col="lastSeen">Letzter Ping <span class="sort-icon">⇅</span></th>
                   </tr>
                 </thead>
                 <tbody id="users-table-body">
                   <tr>
-                    <td colspan="6" class="text-center text-muted">Lade User-Datenbank...</td>
+                    <td colspan="7" class="text-center text-muted">Lade User-Datenbank...</td>
                   </tr>
                 </tbody>
               </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION STATS -->
+        <section id="tab-stats" class="tab-content">
+          <div class="stats-grid-3">
+            <div class="stat-highlight-card">
+              <div class="stat-hl-icon blue-glow"><i data-lucide="users"></i></div>
+              <div class="stat-hl-info">
+                <div class="stat-hl-label">Aktive Unique User</div>
+                <div class="stat-hl-value" id="stats-unique-users">—</div>
+                <div class="stat-hl-sub" id="stats-active-7d">— aktiv in 7 Tagen</div>
+              </div>
+            </div>
+            <div class="stat-highlight-card">
+              <div class="stat-hl-icon purple-glow"><i data-lucide="refresh-cw"></i></div>
+              <div class="stat-hl-info">
+                <div class="stat-hl-label">In-App Updates Gesamt</div>
+                <div class="stat-hl-value" id="stats-total-updates">—</div>
+                <div class="stat-hl-sub" id="stats-updates-7d">— in den letzten 7 Tagen</div>
+              </div>
+            </div>
+            <div class="stat-highlight-card">
+              <div class="stat-hl-icon cyan-glow"><i data-lucide="eye"></i></div>
+              <div class="stat-hl-info">
+                <div class="stat-hl-label">Update-Checks Gesamt</div>
+                <div class="stat-hl-value" id="stats-total-checks">—</div>
+                <div class="stat-hl-sub" id="stats-checks-7d">— in den letzten 7 Tagen</div>
+              </div>
+            </div>
+          </div>
+          <div class="charts-row">
+            <div class="chart-card flex-1">
+              <div class="chart-header"><h2>OS-Verteilung (aktive User)</h2></div>
+              <div class="chart-container-donut">
+                <div class="donut-wrapper">
+                  <svg id="svg-donut-chart-stats" class="donut-chart" viewBox="0 0 200 200"></svg>
+                  <div class="donut-text">
+                    <span id="donut-total-stats" class="donut-number">0</span>
+                    <span class="donut-label">User</span>
+                  </div>
+                </div>
+                <div id="donut-legend-stats" class="donut-legend-list"></div>
+              </div>
+            </div>
+            <div class="chart-card flex-2">
+              <div class="chart-header"><h2>Versions-Verteilung (aktive User)</h2></div>
+              <div class="version-dist-list" id="stats-version-dist"></div>
+            </div>
+            <div class="chart-card flex-1">
+              <div class="chart-header"><h2>Top Länder</h2></div>
+              <div class="geo-list-container" id="stats-geo-list"></div>
+            </div>
+          </div>
+          <div class="charts-row">
+            <div class="chart-card flex-3">
+              <div class="chart-header"><h2>Downloads &amp; Checks (Letzte 30 Tage)</h2>
+                <div class="chart-legend">
+                  <span class="legend-item"><span class="legend-dot app-dot"></span> App Auto-Update</span>
+                  <span class="legend-item"><span class="legend-dot check-dot"></span> In-App Checks</span>
+                </div>
+              </div>
+              <div class="chart-container">
+                <svg id="svg-trend-chart-stats" class="svg-chart" viewBox="0 0 800 300"></svg>
+              </div>
             </div>
           </div>
         </section>
