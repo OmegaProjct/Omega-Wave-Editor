@@ -1,11 +1,11 @@
-# Admin Dashboard — admin.owe.omegaprojects.de
+# Admin Dashboard — admin.omc.omegaprojects.de
 
 Dieses Verzeichnis enthält das komplette Self-Hosting-Setup für das Telemetrie- und Download-Statistik-Dashboard des Omega Wave Editors.
 
 Enthalten:
 
 - `compose.yaml`: Startet den Express-Telemetrie-Server und Caddy per Docker Compose
-- `Caddyfile`: Richtet automatisches HTTPS für `admin.owe.omegaprojects.de` via Let's Encrypt ein
+- `Caddyfile`: Richtet automatisches HTTPS für `admin.omc.omegaprojects.de` via Let's Encrypt ein
 - `server.js`: Express-Backend (Telemetrie-Logging, GitHub-API, Stats-Aggregation)
 - `public/`: Statische Dashboard-Dateien (HTML/CSS/JS)
 
@@ -14,7 +14,7 @@ Enthalten:
 ## Voraussetzungen auf dem VPS
 
 - Linux-VPS mit Docker und Docker Compose Plugin
-- DNS A-Record `admin.owe.omegaprojects.de` zeigt auf die VPS-IP
+- DNS A-Record `admin.omc.omegaprojects.de` zeigt auf die VPS-IP
 - Eingehende Ports `80` und `443` sind in der Firewall offen
 
 ---
@@ -34,7 +34,7 @@ cd /opt/omega-admin
 docker compose up -d
 ```
 
-3. Im Browser `https://admin.owe.omegaprojects.de` aufrufen.
+3. Im Browser `https://admin.omc.omegaprojects.de` aufrufen.
 
 Caddy holt das SSL-Zertifikat automatisch, sobald der DNS-Record korrekt gesetzt ist.
 
@@ -93,5 +93,5 @@ Die Telemetrie-Daten werden in einem Docker Volume gespeichert (`telemetry-data`
 
 ## Was noch nötig ist
 
-- DNS A-Record `admin.owe.omegaprojects.de` → VPS-IP setzen
+- DNS A-Record `admin.omc.omegaprojects.de` → VPS-IP setzen
 - Ports `80` und `443` in der VPS-Firewall öffnen
