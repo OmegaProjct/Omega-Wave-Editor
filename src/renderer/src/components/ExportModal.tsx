@@ -805,7 +805,7 @@ export function ExportModal({ onClose, tracks: initialTracks = [] }: { onClose?:
                       key={i}
                       className={`flex-1 h-1.5 rounded-full transition-all duration-500 ${
                         i < exportPhase ? 'bg-green-500' :
-                        i === exportPhase && status === 'running' ? 'bg-omega-accent animate-pulse' :
+                        i === exportPhase && status === 'running' ? 'bg-omega-accent' :
                         status === 'done' ? 'bg-green-500' :
                         'bg-gray-700'
                       }`}

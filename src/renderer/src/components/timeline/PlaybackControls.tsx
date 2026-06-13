@@ -109,7 +109,7 @@ export const TransportBar: React.FC<TransportBarProps> = ({
         <button
           title="Aufnahme"
           className={`p-1.5 rounded ${
-            showAudioRecording ? 'text-red-500 animate-pulse bg-red-500/20' : 'hover:bg-gray-700 text-gray-400'
+            showAudioRecording ? 'text-red-500 bg-red-500/20' : 'hover:bg-gray-700 text-gray-400'
           }`}
           onClick={() => setShowAudioRecording(true)}
         >

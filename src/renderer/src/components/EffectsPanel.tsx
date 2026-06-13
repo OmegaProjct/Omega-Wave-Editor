@@ -573,7 +573,7 @@ export function EffectsPanel({
             <span className="text-[10px] text-gray-600 italic">{t('effects.no_clip_selected', { defaultValue: 'Kein Clip ausgewählt' })}</span>
           )}
           {statusMessage && (
-            <span className="text-[10px] text-green-400 font-medium flex-shrink-0 animate-pulse">{statusMessage}</span>
+            <span className="text-[10px] text-green-400 font-medium flex-shrink-0">{statusMessage}</span>
           )}
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">

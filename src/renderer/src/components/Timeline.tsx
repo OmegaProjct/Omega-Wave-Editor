@@ -1520,6 +1520,44 @@ export function Timeline({
   const hScrollTrackRef = useRef<HTMLDivElement>(null)
   const vScrollTrackRef = useRef<HTMLDivElement>(null)
 
+  const prevZoomLevelRef = useRef(zoomLevel)
+  useEffect(() => {
+    if (tracksRef.current) {
+      const oldZoom = prevZoomLevelRef.current
+      const newZoom = zoomLevel
+      
+      if (oldZoom !== newZoom) {
+        const pixelsPerSecondOld = PIXELS_PER_SECOND_BASE * oldZoom
+        const pixelsPerSecondNew = PIXELS_PER_SECOND_BASE * newZoom
+        
+        const playheadXOld = playheadPos * pixelsPerSecondOld
+        const playheadXNew = playheadPos * pixelsPerSecondNew
+        
+        const currentScroll = tracksRef.current.scrollLeft
+        const viewportWidth = tracksRef.current.clientWidth
+        
+        let newScrollLeft: number
+        
+        if (playheadXOld >= currentScroll && playheadXOld <= currentScroll + viewportWidth) {
+          const screenPos = playheadXOld - currentScroll
+          newScrollLeft = playheadXNew - screenPos
+        } else {
+          newScrollLeft = playheadXNew - (viewportWidth / 2)
+        }
+        
+        const finalScrollLeft = Math.max(0, newScrollLeft)
+        
+        requestAnimationFrame(() => {
+          if (tracksRef.current) {
+            tracksRef.current.scrollLeft = finalScrollLeft
+            setScrollLeft(tracksRef.current.scrollLeft)
+          }
+        })
+      }
+    }
+    prevZoomLevelRef.current = zoomLevel
+  }, [zoomLevel, playheadPos])
+
   const skipToStart = () => {
     setPlayheadPos(0);
     playheadPosRef.current = 0;
@@ -3541,7 +3579,7 @@ export function Timeline({
           <div className="bg-[#2b2d31] border border-gray-600 w-[460px] rounded-lg shadow-2xl overflow-hidden flex flex-col">
             {/* Header */}
             <div className="bg-[#1e2124] px-4 py-2 border-b border-gray-700 flex items-center gap-2">
-              <AlertTriangle className="text-omega-accent animate-pulse" size={20} />
+              <AlertTriangle className="text-yellow-500" size={20} />
               <span className="text-xs font-bold uppercase tracking-wider text-gray-300">Überlappung erkannt</span>
             </div>
             
@@ -3838,7 +3876,7 @@ export function Timeline({
         <div className="flex gap-1 text-gray-400 border-r border-gray-700 pr-2">
             <button 
               title="Audioaufnahme" 
-              className={`p-1.5 rounded transition-all ${audioRecording?.active ? 'text-red-500 animate-pulse bg-red-500/20 shadow-[0_0_8px_rgba(239,68,68,0.5)] border border-red-500/30' : 'hover:bg-gray-700 text-gray-400'}`} 
+              className={`p-1.5 rounded transition-all ${audioRecording?.active ? 'text-red-500 bg-red-500/20 shadow-[0_0_8px_rgba(239,68,68,0.5)] border border-red-500/30' : 'hover:bg-gray-700 text-gray-400'}`} 
               onClick={() => {
                 window.api.openPopoutWindow('audio-recorder', { width: 600, height: 520, title: '🔴 Audio-Aufnahme' });
               }}

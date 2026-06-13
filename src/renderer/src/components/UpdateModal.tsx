@@ -399,10 +399,10 @@ export function UpdateModal({ updateInfo, onClose }: UpdateModalProps) {
                 </div>
                 
                 {/* Warning notice banner */}
-                <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-200 text-xs flex gap-2.5 items-start mt-1 mb-2 leading-relaxed">
-                  <AlertTriangle className="text-red-500 shrink-0 mt-0.5" size={16} />
+                <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-amber-200 text-xs flex gap-2.5 items-start mt-1 mb-2 leading-relaxed">
+                  <AlertTriangle className="text-amber-500 shrink-0 mt-0.5" size={16} />
                   <div>
-                    <strong className="text-red-400 block mb-0.5 uppercase tracking-wider text-[10px] font-black">
+                    <strong className="text-amber-400 block mb-0.5 uppercase tracking-wider text-[10px] font-black">
                       {lang === 'de' ? 'Wichtiger Hinweis zum Update' : 'Important Upgrade Notice'}
                     </strong>
                     <span>

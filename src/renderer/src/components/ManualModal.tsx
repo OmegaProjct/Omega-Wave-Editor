@@ -98,7 +98,7 @@ export function ManualModal({ onClose }: { onClose: () => void }) {
             </ul>
             <div className="mt-4 bg-black/20 p-4 rounded border border-gray-800">
                <h4 className="font-bold text-white text-xs mb-1.5 flex items-center gap-2">
-                 <span className="w-1.5 h-1.5 bg-omega-accent rounded-sm inline-block animate-pulse"></span>
+                 <span className="w-1.5 h-1.5 bg-omega-accent rounded-sm inline-block"></span>
                  {t('manual.sec3_import_conflict_title', { defaultValue: 'Import-Verhalten & Spur-Kollisionen' })}
                </h4>
                <p className="text-xs text-gray-400 leading-relaxed">

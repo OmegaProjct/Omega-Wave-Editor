@@ -721,12 +721,12 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
                         {plugin.format}
                       </span>
                       {plugin.missingFromScan && (
-                        <span className="text-[7.5px] bg-red-600/15 text-red-400 border border-red-600/30 font-bold px-1.5 py-0.5 rounded font-sans uppercase tracking-wider select-none animate-pulse">
+                        <span className="text-[7.5px] bg-red-600/15 text-red-400 border border-red-600/30 font-bold px-1.5 py-0.5 rounded font-sans uppercase tracking-wider select-none">
                           Fehlt beim Scan
                         </span>
                       )}
                       {plugin.notHostable && !plugin.missingFromScan && (
-                        <span className="text-[7.5px] bg-red-600/15 text-red-400 border border-red-600/30 font-bold px-1.5 py-0.5 rounded font-sans uppercase tracking-wider select-none animate-pulse">
+                        <span className="text-[7.5px] bg-red-600/15 text-red-400 border border-red-600/30 font-bold px-1.5 py-0.5 rounded font-sans uppercase tracking-wider select-none">
                           Inkompatibel
                         </span>
                       )}
@@ -907,7 +907,7 @@ export function VstPluginRack({ scanList }: { scanList: any[] }) {
                                       disabled={!plugin.active}
                                       className={`px-2 py-0.5 text-[9px] font-bold rounded-md border shadow transition-all duration-300 ${
                                         isLearning
-                                          ? 'bg-red-650 hover:bg-red-500 text-white border-red-500 animate-pulse font-semibold'
+                                          ? 'bg-red-650 hover:bg-red-500 text-white border-red-500 font-semibold'
                                           : 'bg-[#282b30] hover:bg-gray-700 text-gray-400 hover:text-omega-accent border-gray-700 disabled:opacity-30'
                                       }`}
                                     >

@@ -44,6 +44,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
     jumpSizeStopped: 1.0
   })
   const [capturingShortcut, setCapturingShortcut] = useState<ShortcutAction | null>(null)
+  const [tempShortcut, setTempShortcut] = useState<string | null>(null)
 
   const [midiDevices, setMidiDevices] = useState<{ id: string; name: string }[]>([])
   const [midiOutputDevices, setMidiOutputDevices] = useState<{ id: string; name: string }[]>([])
@@ -305,7 +306,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
           </div>
         </div>
 
-        <div className="p-3 bg-[#131517] border border-gray-800 rounded-lg text-center text-xs text-omega-accent select-none animate-pulse">
+        <div className="p-3 bg-[#131517] border border-gray-800 rounded-lg text-center text-xs text-omega-accent select-none">
           Aa Bb Cc Dd Ee Ff Gg
         </div>
       </div>
@@ -550,7 +551,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
 
                 <div className="bg-[#1e2124]/80 border border-omega-accent/25 p-2 rounded shadow-inner">
                   <div className="text-omega-accent text-[10px] uppercase tracking-wider mb-0.5 font-semibold">Roundtrip</div>
-                  <div className="font-bold text-omega-accent animate-pulse">
+                  <div className="font-bold text-omega-accent">
                     {(((asioDetails.inputLatencySamples + asioDetails.outputLatencySamples) / asioDetails.sampleRate) * 1000).toFixed(3)} ms
                   </div>
                   <div className="text-[9px] text-omega-accent/70 font-mono">
@@ -853,14 +854,26 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
 
       if (event.key === 'Escape') {
         setCapturingShortcut(null)
+        setTempShortcut(null)
         return
       }
 
       const shortcut = eventToShortcut(event.nativeEvent)
-      if (!shortcut) return
+      if (shortcut) {
+        setTempShortcut(shortcut)
+      }
+    }
 
-      setShortcut(id, shortcut)
+    const handleShortcutKeyUp = (event: React.KeyboardEvent<HTMLButtonElement>, id: ShortcutAction) => {
+      if (capturingShortcut !== id) return
+      event.preventDefault()
+      event.stopPropagation()
+
+      if (tempShortcut) {
+        setShortcut(id, tempShortcut)
+      }
       setCapturingShortcut(null)
+      setTempShortcut(null)
     }
 
     return (
@@ -888,10 +901,16 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
                           ? 'border-omega-accent bg-omega-accent/15 text-white'
                           : 'border-gray-700 bg-[#101215] text-omega-accent hover:border-gray-500'
                       }`}
-                      onClick={() => setCapturingShortcut(item.id)}
+                      onClick={() => {
+                        setCapturingShortcut(item.id)
+                        setTempShortcut(null)
+                      }}
                       onKeyDown={(event) => handleShortcutKeyDown(event, item.id)}
+                      onKeyUp={(event) => handleShortcutKeyUp(event, item.id)}
                     >
-                      {capturingShortcut === item.id ? t('settings.shortcuts.press_key', { defaultValue: 'Taste drücken...' }) : formatShortcut(keyboardShortcuts[item.id])}
+                      {capturingShortcut === item.id 
+                        ? (tempShortcut ? formatShortcut(tempShortcut) : t('settings.shortcuts.press_key', { defaultValue: 'Taste drücken...' }))
+                        : formatShortcut(keyboardShortcuts[item.id])}
                     </button>
                     <button
                       className="h-8 px-2 rounded bg-gray-700 hover:bg-gray-600 text-[11px] text-gray-200"
@@ -1102,7 +1121,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
                     <td className="p-2 text-gray-300 font-medium">{cfg.label}</td>
                     <td className="p-2 text-gray-400">
                       {isLearning ? (
-                        <span className="text-omega-accent animate-pulse font-semibold">{t('settings.midi.learning', { defaultValue: 'Lerne... (Bewege Regler / Drücke Taste)' })}</span>
+                        <span className="text-omega-accent font-semibold">{t('settings.midi.learning', { defaultValue: 'Lerne... (Bewege Regler / Drücke Taste)' })}</span>
                       ) : (
                         <span className={mapping ? 'text-green-400 font-medium' : ''}>{assignmentText}</span>
                       )}

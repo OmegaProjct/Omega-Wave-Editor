@@ -752,7 +752,7 @@ export function VstEditorWindow() {
                 {plugin.format}
               </span>
               {plugin.instanceId === undefined && (
-                <span className="text-[9px] bg-amber-500/10 text-amber-500 border border-amber-500/30 px-1.5 py-0.5 rounded font-sans font-medium uppercase animate-pulse">
+                <span className="text-[9px] bg-amber-500/10 text-amber-500 border border-amber-500/30 px-1.5 py-0.5 rounded font-sans font-medium uppercase">
                   Nicht im Rack
                 </span>
               )}
@@ -787,7 +787,7 @@ export function VstEditorWindow() {
               {isRecording ? (
                 <button
                   onClick={stopLiveRecording}
-                  className="h-8 px-4 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-lg flex items-center gap-2 shadow animate-pulse cursor-pointer"
+                  className="h-8 px-4 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-lg flex items-center gap-2 shadow cursor-pointer"
                 >
                   <Square size={12} fill="white" />
                   <span>{t('vst_editor.stop', { defaultValue: 'Stopp' })} ({recordingSeconds}s)</span>
