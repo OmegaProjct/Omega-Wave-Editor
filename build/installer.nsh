@@ -1,3 +1,5 @@
+Var deleteEverything
+
 !macro customHeader
   InstallDir "$PROGRAMFILES\OmegaProjects\Omega Wave Editor"
 !macroend
@@ -29,7 +31,19 @@
 !macroend
 
 !macro customUnInit
-  IfSilent +3
-  MessageBox MB_YESNO|MB_ICONQUESTION "Möchten Sie auch alle Ihre persönlichen Programmeinstellungen, Ordnerpfade und Benutzerdaten restlos löschen?" IDNO +2
+  StrCpy $deleteEverything "0"
+  IfSilent done_cleanup
+  MessageBox MB_YESNO|MB_ICONQUESTION "Möchten Sie auch alle Ihre persönlichen Programmeinstellungen, Ordnerpfade und Benutzerdaten restlos löschen?" IDNO done_cleanup
+  StrCpy $deleteEverything "1"
   RMDir /r "$APPDATA\omega-wave-editor"
+  done_cleanup:
+!macroend
+
+!macro customUnInstall
+  StrCmp $deleteEverything "1" 0 done_uninstall
+  DetailPrint "Lösche Desktop- und Startmenü-Verknüpfungen..."
+  Delete "$oldDesktopLink"
+  Delete "$oldStartMenuLink"
+  System::Call 'shell32::SHChangeNotify(i, i, i, i) v (0x08000000, 0, 0, 0)'
+  done_uninstall:
 !macroend

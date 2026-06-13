@@ -2,6 +2,36 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.11.1] - 2026-06-13
+
+### English
+
+#### Added
+- **Select All Menu Option**: Added "Select All" (Ctrl+A) to the Edit menu and keyboard shortcut settings under the Edit category.
+
+#### Changed
+- **Upgrade Notice Localization**: Split the Upgrade Notice into separate English and German sections, hiding English text on the German page.
+- **Notice Highlighting**: Important upgrade and warning notices are now rendered in red for enhanced visibility.
+- **Taskbar & Desktop Shortcut Persistence**: Modified NSIS installer to preserve desktop and pinned taskbar shortcuts during application updates, only deleting them if the user explicitly requests a clean uninstallation.
+
+#### Fixed
+- **Edit Menu Actions**: Fixed Edit menu items (Cut, Copy, Paste, Delete, Select All) to be fully functional and clickable.
+
+### Deutsch
+
+#### Hinzugefügt
+- **Alles auswählen Menü-Option**: „Alles auswählen“ (Strg + A) zum Bearbeiten-Menü und den Tastenkombinationen in der Gruppe „Bearbeiten“ hinzugefügt.
+
+#### Geändert
+- **Update-Hinweis Lokalisierung**: Der Update-Hinweis (Upgrade Notice) wird nun zweisprachig gefiltert, sodass der englische Text auf der deutschen Seite ausgeblendet wird.
+- **Hinweis-Hervorhebung**: Wichtige Update-Hinweise und Warnungen werden nun rot formatiert, um mehr Aufmerksamkeit zu erregen.
+- **Desktop- & Taskleisten-Shortcuts bei Updates behalten**: Der NSIS-Installer behält Verknüpfungen auf dem Desktop und in der Taskleiste bei Updates und Deinstallationen nun standardmäßig bei. Sie werden nur gelöscht, wenn der Benutzer explizit eine restlose Deinstallation wählt.
+
+#### Behoben
+- **Bearbeiten-Menüaktionen**: Die Aktionen des Bearbeiten-Menüs (Ausschneiden, Kopieren, Einfügen, Löschen, Alles auswählen) sind nun voll funktionsfähig und ausführbar.
+
+---
+
 ## [0.11.0] - 2026-06-13
 
 ### English
