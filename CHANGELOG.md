@@ -2,6 +2,20 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.12.1] - 2026-06-13
+
+### English
+
+#### Fixed
+- **Preview Playback Resume**: Fixed an issue in the File Explorer file list where clicking the hover-overlay Play button on a paused audio preview would restart the audio from the beginning instead of resuming it from the paused position.
+
+### Deutsch
+
+#### Behoben
+- **Vorschau-Wiedergabe Fortsetzen**: Ein Problem in der Dateiliste des Datei-Browsers behoben, bei dem das Klicken auf das Play-Symbol (im Hover-Overlay) einer pausierten Audio-Vorschau die Wiedergabe von vorne startete, anstatt sie an der pausierten Stelle fortzusetzen.
+
+---
+
 ## [0.12.0] - 2026-06-13
 
 ### English

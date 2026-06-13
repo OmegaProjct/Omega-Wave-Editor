@@ -626,7 +626,14 @@ export function FileExplorer() {
                   {playingAudio === file.path && isPlaying ? (
                     <Pause size={14} className="text-omega-accent cursor-pointer hover:scale-110" onClick={(e) => { e.stopPropagation(); handlePlayPause() }} />
                   ) : (
-                    <Play size={14} className="text-green-400 cursor-pointer hover:scale-110" onClick={(e) => { e.stopPropagation(); playPreview(file.path) }} />
+                    <Play size={14} className="text-green-400 cursor-pointer hover:scale-110" onClick={(e) => {
+                      e.stopPropagation();
+                      if (playingAudio === file.path) {
+                        handlePlayPause();
+                      } else {
+                        playPreview(file.path);
+                      }
+                    }} />
                   )}
                   {playingAudio === file.path && (
                     <Square size={12} className="text-red-400 cursor-pointer hover:scale-110" onClick={(e) => { e.stopPropagation(); stopPreview() }} />
