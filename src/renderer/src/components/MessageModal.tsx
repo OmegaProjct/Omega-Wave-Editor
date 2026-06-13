@@ -27,7 +27,7 @@ export function MessageModal({ type, title, message, onClose, checkboxLabel, def
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[5000] animate-in fade-in duration-200">
-      <div className="bg-[#2b2d31] border border-gray-600 w-[420px] rounded-lg shadow-2xl overflow-hidden flex flex-col">
+      <div className="bg-[#2b2d31] border border-gray-600 w-[420px] max-h-[90vh] rounded-lg shadow-2xl overflow-hidden flex flex-col">
         {/* Header */}
         <div className="bg-[#1e2124] px-4 py-2 border-b border-gray-700 flex items-center justify-between">
            <div className="flex items-center gap-2">
@@ -38,7 +38,7 @@ export function MessageModal({ type, title, message, onClose, checkboxLabel, def
         </div>
 
         {/* Content */}
-        <div className="p-6 text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">
+        <div className="p-6 text-sm text-gray-300 leading-relaxed whitespace-pre-wrap overflow-y-auto max-h-[60vh]">
           {message}
         </div>
 

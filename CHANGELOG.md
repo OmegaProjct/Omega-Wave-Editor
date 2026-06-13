@@ -2,6 +2,20 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.12.8] - 2026-06-13
+
+### English
+
+#### Fixed
+- **VST Scan Result Overflow**: Added maximum height limits and vertical scrollbars to MessageModal to prevent layout overflow when displaying a large number of scanned plugins, resolving interface locking issues.
+
+### Deutsch
+
+#### Behoben
+- **VST-Scan-Ergebnisüberlauf**: Dem MessageModal wurden maximale Höhengrenzen und vertikale Bildlaufleisten hinzugefügt. Dies verhindert ein Überlaufen des Layouts bei einer großen Anzahl gescannter Plugins und löst das Problem, dass die Benutzeroberfläche nicht mehr bedient werden kann.
+
+---
+
 ## [0.12.7] - 2026-06-13
 
 ### English
