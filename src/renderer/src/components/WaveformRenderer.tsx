@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState } from 'react'
 
 // A highly realistic, deterministic, and instant peak generator based on a string seed (e.g. file path)
-function getDeterministicPeaks(filePath: string, samples: number = 1000): number[] {
+function getDeterministicPeaks(filePath: string, samples: number = 8000): number[] {
   let hash = 0
   for (let i = 0; i < filePath.length; i++) {
     hash = (hash << 5) - hash + filePath.charCodeAt(i)
@@ -60,9 +60,22 @@ function getDeterministicPeaks(filePath: string, samples: number = 1000): number
   return peaks
 }
 
-export function WaveformRenderer({ filePath, sourceOffset = 0, duration = 0, fileDuration = 0, channel }: { filePath: string, sourceOffset?: number, duration?: number, fileDuration?: number, channel?: 'left' | 'right' }) {
+export function WaveformRenderer({ 
+  filePath, 
+  sourceOffset = 0, 
+  duration = 0, 
+  fileDuration = 0, 
+  channel,
+  gain = 1.0
+}: { 
+  filePath: string
+  sourceOffset?: number
+  duration?: number
+  fileDuration?: number
+  channel?: 'left' | 'right'
+  gain?: number
+}) {
   const [peaks, setPeaks] = useState<number[]>([])
-  const canvasRef = useRef<HTMLCanvasElement>(null)
   const [halfWaveform, setHalfWaveform] = useState<boolean>(false)
 
   useEffect(() => {
@@ -87,7 +100,7 @@ export function WaveformRenderer({ filePath, sourceOffset = 0, duration = 0, fil
 
   useEffect(() => {
     if (!filePath) {
-      setPeaks(getDeterministicPeaks('demo_track', 1000))
+      setPeaks(getDeterministicPeaks('demo_track', 8000))
       return
     }
 
@@ -95,25 +108,25 @@ export function WaveformRenderer({ filePath, sourceOffset = 0, duration = 0, fil
     const timeout = setTimeout(() => {
       if (active) {
         console.warn('getPeaks IPC timed out, falling back to deterministic visual waveform.')
-        setPeaks(getDeterministicPeaks(filePath, 1000))
+        setPeaks(getDeterministicPeaks(filePath, 8000))
       }
     }, 3000)
 
-    // Get fast peak data from Main Process via FFmpeg
-    window.api.getPeaks(filePath, 1000, channel).then(data => {
+    // Request 8000 samples for high-resolution waveform display
+    window.api.getPeaks(filePath, 8000, channel).then(data => {
       clearTimeout(timeout)
       if (active) {
         if (Array.isArray(data) && data.length > 0) {
           setPeaks(data)
         } else {
-          setPeaks(getDeterministicPeaks(filePath, 1000))
+          setPeaks(getDeterministicPeaks(filePath, 8000))
         }
       }
     }).catch(err => {
       clearTimeout(timeout)
       if (active) {
         console.warn('Failed to get peaks from API, falling back to realistic waveform:', err)
-        setPeaks(getDeterministicPeaks(filePath, 1000))
+        setPeaks(getDeterministicPeaks(filePath, 8000))
       }
     })
 
@@ -123,174 +136,131 @@ export function WaveformRenderer({ filePath, sourceOffset = 0, duration = 0, fil
     }
   }, [filePath, channel])
 
-  const draw = () => {
-    if (!canvasRef.current || peaks.length === 0) return
-    
-    const canvas = canvasRef.current
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
+  if (peaks.length === 0) return null
 
-    const dpr = window.devicePixelRatio || 1
-    const parent = canvas.parentElement
-    const width = parent ? parent.clientWidth : canvas.clientWidth
-    const height = parent ? parent.clientHeight : canvas.clientHeight
-    
-    if (width === 0 || height === 0) return
-
-    canvas.width = width * dpr
-    canvas.height = height * dpr
-    ctx.scale(dpr, dpr)
-
-    ctx.clearRect(0, 0, width, height)
-    
-    let peaksToDraw = peaks
-    
-    // Slice peaks if offset and durations are provided
-    if (fileDuration > 0 && duration > 0) {
-       const startIndex = Math.max(0, Math.floor((sourceOffset / fileDuration) * peaks.length))
-       const endIndex = Math.max(startIndex + 1, Math.min(peaks.length, Math.floor(((sourceOffset + duration) / fileDuration) * peaks.length)))
-       peaksToDraw = peaks.slice(startIndex, endIndex)
-    }
-
-    if (peaksToDraw.length === 0) return
-    
-    const step = width / Math.max(1, peaksToDraw.length - 1)
-    const centerY = height / 2
-
-    // Premium vibrant cyan-blue gradients for rich aesthetics
-    const fillGradient = ctx.createLinearGradient(0, 0, 0, height)
-    if (halfWaveform) {
-      fillGradient.addColorStop(0, 'rgba(0, 229, 255, 0.45)') // Bright cyan top
-      fillGradient.addColorStop(1, 'rgba(0, 119, 182, 0.15)') // Transparent blue bottom
-    } else {
-      fillGradient.addColorStop(0, 'rgba(0, 229, 255, 0.4)')   // Top cyan
-      fillGradient.addColorStop(0.5, 'rgba(0, 119, 182, 0.15)') // Middle blue (more transparent)
-      fillGradient.addColorStop(1, 'rgba(0, 229, 255, 0.4)')   // Bottom cyan
-    }
-
-    const strokeGradient = ctx.createLinearGradient(0, 0, 0, height)
-    strokeGradient.addColorStop(0, '#00f0ff') // Ultra-bright cyan
-    strokeGradient.addColorStop(0.5, '#0096c7') // Solid vibrant blue
-    strokeGradient.addColorStop(1, '#00f0ff') // Ultra-bright cyan
-
-    if (halfWaveform) {
-      const baseline = height * 0.95
-      
-      // Draw body fill
-      ctx.beginPath()
-      ctx.moveTo(0, baseline)
-      peaksToDraw.forEach((peak, i) => {
-        const x = i * step
-        const amplitude = Math.max(0.02, peak)
-        const drawHeight = amplitude * height * 0.90
-        ctx.lineTo(x, baseline - drawHeight)
-      })
-      ctx.lineTo(width, baseline)
-      ctx.closePath()
-      ctx.fillStyle = fillGradient
-      ctx.fill()
-      
-      // Draw top outline
-      ctx.beginPath()
-      peaksToDraw.forEach((peak, i) => {
-        const x = i * step
-        const amplitude = Math.max(0.02, peak)
-        const drawHeight = amplitude * height * 0.90
-        if (i === 0) {
-          ctx.moveTo(x, baseline - drawHeight)
-        } else {
-          ctx.lineTo(x, baseline - drawHeight)
-        }
-      })
-      ctx.strokeStyle = strokeGradient
-      ctx.lineWidth = 1.5
-      ctx.stroke()
-    } else {
-      // Draw body fill
-      ctx.beginPath()
-      ctx.moveTo(0, centerY)
-      
-      // Top peaks (left to right)
-      peaksToDraw.forEach((peak, i) => {
-        const x = i * step
-        const amplitude = Math.max(0.02, peak)
-        const drawHeight = amplitude * (height / 2) * 0.85
-        ctx.lineTo(x, centerY - drawHeight)
-      })
-      
-      ctx.lineTo(width, centerY)
-      
-      // Bottom peaks (right to left)
-      for (let i = peaksToDraw.length - 1; i >= 0; i--) {
-        const x = i * step
-        const amplitude = Math.max(0.02, peaksToDraw[i])
-        const drawHeight = amplitude * (height / 2) * 0.85
-        ctx.lineTo(x, centerY + drawHeight)
-      }
-      
-      ctx.closePath()
-      ctx.fillStyle = fillGradient
-      ctx.fill()
-      
-      // Draw top outline
-      ctx.beginPath()
-      peaksToDraw.forEach((peak, i) => {
-        const x = i * step
-        const amplitude = Math.max(0.02, peak)
-        const drawHeight = amplitude * (height / 2) * 0.85
-        if (i === 0) {
-          ctx.moveTo(x, centerY - drawHeight)
-        } else {
-          ctx.lineTo(x, centerY - drawHeight)
-        }
-      })
-      ctx.strokeStyle = strokeGradient
-      ctx.lineWidth = 1.5
-      ctx.stroke()
-      
-      // Draw bottom outline
-      ctx.beginPath()
-      peaksToDraw.forEach((peak, i) => {
-        const x = i * step
-        const amplitude = Math.max(0.02, peak)
-        const drawHeight = amplitude * (height / 2) * 0.85
-        if (i === 0) {
-          ctx.moveTo(x, centerY + drawHeight)
-        } else {
-          ctx.lineTo(x, centerY + drawHeight)
-        }
-      })
-      ctx.strokeStyle = strokeGradient
-      ctx.lineWidth = 1.5
-      ctx.stroke()
-    }
+  let peaksToDraw = peaks
+  
+  // Slice peaks if offset and durations are provided
+  if (fileDuration > 0 && duration > 0) {
+     const startIndex = Math.max(0, Math.floor((sourceOffset / fileDuration) * peaks.length))
+     const endIndex = Math.max(startIndex + 1, Math.min(peaks.length, Math.floor(((sourceOffset + duration) / fileDuration) * peaks.length)))
+     peaksToDraw = peaks.slice(startIndex, endIndex)
   }
 
-  // Draw on data update
-  useEffect(() => {
-    draw()
-  }, [peaks, sourceOffset, duration, fileDuration, halfWaveform])
+  if (peaksToDraw.length === 0) return null
 
-  // Draw on parent resize (essential when regions are dragged or resized, or zoom changes)
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const parent = canvas.parentElement
-    if (!parent) return
+  // Normalize based on the entire file's peaks to ensure a consistent scale across different volume tracks
+  const maxPeak = peaks.length > 0 ? Math.max(...peaks) : 1.0
+  const visualScale = maxPeak > 0.05 ? (0.92 / maxPeak) : 1.0
 
-    const observer = new ResizeObserver(() => {
-      draw()
+  const width = 1000
+  const height = 100
+  const step = width / Math.max(1, peaksToDraw.length - 1)
+
+  let fillPath = ''
+  let strokePathTop = ''
+  let strokePathBottom = ''
+
+  if (halfWaveform) {
+    const baseline = 95
+    
+    // Build fill path
+    const fillCoords = peaksToDraw.map((peak, i) => {
+      const x = i * step
+      // Scale by visualScale and clip gain
+      const amplitude = Math.max(0.01, Math.min(1.0, peak * visualScale * gain))
+      const drawHeight = amplitude * 90
+      return `${x.toFixed(1)}, ${(baseline - drawHeight).toFixed(1)}`
     })
-    observer.observe(parent)
-    return () => observer.disconnect()
-  }, [peaks, sourceOffset, duration, fileDuration, halfWaveform])
+    fillPath = `M 0, ${baseline} L ${fillCoords.join(' L ')} L ${width}, ${baseline} Z`
+    
+    // Build top stroke path
+    strokePathTop = `M ${fillCoords.join(' L ')}`
+  } else {
+    const centerY = 50
+    
+    // Build top half
+    const topCoords = peaksToDraw.map((peak, i) => {
+      const x = i * step
+      // Scale by visualScale and clip gain
+      const amplitude = Math.max(0.01, Math.min(1.0, peak * visualScale * gain))
+      const drawHeight = amplitude * 45
+      return `${x.toFixed(1)}, ${(centerY - drawHeight).toFixed(1)}`
+    })
+    
+    // Build bottom half (left to right for stroke, then reverse for fill polygon)
+    const bottomCoords = peaksToDraw.map((peak, i) => {
+      const x = i * step
+      // Scale by visualScale and clip gain
+      const amplitude = Math.max(0.01, Math.min(1.0, peak * visualScale * gain))
+      const drawHeight = amplitude * 45
+      return `${x.toFixed(1)}, ${(centerY + drawHeight).toFixed(1)}`
+    })
+    
+    const bottomCoordsReversed = [...bottomCoords].reverse()
+    
+    fillPath = `M 0, ${centerY} L ${topCoords.join(' L ')} L ${width}, ${centerY} L ${bottomCoordsReversed.join(' L ')} Z`
+    
+    strokePathTop = `M ${topCoords.join(' L ')}`
+    strokePathBottom = `M ${bottomCoords.join(' L ')}`
+  }
+
+  // Generate unique IDs for the SVG gradients to prevent collisions
+  const fillGradientId = `wf-fill-${halfWaveform ? 'half' : 'full'}`
+  const strokeGradientId = `wf-stroke`
 
   return (
     <div className="w-full h-full relative overflow-hidden">
-      <canvas 
-        ref={canvasRef} 
+      <svg 
+        width="100%" 
+        height="100%" 
+        viewBox={`0 0 ${width} ${height}`} 
+        preserveAspectRatio="none"
         className="absolute inset-0 w-full h-full opacity-85 pointer-events-none"
-      />
+      >
+        <defs>
+          {halfWaveform ? (
+            <linearGradient id={fillGradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="rgba(0, 229, 255, 0.45)" />
+              <stop offset="100%" stopColor="rgba(0, 119, 182, 0.15)" />
+            </linearGradient>
+          ) : (
+            <linearGradient id={fillGradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="rgba(0, 229, 255, 0.4)" />
+              <stop offset="50%" stopColor="rgba(0, 119, 182, 0.15)" />
+              <stop offset="100%" stopColor="rgba(0, 229, 255, 0.4)" />
+            </linearGradient>
+          )}
+          <linearGradient id={strokeGradientId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#00f0ff" />
+            <stop offset="50%" stopColor="#0096c7" />
+            <stop offset="100%" stopColor="#00f0ff" />
+          </linearGradient>
+        </defs>
+        
+        {/* Draw fill */}
+        <path d={fillPath} fill={`url(#${fillGradientId})`} />
+        
+        {/* Draw top stroke */}
+        <path 
+          d={strokePathTop} 
+          stroke={`url(#${strokeGradientId})`} 
+          strokeWidth="1.5" 
+          fill="none" 
+          vectorEffect="non-scaling-stroke" 
+        />
+        
+        {/* Draw bottom stroke if not half waveform */}
+        {!halfWaveform && (
+          <path 
+            d={strokePathBottom} 
+            stroke={`url(#${strokeGradientId})`} 
+            strokeWidth="1.5" 
+            fill="none" 
+            vectorEffect="non-scaling-stroke" 
+          />
+        )}
+      </svg>
     </div>
   )
 }

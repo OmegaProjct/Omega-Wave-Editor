@@ -651,9 +651,13 @@ app.post('/api/telegram-webhook', async (req, res) => {
       const ticket = tickets.find(t => t.id === ticketId)
       if (ticket) {
         const senderName = message.from.first_name || 'Admin'
+        let displaySender = `Telegram ${senderName}`
+        if (senderName.toLowerCase().includes('omega')) {
+          displaySender = 'OmegaProjects Support'
+        }
         ticket.chat.push({
           sender: 'admin',
-          text: `[Telegram ${senderName}]: ${message.text || ''}`,
+          text: `[${displaySender}]: ${message.text || ''}`,
           timestamp: Date.now()
         })
         ticket.updatedAt = Date.now()
@@ -815,7 +819,7 @@ app.get('/api/messages', (req, res) => {
 
 // 4. Client API: User-Nachricht senden
 app.post('/api/messages', async (req, res) => {
-  const { ticketId, text } = req.body
+  const { ticketId, text, images, logs } = req.body
 
   if (!ticketId || !text) {
     return res.status(400).json({ error: 'Ticket ID und Text sind erforderlich.' })
@@ -827,11 +831,25 @@ app.post('/api/messages', async (req, res) => {
     return res.status(404).json({ error: 'Ticket nicht gefunden.' })
   }
 
-  ticket.chat.push({
+  const newChatMsg = {
     sender: 'user',
     text,
     timestamp: Date.now()
-  })
+  }
+
+  // Handle images if provided
+  let imagesArray = []
+  if (Array.isArray(images) && images.length > 0) {
+    imagesArray = images
+    newChatMsg.images = images // Save images to the chat message
+  }
+
+  // Handle logs if provided
+  if (logs && logs.trim().length > 0) {
+    newChatMsg.logs = logs // Save logs to the chat message
+  }
+
+  ticket.chat.push(newChatMsg)
   ticket.updatedAt = Date.now()
   saveFeedbacks(tickets)
 
@@ -849,6 +867,44 @@ app.post('/api/messages', async (req, res) => {
           parse_mode: 'HTML'
         })
       })
+
+      // Bilder senden
+      if (imagesArray.length > 0) {
+        for (let i = 0; i < imagesArray.length; i++) {
+          const imgObj = imagesArray[i]
+          const imgDataUrl = typeof imgObj === 'string' ? imgObj : (imgObj.dataUrl || imgObj.data || '')
+          if (!imgDataUrl) continue
+
+          const base64Data = imgDataUrl.replace(/^data:image\/\w+;base64,/, "")
+          const buffer = Buffer.from(base64Data, 'base64')
+          const blob = new Blob([buffer], { type: 'image/png' })
+          const imgName = (typeof imgObj === 'object' && imgObj.name) ? imgObj.name : `screenshot_${i}.png`
+
+          const formData = new FormData()
+          formData.append('chat_id', recipient)
+          formData.append('photo', blob, imgName)
+          formData.append('caption', `Screenshot ${i + 1} aus Antwort für Ticket: ${ticket.title}`)
+
+          await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
+            method: 'POST',
+            body: formData
+          }).catch(err => console.error('[Telegram] Fehler bei sendPhoto:', err))
+        }
+      }
+
+      // Logs senden
+      if (logs && logs.trim().length > 0) {
+        const blob = new Blob([logs], { type: 'text/plain' })
+        const formData = new FormData()
+        formData.append('chat_id', recipient)
+        formData.append('document', blob, 'logs.txt')
+        formData.append('caption', `Logs aus Antwort für Ticket: ${ticket.title}`)
+
+        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendDocument`, {
+          method: 'POST',
+          body: formData
+        }).catch(err => console.error('[Telegram] Fehler bei sendDocument:', err))
+      }
     } catch (err) {
       console.error('[Telegram] Fehler bei Benachrichtigung über User-Antwort:', err)
     }

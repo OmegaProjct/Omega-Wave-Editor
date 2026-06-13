@@ -77,9 +77,6 @@ export const TransportBar: React.FC<TransportBarProps> = ({
     if (onTracksChange) {
       isInternalUpdateRef.current = true
       onTracksChange(newTracks)
-      Promise.resolve().then(() => {
-        isInternalUpdateRef.current = false
-      })
     }
   }
 

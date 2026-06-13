@@ -1271,6 +1271,20 @@ export class AudioEngine {
   }
 
   /**
+   * Stoppt die Wiedergabe einer aktiven Region (z. B. beim Löschen) sofort.
+   */
+  public stopActiveRegion(regionId: string) {
+    const list = this.activeRegions.get(regionId);
+    if (list) {
+      list.forEach(node => {
+        try { node.source.stop(); } catch {}
+        if (node.pitchShifter) node.pitchShifter.stop();
+      });
+      this.activeRegions.delete(regionId);
+    }
+  }
+
+  /**
    * Plant eine Region waehrend der Wiedergabe in Echtzeit neu.
    * Stoppt die alten Nodes, erstellt neue und berechnet die Startzeiten
    * und Fades relativ zum aktuellen Playhead.
