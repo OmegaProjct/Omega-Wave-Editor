@@ -149,7 +149,7 @@ export async function sendEnhancedTelemetryPing(
     const data = JSON.stringify(payload)
 
     const options = {
-      hostname: 'admin.owe.omegaprojects.de',
+      hostname: 'admin.omc.omegaprojects.de',
       port: 443,
       path: '/api/telemetry',
       method: 'POST',
