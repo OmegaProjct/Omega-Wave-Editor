@@ -2,6 +2,22 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.12.4] - 2026-06-13
+
+### English
+
+#### Fixed
+- **Timeline Rendering Loop**: Resolved an infinite React rendering loop (React Error #185) that could occur under specific playback states and waveform view configurations.
+- **Server Connection**: Optimized internal server-side processing for analytics and dashboard connection routing.
+
+### Deutsch
+
+#### Behoben
+- **Timeline-Rendering-Schleife**: Eine Endlos-Rendering-Schleife in React (React-Fehler #185) behoben, die unter bestimmten Wiedergabezuständen und Wellenform-Anzeigeeinstellungen auftreten konnte.
+- **Serververbindungen**: Die interne serverseitige Verarbeitung für Analyse- und Verbindungsstabilität optimiert.
+
+---
+
 ## [0.12.3] - 2026-06-13
 
 ### English
