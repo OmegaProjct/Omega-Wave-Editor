@@ -34,6 +34,12 @@ jobs:
       - name: Code kompilieren
         run: npm run build
 
+      - name: Installiere libfuse2 (nur für Linux)
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfuse2
+
       - name: Anwendung kompilieren & Veröffentlichen
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
