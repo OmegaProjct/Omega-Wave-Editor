@@ -106,6 +106,7 @@ export const ClipRegion: React.FC<ClipRegionProps> = ({
             sourceOffset={region.sourceOffset}
             duration={region.duration}
             fileDuration={region.fileDuration}
+            gain={region.gain}
           />
         </div>
 

@@ -911,6 +911,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
 
   const renderFilmeinstellungen = () => (
     <div className="flex gap-4 h-full">
+      {/* Spurenanzahl */}
       <div className="flex-1 border border-gray-700 p-4 rounded bg-[#1e2124]">
          <h3 className="text-center font-semibold mb-4 text-sm">{t('settings.project.track_count', { defaultValue: 'Anzahl der Spuren' })}</h3>
          <div className="flex flex-col gap-2 text-sm pl-4">
@@ -922,6 +923,32 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
            ))}
          </div>
       </div>
+
+      {/* Import-Verhalten bei Überlappungen */}
+      <div className="flex-1 border border-gray-700 p-4 rounded bg-[#1e2124]">
+         <h3 className="text-center font-semibold mb-4 text-sm">{t('settings.project.import_behavior_title', { defaultValue: 'Import-Verhalten' })}</h3>
+         <div className="flex flex-col gap-2 text-sm pl-4">
+           {[
+             { value: 'ask', label: t('settings.project.import_behavior.ask', { defaultValue: 'Jedes Mal fragen' }) },
+             { value: 'overlap', label: t('settings.project.import_behavior.overlap', { defaultValue: 'Überlagern (Layer)' }) },
+             { value: 'newTrack', label: t('settings.project.import_behavior.newTrack', { defaultValue: 'Untereinander (Freie Spur)' }) },
+             { value: 'sequential', label: t('settings.project.import_behavior.sequential', { defaultValue: 'Hintereinander (Anhängen)' }) }
+           ].map(item => (
+             <label key={item.value} className="flex items-center gap-2 cursor-pointer text-gray-300 hover:text-white transition-colors">
+               <input 
+                 type="radio" 
+                 name="importOverlapBehavior" 
+                 checked={(settings.importOverlapBehavior || 'ask') === item.value} 
+                 onChange={() => setSettings({...settings, importOverlapBehavior: item.value})} 
+                 className="accent-omega-accent"
+               />
+               {item.label}
+             </label>
+           ))}
+         </div>
+      </div>
+
+      {/* Audio-Samplerate */}
       <div className="flex-1 border border-gray-700 p-4 rounded bg-[#1e2124]">
          <h3 className="text-center font-semibold mb-4 text-sm">{t('settings.project.samplerate_title', { defaultValue: 'Audio-Samplerate' })}</h3>
          <div className="flex flex-col gap-2 text-sm pl-4">

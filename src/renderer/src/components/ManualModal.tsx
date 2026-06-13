@@ -96,6 +96,15 @@ export function ManualModal({ onClose }: { onClose: () => void }) {
                <li className="flex items-center gap-4"><span className="bg-gray-700 text-white px-2 py-1 rounded text-[10px] font-mono w-14 text-center select-none font-bold">L</span> <span><strong>{t('manual.sec3_kcheck10_bold', { defaultValue: 'Vorwärts / Bremsen:' })}</strong> {t('manual.sec3_kcheck10_text', { defaultValue: 'Vorwärts abspielen (erhöht Tempo bis 5.0x). Wenn rückwärts abgespielt wird, bremst L das Tempo stufenweise ab (-5x -> -4x -> -3x -> -2x -> -1.5x -> -1x -> Vorwärts).' })}</span></li>
                <li className="flex items-center gap-4"><span className="bg-gray-700 text-white px-2 py-1 rounded text-[10px] font-mono w-14 text-center select-none font-bold">Pfeil L / R</span> <span><strong>{t('manual.sec3_kcheck11_bold', { defaultValue: 'Vor- & Zurückspringen:' })}</strong> {t('manual.sec3_kcheck11_text', { defaultValue: 'Springt im Projekt vor oder zurück. Sprungweiten sind in den Einstellungen konfigurierbar.' })}</span></li>
             </ul>
+            <div className="mt-4 bg-black/20 p-4 rounded border border-gray-800">
+               <h4 className="font-bold text-white text-xs mb-1.5 flex items-center gap-2">
+                 <span className="w-1.5 h-1.5 bg-omega-accent rounded-sm inline-block animate-pulse"></span>
+                 {t('manual.sec3_import_conflict_title', { defaultValue: 'Import-Verhalten & Spur-Kollisionen' })}
+               </h4>
+               <p className="text-xs text-gray-400 leading-relaxed">
+                 {t('manual.sec3_import_conflict_desc', { defaultValue: 'Wenn Sie eine Datei per Drag & Drop auf eine Spur ziehen oder importieren und sich diese am Playhead mit bestehendem Audio überschneidet, greift das konfigurierte Import-Verhalten. Sie können in den Programmeinstellungen unter „Projekteinstellungen“ festlegen, ob das Programm die Clips überlagern (Layer), das neue Audio auf einer freien Spur darunter ablegen (untereinander), es nahtlos hintereinander anfügen oder Sie bei jedem Konflikt interaktiv nachfragen soll.' })}
+               </p>
+            </div>
           </section>
 
           {/* 4. Selektions-Export & Metadaten */}

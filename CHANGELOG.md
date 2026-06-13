@@ -2,6 +2,32 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.13.0] - 2026-06-13
+
+### English
+
+#### Added
+- **Audio Import Overlap Settings**: Introduced a new system setting to manage overlap conflicts when importing files at the playhead position. Users can choose to overlap, place on a free track underneath, append sequentially, or be prompted on each conflict.
+- **Import Conflict Modal**: Created an interactive collision modal dialog when importing files with overlapping boundaries, allowing immediate selection of placement method and setting persistence.
+- **Support Conversation Enhancements**: Enhanced the Message Center support conversations by allowing users to attach images and logs, and updated the support team's display name to "Omega Project Support".
+
+#### Fixed
+- **File Explorer Context Menu**: Fixed an issue where opening the current folder in the system file explorer via the background context menu would open the parent folder instead.
+- **Timeline Rendering Loop**: Resolved a recurring crash on the timeline editor (React Error #185, "Maximum update depth exceeded") by stabilizing the `isInternalUpdateRef` track state synchronization guard.
+
+### Deutsch
+
+#### Hinzugefügt
+- **Import-Überlappungseinstellungen**: Einführung einer neuen Systemeinstellung zur Steuerung von Überlappungskonflikten beim Importieren an der Playhead-Position. Zur Auswahl stehen Überlagern, auf einer freien Spur darunter ablegen, nacheinander anfügen oder bei jedem Konflikt nachfragen.
+- **Import-Konfliktdialog**: Ein interaktiver Konfliktdialog wurde integriert, der bei drohenden Überlappungen erscheint, um die gewünschte Platzierungsoption direkt auszuwählen und optional dauerhaft zu speichern.
+- **Support-Konversations-Erweiterungen**: Unterstützung für das Anhängen von Bildern und Protokollen im Message Center hinzugefügt und den Anzeigenamen des Support-Teams auf „Omega Project Support“ aktualisiert.
+
+#### Behoben
+- **Datei-Browser-Kontextmenü**: Es wurde ein Fehler behoben, bei dem das Öffnen des aktuellen Ordners im System-Dateiexplorer über das Hintergrund-Kontextmenü stattdessen den übergeordneten Ordner öffnete.
+- **Timeline-Rendering-Schleife**: Ein wiederkehrender Absturz auf dem Timeline-Editor (React-Fehler #185, „Maximum update depth exceeded“) wurde durch Stabilisierung des `isInternalUpdateRef`-Schutz-Flags für die Spuren-Synchronisierung behoben.
+
+---
+
 ## [0.12.8] - 2026-06-13
 
 ### English

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { motion, useMotionValue, useAnimationFrame } from 'framer-motion'
 import { WaveformRenderer } from './WaveformRenderer'
 import { HistoryManager } from '../lib/HistoryManager'
-import { Play, Square, SkipBack, SkipForward, Plus, Minus, MousePointer2, Scissors, Music, ChevronDown, MoveHorizontal, Maximize2, Unlock, Eye, Volume2, Lock, Zap, Mic, Magnet, Link, Unlink, RotateCcw, RotateCw, ChevronRight } from 'lucide-react'
+import { Play, Square, SkipBack, SkipForward, Plus, Minus, MousePointer2, Scissors, Music, ChevronDown, MoveHorizontal, Maximize2, Unlock, Eye, Volume2, Lock, Zap, Mic, Magnet, Link, Unlink, RotateCcw, RotateCw, ChevronRight, AlertTriangle } from 'lucide-react'
 import { AudioCleaningModal } from './AudioCleaningModal'
 import { ObjectPropertiesModal } from './ObjectPropertiesModal'
 import { AudioRecordingModal } from './AudioRecordingModal'
@@ -160,6 +160,77 @@ const shareChannels = (r1: Region, r2: Region): boolean => {
   const m2 = r2.stereoMode || 'stereo';
   return m1 === 'stereo' || m2 === 'stereo' || m1 === m2;
 };
+
+// Hilfsfunktion: Prüft, ob ein Zeitfenster mit existierenden Regionen auf der Spur überlappt
+const hasOverlap = (track: Track, startPos: number, duration: number): boolean => {
+  return track.regions.some(r => {
+    const pitchRate = r.effects?.pitchRate || 1.0;
+    const rEnd = r.startPos + (r.duration / pitchRate);
+    return startPos < rEnd && startPos + duration > r.startPos;
+  });
+};
+
+// Hilfsfunktion: Sucht die erste freie Spur darunter oder erstellt eine neue
+const getFreeTrackOrNew = (
+  tracksList: Track[],
+  targetTrackId: string,
+  startPos: number,
+  duration: number
+): { updatedTracks: Track[]; targetTrackId: string } => {
+  const targetIdx = tracksList.findIndex(t => t.id === targetTrackId);
+  if (targetIdx === -1) return { updatedTracks: tracksList, targetTrackId };
+
+  // 1. Falls die Zielspur selbst frei ist, nimm diese
+  if (!hasOverlap(tracksList[targetIdx], startPos, duration)) {
+    return { updatedTracks: tracksList, targetTrackId };
+  }
+
+  // 2. Suche auf Spuren darunter
+  for (let i = targetIdx + 1; i < tracksList.length; i++) {
+    if (!hasOverlap(tracksList[i], startPos, duration)) {
+      return { updatedTracks: tracksList, targetTrackId: tracksList[i].id };
+    }
+  }
+
+  // 3. Keine Spur frei, erstelle eine neue
+  const nextIdx = tracksList.length + 1;
+  const newTrackId = nextIdx.toString();
+  const newTrack: Track = {
+    id: newTrackId,
+    index: nextIdx,
+    name: `Spur ${nextIdx}`,
+    regions: [],
+    muted: false,
+    solo: false,
+    locked: false,
+    visible: true,
+    volume: 1,
+    height: 64,
+    automation: []
+  };
+  return {
+    updatedTracks: [...tracksList, newTrack],
+    targetTrackId: newTrackId
+  };
+};
+
+// Hilfsfunktion: Ermittelt die nächste freie Position hinter blockierenden Regionen auf derselben Spur
+const getSequentialPosition = (track: Track, startPos: number, duration: number): number => {
+  let currentStart = startPos;
+  const sortedRegions = [...track.regions].sort((a, b) => a.startPos - b.startPos);
+  for (const r of sortedRegions) {
+    const pitchRate = r.effects?.pitchRate || 1.0;
+    const rEnd = r.startPos + (r.duration / pitchRate);
+    if (rEnd <= currentStart) {
+      continue;
+    }
+    if (r.startPos < currentStart + duration && rEnd > currentStart) {
+      currentStart = rEnd;
+    }
+  }
+  return currentStart;
+};
+
 
 function LiveWaveformCanvas({ duration, pixelsPerSecond }: { duration: number; pixelsPerSecond: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -361,6 +432,17 @@ export function Timeline({
   useEffect(() => {
     currentTracksRef.current = tracks
   }, [tracks])
+
+  // Zustände für Import-Verhalten und Konflikthandhabung bei Überlappungen
+  const [importOverlapBehavior, setImportOverlapBehavior] = useState<string>('ask');
+  const [importConflictInfo, setImportConflictInfo] = useState<{
+    fileInfo: { name: string; path: string; isDirectory: boolean };
+    trackId: string;
+    duration: number;
+    startPos: number;
+    channels: number;
+  } | null>(null);
+  const [rememberImportChoice, setRememberImportChoice] = useState<boolean>(false);
 
   useEffect(() => {
     const isEmpty = tracks.every(t => t.regions.length === 0)
@@ -732,7 +814,6 @@ export function Timeline({
     if (onTracksChange) {
       isInternalUpdateRef.current = true;
       onTracksChange(newTracks);
-      Promise.resolve().then(() => { isInternalUpdateRef.current = false; });
     }
   }
 
@@ -1278,13 +1359,19 @@ export function Timeline({
 
   const deleteSelectedRegions = useCallback(() => {
     if (selectedRegionIds.size === 0) return;
+
+    // Aktive Wiedergabe der gelöschten Regionen im AudioEngine stoppen
+    selectedRegionIds.forEach(id => {
+      engine.stopActiveRegion(id);
+    });
+
     const newTracks = tracks.map(t => ({
       ...t,
       regions: t.regions.filter(r => !selectedRegionIds.has(r.id))
     }));
     updateTracksWithHistory(newTracks);
     setSelectedRegionIds(new Set());
-  }, [selectedRegionIds, tracks]);
+  }, [selectedRegionIds, tracks, engine]);
 
   useEffect(() => {
     if (!externalAction) return;
@@ -1414,6 +1501,7 @@ export function Timeline({
     const unsubscribe = window.api.onExportSettingsUpdated((settings: any) => {
       setExportSettings(settings);
       if (onTracksChange) {
+        isInternalUpdateRef.current = true;
         onTracksChange([...tracks]);
       }
     });
@@ -1649,14 +1737,20 @@ export function Timeline({
         const nextState = HistoryManager.redo(tracks);
         if (nextState) {
            setTracks(nextState);
-           if (onTracksChange) onTracksChange(nextState);
+           if (onTracksChange) {
+             isInternalUpdateRef.current = true;
+             onTracksChange(nextState);
+           }
         }
       } else if (matchesShortcut(e, activeShortcuts.undo)) {
         e.preventDefault();
         const prevState = HistoryManager.undo(tracks);
         if (prevState) {
            setTracks(prevState);
-           if (onTracksChange) onTracksChange(prevState);
+           if (onTracksChange) {
+             isInternalUpdateRef.current = true;
+             onTracksChange(prevState);
+           }
         }
       } else if (matchesShortcut(e, activeShortcuts.splitAtPlayhead)) {
         e.preventDefault();
@@ -1967,6 +2061,7 @@ export function Timeline({
         if (s.keyboardShortcuts !== undefined) setActiveShortcuts(normalizeKeyboardShortcuts(s.keyboardShortcuts));
         if (s.showVerticalGuidelines !== undefined) setShowVerticalGuidelines(s.showVerticalGuidelines);
         if (s.videoAudioOnOneTrack !== undefined) setVideoAudioOnOneTrack(s.videoAudioOnOneTrack);
+        if (s.importOverlapBehavior !== undefined) setImportOverlapBehavior(s.importOverlapBehavior);
         if (!initialTracks && s.tracksCount !== undefined) {
           const count = s.tracksCount;
           setTracks(prev => {
@@ -1998,7 +2093,11 @@ export function Timeline({
 
   useEffect(() => {
     if (!initialTracks) return;
-    if (isInternalUpdateRef.current) return;
+    if (isInternalUpdateRef.current) {
+      // Konsumiere internen Update-Schutz direkt und setze ihn zurück
+      isInternalUpdateRef.current = false;
+      return;
+    }
     setTracks(initialTracks);
   }, [initialTracks]);
 
@@ -2032,6 +2131,9 @@ export function Timeline({
       if (newSettings.showVerticalGuidelines !== undefined) {
         setShowVerticalGuidelines(newSettings.showVerticalGuidelines);
       }
+      if (newSettings.importOverlapBehavior !== undefined) {
+        setImportOverlapBehavior(newSettings.importOverlapBehavior);
+      }
       if (newSettings.videoAudioOnOneTrack !== undefined) {
         const newVal = newSettings.videoAudioOnOneTrack;
         setVideoAudioOnOneTrack(newVal);
@@ -2055,6 +2157,7 @@ export function Timeline({
           }
           
           if (onTracksChange) {
+            isInternalUpdateRef.current = true;
             onTracksChange(updatedTracks);
           }
           return updatedTracks;
@@ -2537,6 +2640,74 @@ export function Timeline({
     };
   }, [togglePlayback]);
 
+  // Führt den eigentlichen Audio-Import auf einer Spur und bei einer Position aus (Deutsch kommentiert)
+  const executeAudioImport = (
+    fileInfo: { name: string; path: string; isDirectory: boolean },
+    targetTrackId: string,
+    startPos: number,
+    duration: number,
+    channels: number,
+    behavior: string
+  ) => {
+    const cleanTrackId = targetTrackId.replace(/_[LR]$/, '');
+    let finalTrackId = cleanTrackId;
+    let finalStartPos = startPos;
+    let updatedTracksList = [...currentTracksRef.current];
+
+    if (behavior === 'newTrack') {
+      const res = getFreeTrackOrNew(updatedTracksList, cleanTrackId, startPos, duration);
+      updatedTracksList = res.updatedTracks;
+      finalTrackId = res.targetTrackId;
+    } else if (behavior === 'sequential') {
+      const trackObj = updatedTracksList.find(t => t.id === cleanTrackId);
+      if (trackObj) {
+        finalStartPos = getSequentialPosition(trackObj, startPos, duration);
+      }
+    }
+
+    const newRegion: Region = {
+      id: Math.random().toString(36).substr(2, 9),
+      file: fileInfo,
+      startPos: finalStartPos,
+      duration,
+      sourceOffset: 0,
+      fileDuration: duration,
+      channels,
+      color: fileInfo.name.match(/\.(mp4|mkv|mov)$/i) ? 'bg-purple-600' : 'bg-omega-accent'
+    };
+
+    const finalTracks = updatedTracksList.map(t => 
+      t.id === finalTrackId ? { ...t, regions: [...t.regions, newRegion] } : t
+    );
+
+    updateTracksWithHistory(finalTracks);
+    setSelectedRegionId(newRegion.id);
+  };
+
+  // Verarbeitet die Entscheidung des Benutzers im Import-Kollisions-Dialog
+  const handleResolveConflict = async (choice: 'newTrack' | 'sequential' | 'overlap') => {
+    if (!importConflictInfo) return;
+
+    const { fileInfo, trackId, duration, startPos, channels } = importConflictInfo;
+
+    if (rememberImportChoice) {
+      try {
+        const currentSettings = await window.api.getSettings();
+        const settingsToSave = {
+          ...currentSettings,
+          importOverlapBehavior: choice
+        };
+        await window.api.saveSettings(settingsToSave);
+        window.dispatchEvent(new CustomEvent('SETTINGS_UPDATED', { detail: settingsToSave }));
+      } catch (err) {
+        console.error('Failed to save import overlap setting:', err);
+      }
+    }
+
+    executeAudioImport(fileInfo, trackId, startPos, duration, channels, choice);
+    setImportConflictInfo(null);
+  };
+
   useEffect(() => {
     const handleImportAudioFile = async (e: Event) => {
       const customEvent = e as CustomEvent<{ path: string; name: string }>;
@@ -2554,21 +2725,23 @@ export function Timeline({
       try {
         await engine.loadFile(filePath);
         const info = await window.api.getMediaInfo(filePath);
+        const duration = info?.duration || 10;
+        const channels = info?.channels || 2;
 
-        const newRegion: Region = {
-          id: Math.random().toString(36).substr(2, 9),
-          file: fileInfo,
-          startPos,
-          duration: info?.duration || 10,
-          sourceOffset: 0,
-          fileDuration: info?.duration || 10,
-          channels: info?.channels || 2,
-          color: fileName.match(/\.(mp4|mkv|mov)$/i) ? 'bg-purple-600' : 'bg-omega-accent'
-        };
+        const hasConflict = hasOverlap(selectedTrack, startPos, duration);
 
-        const newTracks = currentTracks.map(t => t.id === cleanTrackId ? { ...t, regions: [...t.regions, newRegion] } : t);
-        updateTracksWithHistory(newTracks);
-        setSelectedRegionId(newRegion.id);
+        if (hasConflict && importOverlapBehavior === 'ask') {
+          setImportConflictInfo({
+            fileInfo,
+            trackId: cleanTrackId,
+            duration,
+            startPos,
+            channels
+          });
+          setRememberImportChoice(false);
+        } else {
+          executeAudioImport(fileInfo, cleanTrackId, startPos, duration, channels, importOverlapBehavior);
+        }
       } catch (err: any) {
         window.dispatchEvent(new CustomEvent('SHOW_GLOBAL_MODAL', { detail: { type: 'error', title: 'Fehler beim Importieren', message: 'Die Datei konnte nicht geladen werden: ' + err.message } }));
       }
@@ -2578,7 +2751,7 @@ export function Timeline({
     return () => {
       window.removeEventListener('IMPORT_AUDIO_FILE', handleImportAudioFile as EventListener);
     };
-  }, [engine, selectedRegionId, updateTracksWithHistory]);
+  }, [engine, selectedRegionId, updateTracksWithHistory, importOverlapBehavior]);
 
   useEffect(() => {
     const handleMidiPlay = () => {
@@ -2688,17 +2861,24 @@ export function Timeline({
         try {
           await engine.loadFile(fileInfo.path);
           const info = await window.api.getMediaInfo(fileInfo.path);
-          
-          const newRegion: Region = {
-            id: Math.random().toString(36).substr(2, 9),
-            file: fileInfo, startPos, duration: info?.duration || 10,
-            sourceOffset: 0, fileDuration: info?.duration || 10,
-            channels: info?.channels || 2,
-            color: fileInfo.name.match(/\.(mp4|mkv|mov)$/i) ? 'bg-purple-600' : 'bg-omega-accent'
+          const duration = info?.duration || 10;
+          const channels = info?.channels || 2;
+
+          const targetTrack = currentTracksRef.current.find(t => t.id === cleanTrackId);
+          const hasConflict = targetTrack ? hasOverlap(targetTrack, startPos, duration) : false;
+
+          if (hasConflict && importOverlapBehavior === 'ask') {
+            setImportConflictInfo({
+              fileInfo,
+              trackId: cleanTrackId,
+              duration,
+              startPos,
+              channels
+            });
+            setRememberImportChoice(false);
+          } else {
+            executeAudioImport(fileInfo, cleanTrackId, startPos, duration, channels, importOverlapBehavior);
           }
-          const newTracks = tracks.map(t => t.id === cleanTrackId ? { ...t, regions: [...t.regions, newRegion] } : t);
-          updateTracksWithHistory(newTracks);
-          setSelectedRegionId(newRegion.id)
         } catch (err: any) {
            window.dispatchEvent(new CustomEvent('SHOW_GLOBAL_MODAL', { detail: { type: 'error', title: 'Fehler beim Importieren', message: 'Die Datei konnte nicht geladen werden: ' + err.message } }));
         }
@@ -2923,7 +3103,13 @@ export function Timeline({
     };
     const onUp = () => {
       setDraggingGain(null);
-      setTracks(cur => { if (onTracksChange) onTracksChange(cur); return cur; });
+      setTracks(cur => {
+        if (onTracksChange) {
+          isInternalUpdateRef.current = true;
+          onTracksChange(cur);
+        }
+        return cur;
+      });
       justDraggedRef.current = true;
       setTimeout(() => { justDraggedRef.current = false; }, 50);
     };
@@ -2951,7 +3137,13 @@ export function Timeline({
     };
     const onUp = () => {
       setDraggingFade(null);
-      setTracks(cur => { if (onTracksChange) onTracksChange(cur); return cur; });
+      setTracks(cur => {
+        if (onTracksChange) {
+          isInternalUpdateRef.current = true;
+          onTracksChange(cur);
+        }
+        return cur;
+      });
       justDraggedRef.current = true;
       setTimeout(() => { justDraggedRef.current = false; }, 50);
     };
@@ -3195,7 +3387,10 @@ export function Timeline({
 
       setDraggingRegion(null);
       setTracks(current => {
-         if (onTracksChange) onTracksChange(current);
+         if (onTracksChange) {
+           isInternalUpdateRef.current = true;
+           onTracksChange(current);
+         }
 
          // Echte Finalisierung des Audioschnitts beim Loslassen
          if (engine.isPlaying) {
@@ -3340,6 +3535,66 @@ export function Timeline({
   return (
     <div className="flex flex-col h-full bg-[#1e2124] text-omega-text select-none overflow-hidden relative font-sans text-[13px]" onClick={handleTimelineClick}>
       {showCleaning && <AudioCleaningModal onClose={() => setShowCleaning(false)} trackId={selectedTrack?.id} />}
+      
+      {importConflictInfo && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[5000] animate-in fade-in duration-200" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-[#2b2d31] border border-gray-600 w-[460px] rounded-lg shadow-2xl overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="bg-[#1e2124] px-4 py-2 border-b border-gray-700 flex items-center gap-2">
+              <AlertTriangle className="text-omega-accent animate-pulse" size={20} />
+              <span className="text-xs font-bold uppercase tracking-wider text-gray-300">Überlappung erkannt</span>
+            </div>
+            
+            {/* Content */}
+            <div className="p-6 text-sm text-gray-300 leading-relaxed whitespace-normal">
+              Das Audio-Objekt <strong className="text-omega-accent">"{importConflictInfo.fileInfo.name}"</strong> überschneidet sich mit existierenden Clips auf der Zielspur bei <strong>{importConflictInfo.startPos.toFixed(2)}s</strong>.
+              <br/><br/>
+              Wie soll der Import durchgeführt werden?
+            </div>
+            
+            {/* Remember Checkbox */}
+            <div className="px-6 pb-4">
+              <label className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer select-none">
+                <input 
+                  type="checkbox" 
+                  checked={rememberImportChoice} 
+                  onChange={(e) => setRememberImportChoice(e.target.checked)} 
+                  className="accent-omega-accent rounded border-gray-600 bg-[#1a1d21] focus:ring-0 w-3.5 h-3.5 cursor-pointer"
+                />
+                Diese Entscheidung in den Einstellungen speichern
+              </label>
+            </div>
+            
+            {/* Footer */}
+            <div className="bg-[#1e2124] px-4 py-3 flex justify-end gap-2 border-t border-gray-700">
+              <button 
+                onClick={() => handleResolveConflict('newTrack')} 
+                className="px-4 py-1.5 bg-[#3c4048] hover:bg-gray-750 text-white text-xs rounded transition-all font-semibold shadow-sm"
+              >
+                Untereinander
+              </button>
+              <button 
+                onClick={() => handleResolveConflict('sequential')} 
+                className="px-4 py-1.5 bg-[#3c4048] hover:bg-gray-750 text-white text-xs rounded transition-all font-semibold shadow-sm"
+              >
+                Hintereinander
+              </button>
+              <button 
+                onClick={() => handleResolveConflict('overlap')} 
+                className="px-4 py-1.5 bg-omega-accent hover:bg-blue-500 text-white text-xs rounded transition-all font-semibold shadow-sm"
+              >
+                Überlagern
+              </button>
+              <button 
+                onClick={() => setImportConflictInfo(null)} 
+                className="px-4 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-xs rounded transition-all"
+              >
+                Abbrechen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {showProperties && (
         <ObjectPropertiesModal 
           onClose={() => setShowProperties(false)} 
@@ -3592,10 +3847,10 @@ export function Timeline({
             </button>
         </div>
         <div className="flex gap-1 text-gray-400 border-r border-gray-700 pr-2">
-          <button title="Rückgängig (Strg+Z)" className="p-1.5 hover:bg-gray-700 rounded" onClick={() => { const prev = HistoryManager.undo(tracks); if (prev) { setTracks(prev); if (onTracksChange) { isInternalUpdateRef.current = true; onTracksChange(prev); Promise.resolve().then(() => { isInternalUpdateRef.current = false; }); } } }}>
+          <button title="Rückgängig (Strg+Z)" className="p-1.5 hover:bg-gray-700 rounded" onClick={() => { const prev = HistoryManager.undo(tracks); if (prev) { setTracks(prev); if (onTracksChange) { isInternalUpdateRef.current = true; onTracksChange(prev); } } }}>
             <RotateCcw size={16} />
           </button>
-          <button title="Wiederholen (Strg+Y)" className="p-1.5 hover:bg-gray-700 rounded" onClick={() => { const next = HistoryManager.redo(tracks); if (next) { setTracks(next); if (onTracksChange) { isInternalUpdateRef.current = true; onTracksChange(next); Promise.resolve().then(() => { isInternalUpdateRef.current = false; }); } } }}>
+          <button title="Wiederholen (Strg+Y)" className="p-1.5 hover:bg-gray-700 rounded" onClick={() => { const next = HistoryManager.redo(tracks); if (next) { setTracks(next); if (onTracksChange) { isInternalUpdateRef.current = true; onTracksChange(next); } } }}>
             <RotateCw size={16} />
           </button>
         </div>
@@ -4181,6 +4436,7 @@ export function Timeline({
                                       duration={region.duration} 
                                       fileDuration={region.fileDuration} 
                                       channel={region.stereoMode === 'left-only' ? 'left' : (region.stereoMode === 'right-only' ? 'right' : undefined)}
+                                      gain={region.gain}
                                     />
                                  </div>
 

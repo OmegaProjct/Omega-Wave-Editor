@@ -174,8 +174,7 @@ export function registerAudioIpc() {
               }
               // Normalize 16-bit value (0 to 32767) to (0.0 to 1.0)
               const normalized = maxVal / 32768;
-              // Boost slightly for visual quality
-              peaks.push(Math.max(0.04, Math.min(0.95, normalized * 1.5)));
+              peaks.push(Math.max(0.005, Math.min(1.0, normalized)));
             }
             logger.debug('Audio', 'Peaks erfolgreich berechnet', { filePath, samples })
             resolve(peaks);

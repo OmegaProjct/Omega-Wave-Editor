@@ -9,6 +9,37 @@ type FileEntry = {
   isDirectory: boolean
 }
 
+// Custom-Symbol für den Musik-Notenschlüssel (Treble Clef) als React-SVG-Komponente
+const TrebleClef = ({ size = 16, className = "text-blue-400" }: { size?: number; className?: string }) => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    viewBox="0 0 55 100" 
+    width={size} 
+    height={size} 
+    className={`${className} flex-shrink-0`}
+    fill="currentColor"
+  >
+    <path d="M32.108,45.02C31.428,42.709,30.78,40.425,30.195,38.209C34.229,34.433,37.429,29.413,37.5,21.283C37.536,17.06,37.032,12.006,33.025,6.535C31.843,4.922,29.604,4.519,27.934,5.621C23.985,8.227,20,14.457,20,22.5C20,26.253,20.699,30.663,21.782,35.411C20.949,36.021,20.077,36.63,19.177,37.259C12.86,41.667,5,47.153,5,60C5,74.084,16.44,82.5,27.5,82.5C29.658,82.5,31.729,82.271,33.677,81.841C33.684,82.066,33.688,82.285,33.688,82.5C33.688,85.257,31.445,87.5,28.688,87.5C27.352,87.5,26.096,86.98,25.153,86.036L19.848,91.339C22.209,93.7,25.348,95,28.688,95C35.581,95,41.188,89.393,41.188,82.5C41.188,81.387,41.118,80.206,40.986,78.964C46.528,75.615,50,70.154,50,63.75C50,53.699,42.05,45.47,32.108,45.02ZM29.244,15.311C29.86,17.224,30.017,19.139,30,21.218C29.973,24.421,29.287,26.889,28.125,28.943C27.729,26.582,27.5,24.41,27.5,22.5C27.5,19.607,28.264,17.158,29.244,15.311ZM27.5,75C20.229,75,12.5,69.743,12.5,60C12.5,51.065,17.341,47.686,23.469,43.409C23.573,43.337,23.677,43.264,23.781,43.192C24.103,44.346,24.438,45.509,24.78,46.677C19.873,49.271,16.188,54.53,16.188,60C16.188,63.338,17.488,66.477,19.848,68.838L25.153,63.535C24.209,62.59,23.688,61.335,23.688,59.999C23.688,57.909,25.121,55.645,27.027,54.157C27.096,54.384,27.166,54.611,27.234,54.838C29.303,61.627,31.419,68.566,32.64,74.372C31.05,74.78,29.322,75,27.5,75ZM39.503,70.664C38.239,65.243,36.406,59.209,34.508,52.981C39.128,54.381,42.5,58.679,42.5,63.75C42.5,63.75,42.5,63.75,39.503,70.664Z" />
+  </svg>
+)
+
+// Farbcode-Zuweisung für alle unterstützten Audio-Formate (WAV, MP3, FLAC, OGG, M4A, M4R, AIFF, WMA, OPUS, ALAC)
+const getAudioColorClass = (ext: string) => {
+  switch (ext.toLowerCase()) {
+    case 'wav': return 'text-cyan-400'
+    case 'mp3': return 'text-amber-500'
+    case 'flac': return 'text-emerald-400'
+    case 'm4a': return 'text-rose-400'
+    case 'm4r': return 'text-pink-500'
+    case 'ogg': return 'text-purple-400'
+    case 'opus': return 'text-fuchsia-400'
+    case 'aiff': return 'text-blue-400'
+    case 'wma': return 'text-indigo-400'
+    case 'alac': return 'text-teal-400'
+    default: return 'text-blue-400'
+  }
+}
+
 export function FileExplorer() {
   const { t } = useTranslation()
   const [currentPath, setCurrentPath] = useState<string>('')
@@ -200,7 +231,7 @@ export function FileExplorer() {
       setHistory([...history, currentPath])
       loadDirectory(entry.path)
     } else {
-      if (entry.name.match(/\.(mp3|wav|ogg|m4a)$/i)) {
+      if (entry.name.match(/\.(mp3|wav|ogg|m4a|flac|wma|m4r|aiff|opus|alac)$/i)) {
         playPreview(entry.path)
       }
     }
@@ -371,8 +402,15 @@ export function FileExplorer() {
   }
 
   const getFileIcon = (name: string) => {
-    if (name.match(/\.(mp3|wav|ogg|m4a|wma)$/i)) return <FileAudio size={16} className="text-blue-400" />
-    if (name.match(/\.(mp4|mkv|mov|avi)$/i)) return <FileVideo size={16} className="text-purple-400" />
+    const extMatch = name.match(/\.([a-zA-Z0-9]+)$/)
+    const ext = extMatch ? extMatch[1].toLowerCase() : ''
+    
+    if (['mp3', 'wav', 'ogg', 'm4a', 'flac', 'wma', 'm4r', 'aiff', 'opus', 'alac'].includes(ext)) {
+      return <TrebleClef size={16} className={getAudioColorClass(ext)} />
+    }
+    if (['mp4', 'mkv', 'mov', 'avi'].includes(ext)) {
+      return <FileVideo size={16} className="text-purple-400" />
+    }
     return <Folder size={16} className="text-yellow-400" />
   }
 
@@ -648,7 +686,7 @@ export function FileExplorer() {
             >
               {file.isDirectory ? <Folder size={16} className="text-yellow-500 flex-shrink-0" /> : getFileIcon(file.name)}
               <span className="text-xs truncate flex-1 text-gray-200">{file.name}</span>
-              {!file.isDirectory && file.name.match(/\.(mp3|wav|ogg|m4a)$/i) && (
+              {!file.isDirectory && file.name.match(/\.(mp3|wav|ogg|m4a|flac|wma|m4r|aiff|opus|alac)$/i) && (
                 <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
                   {playingAudio === file.path && isPlaying ? (
                     <Pause size={14} className="text-omega-accent cursor-pointer hover:scale-110" onClick={(e) => { e.stopPropagation(); handlePlayPause() }} />
@@ -926,7 +964,7 @@ export function FileExplorer() {
 
           {(contextMenu.type === 'file' || contextMenu.type === 'directory') && contextMenu.file && (
             <>
-              {contextMenu.type === 'file' && contextMenu.file.name.match(/\.(mp3|wav|ogg|m4a)$/i) && (
+              {contextMenu.type === 'file' && contextMenu.file.name.match(/\.(mp3|wav|ogg|m4a|flac|wma|m4r|aiff|opus|alac)$/i) && (
                 <>
                   <button
                     onClick={() => {
@@ -1060,7 +1098,8 @@ export function FileExplorer() {
                   <div className="h-px bg-gray-700 my-1 mx-2" />
                   <button
                     onClick={() => {
-                      window.api.showItemInFolder(currentPath);
+                      // Aktuellen Ordner direkt im System-Dateiexplorer öffnen
+                      window.api.openPath(currentPath);
                       setContextMenu(null);
                     }}
                     className="w-full text-left px-3 py-1.5 hover:bg-omega-accent hover:text-white transition-colors text-gray-200 flex items-center gap-1.5 font-medium"

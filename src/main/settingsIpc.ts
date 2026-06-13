@@ -65,6 +65,7 @@ export function setupSettingsIpc() {
     halfWaveform: false,
     showExportGapWarning: true,
     showDeleteConfirmation: true,
+    importOverlapBehavior: 'ask', // Standardverhalten bei Spur-Überlappungen ('ask', 'overlap', 'newTrack', 'sequential')
     recentProjects: [],
     keyboardShortcuts: {
       newProject: 'Ctrl+N',
