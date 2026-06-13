@@ -150,6 +150,9 @@ export function registerLogIpc() {
           title,
           type,
           text,
+          description: text,
+          os: process.platform,
+          version: app.getVersion(),
           logs,
           images
         }
