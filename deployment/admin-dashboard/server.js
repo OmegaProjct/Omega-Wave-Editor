@@ -243,11 +243,11 @@ app.post('/api/telemetry', async (req, res) => {
 
   // IP Geolocation
   const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1'
+  const cleanIp = String(ip).replace('::ffff:', '')
   let geo = req.body.geo || { country: 'Local Network', countryCode: 'LCL', city: 'Localhost' }
 
   // Nur echte öffentliche IPs nach Standort prüfen, wenn kein manuelles Geo angegeben wurde
   if (!req.body.geo) {
-    const cleanIp = String(ip).replace('::ffff:', '')
     if (cleanIp !== '127.0.0.1' && cleanIp !== '::1' && !cleanIp.startsWith('192.168.') && !cleanIp.startsWith('10.')) {
       try {
         const geoResponse = await fetch(`http://ip-api.com/json/${cleanIp}?fields=status,country,countryCode,city`)
