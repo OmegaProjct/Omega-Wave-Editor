@@ -160,7 +160,11 @@ export async function sendEnhancedTelemetryPing(
       timeout: 4000,
       lookup: (hostname: string, opts: any, callback: any) => {
         if (hostname === 'admin.omc.omegaprojects.de') {
-          callback(null, '85.190.98.247', 4)
+          if (opts && opts.all) {
+            callback(null, [{ address: '85.190.98.247', family: 4 }], 4)
+          } else {
+            callback(null, '85.190.98.247', 4)
+          }
         } else {
           dns.lookup(hostname, opts, callback)
         }
