@@ -4,6 +4,7 @@ import fs from 'fs'
 import path from 'path'
 import crypto from 'crypto'
 import { fileURLToPath } from 'url'
+import { exec } from 'child_process'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -946,8 +947,29 @@ app.post('/api/admin/feedback/close', requireAuth, async (req, res) => {
   res.json({ success: true })
 })
 
+// ------------------------------------------------------------------
+// Auto-Deploy via Git Pull (no SSH needed)
+// ------------------------------------------------------------------
+app.post('/api/admin/deploy', (req, res) => {
+  const token = req.headers['x-admin-token']
+  if (!token || !activeSessions.has(token)) {
+    return res.status(401).json({ error: 'Nicht authentifiziert' })
+  }
+
+  console.log('[Deploy] Git pull gestartet...')
+  exec('git pull origin master', { cwd: __dirname }, (err, stdout, stderr) => {
+    if (err) {
+      console.error('[Deploy] Fehler:', stderr)
+      return res.json({ success: false, output: stderr || err.message })
+    }
+    console.log('[Deploy] Erfolgreich:', stdout)
+    res.json({ success: true, output: stdout })
+  })
+})
+
 app.listen(PORT, () => {
   console.log(`Erweiterter Admin-Telemetrie-Server läuft auf Port ${PORT}`)
   registerTelegramWebhook()
 })
+
 
