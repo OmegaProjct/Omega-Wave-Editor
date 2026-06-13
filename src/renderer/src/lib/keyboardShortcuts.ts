@@ -31,6 +31,10 @@ export type ShortcutAction =
   | 'playForward'
   | 'jumpBackward'
   | 'jumpForward'
+  // Zoom & Scroll Modifikatoren + Alles Markieren
+  | 'scrollVertical'
+  | 'zoomVertical'
+  | 'selectAllRegions'
 
 export type KeyboardShortcuts = Record<ShortcutAction, string>
 
@@ -66,7 +70,10 @@ export const DEFAULT_KEYBOARD_SHORTCUTS: KeyboardShortcuts = {
   playBackward: 'J',
   playForward: 'L',
   jumpBackward: 'ArrowLeft',
-  jumpForward: 'ArrowRight'
+  jumpForward: 'ArrowRight',
+  scrollVertical: 'Shift',
+  zoomVertical: 'Ctrl+Shift',
+  selectAllRegions: 'Shift+A'
 }
 
 export const SHORTCUT_DEFINITIONS: { id: ShortcutAction; label: string; group: string }[] = [
@@ -101,7 +108,10 @@ export const SHORTCUT_DEFINITIONS: { id: ShortcutAction; label: string; group: s
   { id: 'playBackward', label: 'Rückwärts abspielen', group: 'Transport' },
   { id: 'playForward', label: 'Vorwärts abspielen', group: 'Transport' },
   { id: 'jumpBackward', label: 'Zurückspringen', group: 'Transport' },
-  { id: 'jumpForward', label: 'Vorwärtsspringen', group: 'Transport' }
+  { id: 'jumpForward', label: 'Vorwärtsspringen', group: 'Transport' },
+  { id: 'scrollVertical', label: 'Vertikales Scrollen (Mausrad-Modifikator)', group: 'Timeline' },
+  { id: 'zoomVertical', label: 'Vertikaler Zoom (Mausrad-Modifikator)', group: 'Timeline' },
+  { id: 'selectAllRegions', label: 'Alle Audio-Objekte markieren', group: 'Timeline' }
 ]
 
 const modifierKeys = new Set(['Control', 'Shift', 'Alt', 'Meta'])
@@ -140,15 +150,30 @@ function normalizeEventKey(event: KeyboardEvent): string {
 
 export function eventToShortcut(event: KeyboardEvent): string {
   const key = normalizeEventKey(event)
-  if (!key || modifierKeys.has(key)) return ''
+  if (!key) return ''
 
   const parts: string[] = []
-  if (event.ctrlKey) parts.push('Ctrl')
-  if (event.altKey) parts.push('Alt')
-  if (event.shiftKey && key !== 'Plus') parts.push('Shift')
-  if (event.shiftKey && key === 'Plus' && !event.ctrlKey && !event.altKey && !event.metaKey) parts.push('Shift')
-  if (event.metaKey) parts.push('Meta')
-  parts.push(key)
+  const hasCtrl = event.ctrlKey || key === 'Control'
+  const hasAlt = event.altKey || key === 'Alt'
+  const hasMeta = event.metaKey || key === 'Meta'
+  const hasShift = event.shiftKey || key === 'Shift'
+
+  if (hasCtrl) parts.push('Ctrl')
+  if (hasAlt) parts.push('Alt')
+  
+  if (hasShift) {
+    if (key !== 'Plus') {
+      parts.push('Shift')
+    } else if (!hasCtrl && !hasAlt && !hasMeta) {
+      parts.push('Shift')
+    }
+  }
+  
+  if (hasMeta) parts.push('Meta')
+  
+  if (!modifierKeys.has(key)) {
+    parts.push(key)
+  }
 
   return parts.join('+')
 }
@@ -156,6 +181,22 @@ export function eventToShortcut(event: KeyboardEvent): string {
 export function matchesShortcut(event: KeyboardEvent, shortcut: string | undefined): boolean {
   if (!shortcut) return false
   return eventToShortcut(event).toLowerCase() === shortcut.toLowerCase()
+}
+
+export function matchesMouseModifiers(e: MouseEvent | WheelEvent, shortcut: string | undefined): boolean {
+  if (!shortcut) return false
+  const parts = shortcut.split('+').map(p => p.trim().toLowerCase())
+  const requiresCtrl = parts.includes('ctrl')
+  const requiresShift = parts.includes('shift')
+  const requiresAlt = parts.includes('alt')
+  const requiresMeta = parts.includes('meta')
+  
+  return (
+    e.ctrlKey === requiresCtrl &&
+    e.shiftKey === requiresShift &&
+    e.altKey === requiresAlt &&
+    e.metaKey === requiresMeta
+  )
 }
 
 export function formatShortcut(shortcut: string | undefined): string {

@@ -2,6 +2,42 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.11.0] - 2026-06-13
+
+### English
+
+#### Added
+- **Default Zoom-to-Fit on first import**: Dynamically scales the horizontal timeline zoom to show the entire duration of the first imported audio clip in a project (with a 5% margin). Ignored during project loads.
+- **Scroll & Zoom Modifier Shortcuts**: Added configurable shortcuts `scrollVertical` (defaults to `Shift`) and `zoomVertical` (defaults to `Ctrl+Shift`). Normal mouse wheel scrolls horizontal only. Scrolling with the modifiers scrolls vertically or zooms track heights (40px to 300px).
+- **Select All Regions Shortcut**: Added configurable shortcut `selectAllRegions` (defaults to `Shift+A`) to select all audio clips across all tracks.
+- **Unified Scrollbar Arrows**: Custom webkit-scrollbar-button styling with clean SVG triangles pointing in respective directions, matching track/thumb colors.
+- **Zoom-to-Fit Buttons**: Pressing the horizontal zoom button (`MoveHorizontal`) fits all clips in width. Pressing the diagonal zoom button (`Maximize2`) fits all clips in width and scales track heights so all tracks are visible vertically.
+
+#### Changed
+- **Prevent Menu Highlighting**: Disabled text selection globally on the application container to prevent accidental highlights in menus and sidebars while keeping inputs editable.
+
+#### Fixed
+- **Passive Event Listener Warning**: Resolved `Unable to preventDefault inside passive event listener invocation` during wheel scrolling by binding native event listeners with passive set to false.
+- **AudioContext Close Error**: Added catch blocks to `.close()` calls on `AudioContext` in FileExplorer and RecordingEngine to avoid uncaught rejections.
+
+### Deutsch
+
+#### Hinzugefügt
+- **Automatisches Zoom-to-Fit bei Erstimport**: Skaliert den horizontalen Timeline-Zoom automatisch so, dass die Gesamtdauer des ersten importierten Audio-Clips (mit 5 % Puffer) sichtbar ist. Wird beim Laden bestehender Projekte ignoriert.
+- **Scroll- & Zoom-Modifikatoren**: Neue konfigurierbare Kürzel `scrollVertical` (Standard: `Shift`) und `zoomVertical` (Standard: `Ctrl+Shift`). Normales Mausrad scrollt nur noch horizontal. Scrollen mit Modifikatoren scrollt vertikal bzw. zoomed die Spurhöhen (40px bis 300px).
+- **Alles Markieren Shortcut**: Neues konfigurierbares Kürzel `selectAllRegions` (Standard: `Shift+A`), um alle Audio-Clips auf allen Spuren zu selektieren.
+- **Einheitliche Scrollbar-Pfeile**: Anpassung von webkit-scrollbar-button mit präzise gezeichneten SVG-Dreiecken, die sich farblich perfekt in den Scrollbar-Track einfügen.
+- **Erweiterte Zoom-to-Fit-Bedienelemente**: Horizontales Zoom-Fit (`MoveHorizontal`) zeigt alle Clips in der Breite. Diagonales Zoom-Fit (`Maximize2`) passt Zoom und Spurhöhen an, sodass das gesamte Projekt scrollbalkenfrei sichtbar ist.
+
+#### Geändert
+- **Verhinderung von Menü-Markierungen**: Textselektion global auf der App deaktiviert (`select-none`), um unbeabsichtigte Hervorhebungen im Menü oder den Sidebars bei der Shortcut-Verwendung zu verhindern.
+
+#### Behoben
+- **Warnung zu passivem Event-Listener**: Behebung von `Unable to preventDefault inside passive event listener invocation` beim Scrollen durch Verwendung nativer Listener mit `{ passive: false }`.
+- **AudioContext Schließen-Fehler**: Absicherung von `.close()` auf dem `AudioContext` im Datei-Explorer und in der Aufnahme-Engine gegen unhandled rejections.
+
+---
+
 ## [0.10.0] - 2026-06-13
 
 ### English

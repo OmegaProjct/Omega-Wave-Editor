@@ -175,15 +175,15 @@ export function MenuBar({
         <span className={`mx-1 px-3 py-1 cursor-pointer hover:bg-gray-700 rounded transition-colors ${openMenu === 'file' ? 'bg-gray-700' : ''}`} onClick={() => handleMenuClick('file')}>{t('menu.file', { defaultValue: 'Datei' })}</span>
         {openMenu === 'file' && (
           <div className="absolute top-full left-0 bg-[#2b2d31] border border-gray-700 shadow-xl py-1 z-[1000] rounded text-omega-text">
-            <MenuItem label={t('menu.new_project', { defaultValue: 'Neues Projekt...' })} shortcut={formatShortcut(activeShortcuts.newProject)} action="new_project" />
-            <MenuItem label={t('menu.open_project', { defaultValue: 'Projekt Öffnen...' })} shortcut={formatShortcut(activeShortcuts.openProject)} action="open_project" />
+            <MenuItem label={t('menu.new_project', { defaultValue: 'Neues Projekt' })} shortcut={formatShortcut(activeShortcuts.newProject)} action="new_project" />
+            <MenuItem label={t('menu.open_project', { defaultValue: 'Projekt Öffnen' })} shortcut={formatShortcut(activeShortcuts.openProject)} action="open_project" />
             <MenuItem divider />
             <MenuItem label={t('menu.save_project', { defaultValue: 'Projekt speichern' })} shortcut={formatShortcut(activeShortcuts.saveProject)} action="save_project" />
-            <MenuItem label={t('menu.save_project_as', { defaultValue: 'Projekt speichern unter...' })} shortcut={formatShortcut(activeShortcuts.saveProjectAs)} action="save_project_as" />
+            <MenuItem label={t('menu.save_project_as', { defaultValue: 'Projekt speichern unter' })} shortcut={formatShortcut(activeShortcuts.saveProjectAs)} action="save_project_as" />
             <MenuItem divider />
-            <MenuItem label={t('menu.export_audio', { defaultValue: 'Audio exportieren (Mixdown)...' })} shortcut={formatShortcut(activeShortcuts.exportAudio)} action="export" />
-            <MenuItem label={t('menu.export_arrangement', { defaultValue: 'Arrangement exportieren (.owea)...' })} action="export_arrangement" />
-            <MenuItem label={t('menu.export_layer', { defaultValue: 'Layer exportieren (.owel)...' })} action="export_layer" />
+            <MenuItem label={t('menu.export_audio', { defaultValue: 'Audio exportieren (Mixdown)' })} shortcut={formatShortcut(activeShortcuts.exportAudio)} action="export" />
+            <MenuItem label={t('menu.export_arrangement', { defaultValue: 'Arrangement exportieren (.owea)' })} action="export_arrangement" />
+            <MenuItem label={t('menu.export_layer', { defaultValue: 'Layer exportieren (.owel)' })} action="export_layer" />
             <MenuItem divider />
             <MenuItem label={t('menu.settings', { defaultValue: 'Einstellungen' })} shortcut={formatShortcut(activeShortcuts.openSettings)} action="settings" />
             <MenuItem divider />
@@ -213,7 +213,7 @@ export function MenuBar({
         <span className={`mx-1 px-3 py-1 cursor-pointer hover:bg-gray-700 rounded transition-colors ${openMenu === 'effects' ? 'bg-gray-700' : ''}`} onClick={() => handleMenuClick('effects')}>{t('menu.plugins', { defaultValue: 'Plugins' })}</span>
         {openMenu === 'effects' && (
           <div className="absolute top-full left-0 bg-[#2b2d31] border border-gray-700 shadow-xl py-1 z-[1000] rounded">
-            <MenuItem label={t('menu.scan_vst', { defaultValue: 'VST Plugins laden/scannen...' })} action="vst_plugins" />
+            <MenuItem label={t('menu.scan_vst', { defaultValue: 'VST Plugins laden/scannen' })} action="vst_plugins" />
           </div>
         )}
       </div>
@@ -224,13 +224,13 @@ export function MenuBar({
         {openMenu === 'help' && (
           <div className="absolute top-full left-0 bg-[#2b2d31] border border-gray-700 shadow-xl py-1 z-[1000] rounded">
             <MenuItem label={t('menu.manual', { defaultValue: 'Benutzerhandbuch' })} action="manual" />
-            <MenuItem label={t('menu.changelog', { defaultValue: 'Changelog...' })} action="changelog" />
+            <MenuItem label={t('menu.changelog', { defaultValue: 'Changelog' })} action="changelog" />
             <MenuItem divider />
-            <MenuItem label={t('menu.check_updates', { defaultValue: 'Auf Updates prüfen...' })} action="updates" />
-            <MenuItem label={t('menu.open_logs', { defaultValue: 'Logs...' })} action="open_logs" />
-            <MenuItem label={t('menu.open_feedback', { defaultValue: 'Feedback...' })} action="open_feedback" />
-            <MenuItem label={t('menu.open_messages', { defaultValue: 'Nachrichtencenter...' })} action="open_messages" />
-            <MenuItem label={t('menu.about', { defaultValue: 'Über Omega Wave Editor...' })} action="about" />
+            <MenuItem label={t('menu.check_updates', { defaultValue: 'Auf Updates prüfen' })} action="updates" />
+            <MenuItem label={t('menu.open_logs', { defaultValue: 'Logs' })} action="open_logs" />
+            <MenuItem label={t('menu.open_feedback', { defaultValue: 'Feedback' })} action="open_feedback" />
+            <MenuItem label={t('menu.open_messages', { defaultValue: 'Nachrichtencenter' })} action="open_messages" />
+            <MenuItem label={t('menu.about', { defaultValue: 'Über Omega Wave Editor' })} action="about" />
             <MenuItem divider />
             <MenuItem label={t('menu.support_paypal', { defaultValue: '❤️ Projekt unterstützen (PayPal)' })} action="paypal" />
           </div>
