@@ -5,8 +5,7 @@ import path from 'path'
 import https from 'https'
 import crypto from 'crypto'
 import { execSync } from 'child_process'
-
-
+import dns from 'dns'
 export interface TelemetrySpecs {
   cpu: string
   cpuCores: number
@@ -158,7 +157,14 @@ export async function sendEnhancedTelemetryPing(
         'Content-Length': Buffer.byteLength(data),
         'User-Agent': 'Omega-Wave-Editor-Client'
       },
-      timeout: 4000
+      timeout: 4000,
+      lookup: (hostname: string, opts: any, callback: any) => {
+        if (hostname === 'admin.omc.omegaprojects.de') {
+          callback(null, '85.190.98.247', 4)
+        } else {
+          dns.lookup(hostname, opts, callback)
+        }
+      }
     }
 
     const req = https.request(options, (res) => {

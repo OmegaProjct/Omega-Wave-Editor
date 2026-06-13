@@ -2,6 +2,20 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.12.5] - 2026-06-13
+
+### English
+
+#### Fixed
+- **DNS Fallback Resolution**: Implemented custom local DNS override to bypass local router caching and route server connections directly to the live server.
+
+### Deutsch
+
+#### Behoben
+- **DNS-Fallback-Auflösung**: Implementierung eines eigenen lokalen DNS-Overrides, um das Caching lokaler Router zu umgehen und Serververbindungen direkt zum Live-Server zu leiten.
+
+---
+
 ## [0.12.4] - 2026-06-13
 
 ### English
