@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Folder, FileAudio, FileVideo, ArrowLeft, Play, Pause, Square, HardDrive, User, Download, Music, Search, Volume2, VolumeX, X, FolderUp } from 'lucide-react'
+import { Folder, FileAudio, FileVideo, ArrowLeft, Play, Pause, Square, HardDrive, User, Download, Music, Search, Volume2, VolumeX, X, FolderUp, Copy, Clipboard, Trash2, ExternalLink, Scissors } from 'lucide-react'
 import { AudioEngine } from '../lib/AudioEngine'
+import { useTranslation } from 'react-i18next'
 
 type FileEntry = {
   name: string
@@ -9,6 +10,7 @@ type FileEntry = {
 }
 
 export function FileExplorer() {
+  const { t } = useTranslation()
   const [currentPath, setCurrentPath] = useState<string>('')
   const [files, setFiles] = useState<FileEntry[]>([])
   const [history, setHistory] = useState<string[]>([])
@@ -94,7 +96,20 @@ export function FileExplorer() {
   }
 
   const [pinnedFolders, setPinnedFolders] = useState<string[]>([])
-  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, path: string } | null>(null)
+  const [contextMenu, setContextMenu] = useState<{
+    x: number
+    y: number
+    type: 'pinned' | 'file' | 'directory' | 'background'
+    path?: string
+    file?: FileEntry
+  } | null>(null)
+
+  const [explorerClipboard, setExplorerClipboard] = useState<{
+    path: string
+    name: string
+    isCut: boolean
+    isDirectory: boolean
+  } | null>(null)
 
   useEffect(() => {
     try {
@@ -436,6 +451,75 @@ export function FileExplorer() {
     }
   }, [activeTab, analyser, playingAudio])
 
+  const handleCopy = (file: FileEntry) => {
+    setExplorerClipboard({
+      path: file.path,
+      name: file.name,
+      isCut: false,
+      isDirectory: file.isDirectory
+    })
+  }
+
+  const handleCut = (file: FileEntry) => {
+    setExplorerClipboard({
+      path: file.path,
+      name: file.name,
+      isCut: true,
+      isDirectory: file.isDirectory
+    })
+  }
+
+  const handlePaste = async (destDir: string) => {
+    if (!explorerClipboard) return
+    const { path: srcPath, isCut } = explorerClipboard
+    
+    let res
+    if (isCut) {
+      res = await window.api.moveFile(srcPath, destDir)
+    } else {
+      res = await window.api.copyFile(srcPath, destDir)
+    }
+
+    if (res.success) {
+      if (isCut) {
+        setExplorerClipboard(null)
+      }
+      loadDirectory(currentPath)
+    } else {
+      window.dispatchEvent(new CustomEvent('SHOW_GLOBAL_MODAL', {
+        detail: {
+          type: 'error',
+          title: 'Fehler beim Einfügen',
+          message: `Die Datei konnte nicht eingefügt werden: ${res.error}`
+        }
+      }))
+    }
+  }
+
+  const handleDelete = (file: FileEntry) => {
+    window.dispatchEvent(new CustomEvent('SHOW_GLOBAL_MODAL', {
+      detail: {
+        type: 'confirm',
+        title: 'Löschen bestätigen',
+        message: `Möchten Sie "${file.name}" wirklich in den Papierkorb verschieben?`,
+        onConfirm: async () => {
+          const res = await window.api.deleteFile(file.path)
+          if (res.success) {
+            loadDirectory(currentPath)
+          } else {
+            window.dispatchEvent(new CustomEvent('SHOW_GLOBAL_MODAL', {
+              detail: {
+                type: 'error',
+                title: 'Fehler beim Löschen',
+                message: `Die Datei konnte nicht gelöscht werden: ${res.error}`
+              }
+            }))
+          }
+        }
+      }
+    }))
+  }
+
   const filteredFiles = files.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()))
 
   const renderExplorerContent = () => (
@@ -470,6 +554,7 @@ export function FileExplorer() {
               setContextMenu({
                 x: e.clientX,
                 y: e.clientY,
+                type: 'pinned',
                 path: path
               });
             }}
@@ -503,7 +588,17 @@ export function FileExplorer() {
         </div>
 
         {/* Dateiliste */}
-        <div className="flex-1 overflow-y-auto p-1.5 scrollbar-hide">
+        <div 
+          className="flex-1 overflow-y-auto p-1.5 scrollbar-hide"
+          onContextMenu={(e) => {
+            e.preventDefault();
+            setContextMenu({
+              x: e.clientX,
+              y: e.clientY,
+              type: 'background'
+            });
+          }}
+        >
           {filteredFiles.map((file, idx) => (
             <div 
               key={idx} 
@@ -511,15 +606,14 @@ export function FileExplorer() {
               onDragStart={(e) => onDragStart(e, file)} 
               onClick={() => navigateTo(file)} 
               onContextMenu={(e) => {
-                if (file.isDirectory) {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setContextMenu({
-                    x: e.clientX,
-                    y: e.clientY,
-                    path: file.path
-                  });
-                }
+                e.preventDefault();
+                e.stopPropagation();
+                setContextMenu({
+                  x: e.clientX,
+                  y: e.clientY,
+                  type: file.isDirectory ? 'directory' : 'file',
+                  file: file
+                });
               }}
               className={`flex items-center gap-2 p-1.5 px-3 hover:bg-omega-accent/25 cursor-pointer rounded-md group transition-colors ${
                 playingAudio === file.path ? 'bg-omega-accent/20 border-l-2 border-omega-accent' : ''
@@ -750,36 +844,198 @@ export function FileExplorer() {
       {activeTab === 'Import' && renderExplorerContent()}
       {activeTab === 'Player' && renderPlayerTab()}
 
-      {/* Glassmorphic context menu for pinned folders */}
+      {/* Glassmorphic context menu */}
       {contextMenu && (
         <div 
           style={{ top: contextMenu.y, left: contextMenu.x }}
           className="fixed bg-[#1e2124]/95 backdrop-blur-md border border-gray-700/60 rounded-lg shadow-xl py-1 z-[9999] min-w-[170px] select-none text-[11px]"
           onClick={(e) => e.stopPropagation()}
         >
-          {pinnedFolders.includes(contextMenu.path) ? (
-            <button
-              onClick={(e) => {
-                const ev = e as unknown as React.MouseEvent;
-                unpinFolder(contextMenu.path, ev);
-                setContextMenu(null);
-              }}
-              className="w-full text-left px-3 py-1.5 hover:bg-red-500 hover:text-white transition-colors text-red-400 flex items-center gap-1.5 font-medium"
-            >
-              <X size={10} /> Aus Seitenleiste entfernen
-            </button>
-          ) : (
-            <button
-              onClick={() => {
-                const updated = [...pinnedFolders, contextMenu.path]
-                setPinnedFolders(updated)
-                localStorage.setItem('pinnedFolders', JSON.stringify(updated))
-                setContextMenu(null);
-              }}
-              className="w-full text-left px-3 py-1.5 hover:bg-omega-accent hover:text-white transition-colors text-gray-200 flex items-center gap-1.5 font-medium"
-            >
-              <Folder size={10} className="text-omega-accent" /> An Seitenleiste hinzufügen
-            </button>
+          {contextMenu.type === 'pinned' && contextMenu.path && (
+            <>
+              {pinnedFolders.includes(contextMenu.path) ? (
+                <button
+                  onClick={(e) => {
+                    const ev = e as unknown as React.MouseEvent;
+                    unpinFolder(contextMenu.path!, ev);
+                    setContextMenu(null);
+                  }}
+                  className="w-full text-left px-3 py-1.5 hover:bg-red-500 hover:text-white transition-colors text-red-400 flex items-center gap-1.5 font-medium"
+                >
+                  <X size={10} /> {t('explorer.context.unpin', { defaultValue: 'Aus Seitenleiste entfernen' })}
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    const updated = [...pinnedFolders, contextMenu.path!]
+                    setPinnedFolders(updated)
+                    localStorage.setItem('pinnedFolders', JSON.stringify(updated))
+                    setContextMenu(null);
+                  }}
+                  className="w-full text-left px-3 py-1.5 hover:bg-omega-accent hover:text-white transition-colors text-gray-200 flex items-center gap-1.5 font-medium"
+                >
+                  <Folder size={10} className="text-omega-accent" /> {t('explorer.context.pin', { defaultValue: 'An Seitenleiste hinzufügen' })}
+                </button>
+              )}
+              <div className="h-px bg-gray-700 my-1 mx-2" />
+              <button
+                onClick={() => {
+                  window.api.showItemInFolder(contextMenu.path!);
+                  setContextMenu(null);
+                }}
+                className="w-full text-left px-3 py-1.5 hover:bg-omega-accent hover:text-white transition-colors text-gray-200 flex items-center gap-1.5 font-medium"
+              >
+                <ExternalLink size={10} className="text-gray-400" /> {t('explorer.context.show_in_explorer', { defaultValue: 'Im Dateiexplorer anzeigen' })}
+              </button>
+            </>
+          )}
+
+          {(contextMenu.type === 'file' || contextMenu.type === 'directory') && contextMenu.file && (
+            <>
+              {contextMenu.type === 'file' && contextMenu.file.name.match(/\.(mp3|wav|ogg|m4a)$/i) && (
+                <>
+                  <button
+                    onClick={() => {
+                      window.dispatchEvent(new CustomEvent('IMPORT_AUDIO_FILE', {
+                        detail: { path: contextMenu.file!.path, name: contextMenu.file!.name }
+                      }));
+                      setContextMenu(null);
+                    }}
+                    className="w-full text-left px-3 py-1.5 hover:bg-omega-accent hover:text-white transition-colors text-gray-200 flex items-center gap-1.5 font-medium"
+                  >
+                    <Play size={10} className="text-green-400" /> {t('explorer.context.import', { defaultValue: 'Ins Projekt importieren' })}
+                  </button>
+                  <div className="h-px bg-gray-700 my-1 mx-2" />
+                </>
+              )}
+              
+              {contextMenu.type === 'directory' && (
+                <>
+                  {pinnedFolders.includes(contextMenu.file.path) ? (
+                    <button
+                      onClick={(e) => {
+                        const ev = e as unknown as React.MouseEvent;
+                        unpinFolder(contextMenu.file!.path, ev);
+                        setContextMenu(null);
+                      }}
+                      className="w-full text-left px-3 py-1.5 hover:bg-red-500 hover:text-white transition-colors text-red-400 flex items-center gap-1.5 font-medium"
+                    >
+                      <X size={10} /> {t('explorer.context.unpin', { defaultValue: 'Aus Seitenleiste entfernen' })}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        const updated = [...pinnedFolders, contextMenu.file!.path]
+                        setPinnedFolders(updated)
+                        localStorage.setItem('pinnedFolders', JSON.stringify(updated))
+                        setContextMenu(null);
+                      }}
+                      className="w-full text-left px-3 py-1.5 hover:bg-omega-accent hover:text-white transition-colors text-gray-200 flex items-center gap-1.5 font-medium"
+                    >
+                      <Folder size={10} className="text-omega-accent" /> {t('explorer.context.pin', { defaultValue: 'An Seitenleiste hinzufügen' })}
+                    </button>
+                  )}
+                  <div className="h-px bg-gray-700 my-1 mx-2" />
+                </>
+              )}
+
+              <button
+                onClick={() => {
+                  window.api.showItemInFolder(contextMenu.file!.path);
+                  setContextMenu(null);
+                }}
+                className="w-full text-left px-3 py-1.5 hover:bg-omega-accent hover:text-white transition-colors text-gray-200 flex items-center gap-1.5 font-medium"
+              >
+                <ExternalLink size={10} className="text-gray-400" /> {t('explorer.context.show_in_explorer', { defaultValue: 'Im Dateiexplorer anzeigen' })}
+              </button>
+
+              <button
+                onClick={() => {
+                  handleCopy(contextMenu.file!);
+                  setContextMenu(null);
+                }}
+                className="w-full text-left px-3 py-1.5 hover:bg-omega-accent hover:text-white transition-colors text-gray-200 flex items-center gap-1.5 font-medium"
+              >
+                <Copy size={10} className="text-gray-400" /> {t('explorer.context.copy', { defaultValue: 'Kopieren' })}
+              </button>
+
+              <button
+                onClick={() => {
+                  handleCut(contextMenu.file!);
+                  setContextMenu(null);
+                }}
+                className="w-full text-left px-3 py-1.5 hover:bg-omega-accent hover:text-white transition-colors text-gray-200 flex items-center gap-1.5 font-medium"
+              >
+                <Scissors size={10} className="text-gray-400" /> {t('explorer.context.cut', { defaultValue: 'Ausschneiden' })}
+              </button>
+
+              {contextMenu.type === 'directory' && (
+                <button
+                  disabled={!explorerClipboard}
+                  onClick={() => {
+                    if (explorerClipboard) {
+                      handlePaste(contextMenu.file!.path);
+                    }
+                    setContextMenu(null);
+                  }}
+                  className={`w-full text-left px-3 py-1.5 flex items-center gap-1.5 font-medium transition-colors ${
+                    explorerClipboard 
+                      ? 'hover:bg-omega-accent hover:text-white text-gray-200' 
+                      : 'text-gray-600 cursor-not-allowed'
+                  }`}
+                >
+                  <Clipboard size={10} className="text-gray-400" /> {t('explorer.context.paste', { defaultValue: 'Einfügen' })}
+                </button>
+              )}
+
+              <div className="h-px bg-gray-700 my-1 mx-2" />
+
+              <button
+                onClick={() => {
+                  handleDelete(contextMenu.file!);
+                  setContextMenu(null);
+                }}
+                className="w-full text-left px-3 py-1.5 hover:bg-red-500 hover:text-white transition-colors text-red-400 flex items-center gap-1.5 font-medium"
+              >
+                <Trash2 size={10} className="text-red-400" /> {t('explorer.context.delete', { defaultValue: 'Löschen' })}
+              </button>
+            </>
+          )}
+
+          {contextMenu.type === 'background' && (
+            <>
+              <button
+                disabled={!explorerClipboard}
+                onClick={() => {
+                  if (explorerClipboard) {
+                    handlePaste(currentPath);
+                  }
+                  setContextMenu(null);
+                }}
+                className={`w-full text-left px-3 py-1.5 flex items-center gap-1.5 font-medium transition-colors ${
+                  explorerClipboard 
+                    ? 'hover:bg-omega-accent hover:text-white text-gray-200' 
+                    : 'text-gray-600 cursor-not-allowed'
+                }`}
+              >
+                <Clipboard size={10} className="text-gray-400" /> {t('explorer.context.paste', { defaultValue: 'Einfügen' })}
+              </button>
+
+              {currentPath && currentPath !== 'computer' && (
+                <>
+                  <div className="h-px bg-gray-700 my-1 mx-2" />
+                  <button
+                    onClick={() => {
+                      window.api.showItemInFolder(currentPath);
+                      setContextMenu(null);
+                    }}
+                    className="w-full text-left px-3 py-1.5 hover:bg-omega-accent hover:text-white transition-colors text-gray-200 flex items-center gap-1.5 font-medium"
+                  >
+                    <ExternalLink size={10} className="text-gray-400" /> {t('explorer.context.show_in_explorer', { defaultValue: 'Im Dateiexplorer anzeigen' })}
+                  </button>
+                </>
+              )}
+            </>
           )}
         </div>
       )}

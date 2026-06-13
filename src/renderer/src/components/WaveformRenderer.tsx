@@ -143,18 +143,6 @@ export function WaveformRenderer({ filePath, sourceOffset = 0, duration = 0, fil
 
     ctx.clearRect(0, 0, width, height)
     
-    // Premium vibrant cyan-blue gradient for rich aesthetics
-    const gradient = ctx.createLinearGradient(0, 0, 0, height)
-    gradient.addColorStop(0, '#00b4d8bb') // Bright cyan
-    gradient.addColorStop(0.5, '#0077b6dd') // Vibrant blue
-    gradient.addColorStop(1, '#00b4d8bb')
-    
-    ctx.strokeStyle = gradient
-    ctx.lineWidth = 1.5
-    
-    const centerY = height / 2
-
-    ctx.beginPath()
     let peaksToDraw = peaks
     
     // Slice peaks if offset and durations are provided
@@ -163,28 +151,119 @@ export function WaveformRenderer({ filePath, sourceOffset = 0, duration = 0, fil
        const endIndex = Math.max(startIndex + 1, Math.min(peaks.length, Math.floor(((sourceOffset + duration) / fileDuration) * peaks.length)))
        peaksToDraw = peaks.slice(startIndex, endIndex)
     }
+
+    if (peaksToDraw.length === 0) return
     
-    const step = width / (peaksToDraw.length || 1)
-    
+    const step = width / Math.max(1, peaksToDraw.length - 1)
+    const centerY = height / 2
+
+    // Premium vibrant cyan-blue gradients for rich aesthetics
+    const fillGradient = ctx.createLinearGradient(0, 0, 0, height)
+    if (halfWaveform) {
+      fillGradient.addColorStop(0, 'rgba(0, 229, 255, 0.45)') // Bright cyan top
+      fillGradient.addColorStop(1, 'rgba(0, 119, 182, 0.15)') // Transparent blue bottom
+    } else {
+      fillGradient.addColorStop(0, 'rgba(0, 229, 255, 0.4)')   // Top cyan
+      fillGradient.addColorStop(0.5, 'rgba(0, 119, 182, 0.15)') // Middle blue (more transparent)
+      fillGradient.addColorStop(1, 'rgba(0, 229, 255, 0.4)')   // Bottom cyan
+    }
+
+    const strokeGradient = ctx.createLinearGradient(0, 0, 0, height)
+    strokeGradient.addColorStop(0, '#00f0ff') // Ultra-bright cyan
+    strokeGradient.addColorStop(0.5, '#0096c7') // Solid vibrant blue
+    strokeGradient.addColorStop(1, '#00f0ff') // Ultra-bright cyan
+
     if (halfWaveform) {
       const baseline = height * 0.95
+      
+      // Draw body fill
+      ctx.beginPath()
+      ctx.moveTo(0, baseline)
       peaksToDraw.forEach((peak, i) => {
         const x = i * step
-        const amplitude = Math.max(0.03, peak)
+        const amplitude = Math.max(0.02, peak)
         const drawHeight = amplitude * height * 0.90
-        ctx.moveTo(x, baseline)
         ctx.lineTo(x, baseline - drawHeight)
       })
-    } else {
+      ctx.lineTo(width, baseline)
+      ctx.closePath()
+      ctx.fillStyle = fillGradient
+      ctx.fill()
+      
+      // Draw top outline
+      ctx.beginPath()
       peaksToDraw.forEach((peak, i) => {
         const x = i * step
-        const amplitude = Math.max(0.03, peak) // Boost minimum level slightly for clean visibility
-        const drawHeight = amplitude * (height / 2) * 0.85 // margin top/bottom
-        ctx.moveTo(x, centerY - drawHeight)
-        ctx.lineTo(x, centerY + drawHeight)
+        const amplitude = Math.max(0.02, peak)
+        const drawHeight = amplitude * height * 0.90
+        if (i === 0) {
+          ctx.moveTo(x, baseline - drawHeight)
+        } else {
+          ctx.lineTo(x, baseline - drawHeight)
+        }
       })
+      ctx.strokeStyle = strokeGradient
+      ctx.lineWidth = 1.5
+      ctx.stroke()
+    } else {
+      // Draw body fill
+      ctx.beginPath()
+      ctx.moveTo(0, centerY)
+      
+      // Top peaks (left to right)
+      peaksToDraw.forEach((peak, i) => {
+        const x = i * step
+        const amplitude = Math.max(0.02, peak)
+        const drawHeight = amplitude * (height / 2) * 0.85
+        ctx.lineTo(x, centerY - drawHeight)
+      })
+      
+      ctx.lineTo(width, centerY)
+      
+      // Bottom peaks (right to left)
+      for (let i = peaksToDraw.length - 1; i >= 0; i--) {
+        const x = i * step
+        const amplitude = Math.max(0.02, peaksToDraw[i])
+        const drawHeight = amplitude * (height / 2) * 0.85
+        ctx.lineTo(x, centerY + drawHeight)
+      }
+      
+      ctx.closePath()
+      ctx.fillStyle = fillGradient
+      ctx.fill()
+      
+      // Draw top outline
+      ctx.beginPath()
+      peaksToDraw.forEach((peak, i) => {
+        const x = i * step
+        const amplitude = Math.max(0.02, peak)
+        const drawHeight = amplitude * (height / 2) * 0.85
+        if (i === 0) {
+          ctx.moveTo(x, centerY - drawHeight)
+        } else {
+          ctx.lineTo(x, centerY - drawHeight)
+        }
+      })
+      ctx.strokeStyle = strokeGradient
+      ctx.lineWidth = 1.5
+      ctx.stroke()
+      
+      // Draw bottom outline
+      ctx.beginPath()
+      peaksToDraw.forEach((peak, i) => {
+        const x = i * step
+        const amplitude = Math.max(0.02, peak)
+        const drawHeight = amplitude * (height / 2) * 0.85
+        if (i === 0) {
+          ctx.moveTo(x, centerY + drawHeight)
+        } else {
+          ctx.lineTo(x, centerY + drawHeight)
+        }
+      })
+      ctx.strokeStyle = strokeGradient
+      ctx.lineWidth = 1.5
+      ctx.stroke()
     }
-    ctx.stroke()
   }
 
   // Draw on data update

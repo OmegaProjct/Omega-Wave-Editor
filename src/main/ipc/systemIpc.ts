@@ -29,6 +29,20 @@ function isSafePath(filePath: any): boolean {
   }
 }
 
+async function copyDirRecursive(src: string, dest: string): Promise<void> {
+  await fs.promises.mkdir(dest, { recursive: true })
+  const entries = await fs.promises.readdir(src, { withFileTypes: true })
+  for (const entry of entries) {
+    const srcPath = path.join(src, entry.name)
+    const destPath = path.join(dest, entry.name)
+    if (entry.isDirectory()) {
+      await copyDirRecursive(srcPath, destPath)
+    } else {
+      await fs.promises.copyFile(srcPath, destPath)
+    }
+  }
+}
+
 function isNewerVersion(current: string, latest: string): boolean {
   if (!current || !latest) return false
   const parse = (v: string) => {
@@ -555,5 +569,117 @@ export function registerSystemIpc() {
 
   ipcMain.handle('get-device-id', async () => {
     return getHardwareFingerprint()
+  })
+
+  ipcMain.handle('show-item-in-folder', async (_, filePath: string) => {
+    if (!isSafePath(filePath)) return { success: false, error: 'Ungültiger Pfad' }
+    try {
+      const resolved = path.resolve(filePath)
+      if (!fs.existsSync(resolved)) {
+        return { success: false, error: 'Datei oder Ordner existiert nicht' }
+      }
+      shell.showItemInFolder(resolved)
+      return { success: true }
+    } catch (e: any) {
+      return { success: false, error: e.message }
+    }
+  })
+
+  ipcMain.handle('delete-file', async (_, filePath: string) => {
+    if (!isSafePath(filePath)) return { success: false, error: 'Ungültiger Pfad' }
+    try {
+      const resolved = path.resolve(filePath)
+      if (!fs.existsSync(resolved)) {
+        return { success: false, error: 'Datei oder Ordner existiert nicht' }
+      }
+      await shell.trashItem(resolved)
+      return { success: true }
+    } catch (e: any) {
+      return { success: false, error: e.message }
+    }
+  })
+
+  ipcMain.handle('copy-file', async (_, srcPath: string, destDir: string) => {
+    if (!isSafePath(srcPath) || !isSafePath(destDir)) {
+      return { success: false, error: 'Ungültiger Pfad' }
+    }
+    try {
+      const resolvedSrc = path.resolve(srcPath)
+      const resolvedDestDir = path.resolve(destDir)
+      if (!fs.existsSync(resolvedSrc)) {
+        return { success: false, error: 'Quelldatei oder Quellordner existiert nicht' }
+      }
+      
+      const fileName = path.basename(resolvedSrc)
+      let targetPath = path.join(resolvedDestDir, fileName)
+      
+      if (fs.existsSync(targetPath)) {
+        targetPath = uniqueTargetPath(resolvedDestDir, fileName)
+      }
+      
+      const destParentDir = path.dirname(targetPath)
+      if (!fs.existsSync(destParentDir)) {
+        await fs.promises.mkdir(destParentDir, { recursive: true })
+      }
+      
+      const stat = await fs.promises.stat(resolvedSrc)
+      if (stat.isDirectory()) {
+        await copyDirRecursive(resolvedSrc, targetPath)
+      } else {
+        await fs.promises.copyFile(resolvedSrc, targetPath)
+      }
+      return { success: true }
+    } catch (e: any) {
+      return { success: false, error: e.message }
+    }
+  })
+
+  ipcMain.handle('move-file', async (_, srcPath: string, destDir: string) => {
+    if (!isSafePath(srcPath) || !isSafePath(destDir)) {
+      return { success: false, error: 'Ungültiger Pfad' }
+    }
+    try {
+      const resolvedSrc = path.resolve(srcPath)
+      const resolvedDestDir = path.resolve(destDir)
+      if (!fs.existsSync(resolvedSrc)) {
+        return { success: false, error: 'Quelldatei oder Quellordner existiert nicht' }
+      }
+      
+      const fileName = path.basename(resolvedSrc)
+      let targetPath = path.join(resolvedDestDir, fileName)
+      
+      if (resolvedSrc === targetPath) {
+        return { success: true }
+      }
+      
+      if (fs.existsSync(targetPath)) {
+        targetPath = uniqueTargetPath(resolvedDestDir, fileName)
+      }
+      
+      const destParentDir = path.dirname(targetPath)
+      if (!fs.existsSync(destParentDir)) {
+        await fs.promises.mkdir(destParentDir, { recursive: true })
+      }
+      
+      try {
+        await fs.promises.rename(resolvedSrc, targetPath)
+      } catch (err: any) {
+        if (err.code === 'EXDEV') {
+          const stat = await fs.promises.stat(resolvedSrc)
+          if (stat.isDirectory()) {
+            await copyDirRecursive(resolvedSrc, targetPath)
+            await fs.promises.rm(resolvedSrc, { recursive: true, force: true })
+          } else {
+            await fs.promises.copyFile(resolvedSrc, targetPath)
+            await fs.promises.unlink(resolvedSrc)
+          }
+        } else {
+          throw err
+        }
+      }
+      return { success: true }
+    } catch (e: any) {
+      return { success: false, error: e.message }
+    }
   })
 }

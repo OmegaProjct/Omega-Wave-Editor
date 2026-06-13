@@ -2451,6 +2451,49 @@ export function Timeline({
   }, [togglePlayback]);
 
   useEffect(() => {
+    const handleImportAudioFile = async (e: Event) => {
+      const customEvent = e as CustomEvent<{ path: string; name: string }>;
+      const { path: filePath, name: fileName } = customEvent.detail;
+      if (!filePath) return;
+
+      const fileInfo = { name: fileName, path: filePath, isDirectory: false };
+      const currentTracks = currentTracksRef.current;
+      const selectedTrack = currentTracks.find(t => t.regions.some(r => r.id === selectedRegionId)) || currentTracks[0];
+      if (!selectedTrack) return;
+
+      const cleanTrackId = selectedTrack.id.replace(/_[LR]$/, '');
+      const startPos = playheadPosRef.current;
+
+      try {
+        await engine.loadFile(filePath);
+        const info = await window.api.getMediaInfo(filePath);
+
+        const newRegion: Region = {
+          id: Math.random().toString(36).substr(2, 9),
+          file: fileInfo,
+          startPos,
+          duration: info?.duration || 10,
+          sourceOffset: 0,
+          fileDuration: info?.duration || 10,
+          channels: info?.channels || 2,
+          color: fileName.match(/\.(mp4|mkv|mov)$/i) ? 'bg-purple-600' : 'bg-omega-accent'
+        };
+
+        const newTracks = currentTracks.map(t => t.id === cleanTrackId ? { ...t, regions: [...t.regions, newRegion] } : t);
+        updateTracksWithHistory(newTracks);
+        setSelectedRegionId(newRegion.id);
+      } catch (err: any) {
+        window.dispatchEvent(new CustomEvent('SHOW_GLOBAL_MODAL', { detail: { type: 'error', title: 'Fehler beim Importieren', message: 'Die Datei konnte nicht geladen werden: ' + err.message } }));
+      }
+    };
+
+    window.addEventListener('IMPORT_AUDIO_FILE', handleImportAudioFile as EventListener);
+    return () => {
+      window.removeEventListener('IMPORT_AUDIO_FILE', handleImportAudioFile as EventListener);
+    };
+  }, [engine, selectedRegionId, updateTracksWithHistory]);
+
+  useEffect(() => {
     const handleMidiPlay = () => {
       if (!isPlayingRefForMidi.current) {
         togglePlayback();

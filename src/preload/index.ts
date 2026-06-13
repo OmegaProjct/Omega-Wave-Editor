@@ -161,7 +161,11 @@ const api = {
     const img = clipboard.readImage()
     return img.isEmpty() ? null : img.toDataURL()
   },
-  getDeviceId: () => ipcRenderer.invoke('get-device-id')
+  getDeviceId: () => ipcRenderer.invoke('get-device-id'),
+  showItemInFolder: (filePath: string) => ipcRenderer.invoke('show-item-in-folder', filePath),
+  deleteFile: (filePath: string) => ipcRenderer.invoke('delete-file', filePath),
+  copyFile: (srcPath: string, destDir: string) => ipcRenderer.invoke('copy-file', srcPath, destDir),
+  moveFile: (srcPath: string, destDir: string) => ipcRenderer.invoke('move-file', srcPath, destDir)
 }
 
 if (process.contextIsolated) {

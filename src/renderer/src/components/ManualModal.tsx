@@ -45,7 +45,7 @@ export function ManualModal({ onClose }: { onClose: () => void }) {
                     {t('manual.sec2_panel1_title', { defaultValue: 'Der Datei-Browser (Links)' })}
                   </h3>
                   <p className="text-xs text-gray-400 leading-relaxed">
-                    {t('manual.sec2_panel1_desc', { defaultValue: 'Navigieren Sie durch Ihre lokalen Festplatten. Ziehen Sie Audiodateien (WAV, MP3, FLAC etc.) oder Videodateien (MP4, MKV) per Drag & Drop direkt auf die Zeitleiste. Bei Videos wird die Audiospur automatisch verlustfrei extrahiert.' })}
+                    {t('manual.sec2_panel1_desc', { defaultValue: 'Navigieren Sie durch Ihre lokalen Festplatten. Ziehen Sie Audiodateien (WAV, MP3, FLAC etc.) oder Videodateien (MP4, MKV) per Drag & Drop direkt auf die Zeitleiste oder nutzen Sie das Rechtsklick-Kontextmenü für Aktionen wie Dateiimport, Kopieren, Einfügen, Ausschneiden, Löschen oder Anzeigen im System-Dateiexplorer. Bei Videos wird die Audiospur automatisch verlustfrei extrahiert.' })}
                   </p>
                </div>
                <div className="bg-black/20 p-4.5 rounded border border-gray-800/85">
