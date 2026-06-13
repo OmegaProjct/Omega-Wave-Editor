@@ -2,6 +2,24 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.12.0] - 2026-06-13
+
+### English
+
+#### Added
+- **File Explorer Context Menu**: Added a right-click context menu to files and folders in the file explorer panel. Features include importing audio files directly to the timeline at the playhead position, showing files/folders in the system file explorer, and standard file operations: copy, cut, paste, and delete (moving files to the system recycle bin).
+- **Background Menu Actions**: Right-clicking the empty space/background of the file list allows pasting copied/cut items or opening the current folder in the system file explorer.
+- **Manual Updates**: Documented the new context menu options in the user manual.
+
+### Deutsch
+
+#### Hinzugefügt
+- **Datei-Browser-Kontextmenü**: Ein Rechtsklick-Kontextmenü für Dateien und Ordner im Datei-Browser-Panel hinzugefügt. Enthält Funktionen zum direkten Importieren von Audiodateien auf die Zeitleiste an der aktuellen Abspielposition, zum Anzeigen von Dateien/Ordnern im System-Dateiexplorer sowie Standard-Dateioperationen: Kopieren, Ausschneiden, Einfügen und Löschen (Verschieben in den Papierkorb).
+- **Kontextmenü für Hintergrundbereich**: Ein Rechtsklick auf den leeren Hintergrund der Dateiliste ermöglicht das Einfügen von kopierten/ausgeschnittenen Elementen oder das Öffnen des aktuellen Ordners im System-Dateiexplorer.
+- **Handbuch-Aktualisierung**: Die neuen Kontextmenü-Optionen wurden im Benutzerhandbuch dokumentiert.
+
+---
+
 ## [0.11.8] - 2026-06-13
 
 ### English

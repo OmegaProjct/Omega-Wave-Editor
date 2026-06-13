@@ -102,6 +102,10 @@ declare global {
       submitFeedback: (data: any) => Promise<{ success: boolean; folder?: string; error?: string }>
       readClipboardImage: () => string | null
       getDeviceId: () => Promise<string>
+      showItemInFolder: (filePath: string) => Promise<{ success: boolean; error?: string }>
+      deleteFile: (filePath: string) => Promise<{ success: boolean; error?: string }>
+      copyFile: (srcPath: string, destDir: string) => Promise<{ success: boolean; error?: string }>
+      moveFile: (srcPath: string, destDir: string) => Promise<{ success: boolean; error?: string }>
     }
   }
 }
