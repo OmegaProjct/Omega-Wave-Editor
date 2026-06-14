@@ -30,6 +30,12 @@ declare global {
       onDownloadProgress: (callback: (data: any) => void) => () => void
       onCloseRequest: (callback: () => void) => () => void
       getPeaks: (filePath: string, samples?: number, channel?: 'left' | 'right') => Promise<number[]>
+      getWaveformWindow: (filePath: string, options?: {
+        startTime?: number
+        duration?: number
+        pixels?: number
+        channel?: 'left' | 'right'
+      }) => Promise<any>
       readFileBuffer: (filePath: string) => Promise<any>
       savePreset: (filePath: string, data: any) => Promise<any>
       saveProjectBackup: (filePath: string, data: any) => Promise<any>
@@ -108,4 +114,4 @@ declare global {
       moveFile: (srcPath: string, destDir: string) => Promise<{ success: boolean; error?: string }>
     }
   }
-}
+}

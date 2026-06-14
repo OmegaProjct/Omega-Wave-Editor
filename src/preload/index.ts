@@ -15,6 +15,7 @@ const api = {
   extractAudio: (videoPath: string, outputPath: string) => ipcRenderer.invoke('extract-audio', videoPath, outputPath),
   getMediaInfo: (filePath: string) => ipcRenderer.invoke('get-media-info', filePath),
   getPeaks: (filePath: string, samples?: number, channel?: 'left' | 'right') => ipcRenderer.invoke('get-peaks', filePath, samples, channel),
+  getWaveformWindow: (filePath: string, options?: any) => ipcRenderer.invoke('waveform:get-window', filePath, options),
   readFileBuffer: (filePath: string) => ipcRenderer.invoke('read-file-buffer', filePath),
   exportProject: (tracksData: any, outputPath: string, id3Tags?: any) => ipcRenderer.invoke('export-project', tracksData, outputPath, id3Tags),
   saveProject: (filePath: string, data: any) => ipcRenderer.invoke('save-project', filePath, data),
