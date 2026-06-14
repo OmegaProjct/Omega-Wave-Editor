@@ -357,6 +357,9 @@ export type Track = {
   nameR?: string
   preMuteVolumeL?: number
   preMuteVolumeR?: number
+  pan?: number
+  panL?: number
+  panR?: number
 }
 
 const PIXELS_PER_SECOND_BASE = 50 
@@ -519,8 +522,12 @@ export function Timeline({
     return Math.max(600, maxRegionEnd + 120, playheadPos + 120);
   }, [tracks, playheadPos]);
 
-  const totalTimelineWidth = timelineDuration * pixelsPerSecond 
-  
+  const totalTimelineWidth = timelineDuration * pixelsPerSecond
+
+  const isStereoTrack = useCallback((track: Track) => {
+    return track.regions.some(r => r.channels !== 1 && (!r.stereoMode || r.stereoMode === 'stereo'));
+  }, [timelineDuration, pixelsPerSecond]);
+
   const getDisplayedTracks = useCallback((tracksList: Track[], videoAudioOnOneTrackVal: boolean) => {
     if (videoAudioOnOneTrackVal) {
       return tracksList.map(t => ({ ...t, originalTrackId: t.id }));
@@ -529,7 +536,7 @@ export function Timeline({
     const result: any[] = [];
     tracksList.forEach((track) => {
       // Hat dieser Track Stereo-Inhalte? (D.h. mindestens eine Region, die nicht mono (1) ist)
-      const hasStereo = track.regions.some(r => r.channels !== 1);
+      const hasStereo = isStereoTrack(track);
       
       if (hasStereo) {
         // Wir teilen den Track in zwei visuelle Tracks auf
@@ -931,16 +938,33 @@ export function Timeline({
       targetTrackId = tracks[trackIdx + 1].id;
     }
 
+    const leftVol = currentTrack.volumeL !== undefined ? currentTrack.volumeL : currentTrack.volume;
+    const leftMute = currentTrack.mutedL !== undefined ? currentTrack.mutedL : currentTrack.muted;
+    const rightVol = currentTrack.volumeR !== undefined ? currentTrack.volumeR : currentTrack.volume;
+    const rightMute = currentTrack.mutedR !== undefined ? currentTrack.mutedR : currentTrack.muted;
+
     updatedTracks = updatedTracks.map(t => {
       if (t.id === currentTrack.id) {
         return {
           ...t,
+          volume: leftVol,
+          muted: leftMute,
+          volumeL: undefined,
+          volumeR: undefined,
+          mutedL: undefined,
+          mutedR: undefined,
           regions: t.regions.map(r => r.id === regionId ? leftRegion : r)
         };
       }
       if (t.id === targetTrackId) {
         return {
           ...t,
+          volume: rightVol,
+          muted: rightMute,
+          volumeL: undefined,
+          volumeR: undefined,
+          mutedL: undefined,
+          mutedR: undefined,
           regions: [...t.regions, rightRegion]
         };
       }
@@ -949,6 +973,18 @@ export function Timeline({
 
     updateTracksWithHistory(updatedTracks);
     setSelectedRegionIds(new Set([leftRegion.id, rightRegion.id]));
+    recalculateTrackVolumes(updatedTracks);
+
+    if (engine.isPlaying) {
+      const currentTrackUpdated = updatedTracks.find(t => t.id === currentTrack.id);
+      const targetTrackUpdated = updatedTracks.find(t => t.id === targetTrackId);
+      if (currentTrackUpdated) {
+        engine.rescheduleRegion(currentTrack.id, leftRegion, currentTrackUpdated.regions);
+      }
+      if (targetTrackUpdated) {
+        engine.rescheduleRegion(targetTrackId, rightRegion, targetTrackUpdated.regions);
+      }
+    }
   };
 
   const splitStereoTrack = (trackId: string) => {
@@ -1008,16 +1044,33 @@ export function Timeline({
       }
     });
 
+    const leftVol = targetTrack.volumeL !== undefined ? targetTrack.volumeL : targetTrack.volume;
+    const leftMute = targetTrack.mutedL !== undefined ? targetTrack.mutedL : targetTrack.muted;
+    const rightVol = targetTrack.volumeR !== undefined ? targetTrack.volumeR : targetTrack.volume;
+    const rightMute = targetTrack.mutedR !== undefined ? targetTrack.mutedR : targetTrack.muted;
+
     updatedTracks = updatedTracks.map(t => {
       if (t.id === trackId) {
         return {
           ...t,
+          volume: leftVol,
+          muted: leftMute,
+          volumeL: undefined,
+          volumeR: undefined,
+          mutedL: undefined,
+          mutedR: undefined,
           regions: t.regions.map(r => leftRegionsMap.has(r.id) ? leftRegionsMap.get(r.id) : r)
         };
       }
       if (t.id === targetTrackId) {
         return {
           ...t,
+          volume: rightVol,
+          muted: rightMute,
+          volumeL: undefined,
+          volumeR: undefined,
+          mutedL: undefined,
+          mutedR: undefined,
           regions: [...t.regions, ...rightRegionsList]
         };
       }
@@ -1025,6 +1078,7 @@ export function Timeline({
     });
 
     updateTracksWithHistory(updatedTracks);
+    recalculateTrackVolumes(updatedTracks);
 
     if (engine.isPlaying) {
       const dispTracks = getDisplayedTracks(updatedTracks, videoAudioOnOneTrack);
@@ -1037,11 +1091,42 @@ export function Timeline({
   };
 
   const setStereoMode = (regionId: string, mode: 'stereo' | 'left-only' | 'right-only') => {
-    const newTracks = tracks.map(t => ({
-      ...t,
-      regions: t.regions.map(r => r.id === regionId ? { ...r, stereoMode: mode } : r)
-    }));
+    let targetTrackId = '';
+    let updatedRegion: any = null;
+    let trackRegions: any[] = [];
+
+    const newTracks = tracks.map(t => {
+      const hasRegion = t.regions.some(r => r.id === regionId);
+      if (hasRegion) {
+        targetTrackId = t.id;
+        const newRegions = t.regions.map(r => {
+          if (r.id === regionId) {
+            updatedRegion = { ...r, stereoMode: mode };
+            return updatedRegion;
+          }
+          return r;
+        });
+        trackRegions = newRegions;
+        return { ...t, regions: newRegions };
+      }
+      return t;
+    });
+
     updateTracksWithHistory(newTracks);
+    recalculateTrackVolumes(newTracks);
+
+    if (targetTrackId && updatedRegion) {
+      if (engine.isPlaying) {
+        const dispTracks = getDisplayedTracks(newTracks, videoAudioOnOneTrack);
+        const affectedDispTracks = dispTracks.filter(t => t.originalTrackId === targetTrackId || t.id === targetTrackId);
+        
+        affectedDispTracks.forEach(t => {
+          t.regions.forEach((r: any) => {
+            engine.rescheduleRegion(t.id, r, t.regions);
+          });
+        });
+      }
+    }
   };
 
   const resetTrackCurves = (type: 'volume' | 'pan') => {
@@ -3046,6 +3131,8 @@ export function Timeline({
     if (stereoRegions.length > 0) {
       let updatedTracks = [...tracks];
       const newSelectedIds = new Set<string>();
+      const rescheduledRequests: { trackId: string, region: any }[] = [];
+
       for (const region of stereoRegions) {
         const currentTrack = updatedTracks.find(t => t.regions.some(r => r.id === region.id));
         if (!currentTrack) continue;
@@ -3081,16 +3168,33 @@ export function Timeline({
           targetTrackId = updatedTracks[trackIdx + 1].id;
         }
 
+        const leftVol = currentTrack.volumeL !== undefined ? currentTrack.volumeL : currentTrack.volume;
+        const leftMute = currentTrack.mutedL !== undefined ? currentTrack.mutedL : currentTrack.muted;
+        const rightVol = currentTrack.volumeR !== undefined ? currentTrack.volumeR : currentTrack.volume;
+        const rightMute = currentTrack.mutedR !== undefined ? currentTrack.mutedR : currentTrack.muted;
+
         updatedTracks = updatedTracks.map(t => {
           if (t.id === currentTrack.id) {
             return {
               ...t,
+              volume: leftVol,
+              muted: leftMute,
+              volumeL: undefined,
+              volumeR: undefined,
+              mutedL: undefined,
+              mutedR: undefined,
               regions: t.regions.map(r => r.id === region.id ? leftRegion : r)
             };
           }
           if (t.id === targetTrackId) {
             return {
               ...t,
+              volume: rightVol,
+              muted: rightMute,
+              volumeL: undefined,
+              volumeR: undefined,
+              mutedL: undefined,
+              mutedR: undefined,
               regions: [...t.regions, rightRegion]
             };
           }
@@ -3099,9 +3203,23 @@ export function Timeline({
 
         newSelectedIds.add(leftRegion.id);
         newSelectedIds.add(rightRegion.id);
+
+        rescheduledRequests.push({ trackId: currentTrack.id, region: leftRegion });
+        rescheduledRequests.push({ trackId: targetTrackId, region: rightRegion });
       }
+
       updateTracksWithHistory(updatedTracks);
       setSelectedRegionIds(newSelectedIds);
+      recalculateTrackVolumes(updatedTracks);
+
+      if (engine.isPlaying) {
+        rescheduledRequests.forEach(req => {
+          const t = updatedTracks.find(track => track.id === req.trackId);
+          if (t) {
+            engine.rescheduleRegion(req.trackId, req.region, t.regions);
+          }
+        });
+      }
     } else {
       const hasGroup = selectedRegions.some(r => r.groupId !== undefined);
       if (hasGroup) {
@@ -3112,7 +3230,7 @@ export function Timeline({
         updateTracksWithHistory(newTracks);
       }
     }
-  }, [selectedRegionIds, tracks, updateTracksWithHistory]);
+  }, [selectedRegionIds, tracks, updateTracksWithHistory, engine, recalculateTrackVolumes]);
 
   useEffect(() => {
     if (!draggingGain) return;
@@ -4173,6 +4291,21 @@ export function Timeline({
                                   step="0.05" 
                                   value={track.volume} 
                                   onChange={(e) => updateTrackVolume(track.id, parseFloat(e.target.value))} 
+                                  onMouseUp={() => updateTracksWithHistory(tracks)}
+                                  className="w-full h-1 accent-omega-accent bg-gray-700 rounded-lg appearance-none cursor-pointer" 
+                                />
+                              </div>
+                            )}
+                            {trackHeight >= 55 && isStereoTrack(track) && (
+                              <div className="flex items-center gap-1.5 px-1 py-0.5 text-gray-400">
+                                <span className="text-[9px] font-semibold text-gray-500 w-5 text-center flex-shrink-0" title="Stereo Balance (Pan)">Pan</span>
+                                <input 
+                                  type="range" 
+                                  min="-1" 
+                                  max="1" 
+                                  step="0.1" 
+                                  value={track.pan !== undefined ? track.pan : 0.0} 
+                                  onChange={(e) => updateTrackPan(track.id, parseFloat(e.target.value))} 
                                   onMouseUp={() => updateTracksWithHistory(tracks)}
                                   className="w-full h-1 accent-omega-accent bg-gray-700 rounded-lg appearance-none cursor-pointer" 
                                 />

@@ -50,6 +50,12 @@ interface Window {
     exportProject: (tracks: any[], path: string, id3Tags?: any) => Promise<boolean>;
     openExternal: (url: string) => Promise<void>;
     getPeaks: (path: string, samples?: number, channel?: 'left' | 'right') => Promise<number[]>;
+    getWaveformWindow: (path: string, options?: {
+      startTime?: number;
+      duration?: number;
+      pixels?: number;
+      channel?: 'left' | 'right';
+    }) => Promise<any>;
     openPath: (dirPath: string) => Promise<{ success: boolean; error?: string }>;
     downloadPluginFile: (payload: { url: string; fileName?: string; pluginName?: string }) => Promise<{ success: boolean; error?: string; filePath?: string; directory?: string }>;
     transcodeExport: (tempWavPath: string, outputPath: string, options: any, id3Tags?: any) => Promise<boolean>;

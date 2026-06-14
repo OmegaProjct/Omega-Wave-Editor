@@ -2,6 +2,40 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.13.3] - 2026-06-14
+
+### English
+
+#### Added
+- **Stereo Balance Slider**: Added a dedicated Stereo Balance (Pan) slider in the track header for tracks containing active stereo content.
+- **Split Track State Transfers**: Enabled automatic transfer of volume and mute states to physical split mono tracks when unlinking or splitting stereo clips/tracks.
+
+#### Changed
+- **High-Precision Waveform Rendering**: Reworked timeline waveform rendering to use signed audio windows with Min/Max, RMS, stereo-channel and sample-detail data for clearer transients and more precise editing at high zoom levels.
+- **Viewport-Based Waveform Drawing**: Timeline clips now render only the visible waveform area with a buffered canvas window to prevent oversized render surfaces during deep zoom.
+- **Faster Waveform Zooming**: Added reusable overview caching and extended high zoom levels so waveform detail can be refined smoothly while zooming.
+- **Virtual Stereo Track Recognition**: Refined the `isStereoTrack` check to skip tracks with manual left-only/right-only overrides, rendering them as clean single mono tracks.
+
+#### Fixed
+- **Real-Time Audio Rescheduling**: Integrated real-time audio rescheduling during playback when changing stereo modes, unlinking, or splitting tracks, ensuring immediate audio updates on the left/right channels.
+
+### Deutsch
+
+#### Hinzugefügt
+- **Stereo-Balance-Regler**: Dedizierter Stereo-Balance-Schieberegler (Pan) im Spur-Header für Spuren mit echten Stereo-Inhalten.
+- **Statusübertragung bei Spurteilung**: Automatische Übertragung des Stummschaltungs- und Lautstärkestatus beim Kettensprengen oder Aufteilen von Stereo-Clips auf die physischen Mono-Spuren.
+
+#### Geändert
+- **Hochpräzise Wellenformdarstellung**: Die Timeline-Wellenformdarstellung wurde auf signierte Audiofenster mit Min/Max-, RMS-, Stereo-Kanal- und Sample-Detaildaten umgestellt, damit Transienten und feine Signalspitzen bei hohem Zoom klarer erkennbar sind.
+- **Sichtfensterbasiertes Wellenform-Rendering**: Clips zeichnen nur noch den sichtbaren Wellenformbereich mit gepuffertem Canvas-Fenster, um übergroße Renderflächen bei starkem Zoom zu vermeiden.
+- **Schnelleres Wellenform-Zoomen**: Wiederverwendbares Übersichts-Caching und erweiterte hohe Zoomstufen wurden ergänzt, damit Wellenformdetails beim Zoomen flüssiger nachgeladen werden.
+- **Erkennung virtueller Stereo-Spuren**: Die `isStereoTrack`-Prüfung wurde verfeinert, um manuell auf Mono Links/Rechts umgestellte Spuren als normale Mono-Spuren darzustellen und nicht fälschlich virtuell aufzuteilen.
+
+#### Behoben
+- **Echtzeit-Rescheduling**: Die Audio-Engine führt nun bei der Änderung des Stereo-Modus, beim Aufteilen oder Kettensprengen ein sofortiges Echtzeit-Rescheduling durch, sodass Tonänderungen ohne Wiedergabeunterbrechung sofort hörbar sind.
+
+---
+
 ## [0.13.2] - 2026-06-13
 
 ### English

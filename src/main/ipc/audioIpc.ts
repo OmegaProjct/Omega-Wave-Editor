@@ -11,6 +11,7 @@ import ffmpeg from 'fluent-ffmpeg'
 import ffmpegStatic from 'ffmpeg-static'
 import ffprobeStatic from 'ffprobe-static'
 import { logger } from '../logger'
+import { getWaveformWindow } from '../waveform/waveformAnalysisService'
 
 // Setup static ffmpeg/ffprobe binary paths (with app.asar.unpacked support)
 let ffmpegPath = ffmpegStatic
@@ -119,6 +120,17 @@ export function registerAudioIpc() {
           logger.error('Audio', 'Fehler bei der Audio-Extraktion', err)
           reject(err)
         })
+    })
+  })
+
+  ipcMain.handle('waveform:get-window', async (_, filePath: string, options: any = {}) => {
+    logger.debug('Waveform', 'Waveform-Fenster angefordert', { filePath, options })
+    if (!isSafePath(filePath)) throw new Error('Ungueltiger Pfad')
+    return await getWaveformWindow(filePath, {
+      startTime: typeof options.startTime === 'number' ? options.startTime : 0,
+      duration: typeof options.duration === 'number' ? options.duration : undefined,
+      pixels: typeof options.pixels === 'number' ? options.pixels : undefined,
+      channel: options.channel === 'left' || options.channel === 'right' ? options.channel : undefined
     })
   })
 

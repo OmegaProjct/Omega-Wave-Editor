@@ -106,7 +106,14 @@ export const ClipRegion: React.FC<ClipRegionProps> = ({
             sourceOffset={region.sourceOffset}
             duration={region.duration}
             fileDuration={region.fileDuration}
+            displayDuration={region.duration}
+            channel={region.stereoMode === 'left-only' ? 'left' : (region.stereoMode === 'right-only' ? 'right' : undefined)}
             gain={region.gain}
+            pixelsPerSecond={pixelsPerSecond}
+            regionStart={region.startPos}
+            scrollLeft={region.startPos * pixelsPerSecond}
+            viewportWidth={regionWidthPx}
+            sourceChannels={region.channels}
           />
         </div>
 
