@@ -19,6 +19,7 @@ The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Sem
 
 #### Fixed
 - **Real-Time Audio Rescheduling**: Integrated real-time audio rescheduling during playback when changing stereo modes, unlinking, or splitting tracks, ensuring immediate audio updates on the left/right channels.
+- **Waveform Canvas Size Overflow**: Fixed a critical canvas size overflow and white screen rendering issue at deep zoom levels by passing proper tiled rendering coordinates (scrollLeft, viewportWidth, and displayDuration) to WaveformRenderer.
 
 ### Deutsch
 
@@ -35,6 +36,7 @@ The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Sem
 
 #### Behoben
 - **Echtzeit-Rescheduling**: Die Audio-Engine führt nun bei der Änderung des Stereo-Modus, beim Aufteilen oder Kettensprengen ein sofortiges Echtzeit-Rescheduling durch, sodass Tonänderungen ohne Wiedergabeunterbrechung sofort hörbar sind.
+- **Wellenform-Größenüberlauf**: Behebung von Canvas-Überlauf und weißer Wellenformdarstellung bei starkem Zoom durch korrekte Weiterleitung der Kachel-Rendering-Koordinaten (scrollLeft, viewportWidth und displayDuration) an den WaveformRenderer.
 
 ---
 
