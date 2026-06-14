@@ -2,7 +2,7 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
-## [0.13.3] - 2026-06-14
+## [0.13.4] - 2026-06-14
 
 ### English
 
@@ -12,9 +12,6 @@ The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Sem
 - **Double-Click Slider Resets**: Added double-click reset handlers to the Master Volume slider (restores to 1.0) and Stereo Balance slider (restores to 0.0).
 
 #### Changed
-- **High-Precision Waveform Rendering**: Reworked timeline waveform rendering to use signed audio windows with Min/Max, RMS, stereo-channel and sample-detail data for clearer transients and more precise editing at high zoom levels.
-- **Viewport-Based Waveform Drawing**: Timeline clips now render only the visible waveform area with a buffered canvas window to prevent oversized render surfaces during deep zoom.
-- **Faster Waveform Zooming**: Added reusable overview caching and extended high zoom levels so waveform detail can be refined smoothly while zooming.
 - **Virtual Stereo Track Recognition**: Refined the `isStereoTrack` check to skip tracks with manual left-only/right-only overrides, rendering them as clean single mono tracks.
 
 #### Fixed
@@ -29,14 +26,29 @@ The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Sem
 - **Doppelklick-Slider-Resets**: Doppelklick-Events zum Zurücksetzen hinzugefügt. Setzt das Master-Volume auf `1.0` und die Stereo-Balance (Pan) auf `0.0` zurück.
 
 #### Geändert
-- **Hochpräzise Wellenformdarstellung**: Die Timeline-Wellenformdarstellung wurde auf signierte Audiofenster mit Min/Max-, RMS-, Stereo-Kanal- und Sample-Detaildaten umgestellt, damit Transienten und feine Signalspitzen bei hohem Zoom klarer erkennbar sind.
-- **Sichtfensterbasiertes Wellenform-Rendering**: Clips zeichnen nur noch den sichtbaren Wellenformbereich mit gepuffertem Canvas-Fenster, um übergroße Renderflächen bei starkem Zoom zu vermeiden.
-- **Schnelleres Wellenform-Zoomen**: Wiederverwendbares Übersichts-Caching und erweiterte hohe Zoomstufen wurden ergänzt, damit Wellenformdetails beim Zoomen flüssiger nachgeladen werden.
 - **Erkennung virtueller Stereo-Spuren**: Die `isStereoTrack`-Prüfung wurde verfeinert, um manuell auf Mono Links/Rechts umgestellte Spuren als normale Mono-Spuren darzustellen und nicht fälschlich virtuell aufzuteilen.
 
 #### Behoben
 - **Echtzeit-Rescheduling**: Die Audio-Engine führt nun bei der Änderung des Stereo-Modus, beim Aufteilen oder Kettensprengen ein sofortiges Echtzeit-Rescheduling durch, sodass Tonänderungen ohne Wiedergabeunterbrechung sofort hörbar sind.
 - **Wellenform-Größenüberlauf**: Behebung von Canvas-Überlauf und weißer Wellenformdarstellung bei starkem Zoom durch korrekte Weiterleitung der Kachel-Rendering-Koordinaten (scrollLeft, viewportWidth und displayDuration) an den WaveformRenderer.
+
+---
+
+## [0.13.3] - 2026-06-14
+
+### English
+
+#### Changed
+- **High-Precision Waveform Rendering**: Reworked timeline waveform rendering to use signed audio windows with Min/Max, RMS, stereo-channel and sample-detail data for clearer transients and more precise editing at high zoom levels.
+- **Viewport-Based Waveform Drawing**: Timeline clips now render only the visible waveform area with a buffered canvas window to prevent oversized render surfaces during deep zoom.
+- **Faster Waveform Zooming**: Added reusable overview caching and extended high zoom levels so waveform detail can be refined smoothly while zooming.
+
+### Deutsch
+
+#### Geändert
+- **Hochpräzise Wellenformdarstellung**: Die Timeline-Wellenformdarstellung wurde auf signierte Audiofenster mit Min/Max-, RMS-, Stereo-Kanal- und Sample-Detaildaten umgestellt, damit Transienten und feine Signalspitzen bei hohem Zoom klarer erkennbar sind.
+- **Sichtfensterbasiertes Wellenform-Rendering**: Clips zeichnen nur noch den sichtbaren Wellenformbereich mit gepuffertem Canvas-Fenster, um übergroße Renderflächen bei starkem Zoom zu vermeiden.
+- **Schnelleres Wellenform-Zoomen**: Wiederverwendbares Übersichts-Caching und erweiterte hohe Zoomstufen wurden ergänzt, damit Wellenformdetails beim Zoomen flüssiger nachgeladen werden.
 
 ---
 
