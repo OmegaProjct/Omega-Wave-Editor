@@ -4094,6 +4094,9 @@ export function Timeline({
                   const val = parseFloat(e.target.value);
                   engine.setMasterVolume(val);
                 }}
+                onDoubleClick={() => {
+                  engine.setMasterVolume(1.0);
+                }}
                 className="vertical-fader"
                 style={{
                   WebkitAppearance: 'slider-vertical',
@@ -4307,6 +4310,10 @@ export function Timeline({
                                   value={track.pan !== undefined ? track.pan : 0.0} 
                                   onChange={(e) => updateTrackPan(track.id, parseFloat(e.target.value))} 
                                   onMouseUp={() => updateTracksWithHistory(tracks)}
+                                  onDoubleClick={() => {
+                                    updateTrackPan(track.id, 0.0);
+                                    updateTracksWithHistory(tracks);
+                                  }}
                                   className="w-full h-1 accent-omega-accent bg-gray-700 rounded-lg appearance-none cursor-pointer" 
                                 />
                               </div>

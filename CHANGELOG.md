@@ -9,6 +9,7 @@ The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Sem
 #### Added
 - **Stereo Balance Slider**: Added a dedicated Stereo Balance (Pan) slider in the track header for tracks containing active stereo content.
 - **Split Track State Transfers**: Enabled automatic transfer of volume and mute states to physical split mono tracks when unlinking or splitting stereo clips/tracks.
+- **Double-Click Slider Resets**: Added double-click reset handlers to the Master Volume slider (restores to 1.0) and Stereo Balance slider (restores to 0.0).
 
 #### Changed
 - **High-Precision Waveform Rendering**: Reworked timeline waveform rendering to use signed audio windows with Min/Max, RMS, stereo-channel and sample-detail data for clearer transients and more precise editing at high zoom levels.
@@ -24,6 +25,7 @@ The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Sem
 #### Hinzugefügt
 - **Stereo-Balance-Regler**: Dedizierter Stereo-Balance-Schieberegler (Pan) im Spur-Header für Spuren mit echten Stereo-Inhalten.
 - **Statusübertragung bei Spurteilung**: Automatische Übertragung des Stummschaltungs- und Lautstärkestatus beim Kettensprengen oder Aufteilen von Stereo-Clips auf die physischen Mono-Spuren.
+- **Doppelklick-Slider-Resets**: Doppelklick-Events zum Zurücksetzen hinzugefügt. Setzt das Master-Volume auf `1.0` und die Stereo-Balance (Pan) auf `0.0` zurück.
 
 #### Geändert
 - **Hochpräzise Wellenformdarstellung**: Die Timeline-Wellenformdarstellung wurde auf signierte Audiofenster mit Min/Max-, RMS-, Stereo-Kanal- und Sample-Detaildaten umgestellt, damit Transienten und feine Signalspitzen bei hohem Zoom klarer erkennbar sind.
