@@ -2,6 +2,18 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.13.5] - 2026-06-15
+
+### English
+
+#### Added
+- **Popout Preset Bounds Persistence**: Updated `WINDOW_LAYOUT_SAVE` and `WINDOW_LAYOUT_LOAD` in the renderer to persist and restore popout window bounds for `panel-file-explorer`, `panel-effects`, and `panel-timeline` via IPC.
+
+### Deutsch
+
+#### Hinzugefügt
+- **Popout-Preset-Grenzen-Speicherung**: Aktionen `WINDOW_LAYOUT_SAVE` und `WINDOW_LAYOUT_LOAD` im Renderer erweitert, um die Popout-Fenstergrenzen für `panel-file-explorer`, `panel-effects` und `panel-timeline` asynchron über IPC zu speichern und wiederherzustellen.
+
 ## [0.13.4] - 2026-06-14
 
 ### English
