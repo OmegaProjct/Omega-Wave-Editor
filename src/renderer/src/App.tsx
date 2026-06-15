@@ -24,8 +24,68 @@ import {
   normalizeKeyboardShortcuts
 } from './lib/keyboardShortcuts'
 import appIcon from './assets/app_icon.png'
-import { Loader2 } from 'lucide-react'
+import { Loader2, ExternalLink, PanelTopClose, PanelTopOpen, Lock, Unlock } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
+type WindowLayoutPreset = {
+  mainVertical: number[]
+  topHorizontal: number[]
+  panelPopoutState?: Partial<Record<PanelPopoutId, boolean>>
+  panelLayoutLocked?: boolean
+  popoutBounds?: Record<string, any>
+  savedAt: string
+}
+
+
+const DEFAULT_WINDOW_LAYOUT: WindowLayoutPreset = {
+  mainVertical: [50, 50],
+  topHorizontal: [30, 70],
+  panelPopoutState: {
+    'panel-file-explorer': false,
+    'panel-effects': false,
+    'panel-timeline': false
+  },
+  panelLayoutLocked: true,
+  savedAt: ''
+}
+
+const WINDOW_LAYOUTS_STORAGE_KEY = 'omega.windowLayouts.v1'
+const CURRENT_WINDOW_LAYOUT_STORAGE_KEY = 'omega.windowLayout.current.v1'
+const PANEL_LAYOUT_LOCKED_STORAGE_KEY = 'omega.panelLayout.locked.v1'
+const PANEL_POPOUT_SNAPSHOT_STORAGE_KEY = 'omega.panelPopout.snapshot.v1'
+const PANEL_POPOUT_ACTION_STORAGE_KEY = 'omega.panelPopout.action.v1'
+const PANEL_POPOUT_STATE_STORAGE_KEY = 'omega.panelPopout.state.v1'
+const PANEL_LAYOUT_SNAP_THRESHOLD = 3.5
+const MAIN_VERTICAL_SNAP_POINTS = [25, 30, 33, 40, 50, 60, 67, 70, 75]
+const TOP_HORIZONTAL_SNAP_POINTS = [20, 25, 30, 33, 40, 50, 60, 67, 70, 75, 80]
+
+type PanelPopoutId = 'panel-file-explorer' | 'panel-effects' | 'panel-timeline'
+const ALL_PANEL_POPOUT_IDS: PanelPopoutId[] = ['panel-file-explorer', 'panel-effects', 'panel-timeline']
+
+function snapPanelLayout(layout: number[], snapPoints: number[]): number[] {
+  if (!Array.isArray(layout) || layout.length !== 2) {
+    return layout
+  }
+
+  const firstPanelSize = layout[0]
+  let bestSnapPoint = firstPanelSize
+  let bestDistance = PANEL_LAYOUT_SNAP_THRESHOLD + 1
+
+  snapPoints.forEach((snapPoint) => {
+    const distance = Math.abs(firstPanelSize - snapPoint)
+    if (distance < bestDistance) {
+      bestDistance = distance
+      bestSnapPoint = snapPoint
+    }
+  })
+
+  if (bestDistance > PANEL_LAYOUT_SNAP_THRESHOLD) {
+    return layout
+  }
+
+  const secondPanelSize = Math.max(0, 100 - bestSnapPoint)
+  return [bestSnapPoint, secondPanelSize]
+}
 
 function logTimelineChanges(oldTracks: any[], newTracks: any[]) {
   if (!oldTracks || !newTracks) return
@@ -142,6 +202,8 @@ function logTimelineChanges(oldTracks: any[], newTracks: any[]) {
 
 function App(): JSX.Element {
   const { i18n } = useTranslation()
+  const windowType = new URLSearchParams(window.location.search).get('window')
+  const isPanelPopoutWindow = windowType === 'panel-file-explorer' || windowType === 'panel-effects' || windowType === 'panel-timeline'
   const [showSettings, setShowSettings] = useState(false)
   const [settingsTab, setSettingsTab] = useState<'Wiedergabe' | 'Ordner' | 'Ansicht' | 'System' | 'Tastaturkürzel' | 'Projekteinstellungen' | 'Sprache & Anzeige'>('Projekteinstellungen')
   const [showExport, setShowExport] = useState(false)
@@ -162,6 +224,13 @@ function App(): JSX.Element {
   const [maxUndoSteps, setMaxUndoSteps] = useState(50)
   const [autoSaveInterval, setAutoSaveInterval] = useState(10)
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(true)
+  const [windowLayouts, setWindowLayouts] = useState<Record<string, WindowLayoutPreset>>({})
+  const [panelLayoutLocked, setPanelLayoutLocked] = useState(true)
+  const [panelPopoutState, setPanelPopoutState] = useState<Record<PanelPopoutId, boolean>>({
+    'panel-file-explorer': false,
+    'panel-effects': false,
+    'panel-timeline': false
+  })
   // Global Modal State
   const [modalConfig, setModalConfig] = useState<{ 
     type: ModalType, 
@@ -183,9 +252,171 @@ function App(): JSX.Element {
   const { state: tracks, push: pushTracks, undo, redo } = useHistory(initialTracks, maxUndoSteps);
 
   const tracksRef = useRef(tracks);
+  const mainPanelGroupRef = useRef<any>(null)
+  const topPanelGroupRef = useRef<any>(null)
+  const restoredPanelPopoutsRef = useRef<Set<PanelPopoutId>>(new Set())
+  const snappingMainLayoutRef = useRef(false)
+  const snappingTopLayoutRef = useRef(false)
+
+  const getCurrentWindowLayout = useCallback((): WindowLayoutPreset => {
+    const mainVertical = mainPanelGroupRef.current?.getLayout?.() || DEFAULT_WINDOW_LAYOUT.mainVertical
+    const topHorizontal = topPanelGroupRef.current?.getLayout?.() || DEFAULT_WINDOW_LAYOUT.topHorizontal
+    return {
+      mainVertical,
+      topHorizontal,
+      panelPopoutState,
+      panelLayoutLocked,
+      savedAt: new Date().toISOString()
+    }
+  }, [panelLayoutLocked, panelPopoutState])
+
+  const persistCurrentWindowLayout = useCallback((layout?: WindowLayoutPreset) => {
+    const snapshot = layout || getCurrentWindowLayout()
+    localStorage.setItem(CURRENT_WINDOW_LAYOUT_STORAGE_KEY, JSON.stringify(snapshot))
+  }, [getCurrentWindowLayout])
+
+  const applyWindowLayout = useCallback((layout: WindowLayoutPreset, persistCurrent: boolean = true) => {
+    requestAnimationFrame(() => {
+      mainPanelGroupRef.current?.setLayout?.(layout.mainVertical)
+      topPanelGroupRef.current?.setLayout?.(layout.topHorizontal)
+      if (persistCurrent) {
+        persistCurrentWindowLayout(layout)
+      }
+    })
+  }, [persistCurrentWindowLayout])
+
+  const handleMainPanelLayout = useCallback((layout: number[]) => {
+    if (snappingMainLayoutRef.current) {
+      snappingMainLayoutRef.current = false
+      persistCurrentWindowLayout()
+      return
+    }
+
+    const snappedLayout = snapPanelLayout(layout, MAIN_VERTICAL_SNAP_POINTS)
+    const shouldSnap = snappedLayout.some((value, index) => Math.abs(value - layout[index]) > 0.01)
+
+    if (shouldSnap) {
+      snappingMainLayoutRef.current = true
+      requestAnimationFrame(() => {
+        mainPanelGroupRef.current?.setLayout?.(snappedLayout)
+      })
+      persistCurrentWindowLayout({
+        ...getCurrentWindowLayout(),
+        mainVertical: snappedLayout
+      })
+      return
+    }
+
+    persistCurrentWindowLayout()
+  }, [getCurrentWindowLayout, persistCurrentWindowLayout])
+
+  const handleTopPanelLayout = useCallback((layout: number[]) => {
+    if (snappingTopLayoutRef.current) {
+      snappingTopLayoutRef.current = false
+      persistCurrentWindowLayout()
+      return
+    }
+
+    const snappedLayout = snapPanelLayout(layout, TOP_HORIZONTAL_SNAP_POINTS)
+    const shouldSnap = snappedLayout.some((value, index) => Math.abs(value - layout[index]) > 0.01)
+
+    if (shouldSnap) {
+      snappingTopLayoutRef.current = true
+      requestAnimationFrame(() => {
+        topPanelGroupRef.current?.setLayout?.(snappedLayout)
+      })
+      persistCurrentWindowLayout({
+        ...getCurrentWindowLayout(),
+        topHorizontal: snappedLayout
+      })
+      return
+    }
+
+    persistCurrentWindowLayout()
+  }, [getCurrentWindowLayout, persistCurrentWindowLayout])
+
   useEffect(() => {
     tracksRef.current = tracks;
   }, [tracks]);
+
+  useEffect(() => {
+    try {
+      const rawState = localStorage.getItem(PANEL_POPOUT_STATE_STORAGE_KEY)
+      if (rawState) {
+        const parsedState = JSON.parse(rawState)
+        if (parsedState && typeof parsedState === 'object') {
+          setPanelPopoutState(prev => ({ ...prev, ...parsedState }))
+        }
+      }
+    } catch (error) {
+      console.error('Fehler beim Laden des Panel-Pop-out-Status:', error)
+    }
+  }, [])
+
+  useEffect(() => {
+    localStorage.setItem(PANEL_POPOUT_STATE_STORAGE_KEY, JSON.stringify(panelPopoutState))
+  }, [panelPopoutState])
+
+  useEffect(() => {
+    try {
+      const savedLayoutsRaw = localStorage.getItem(WINDOW_LAYOUTS_STORAGE_KEY)
+      if (savedLayoutsRaw) {
+        const parsedLayouts = JSON.parse(savedLayoutsRaw)
+        if (parsedLayouts && typeof parsedLayouts === 'object') {
+          setWindowLayouts(parsedLayouts)
+        }
+      }
+
+      const currentLayoutRaw = localStorage.getItem(CURRENT_WINDOW_LAYOUT_STORAGE_KEY)
+      if (currentLayoutRaw) {
+        const parsedCurrent = JSON.parse(currentLayoutRaw)
+        if (parsedCurrent?.mainVertical && parsedCurrent?.topHorizontal) {
+          if (parsedCurrent?.panelPopoutState) {
+            setPanelPopoutState(prev => ({ ...prev, ...parsedCurrent.panelPopoutState }))
+          }
+          if (typeof parsedCurrent?.panelLayoutLocked === 'boolean') {
+            setPanelLayoutLocked(parsedCurrent.panelLayoutLocked)
+          }
+          applyWindowLayout(parsedCurrent, false)
+          return
+        }
+      }
+    } catch (err) {
+      console.error('Fehler beim Laden der Fensterlayouts:', err)
+    }
+
+    applyWindowLayout(DEFAULT_WINDOW_LAYOUT, false)
+    setPanelPopoutState(DEFAULT_WINDOW_LAYOUT.panelPopoutState as Record<PanelPopoutId, boolean>)
+    setPanelLayoutLocked(true)
+  }, [applyWindowLayout])
+
+  useEffect(() => {
+    try {
+      const currentLayoutRaw = localStorage.getItem(CURRENT_WINDOW_LAYOUT_STORAGE_KEY)
+      if (currentLayoutRaw) {
+        const parsedCurrent = JSON.parse(currentLayoutRaw)
+        if (typeof parsedCurrent?.panelLayoutLocked === 'boolean') {
+          return
+        }
+      }
+
+      const savedLocked = localStorage.getItem(PANEL_LAYOUT_LOCKED_STORAGE_KEY)
+      if (savedLocked !== null) {
+        setPanelLayoutLocked(savedLocked === 'true')
+      }
+    } catch (err) {
+      console.error('Fehler beim Laden der Panel-Sperre:', err)
+    }
+  }, [])
+
+  useEffect(() => {
+    localStorage.setItem(PANEL_LAYOUT_LOCKED_STORAGE_KEY, String(panelLayoutLocked))
+  }, [panelLayoutLocked])
+
+  useEffect(() => {
+    if (isPanelPopoutWindow) return
+    persistCurrentWindowLayout()
+  }, [panelLayoutLocked, panelPopoutState, persistCurrentWindowLayout, isPanelPopoutWindow])
 
   const openModalPopoutOrInline = (
     name: 'settings' | 'manual' | 'about' | 'update' | 'logs',
@@ -502,6 +733,8 @@ function App(): JSX.Element {
   
   const [selectedRegionIds, setSelectedRegionIds] = useState<Set<string>>(new Set())
   const selectedRegionId = selectedRegionIds.size === 1 ? [...selectedRegionIds][0] : selectedRegionIds.size > 1 ? [...selectedRegionIds][0] : null
+  const [popoutTracks, setPopoutTracks] = useState<any[]>(initialTracks)
+  const [popoutSelectedRegionIds, setPopoutSelectedRegionIds] = useState<Set<string>>(new Set())
 
   const [timelineAction, setTimelineAction] = useState<{ type: string; payload?: any } | undefined>()
 
@@ -510,6 +743,132 @@ function App(): JSX.Element {
     pushTracks(updatedTracks)
     setIsDirty(true)
   }
+
+  const syncTracksFromPopout = useCallback((updatedTracks: any[]) => {
+    logTimelineChanges(tracksRef.current, updatedTracks)
+    pushTracks(updatedTracks)
+    setIsDirty(true)
+  }, [pushTracks])
+
+  const sendPanelPopoutAction = useCallback((type: string, payload?: any) => {
+    localStorage.setItem(PANEL_POPOUT_ACTION_STORAGE_KEY, JSON.stringify({
+      type,
+      payload,
+      timestamp: Date.now()
+    }))
+  }, [])
+
+  const restorePanelPopoutState = useCallback((nextState: Partial<Record<PanelPopoutId, boolean>>) => {
+    const mergedState: Record<PanelPopoutId, boolean> = {
+      'panel-file-explorer': !!nextState['panel-file-explorer'],
+      'panel-effects': !!nextState['panel-effects'],
+      'panel-timeline': !!nextState['panel-timeline']
+    }
+
+    setPanelPopoutState(mergedState)
+    localStorage.setItem(PANEL_POPOUT_STATE_STORAGE_KEY, JSON.stringify(mergedState))
+
+    ALL_PANEL_POPOUT_IDS.forEach((panelId) => {
+      if (mergedState[panelId]) {
+        window.api.openPopoutWindow(panelId, {
+          width: panelId === 'panel-file-explorer' ? 620 : panelId === 'panel-effects' ? 980 : 1320,
+          height: panelId === 'panel-file-explorer' ? 760 : panelId === 'panel-effects' ? 760 : 860,
+          title: `${panelId === 'panel-file-explorer' ? 'Import / Player' : panelId === 'panel-effects' ? 'Effekte' : 'Timeline'} - Omega Wave Editor`
+        })
+      } else {
+        sendPanelPopoutAction('REDOCK_PANEL', { panelId })
+      }
+    })
+  }, [sendPanelPopoutAction])
+
+  const togglePanelPopout = useCallback((panelId: PanelPopoutId, shouldOpen: boolean) => {
+    setPanelPopoutState(prev => {
+      const nextState = { ...prev, [panelId]: shouldOpen }
+      localStorage.setItem(PANEL_POPOUT_STATE_STORAGE_KEY, JSON.stringify(nextState))
+      return nextState
+    })
+
+    if (shouldOpen) {
+      const windowTitles: Record<PanelPopoutId, string> = {
+        'panel-file-explorer': 'Import / Player',
+        'panel-effects': 'Effekte',
+        'panel-timeline': 'Timeline'
+      }
+      const windowSizes: Record<PanelPopoutId, { width: number; height: number }> = {
+        'panel-file-explorer': { width: 620, height: 760 },
+        'panel-effects': { width: 980, height: 760 },
+        'panel-timeline': { width: 1320, height: 860 }
+      }
+      const size = windowSizes[panelId]
+      window.api.openPopoutWindow(panelId, {
+        width: size.width,
+        height: size.height,
+        title: `${windowTitles[panelId]} - Omega Wave Editor`
+      })
+    } else {
+      sendPanelPopoutAction('REDOCK_PANEL', { panelId })
+    }
+  }, [sendPanelPopoutAction])
+
+  const redockAllPanels = useCallback(() => {
+    setPanelPopoutState({
+      'panel-file-explorer': false,
+      'panel-effects': false,
+      'panel-timeline': false
+    })
+    localStorage.setItem(PANEL_POPOUT_STATE_STORAGE_KEY, JSON.stringify({
+      'panel-file-explorer': false,
+      'panel-effects': false,
+      'panel-timeline': false
+    }))
+    ALL_PANEL_POPOUT_IDS.forEach((panelId) => {
+      sendPanelPopoutAction('REDOCK_PANEL', { panelId })
+    })
+  }, [sendPanelPopoutAction])
+
+  const renderPanelHeaderActions = (panelId: PanelPopoutId) => (
+    <div className="flex items-center gap-1">
+      <button
+        className={`p-1 rounded transition-colors ${panelLayoutLocked ? 'bg-omega-accent/20 text-omega-accent hover:bg-omega-accent/30' : 'text-gray-300 hover:bg-gray-700'}`}
+        title={panelLayoutLocked ? 'Bereichslayout entsperren' : 'Bereichslayout sperren'}
+        onClick={() => setPanelLayoutLocked((current) => !current)}
+      >
+        {panelLayoutLocked ? <Lock size={14} /> : <Unlock size={14} />}
+      </button>
+      <button
+        className={`p-1 rounded transition-colors ${panelLayoutLocked ? 'text-gray-500 cursor-not-allowed' : 'hover:bg-gray-700 text-gray-300'}`}
+        title={
+          panelLayoutLocked
+            ? 'Bereichslayout ist gesperrt'
+            : panelPopoutState[panelId]
+              ? 'Bereich andocken'
+              : 'Bereich auskoppeln'
+        }
+        onClick={() => {
+          if (panelLayoutLocked) {
+            return
+          }
+          togglePanelPopout(panelId, !panelPopoutState[panelId])
+        }}
+        disabled={panelLayoutLocked}
+      >
+        {panelPopoutState[panelId] ? <PanelTopClose size={14} /> : <ExternalLink size={14} />}
+      </button>
+    </div>
+  )
+
+  useEffect(() => {
+    if (isPanelPopoutWindow) return
+    ALL_PANEL_POPOUT_IDS.forEach((panelId) => {
+      if (panelPopoutState[panelId] && !restoredPanelPopoutsRef.current.has(panelId)) {
+        restoredPanelPopoutsRef.current.add(panelId)
+        togglePanelPopout(panelId, true)
+      }
+      if (!panelPopoutState[panelId]) {
+        restoredPanelPopoutsRef.current.delete(panelId)
+      }
+    })
+  }, [isPanelPopoutWindow, panelPopoutState, togglePanelPopout])
 
   const triggerTimelineAction = (type: string, payload?: any) => {
     if (type === 'UNDO') {
@@ -589,9 +948,197 @@ function App(): JSX.Element {
       setShowChangelog(true)
       return
     }
+    if (type === 'TOGGLE_PANEL_POPOUT' && payload) {
+      if (panelLayoutLocked) {
+        showModal('info', 'Layout gesperrt', 'Bitte entsperre zuerst das Bereichslayout, um Fenster aus- oder wieder einzukoppeln.')
+        return
+      }
+      const panelId = payload as PanelPopoutId
+      togglePanelPopout(panelId, !panelPopoutState[panelId])
+      return
+    }
+    if (type === 'WINDOW_DOCK_ALL') {
+      if (panelLayoutLocked) {
+        showModal('info', 'Layout gesperrt', 'Bitte entsperre zuerst das Bereichslayout, um Fenster neu anzuordnen.')
+        return
+      }
+      redockAllPanels()
+      return
+    }
+    if (type === 'WINDOW_LAYOUT_SAVE') {
+      const suggestedName = `Ansicht ${Object.keys(windowLayouts).length + 1}`
+      const enteredName = window.prompt('Name für die aktuelle Fensteransicht:', suggestedName)
+      const name = enteredName?.trim()
+      if (!name) {
+        return
+      }
+      
+      // Popout-Bounds asynchron abrufen und filtern
+      ;(async () => {
+        let popoutBounds: Record<string, any> = {}
+        try {
+          const allBounds = await window.api.getPopoutBounds()
+          const targetPanels = ['panel-file-explorer', 'panel-effects', 'panel-timeline']
+          for (const panelId of targetPanels) {
+            if (allBounds && allBounds[panelId]) {
+              popoutBounds[panelId] = allBounds[panelId]
+            }
+          }
+        } catch (err) {
+          console.error('Fehler beim Abrufen der Popout-Bounds:', err)
+        }
+
+        const layout = getCurrentWindowLayout()
+        layout.popoutBounds = popoutBounds
+
+        const nextLayouts = {
+          ...windowLayouts,
+          [name]: layout
+        }
+        setWindowLayouts(nextLayouts)
+        localStorage.setItem(WINDOW_LAYOUTS_STORAGE_KEY, JSON.stringify(nextLayouts))
+        persistCurrentWindowLayout(layout)
+        showModal('info', 'Fensteransicht gespeichert', `Die Ansicht "${name}" wurde gespeichert.`)
+      })()
+      return
+    }
+    if (type === 'WINDOW_LAYOUT_RESET') {
+      redockAllPanels()
+      setPanelLayoutLocked(DEFAULT_WINDOW_LAYOUT.panelLayoutLocked ?? true)
+      applyWindowLayout(DEFAULT_WINDOW_LAYOUT)
+      showModal('info', 'Fensteransicht zurückgesetzt', 'Die Standardansicht wurde wiederhergestellt.')
+      return
+    }
+    if (type === 'WINDOW_LAYOUT_LOAD') {
+      const layoutName = typeof payload === 'string' ? payload : ''
+      const layout = layoutName ? windowLayouts[layoutName] : undefined
+      if (!layout) {
+        showModal('warn', 'Fensteransicht nicht gefunden', 'Die gespeicherte Fensteransicht konnte nicht geladen werden.')
+        return
+      }
+
+      // Popout-Bounds an den Hauptprozess senden, bevor die Popout-Panels geöffnet/positioniert werden
+      ;(async () => {
+        if (layout.popoutBounds) {
+          try {
+            await window.api.setPopoutBounds(layout.popoutBounds)
+          } catch (err) {
+            console.error('Fehler beim Setzen der Popout-Bounds:', err)
+          }
+        }
+
+        restorePanelPopoutState(layout.panelPopoutState || {})
+        if (typeof layout.panelLayoutLocked === 'boolean') {
+          setPanelLayoutLocked(layout.panelLayoutLocked)
+        }
+        applyWindowLayout(layout)
+        showModal('info', 'Fensteransicht geladen', `Die Ansicht "${layoutName}" wurde geladen.`)
+      })()
+      return
+    }
+    if (type === 'WINDOW_LAYOUT_DELETE') {
+      const layoutName = typeof payload === 'string' ? payload.trim() : ''
+      if (!layoutName || !windowLayouts[layoutName]) {
+        showModal('warn', 'Fensteransicht nicht gefunden', 'Die gespeicherte Fensteransicht konnte nicht entfernt werden.')
+        return
+      }
+      const nextLayouts = { ...windowLayouts }
+      delete nextLayouts[layoutName]
+      setWindowLayouts(nextLayouts)
+      localStorage.setItem(WINDOW_LAYOUTS_STORAGE_KEY, JSON.stringify(nextLayouts))
+      showModal('info', 'Fensteransicht entfernt', `Die Ansicht "${layoutName}" wurde entfernt.`)
+      return
+    }
     setTimelineAction({ type, payload });
     setTimeout(() => setTimelineAction(undefined), 100);
   }
+
+  useEffect(() => {
+    if (isPanelPopoutWindow) return
+
+    const snapshot = {
+      tracks,
+      selectedRegionIds: [...selectedRegionIds],
+      keyboardShortcuts,
+      currentProjectPath,
+      timestamp: Date.now()
+    }
+    localStorage.setItem(PANEL_POPOUT_SNAPSHOT_STORAGE_KEY, JSON.stringify(snapshot))
+  }, [tracks, selectedRegionIds, keyboardShortcuts, currentProjectPath, isPanelPopoutWindow])
+
+  useEffect(() => {
+    if (!isPanelPopoutWindow) return
+
+    const loadSnapshot = () => {
+      try {
+        const rawSnapshot = localStorage.getItem(PANEL_POPOUT_SNAPSHOT_STORAGE_KEY)
+        if (!rawSnapshot) return
+        const parsedSnapshot = JSON.parse(rawSnapshot)
+        if (Array.isArray(parsedSnapshot?.tracks)) {
+          setPopoutTracks(parsedSnapshot.tracks)
+        }
+        if (Array.isArray(parsedSnapshot?.selectedRegionIds)) {
+          setPopoutSelectedRegionIds(new Set(parsedSnapshot.selectedRegionIds))
+        }
+        if (parsedSnapshot?.keyboardShortcuts) {
+          setKeyboardShortcuts(normalizeKeyboardShortcuts(parsedSnapshot.keyboardShortcuts))
+        }
+        if (typeof parsedSnapshot?.currentProjectPath === 'string' || parsedSnapshot?.currentProjectPath === null) {
+          setCurrentProjectPath(parsedSnapshot.currentProjectPath ?? null)
+        }
+      } catch (error) {
+        console.error('Fehler beim Laden des Panel-Pop-out-Snapshots:', error)
+      }
+    }
+
+    loadSnapshot()
+    const redockPanelId = windowType as PanelPopoutId
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === PANEL_POPOUT_SNAPSHOT_STORAGE_KEY && event.newValue) {
+        loadSnapshot()
+      }
+    }
+
+    const handleBeforeUnload = () => {
+      localStorage.setItem(PANEL_POPOUT_ACTION_STORAGE_KEY, JSON.stringify({
+        type: 'REDOCK_PANEL',
+        payload: { panelId: redockPanelId },
+        timestamp: Date.now()
+      }))
+    }
+
+    window.addEventListener('storage', onStorage)
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      window.removeEventListener('storage', onStorage)
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [isPanelPopoutWindow, windowType])
+
+  useEffect(() => {
+    if (isPanelPopoutWindow) return
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== PANEL_POPOUT_ACTION_STORAGE_KEY || !event.newValue) return
+      try {
+        const action = JSON.parse(event.newValue)
+        if (action?.type === 'SYNC_TRACKS' && Array.isArray(action.payload?.tracks)) {
+          syncTracksFromPopout(action.payload.tracks)
+        }
+        if (action?.type === 'SYNC_SELECTED_REGION_IDS' && Array.isArray(action.payload?.ids)) {
+          setSelectedRegionIds(new Set(action.payload.ids))
+        }
+        if (action?.type === 'REDOCK_PANEL' && action.payload?.panelId) {
+          setPanelPopoutState(prev => ({ ...prev, [action.payload.panelId]: false }))
+        }
+      } catch (error) {
+        console.error('Fehler beim Verarbeiten einer Panel-Pop-out-Aktion:', error)
+      }
+    }
+
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [isPanelPopoutWindow, syncTracksFromPopout])
 
   // Handle Keyboard Shortcuts for Undo/Redo and Global Modals
   useEffect(() => {
@@ -811,6 +1358,94 @@ function App(): JSX.Element {
     };
   }, []);
 
+  if (windowType === 'panel-file-explorer') {
+    return (
+      <div className="h-full w-full flex flex-col bg-omega-dark text-omega-text">
+        <div className="h-10 border-b border-omega-border flex items-center justify-between px-3 bg-omega-panel">
+          <span className="text-sm font-semibold text-omega-accent">Import / Player</span>
+          <button
+            className="px-2 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-white"
+            onClick={() => {
+              sendPanelPopoutAction('REDOCK_PANEL', { panelId: 'panel-file-explorer' })
+              window.close()
+            }}
+          >
+            Andocken
+          </button>
+        </div>
+        <div className="flex-1 overflow-hidden">
+          <FileExplorer />
+        </div>
+      </div>
+    )
+  }
+
+  if (windowType === 'panel-effects') {
+    return (
+      <div className="h-full w-full flex flex-col bg-omega-dark text-omega-text">
+        <div className="h-10 border-b border-omega-border flex items-center justify-between px-3 bg-omega-panel">
+          <span className="text-sm font-semibold text-omega-accent">Effekte</span>
+          <button
+            className="px-2 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-white"
+            onClick={() => {
+              sendPanelPopoutAction('REDOCK_PANEL', { panelId: 'panel-effects' })
+              window.close()
+            }}
+          >
+            Andocken
+          </button>
+        </div>
+        <div className="flex-1 overflow-hidden">
+          <EffectsPanel
+            selectedRegionId={popoutSelectedRegionIds.size > 0 ? [...popoutSelectedRegionIds][0] : null}
+            tracks={popoutTracks}
+            onTracksChange={(updatedTracks) => {
+              setPopoutTracks(updatedTracks)
+              sendPanelPopoutAction('SYNC_TRACKS', { tracks: updatedTracks })
+            }}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  if (windowType === 'panel-timeline') {
+    return (
+      <div className="h-full w-full flex flex-col bg-omega-dark text-omega-text">
+        <div className="h-10 border-b border-omega-border flex items-center justify-between px-3 bg-omega-panel flex-shrink-0">
+          <span className="text-sm font-semibold text-omega-accent">Timeline</span>
+          <button
+            className="px-2 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-white"
+            onClick={() => {
+              sendPanelPopoutAction('REDOCK_PANEL', { panelId: 'panel-timeline' })
+              window.close()
+            }}
+          >
+            Andocken
+          </button>
+        </div>
+        <div className="flex-1 overflow-hidden">
+          <Timeline
+            onTracksChange={(updatedTracks) => {
+              setPopoutTracks(updatedTracks)
+              sendPanelPopoutAction('SYNC_TRACKS', { tracks: updatedTracks })
+            }}
+            onOpenExport={(customTracks, selection, customExportSettings) => {
+              window.api.openExportSettings(customTracks || popoutTracks, selection || null, customExportSettings || null)
+            }}
+            initialTracks={popoutTracks}
+            selectedRegionIds={popoutSelectedRegionIds}
+            onSelectedRegionIdsChange={(ids) => {
+              setPopoutSelectedRegionIds(new Set(ids))
+              sendPanelPopoutAction('SYNC_SELECTED_REGION_IDS', { ids: [...ids] })
+            }}
+            keyboardShortcuts={keyboardShortcuts}
+          />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="h-full w-full flex flex-col bg-omega-dark text-omega-text relative select-none">
       {showSettings && (
@@ -969,51 +1604,136 @@ function App(): JSX.Element {
           onOpenExport={() => window.api.openExportSettings(tracks, null, null)} 
           onFileAction={triggerTimelineAction}
           shortcuts={keyboardShortcuts}
+          windowLayouts={Object.keys(windowLayouts).sort((a, b) => a.localeCompare(b, 'de'))}
         />
       </div>
 
       {/* Main Layout using Split Panes */}
       <div className="flex-1 overflow-hidden">
-        <PanelGroup direction="vertical">
+        <PanelGroup ref={mainPanelGroupRef} direction="vertical" onLayout={handleMainPanelLayout}>
           <Panel defaultSize={50} minSize={20}>
-            <PanelGroup direction="horizontal">
+            <PanelGroup ref={topPanelGroupRef} direction="horizontal" onLayout={handleTopPanelLayout}>
               {/* File Explorer (Left) */}
               <Panel defaultSize={30} minSize={15} className="bg-omega-panel border-r border-omega-border">
-                <FileExplorer />
+                <div className="h-full flex flex-col">
+                  <div className="h-9 border-b border-omega-border flex items-center justify-between px-3 text-xs uppercase tracking-wider text-gray-400 bg-[#1b1e22]">
+                    <span>Import / Player</span>
+                    {renderPanelHeaderActions('panel-file-explorer')}
+                  </div>
+                  <div className="flex-1 overflow-hidden">
+                    {panelPopoutState['panel-file-explorer'] ? (
+                      <div className="h-full flex items-center justify-center text-center text-sm text-gray-400 px-6">
+                        <div className="flex flex-col items-center gap-3">
+                          <PanelTopOpen size={24} className="text-omega-accent" />
+                          <span>Dieser Bereich ist aktuell ausgekoppelt.</span>
+                          <button
+                            className={`px-3 py-1.5 rounded text-white text-xs ${panelLayoutLocked ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-gray-700 hover:bg-gray-600'}`}
+                            onClick={() => {
+                              if (!panelLayoutLocked) {
+                                togglePanelPopout('panel-file-explorer', false)
+                              }
+                            }}
+                            disabled={panelLayoutLocked}
+                          >
+                            Wieder andocken
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <FileExplorer />
+                    )}
+                  </div>
+                </div>
               </Panel>
               
-              <PanelResizeHandle className="w-1 bg-omega-border cursor-col-resize hover:bg-omega-accent transition-colors" />
+              <PanelResizeHandle className={`w-1 transition-colors ${panelLayoutLocked ? 'bg-omega-border/60 cursor-default pointer-events-none' : 'bg-omega-border cursor-col-resize hover:bg-omega-accent'}`} />
               
               {/* Properties/Preview (Right) */}
               <Panel defaultSize={70} minSize={20} className="bg-omega-dark relative">
-                <EffectsPanel 
-                  selectedRegionId={selectedRegionId}
-                  tracks={tracks}
-                  onTracksChange={handleTracksUpdate}
-                />
+                <div className="h-full flex flex-col">
+                  <div className="h-9 border-b border-omega-border flex items-center justify-between px-3 text-xs uppercase tracking-wider text-gray-400 bg-[#1b1e22]">
+                    <span>Effekte</span>
+                    {renderPanelHeaderActions('panel-effects')}
+                  </div>
+                  <div className="flex-1 overflow-hidden">
+                    {panelPopoutState['panel-effects'] ? (
+                      <div className="h-full flex items-center justify-center text-center text-sm text-gray-400 px-6">
+                        <div className="flex flex-col items-center gap-3">
+                          <PanelTopOpen size={24} className="text-omega-accent" />
+                          <span>Dieser Bereich ist aktuell ausgekoppelt.</span>
+                          <button
+                            className={`px-3 py-1.5 rounded text-white text-xs ${panelLayoutLocked ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-gray-700 hover:bg-gray-600'}`}
+                            onClick={() => {
+                              if (!panelLayoutLocked) {
+                                togglePanelPopout('panel-effects', false)
+                              }
+                            }}
+                            disabled={panelLayoutLocked}
+                          >
+                            Wieder andocken
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <EffectsPanel 
+                        selectedRegionId={selectedRegionId}
+                        tracks={tracks}
+                        onTracksChange={handleTracksUpdate}
+                      />
+                    )}
+                  </div>
+                </div>
               </Panel>
             </PanelGroup>
           </Panel>
 
-          <PanelResizeHandle className="h-1 bg-omega-border cursor-row-resize hover:bg-omega-accent transition-colors" />
+          <PanelResizeHandle className={`h-1 transition-colors ${panelLayoutLocked ? 'bg-omega-border/60 cursor-default pointer-events-none' : 'bg-omega-border cursor-row-resize hover:bg-omega-accent'}`} />
 
           {/* Timeline (Bottom) */}
           <Panel defaultSize={50} minSize={20} className="bg-omega-panel">
-            <Timeline 
-              onTracksChange={handleTracksUpdate} 
-              onOpenExport={(customTracks, selection, customExportSettings) => {
-                window.api.openExportSettings(
-                  customTracks || tracks,
-                  selection || null,
-                  customExportSettings || null
-                )
-              }}
-              externalAction={timelineAction}
-              initialTracks={tracks}
-              selectedRegionIds={selectedRegionIds}
-              onSelectedRegionIdsChange={setSelectedRegionIds}
-              keyboardShortcuts={keyboardShortcuts}
-            />
+            <div className="h-full flex flex-col">
+              <div className="h-9 border-b border-omega-border flex items-center justify-between px-3 text-xs uppercase tracking-wider text-gray-400 bg-[#1b1e22] flex-shrink-0">
+                <span>Timeline</span>
+                {renderPanelHeaderActions('panel-timeline')}
+              </div>
+              <div className="flex-1 overflow-hidden">
+                {panelPopoutState['panel-timeline'] ? (
+                  <div className="h-full flex items-center justify-center text-center text-sm text-gray-400 px-6">
+                    <div className="flex flex-col items-center gap-3">
+                      <PanelTopOpen size={24} className="text-omega-accent" />
+                      <span>Dieser Bereich ist aktuell ausgekoppelt.</span>
+                      <button
+                        className={`px-3 py-1.5 rounded text-white text-xs ${panelLayoutLocked ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-gray-700 hover:bg-gray-600'}`}
+                        onClick={() => {
+                          if (!panelLayoutLocked) {
+                            togglePanelPopout('panel-timeline', false)
+                          }
+                        }}
+                        disabled={panelLayoutLocked}
+                      >
+                        Wieder andocken
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <Timeline 
+                    onTracksChange={handleTracksUpdate} 
+                    onOpenExport={(customTracks, selection, customExportSettings) => {
+                      window.api.openExportSettings(
+                        customTracks || tracks,
+                        selection || null,
+                        customExportSettings || null
+                      )
+                    }}
+                    externalAction={timelineAction}
+                    initialTracks={tracks}
+                    selectedRegionIds={selectedRegionIds}
+                    onSelectedRegionIdsChange={setSelectedRegionIds}
+                    keyboardShortcuts={keyboardShortcuts}
+                  />
+                )}
+              </div>
+            </div>
           </Panel>
         </PanelGroup>
       </div>
