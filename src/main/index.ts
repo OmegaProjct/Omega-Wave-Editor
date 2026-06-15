@@ -1,5 +1,6 @@
-import { app, BrowserWindow, protocol, ipcMain, session, Menu } from 'electron'
-import { join } from 'path'
+import { app, BrowserWindow, protocol, ipcMain, session, Menu, screen } from 'electron'
+import * as fs from 'fs'
+import { dirname, join } from 'path'
 import { setupIpc, setStartupFile } from './ipc'
 import { setupSettingsIpc } from './settingsIpc'
 import { setupUpdateDownloader } from './updateDownloader'
@@ -57,6 +58,146 @@ protocol.registerSchemesAsPrivileged([
 
 let mainWindow: BrowserWindow | null = null
 let forceQuit = false
+const popoutBoundsPath = join(app.getPath('userData'), 'popout-window-bounds.json')
+const snapEnabledPopoutNames = new Set(['panel-file-explorer', 'panel-effects', 'panel-timeline'])
+const panelPopoutWindows = new Map<string, BrowserWindow>()
+const snapInProgressWindows = new WeakSet<BrowserWindow>()
+const WINDOW_SNAP_THRESHOLD = 18
+
+function loadPopoutBounds(): Record<string, Electron.Rectangle> {
+  try {
+    if (!fs.existsSync(popoutBoundsPath)) return {}
+    return JSON.parse(fs.readFileSync(popoutBoundsPath, 'utf-8'))
+  } catch (error) {
+    logger.error('Window', 'Gespeicherte Pop-out-Fensterpositionen konnten nicht geladen werden', error)
+    return {}
+  }
+}
+
+function savePopoutBounds(boundsByName: Record<string, Electron.Rectangle>) {
+  try {
+    fs.mkdirSync(dirname(popoutBoundsPath), { recursive: true })
+    fs.writeFileSync(popoutBoundsPath, JSON.stringify(boundsByName, null, 2))
+  } catch (error) {
+    logger.error('Window', 'Pop-out-Fensterpositionen konnten nicht gespeichert werden', error)
+  }
+}
+
+function getOverlappingRangeLength(aStart: number, aEnd: number, bStart: number, bEnd: number): number {
+  return Math.max(0, Math.min(aEnd, bEnd) - Math.max(aStart, bStart))
+}
+
+function applySnapToWindow(win: BrowserWindow, name: string) {
+  if (snapInProgressWindows.has(win)) return
+
+  const originalBounds = win.getBounds()
+  let snappedBounds = { ...originalBounds }
+  const candidates: Electron.Rectangle[] = []
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    candidates.push(mainWindow.getBounds())
+  }
+
+  panelPopoutWindows.forEach((otherWindow, otherName) => {
+    if (otherName === name || otherWindow.isDestroyed()) return
+    candidates.push(otherWindow.getBounds())
+  })
+
+  for (const candidate of candidates) {
+    const verticalOverlap = getOverlappingRangeLength(
+      originalBounds.y,
+      originalBounds.y + originalBounds.height,
+      candidate.y,
+      candidate.y + candidate.height
+    )
+    const horizontalOverlap = getOverlappingRangeLength(
+      originalBounds.x,
+      originalBounds.x + originalBounds.width,
+      candidate.x,
+      candidate.x + candidate.width
+    )
+
+    if (verticalOverlap > 48) {
+      if (Math.abs(originalBounds.x - candidate.x) <= WINDOW_SNAP_THRESHOLD) {
+        snappedBounds.x = candidate.x
+      } else if (Math.abs(originalBounds.x - (candidate.x + candidate.width)) <= WINDOW_SNAP_THRESHOLD) {
+        snappedBounds.x = candidate.x + candidate.width
+      } else if (Math.abs((originalBounds.x + originalBounds.width) - candidate.x) <= WINDOW_SNAP_THRESHOLD) {
+        snappedBounds.x = candidate.x - originalBounds.width
+      } else if (Math.abs((originalBounds.x + originalBounds.width) - (candidate.x + candidate.width)) <= WINDOW_SNAP_THRESHOLD) {
+        snappedBounds.x = candidate.x + candidate.width - originalBounds.width
+      }
+    }
+
+    if (horizontalOverlap > 64) {
+      if (Math.abs(originalBounds.y - candidate.y) <= WINDOW_SNAP_THRESHOLD) {
+        snappedBounds.y = candidate.y
+      } else if (Math.abs(originalBounds.y - (candidate.y + candidate.height)) <= WINDOW_SNAP_THRESHOLD) {
+        snappedBounds.y = candidate.y + candidate.height
+      } else if (Math.abs((originalBounds.y + originalBounds.height) - candidate.y) <= WINDOW_SNAP_THRESHOLD) {
+        snappedBounds.y = candidate.y - originalBounds.height
+      } else if (Math.abs((originalBounds.y + originalBounds.height) - (candidate.y + candidate.height)) <= WINDOW_SNAP_THRESHOLD) {
+        snappedBounds.y = candidate.y + candidate.height - originalBounds.height
+      }
+    }
+  }
+
+  const display = screen.getDisplayMatching(originalBounds)
+  const workArea = display.workArea
+  if (Math.abs(originalBounds.x - workArea.x) <= WINDOW_SNAP_THRESHOLD) {
+    snappedBounds.x = workArea.x
+  } else if (Math.abs((originalBounds.x + originalBounds.width) - (workArea.x + workArea.width)) <= WINDOW_SNAP_THRESHOLD) {
+    snappedBounds.x = workArea.x + workArea.width - originalBounds.width
+  }
+
+  if (Math.abs(originalBounds.y - workArea.y) <= WINDOW_SNAP_THRESHOLD) {
+    snappedBounds.y = workArea.y
+  } else if (Math.abs((originalBounds.y + originalBounds.height) - (workArea.y + workArea.height)) <= WINDOW_SNAP_THRESHOLD) {
+    snappedBounds.y = workArea.y + workArea.height - originalBounds.height
+  }
+
+  if (snappedBounds.x !== originalBounds.x || snappedBounds.y !== originalBounds.y) {
+    snapInProgressWindows.add(win)
+    win.setBounds(snappedBounds)
+    setTimeout(() => snapInProgressWindows.delete(win), 0)
+  }
+}
+
+function getDefaultPopoutBounds(name: string, width: number, height: number): Partial<Electron.Rectangle> {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return { width, height }
+  }
+
+  const mainBounds = mainWindow.getBounds()
+  const display = screen.getDisplayMatching(mainBounds)
+  const workArea = display.workArea
+  let bounds: Partial<Electron.Rectangle> = { width, height }
+
+  if (name === 'panel-file-explorer') {
+    bounds = {
+      width,
+      height,
+      x: Math.max(workArea.x, mainBounds.x - width - 8),
+      y: mainBounds.y
+    }
+  } else if (name === 'panel-effects') {
+    bounds = {
+      width,
+      height,
+      x: Math.min(workArea.x + workArea.width - width, mainBounds.x + mainBounds.width + 8),
+      y: mainBounds.y
+    }
+  } else if (name === 'panel-timeline') {
+    bounds = {
+      width,
+      height,
+      x: Math.max(workArea.x, Math.min(mainBounds.x, workArea.x + workArea.width - width)),
+      y: Math.min(workArea.y + workArea.height - height, mainBounds.y + mainBounds.height + 8)
+    }
+  }
+
+  return bounds
+}
 
 async function installDevTools(): Promise<void> {
   if (!app.isPackaged) {
@@ -242,12 +383,23 @@ if (gotTheLock) {
 
     // Open Popout Modal Dialog Window (Settings, About, Manual, Update)
     ipcMain.on('open-popout-window', (event, { name, width, height, title }) => {
+      const existingWin = panelPopoutWindows.get(name)
+      if (existingWin && !existingWin.isDestroyed()) {
+        existingWin.focus()
+        return
+      }
+
+      const savedBoundsByName = loadPopoutBounds()
+      const savedBounds = savedBoundsByName[name]
+      const fallbackBounds = !savedBounds ? getDefaultPopoutBounds(name, width || 800, height || 700) : {}
       // Update-Fenster bekommt keinen nativen Titelbalken (frame: false),
       // da der React-Modal seinen eigenen Schließen-Button mitbringt.
       const useFrameless = name === 'update'
       let win = new BrowserWindow({
-        width: width || 800,
-        height: height || 700,
+        width: savedBounds?.width || fallbackBounds.width || width || 800,
+        height: savedBounds?.height || fallbackBounds.height || height || 700,
+        x: savedBounds?.x ?? fallbackBounds.x,
+        y: savedBounds?.y ?? fallbackBounds.y,
         parent: mainWindow || undefined,
         modal: false,
         resizable: true,
@@ -264,10 +416,51 @@ if (gotTheLock) {
         }
       })
 
+      const persistBounds = () => {
+        const nextBoundsByName = loadPopoutBounds()
+        nextBoundsByName[name] = win.getBounds()
+        savePopoutBounds(nextBoundsByName)
+      }
+
+      win.on('resize', persistBounds)
+      win.on('move', () => {
+        if (snapEnabledPopoutNames.has(name)) {
+          applySnapToWindow(win, name)
+        }
+        persistBounds()
+      })
+      win.on('close', persistBounds)
+      win.on('closed', () => {
+        if (panelPopoutWindows.get(name) === win) {
+          panelPopoutWindows.delete(name)
+        }
+      })
+
+      if (snapEnabledPopoutNames.has(name)) {
+        panelPopoutWindows.set(name, win)
+      }
+
       if (!app.isPackaged && process.env['ELECTRON_RENDERER_URL']) {
         win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}?window=${name}`)
       } else {
         win.loadFile(join(__dirname, '../renderer/index.html'), { query: { window: name } })
+      }
+    })
+
+    ipcMain.handle('get-popout-bounds', () => {
+      return loadPopoutBounds()
+    })
+
+    ipcMain.handle('set-popout-bounds', (event, bounds: Record<string, Electron.Rectangle>) => {
+      const currentBounds = loadPopoutBounds()
+      const nextBounds = { ...currentBounds, ...bounds }
+      savePopoutBounds(nextBounds)
+
+      for (const [name, rect] of Object.entries(bounds)) {
+        const win = panelPopoutWindows.get(name)
+        if (win && !win.isDestroyed() && rect) {
+          win.setBounds(rect)
+        }
       }
     })
 
