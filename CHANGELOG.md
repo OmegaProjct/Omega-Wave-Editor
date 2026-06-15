@@ -7,6 +7,7 @@ The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Sem
 ### English
 
 #### Added
+- **Popout Bounds IPC Channels**: Implemented `get-popout-bounds` and `set-popout-bounds` IPC channels to support saving and restoring panel popout window bounds.
 - **Stereo Balance Slider**: Added a dedicated Stereo Balance (Pan) slider in the track header for tracks containing active stereo content.
 - **Split Track State Transfers**: Enabled automatic transfer of volume and mute states to physical split mono tracks when unlinking or splitting stereo clips/tracks.
 - **Double-Click Slider Resets**: Added double-click reset handlers to the Master Volume slider (restores to 1.0) and Stereo Balance slider (restores to 0.0).
@@ -17,10 +18,13 @@ The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Sem
 #### Fixed
 - **Real-Time Audio Rescheduling**: Integrated real-time audio rescheduling during playback when changing stereo modes, unlinking, or splitting tracks, ensuring immediate audio updates on the left/right channels.
 - **Waveform Canvas Size Overflow**: Fixed a critical canvas size overflow and white screen rendering issue at deep zoom levels by passing proper tiled rendering coordinates (scrollLeft, viewportWidth, and displayDuration) to WaveformRenderer.
+- **Waveform Zoom Responsiveness**: Reduced redundant waveform window calculations during rapid zooming by debouncing renderer requests, reusing renderer-side waveform windows, and deduplicating concurrent main-process calculations.
+- **Deep Waveform Zoom**: Increased the horizontal timeline zoom range and switched zoom controls to adaptive steps so sample-level waveform detail is reachable with fewer wheel ticks.
 
 ### Deutsch
 
 #### Hinzugefügt
+- **Popout-Bounds-IPC-Kanäle**: `get-popout-bounds` und `set-popout-bounds` IPC-Kanäle implementiert, um das Speichern und Wiederherstellen von Popout-Fenster-Bounds für Panels zu ermöglichen.
 - **Stereo-Balance-Regler**: Dedizierter Stereo-Balance-Schieberegler (Pan) im Spur-Header für Spuren mit echten Stereo-Inhalten.
 - **Statusübertragung bei Spurteilung**: Automatische Übertragung des Stummschaltungs- und Lautstärkestatus beim Kettensprengen oder Aufteilen von Stereo-Clips auf die physischen Mono-Spuren.
 - **Doppelklick-Slider-Resets**: Doppelklick-Events zum Zurücksetzen hinzugefügt. Setzt das Master-Volume auf `1.0` und die Stereo-Balance (Pan) auf `0.0` zurück.
@@ -29,6 +33,8 @@ The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Sem
 - **Erkennung virtueller Stereo-Spuren**: Die `isStereoTrack`-Prüfung wurde verfeinert, um manuell auf Mono Links/Rechts umgestellte Spuren als normale Mono-Spuren darzustellen und nicht fälschlich virtuell aufzuteilen.
 
 #### Behoben
+- **Wellenform-Zoom-Reaktionszeit**: Redundante Wellenform-Fensterberechnungen beim schnellen Zoomen wurden durch entprellte Renderer-Anfragen, Wiederverwendung lokaler Wellenformfenster und Zusammenfuehrung paralleler Main-Prozess-Berechnungen reduziert.
+- **Tiefe Wellenform-Zoomstufen**: Der horizontale Timeline-Zoom wurde deutlich erweitert und nutzt adaptive Zoomschritte, damit sample-nahe Wellenformdetails mit weniger Mausradbewegungen erreichbar sind.
 - **Echtzeit-Rescheduling**: Die Audio-Engine führt nun bei der Änderung des Stereo-Modus, beim Aufteilen oder Kettensprengen ein sofortiges Echtzeit-Rescheduling durch, sodass Tonänderungen ohne Wiedergabeunterbrechung sofort hörbar sind.
 - **Wellenform-Größenüberlauf**: Behebung von Canvas-Überlauf und weißer Wellenformdarstellung bei starkem Zoom durch korrekte Weiterleitung der Kachel-Rendering-Koordinaten (scrollLeft, viewportWidth und displayDuration) an den WaveformRenderer.
 

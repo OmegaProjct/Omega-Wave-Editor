@@ -95,6 +95,8 @@ declare global {
       onSeekTimeline: (callback: (position: number) => void) => () => void
       openPopoutWindow: (name: string, options?: { width?: number; height?: number; title?: string }) => void
       resizeWindow: (width: number, height: number) => void
+      getPopoutBounds: () => Promise<Record<string, Electron.Rectangle>>
+      setPopoutBounds: (bounds: Record<string, Electron.Rectangle>) => Promise<void>
       
       // Diagnose-Protokollierung (Logging) & Feedback
       log: (level: 'debug' | 'info' | 'warn' | 'error', moduleName: string, message: string, details?: any) => Promise<void>
