@@ -6,12 +6,16 @@ export function MenuBar({
   onOpenSettings, 
   onOpenExport,
   onFileAction,
-  shortcuts
+  shortcuts,
+  windowLayouts = [],
+  activeWindowLayoutName = null
 }: { 
   onOpenSettings: () => void, 
   onOpenExport: () => void,
   onFileAction: (type: string, payload?: any) => void,
-  shortcuts?: KeyboardShortcuts
+  shortcuts?: KeyboardShortcuts,
+  windowLayouts?: string[],
+  activeWindowLayoutName?: string | null
 }) {
   const { t } = useTranslation()
   const [openMenu, setOpenMenu] = useState<string | null>(null)
@@ -34,6 +38,13 @@ export function MenuBar({
 
   const handleAction = async (action: string) => {
     setOpenMenu(null)
+
+    if (action.startsWith('window_layout_load:')) {
+      return onFileAction('WINDOW_LAYOUT_LOAD', action.slice('window_layout_load:'.length))
+    }
+    if (action.startsWith('window_layout_delete:')) {
+      return onFileAction('WINDOW_LAYOUT_DELETE', action.slice('window_layout_delete:'.length))
+    }
     
     if (action === 'quit') return window.close()
     if (action === 'settings') return onOpenSettings()
@@ -56,6 +67,13 @@ export function MenuBar({
     if (action === 'open_project') return onFileAction('LOAD_PROJECT')
     if (action === 'export_arrangement') return onFileAction('EXPORT_ARRANGEMENT')
     if (action === 'export_layer') return onFileAction('EXPORT_LAYER')
+    if (action === 'window_layout_save') return onFileAction('WINDOW_LAYOUT_SAVE')
+    if (action === 'window_layout_update') return onFileAction('WINDOW_LAYOUT_UPDATE')
+    if (action === 'window_layout_reset') return onFileAction('WINDOW_LAYOUT_RESET')
+    if (action === 'window_dock_all') return onFileAction('WINDOW_DOCK_ALL')
+    if (action === 'panel_popout_file') return onFileAction('TOGGLE_PANEL_POPOUT', 'panel-file-explorer')
+    if (action === 'panel_popout_effects') return onFileAction('TOGGLE_PANEL_POPOUT', 'panel-effects')
+    if (action === 'panel_popout_timeline') return onFileAction('TOGGLE_PANEL_POPOUT', 'panel-timeline')
     
     if (action === 'vst_plugins') {
       const plugins = await window.api.scanVstPlugins()
@@ -71,7 +89,7 @@ export function MenuBar({
       onFileAction('SHOW_MODAL', { 
         type: 'info', 
         title: 'Updates', 
-        message: t('menu.checking_updates', { defaultValue: 'Prüfe auf Updates...\n\nBitte warten...' })
+        message: t('menu.checking_updates', { defaultValue: 'Pruefe auf Updates...\n\nBitte warten...' })
       })
       try {
         const updateInfo = await window.api.checkForUpdates()
@@ -80,7 +98,7 @@ export function MenuBar({
           onFileAction('SHOW_MODAL', {
             type: 'error',
             title: 'Updates',
-            message: t('menu.update_check_error', { defaultValue: 'Fehler bei der Update-Prüfung:\n{{error}}', error: updateInfo.error })
+            message: t('menu.update_check_error', { defaultValue: 'Fehler bei der Update-Pruefung:\n{{error}}', error: updateInfo.error })
           })
           return
         }
@@ -89,7 +107,7 @@ export function MenuBar({
         } else {
           const cleanCurrent = updateInfo.currentVersion.startsWith('v') ? updateInfo.currentVersion : `v${updateInfo.currentVersion}`
           
-          // Hilfsfunktion für den Versionsvergleich (SemVer)
+          // Hilfsfunktion fuer den Versionsvergleich (SemVer)
           const isNewer = (v1: string, v2: string) => {
             const clean1 = v1.replace(/^v/i, '').split('.').map(Number);
             const clean2 = v2.replace(/^v/i, '').split('.').map(Number);
@@ -119,7 +137,7 @@ export function MenuBar({
         onFileAction('SHOW_MODAL', {
           type: 'error',
           title: 'Updates',
-          message: t('menu.update_check_error_msg', { defaultValue: 'Fehler bei der Update-Prüfung: {{message}}', message: err.message })
+          message: t('menu.update_check_error_msg', { defaultValue: 'Fehler bei der Update-Pruefung: {{message}}', message: err.message })
         })
       }
       return
@@ -181,7 +199,7 @@ export function MenuBar({
         {openMenu === 'file' && (
           <div className="absolute top-full left-0 bg-[#2b2d31] border border-gray-700 shadow-xl py-1 z-[1000] rounded text-omega-text">
             <MenuItem label={t('menu.new_project', { defaultValue: 'Neues Projekt' })} shortcut={formatShortcut(activeShortcuts.newProject)} action="new_project" />
-            <MenuItem label={t('menu.open_project', { defaultValue: 'Projekt Öffnen' })} shortcut={formatShortcut(activeShortcuts.openProject)} action="open_project" />
+            <MenuItem label={t('menu.open_project', { defaultValue: 'Projekt Oeffnen' })} shortcut={formatShortcut(activeShortcuts.openProject)} action="open_project" />
             <MenuItem divider />
             <MenuItem label={t('menu.save_project', { defaultValue: 'Projekt speichern' })} shortcut={formatShortcut(activeShortcuts.saveProject)} action="save_project" />
             <MenuItem label={t('menu.save_project_as', { defaultValue: 'Projekt speichern unter' })} shortcut={formatShortcut(activeShortcuts.saveProjectAs)} action="save_project_as" />
@@ -202,15 +220,15 @@ export function MenuBar({
         <span className={`mx-1 px-3 py-1 cursor-pointer hover:bg-gray-700 rounded transition-colors ${openMenu === 'edit' ? 'bg-gray-700' : ''}`} onClick={() => handleMenuClick('edit')}>{t('menu.edit', { defaultValue: 'Bearbeiten' })}</span>
         {openMenu === 'edit' && (
           <div className="absolute top-full left-0 bg-[#2b2d31] border border-gray-700 shadow-xl py-1 z-[1000] rounded">
-            <MenuItem label={t('menu.undo', { defaultValue: 'Rückgängig' })} shortcut={formatShortcut(activeShortcuts.undo)} action="undo" />
+            <MenuItem label={t('menu.undo', { defaultValue: 'Rueckgaengig' })} shortcut={formatShortcut(activeShortcuts.undo)} action="undo" />
             <MenuItem label={t('menu.redo', { defaultValue: 'Wiederherstellen' })} shortcut={formatShortcut(activeShortcuts.redo)} action="redo" />
             <MenuItem divider />
             <MenuItem label={t('menu.cut', { defaultValue: 'Objekte ausschneiden' })} shortcut={formatShortcut(activeShortcuts.cut)} action="cut" />
             <MenuItem label={t('menu.copy', { defaultValue: 'Objekte kopieren' })} shortcut={formatShortcut(activeShortcuts.copy)} action="copy" />
-            <MenuItem label={t('menu.paste', { defaultValue: 'Objekte einfügen' })} shortcut={formatShortcut(activeShortcuts.paste)} action="paste" />
-            <MenuItem label={t('menu.delete', { defaultValue: 'Objekte löschen' })} shortcut={formatShortcut(activeShortcuts.deleteSelection)} action="delete" />
+            <MenuItem label={t('menu.paste', { defaultValue: 'Objekte einfuegen' })} shortcut={formatShortcut(activeShortcuts.paste)} action="paste" />
+            <MenuItem label={t('menu.delete', { defaultValue: 'Objekte loeschen' })} shortcut={formatShortcut(activeShortcuts.deleteSelection)} action="delete" />
             <MenuItem divider />
-            <MenuItem label={t('menu.select_all', { defaultValue: 'Alles auswählen' })} shortcut={formatShortcut(activeShortcuts.selectAllRegions)} action="select_all" />
+            <MenuItem label={t('menu.select_all', { defaultValue: 'Alles auswaehlen' })} shortcut={formatShortcut(activeShortcuts.selectAllRegions)} action="select_all" />
           </div>
         )}
       </div>
@@ -225,6 +243,35 @@ export function MenuBar({
         )}
       </div>
 
+      {/* Fenster */}
+      <div className="relative h-full flex items-center">
+        <span className={`mx-1 px-3 py-1 cursor-pointer hover:bg-gray-700 rounded transition-colors ${openMenu === 'window' ? 'bg-gray-700' : ''}`} onClick={() => handleMenuClick('window')}>Fenster</span>
+        {openMenu === 'window' && (
+          <div className="absolute top-full left-0 bg-[#2b2d31] border border-gray-700 shadow-xl py-1 z-[1000] rounded">
+            <MenuItem label="Aktuelle Ansicht speichern..." action="window_layout_save" />
+            {activeWindowLayoutName && <MenuItem label={`Aktive Ansicht aktualisieren: ${activeWindowLayoutName}`} action="window_layout_update" />}
+            <MenuItem label="Standardansicht wiederherstellen" action="window_layout_reset" />
+            <MenuItem divider />
+            <MenuItem label="Alle Bereiche andocken" action="window_dock_all" />
+            <MenuItem label="Import / Player auskoppeln" action="panel_popout_file" />
+            <MenuItem label="Effekte auskoppeln" action="panel_popout_effects" />
+            <MenuItem label="Timeline auskoppeln" action="panel_popout_timeline" />
+            {windowLayouts.length > 0 && <MenuItem divider />}
+            {windowLayouts.map((layoutName) => (
+              <MenuItem
+                key={layoutName}
+                label={layoutName === activeWindowLayoutName ? `[Aktiv] ${layoutName}` : layoutName}
+                action={`window_layout_load:${layoutName}`}
+              />
+            ))}
+            {windowLayouts.length > 0 && <MenuItem divider />}
+            {windowLayouts.map((layoutName) => (
+              <MenuItem key={`${layoutName}-delete`} label={`Ansicht loeschen: ${layoutName}`} action={`window_layout_delete:${layoutName}`} />
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Hilfe */}
       <div className="relative h-full flex items-center">
         <span className={`mx-1 px-3 py-1 cursor-pointer hover:bg-gray-700 rounded transition-colors ${openMenu === 'help' ? 'bg-gray-700' : ''}`} onClick={() => handleMenuClick('help')}>{t('menu.help', { defaultValue: 'Hilfe' })}</span>
@@ -233,13 +280,13 @@ export function MenuBar({
             <MenuItem label={t('menu.manual', { defaultValue: 'Benutzerhandbuch' })} action="manual" />
             <MenuItem label={t('menu.changelog', { defaultValue: 'Changelog' })} action="changelog" />
             <MenuItem divider />
-            <MenuItem label={t('menu.check_updates', { defaultValue: 'Auf Updates prüfen' })} action="updates" />
+            <MenuItem label={t('menu.check_updates', { defaultValue: 'Auf Updates pruefen' })} action="updates" />
             <MenuItem label={t('menu.open_logs', { defaultValue: 'Logs' })} action="open_logs" />
             <MenuItem label={t('menu.open_feedback', { defaultValue: 'Feedback' })} action="open_feedback" />
             <MenuItem label={t('menu.open_messages', { defaultValue: 'Nachrichtencenter' })} action="open_messages" />
-            <MenuItem label={t('menu.about', { defaultValue: 'Über Omega Wave Editor' })} action="about" />
+            <MenuItem label={t('menu.about', { defaultValue: 'Ueber Omega Wave Editor' })} action="about" />
             <MenuItem divider />
-            <MenuItem label={t('menu.support_paypal', { defaultValue: '❤️ Projekt unterstützen (PayPal)' })} action="paypal" />
+            <MenuItem label={t('menu.support_paypal', { defaultValue: '❤️ Projekt unterstuetzen (PayPal)' })} action="paypal" />
           </div>
         )}
       </div>

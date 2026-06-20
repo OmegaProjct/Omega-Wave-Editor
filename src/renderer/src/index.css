@@ -118,7 +118,9 @@ html.text-scale-xlarge {
 
 /* Custom Vertical Fader styling */
 .vertical-fader {
-  -webkit-appearance: slider-vertical;
+  /* Moderner writing-mode fuer vertikale Darstellung zur Vermeidung von Browser-Warnungen */
+  writing-mode: vertical-lr;
+  direction: rtl;
   width: 14px;
   background: #0f1012;
   border-radius: 4px;

@@ -49,9 +49,9 @@ const overviewCache = new Map<string, Promise<DecodedPcm>>()
 
 const MAX_WINDOW_CACHE_ENTRIES = 80
 const MAX_OVERVIEW_CACHE_ENTRIES = 12
-const MAX_POINTS = 10000
+const MAX_POINTS = 40000
 const MAX_NATIVE_WINDOW_SAMPLES = 1_500_000
-const MAX_SAMPLE_MODE_POINTS = 48000
+const MAX_SAMPLE_MODE_POINTS = 500_000
 const OVERVIEW_MAX_FRAMES = 900_000
 const OVERVIEW_MAX_SAMPLE_RATE = 24000
 
@@ -347,8 +347,8 @@ export async function getWaveformWindow(
   const key = [
     info.fingerprint,
     request.channel || 'stereo',
-    startTime.toFixed(3),
-    duration.toFixed(3),
+    startTime.toFixed(6),
+    duration.toFixed(6),
     pixels
   ].join('|')
 
@@ -361,12 +361,12 @@ export async function getWaveformWindow(
 
   const nativeFrameEstimate = duration * info.sampleRate
   const nativeSamplesPerPixel = nativeFrameEstimate / pixels
-  const useNativeWindow = nativeSamplesPerPixel <= 96 && nativeFrameEstimate <= MAX_NATIVE_WINDOW_SAMPLES
+  const useNativeWindow = nativeSamplesPerPixel <= 512 && nativeFrameEstimate <= MAX_NATIVE_WINDOW_SAMPLES
   const decoded = useNativeWindow
     ? await decodePcmWindow(filePath, info, startTime, duration, request.channel)
     : sliceDecodedWindow(await getOverviewPcm(filePath, info, request.channel), startTime, duration)
   const frames = Math.floor(decoded.data.length / decoded.channels)
-  const response = useNativeWindow && nativeSamplesPerPixel <= 12 && frames <= MAX_SAMPLE_MODE_POINTS
+  const response = useNativeWindow && nativeSamplesPerPixel <= 128 && frames <= MAX_SAMPLE_MODE_POINTS
     ? buildSampleResponse(decoded, info, startTime, duration)
     : buildPeakResponse(decoded, info, startTime, duration, pixels)
 

@@ -96,6 +96,9 @@ interface Window {
     onSeekTimeline: (callback: (position: number) => void) => () => void;
     openPopoutWindow: (name: string, options?: { width?: number; height?: number; title?: string }) => void;
     resizeWindow: (width: number, height: number) => void;
+    getMainWindowBounds: () => Promise<Electron.Rectangle | null>;
+    getDefaultMainWindowBounds: () => Promise<Electron.Rectangle>;
+    setMainWindowBounds: (bounds: Electron.Rectangle) => Promise<void>;
     getPopoutBounds: () => Promise<Record<string, any>>;
     setPopoutBounds: (bounds: Record<string, any>) => Promise<void>;
     

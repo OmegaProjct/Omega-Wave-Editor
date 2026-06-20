@@ -63,6 +63,9 @@ const snapEnabledPopoutNames = new Set(['panel-file-explorer', 'panel-effects', 
 const panelPopoutWindows = new Map<string, BrowserWindow>()
 const snapInProgressWindows = new WeakSet<BrowserWindow>()
 const WINDOW_SNAP_THRESHOLD = 18
+const DEFAULT_MAIN_WINDOW_WIDTH = 1280
+const DEFAULT_MAIN_WINDOW_HEIGHT = 720
+const MIN_VISIBLE_WINDOW_OVERLAP = 100
 
 function loadPopoutBounds(): Record<string, Electron.Rectangle> {
   try {
@@ -197,6 +200,96 @@ function getDefaultPopoutBounds(name: string, width: number, height: number): Pa
   }
 
   return bounds
+}
+
+function sanitizeWindowBounds(
+  requestedBounds: Partial<Electron.Rectangle> | null | undefined,
+  fallbackBounds: Electron.Rectangle
+): Electron.Rectangle {
+  const fallbackDisplay = screen.getDisplayMatching(fallbackBounds)
+  const targetDisplay = isRectMeaningful(requestedBounds)
+    ? (findBestDisplayForBounds(requestedBounds) || fallbackDisplay)
+    : fallbackDisplay
+  const workArea = targetDisplay.workArea
+
+  const width = Math.max(320, Math.min(requestedBounds?.width ?? fallbackBounds.width, workArea.width))
+  const height = Math.max(220, Math.min(requestedBounds?.height ?? fallbackBounds.height, workArea.height))
+
+  const requestedX = requestedBounds?.x
+  const requestedY = requestedBounds?.y
+  const hasRequestedPosition = typeof requestedX === 'number' && typeof requestedY === 'number'
+
+  const centeredX = Math.round(workArea.x + (workArea.width - width) / 2)
+  const centeredY = Math.round(workArea.y + (workArea.height - height) / 2)
+
+  const x = hasRequestedPosition
+    ? Math.min(Math.max(requestedX, workArea.x), workArea.x + workArea.width - width)
+    : centeredX
+  const y = hasRequestedPosition
+    ? Math.min(Math.max(requestedY, workArea.y), workArea.y + workArea.height - height)
+    : centeredY
+
+  return { x, y, width, height }
+}
+
+function getDefaultMainWindowBounds(): Electron.Rectangle {
+  const display = screen.getPrimaryDisplay()
+  const workArea = display.workArea
+  const width = Math.min(DEFAULT_MAIN_WINDOW_WIDTH, workArea.width)
+  const height = Math.min(DEFAULT_MAIN_WINDOW_HEIGHT, workArea.height)
+
+  return {
+    width,
+    height,
+    x: Math.round(workArea.x + (workArea.width - width) / 2),
+    y: Math.round(workArea.y + (workArea.height - height) / 2)
+  }
+}
+
+function isRectMeaningful(rect: Partial<Electron.Rectangle> | null | undefined): rect is Electron.Rectangle {
+  return !!rect
+    && typeof rect.x === 'number'
+    && typeof rect.y === 'number'
+    && typeof rect.width === 'number'
+    && typeof rect.height === 'number'
+    && rect.width > 0
+    && rect.height > 0
+}
+
+function getVisibleOverlapArea(bounds: Electron.Rectangle, workArea: Electron.Rectangle): number {
+  const overlapWidth = getOverlappingRangeLength(
+    bounds.x,
+    bounds.x + bounds.width,
+    workArea.x,
+    workArea.x + workArea.width
+  )
+  const overlapHeight = getOverlappingRangeLength(
+    bounds.y,
+    bounds.y + bounds.height,
+    workArea.y,
+    workArea.y + workArea.height
+  )
+  return overlapWidth * overlapHeight
+}
+
+function findBestDisplayForBounds(bounds: Electron.Rectangle): Electron.Display | null {
+  const displays = screen.getAllDisplays()
+  let bestDisplay: Electron.Display | null = null
+  let bestOverlap = 0
+
+  for (const display of displays) {
+    const overlap = getVisibleOverlapArea(bounds, display.workArea)
+    if (overlap > bestOverlap) {
+      bestOverlap = overlap
+      bestDisplay = display
+    }
+  }
+
+  if (bestDisplay && bestOverlap >= MIN_VISIBLE_WINDOW_OVERLAP * MIN_VISIBLE_WINDOW_OVERLAP) {
+    return bestDisplay
+  }
+
+  return null
 }
 
 async function installDevTools(): Promise<void> {
@@ -391,15 +484,21 @@ if (gotTheLock) {
 
       const savedBoundsByName = loadPopoutBounds()
       const savedBounds = savedBoundsByName[name]
-      const fallbackBounds = !savedBounds ? getDefaultPopoutBounds(name, width || 800, height || 700) : {}
+      const fallbackBounds = getDefaultPopoutBounds(name, width || 800, height || 700)
+      const resolvedBounds = sanitizeWindowBounds(savedBounds || fallbackBounds, {
+        x: typeof fallbackBounds.x === 'number' ? fallbackBounds.x : getDefaultMainWindowBounds().x,
+        y: typeof fallbackBounds.y === 'number' ? fallbackBounds.y : getDefaultMainWindowBounds().y,
+        width: typeof fallbackBounds.width === 'number' ? fallbackBounds.width : (width || 800),
+        height: typeof fallbackBounds.height === 'number' ? fallbackBounds.height : (height || 700)
+      })
       // Update-Fenster bekommt keinen nativen Titelbalken (frame: false),
       // da der React-Modal seinen eigenen Schließen-Button mitbringt.
       const useFrameless = name === 'update'
       let win = new BrowserWindow({
-        width: savedBounds?.width || fallbackBounds.width || width || 800,
-        height: savedBounds?.height || fallbackBounds.height || height || 700,
-        x: savedBounds?.x ?? fallbackBounds.x,
-        y: savedBounds?.y ?? fallbackBounds.y,
+        width: resolvedBounds.width,
+        height: resolvedBounds.height,
+        x: resolvedBounds.x,
+        y: resolvedBounds.y,
         parent: mainWindow || undefined,
         modal: false,
         resizable: true,
@@ -459,9 +558,35 @@ if (gotTheLock) {
       for (const [name, rect] of Object.entries(bounds)) {
         const win = panelPopoutWindows.get(name)
         if (win && !win.isDestroyed() && rect) {
-          win.setBounds(rect)
+          const fallbackBounds = getDefaultPopoutBounds(name, rect.width, rect.height)
+          const sanitizedBounds = sanitizeWindowBounds(rect, {
+            x: typeof fallbackBounds.x === 'number' ? fallbackBounds.x : getDefaultMainWindowBounds().x,
+            y: typeof fallbackBounds.y === 'number' ? fallbackBounds.y : getDefaultMainWindowBounds().y,
+            width: typeof fallbackBounds.width === 'number' ? fallbackBounds.width : rect.width,
+            height: typeof fallbackBounds.height === 'number' ? fallbackBounds.height : rect.height
+          })
+          win.setBounds(sanitizedBounds)
         }
       }
+    })
+
+    ipcMain.handle('get-main-window-bounds', () => {
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        return null
+      }
+      return mainWindow.getBounds()
+    })
+
+    ipcMain.handle('get-default-main-window-bounds', () => {
+      return getDefaultMainWindowBounds()
+    })
+
+    ipcMain.handle('set-main-window-bounds', (event, bounds: Electron.Rectangle) => {
+      if (!mainWindow || mainWindow.isDestroyed() || !bounds) {
+        return
+      }
+      const sanitizedBounds = sanitizeWindowBounds(bounds, getDefaultMainWindowBounds())
+      mainWindow.setBounds(sanitizedBounds)
     })
 
     // Forward start-offline-export command from Export Dialog to Main DAW Editor Window
