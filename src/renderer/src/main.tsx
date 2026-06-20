@@ -7,6 +7,7 @@ import { SettingsModal } from './components/SettingsModal'
 import { AboutModal } from './components/AboutModal'
 import { ManualModal } from './components/ManualModal'
 import { UpdateModal } from './components/UpdateModal'
+import { SymbolManagerModal } from './components/SymbolManagerModal'
 import { VstEditorWindow } from './components/VstEditorWindow'
 import { VstPluginRackPopout } from './components/VstPluginRack'
 import { VstPluginStorePopout } from './components/VstPluginStore'
@@ -80,6 +81,14 @@ async function bootstrap() {
       <React.StrictMode>
         <div className="h-screen w-screen bg-[#282b30] text-omega-text overflow-hidden select-none">
           <AboutModal onClose={() => window.close()} />
+        </div>
+      </React.StrictMode>
+    )
+  } else if (windowParam === 'symbol-manager') {
+    root.render(
+      <React.StrictMode>
+        <div className="h-screen w-screen bg-[#282b30] text-omega-text overflow-hidden select-none">
+          <SymbolManagerModal onClose={() => window.close()} />
         </div>
       </React.StrictMode>
     )
