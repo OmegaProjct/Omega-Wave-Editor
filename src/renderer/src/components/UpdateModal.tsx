@@ -72,9 +72,9 @@ function renderMarkdownBlock(text: string) {
         isImportant = true
       } else {
         isImportant = false
-        if (label === 'Added' || label === 'Hinzugefuegt') color = 'text-green-400'
+        if (label === 'Added' || label === 'Hinzugefügt' || label === 'Hinzugefuegt') color = 'text-green-400'
         if (label === 'Fixed' || label === 'Behoben') color = 'text-blue-400'
-        if (label === 'Changed' || label === 'Geaendert') color = 'text-yellow-400'
+        if (label === 'Changed' || label === 'Geändert' || label === 'Geaendert') color = 'text-yellow-400'
         if (label === 'Removed' || label === 'Entfernt') color = 'text-red-400'
       }
       return (
