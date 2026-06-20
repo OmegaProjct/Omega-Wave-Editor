@@ -2,6 +2,28 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.13.7] - 2026-06-20
+
+### English
+
+#### Added
+- **Dedicated Symbol Manager**: Created a standalone `SymbolManagerModal` component for managing toolbar symbols' order and visibility, featuring visual category grouping, mass actions, and drag-and-drop support.
+- **Popout Window Routing**: Added a standalone `symbol-manager` window route to support launching the Symbol Manager as an independent Electron popout window.
+
+#### Changed
+- **Simplified Toolbar Customization**: Replaced the crowded inline dropdown "Toolbar-Manager" in the timeline toolbar with a single, clean button that triggers the new Symbol Manager dialog (inline modal or separate popout).
+- **Real-Time State Synchronization**: Connected the Symbol Manager and Timeline toolbar using `localStorage` triggers and custom window events, enabling instantaneous UI updates across all open windows.
+
+### Deutsch
+
+#### Hinzugefügt
+- **Eigenständiger Symbol-Manager**: Neues `SymbolManagerModal`-Component zur komfortablen Verwaltung der Symbol-Reihenfolge und -Sichtbarkeit in der Werkzeugleiste, inklusive visueller Gruppierung, Massenaktionen und Drag-and-Drop-Unterstützung.
+- **Routing für Popout-Fenster**: Standalone-Fenster-Route für `symbol-manager` hinzugefügt, sodass der Symbol-Manager als unabhängiges Electron-Fenster ausgekoppelt werden kann.
+
+#### Geändert
+- **Vereinfachte Toolbar-Anpassung**: Das überladene integrierte Dropdown-Menü "Toolbar-Manager" in der Werkzeugleiste wurde durch eine einfache Schaltfläche ersetzt, die das neue Symbol-Manager-Modal (entweder als Overlay oder separates Fenster) öffnet.
+- **Echtzeit-Synchronisierung**: Koppelung des Symbol-Managers mit der Timeline über `localStorage` und Custom-Events, um alle geöffneten Fenster bei Änderungen verzögerungsfrei zu aktualisieren.
+
 ## [0.13.6] - 2026-06-20
 
 ### English

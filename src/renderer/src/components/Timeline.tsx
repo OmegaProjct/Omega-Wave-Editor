@@ -365,13 +365,13 @@ export type Track = {
 const PIXELS_PER_SECOND_BASE = 50 
 const TIMELINE_TIME_FORMAT_STORAGE_KEY = 'omega.timelineTimeFormat.v1'
 const TIMELINE_SELECTION_FORMAT_STORAGE_KEY = 'omega.timelineSelectionFormat.v1'
-const TIMELINE_TOOLBAR_VISIBILITY_STORAGE_KEY = 'omega.timelineToolbarVisibility.v1'
-const TIMELINE_TOOLBAR_ORDER_STORAGE_KEY = 'omega.timelineToolbarOrder.v1'
-const TIMELINE_TOOLBAR_EDIT_LOCKED_STORAGE_KEY = 'omega.timelineToolbarEditLocked.v1'
-const TIMELINE_TOOLBAR_SEPARATORS_STORAGE_KEY = 'omega.timelineToolbarSeparators.v1'
-const TIMELINE_TOOLBAR_COLORS_STORAGE_KEY = 'omega.timelineToolbarColors.v1'
+export const TIMELINE_TOOLBAR_VISIBILITY_STORAGE_KEY = 'omega.timelineToolbarVisibility.v1'
+export const TIMELINE_TOOLBAR_ORDER_STORAGE_KEY = 'omega.timelineToolbarOrder.v1'
+export const TIMELINE_TOOLBAR_EDIT_LOCKED_STORAGE_KEY = 'omega.timelineToolbarEditLocked.v1'
+export const TIMELINE_TOOLBAR_SEPARATORS_STORAGE_KEY = 'omega.timelineToolbarSeparators.v1'
+export const TIMELINE_TOOLBAR_COLORS_STORAGE_KEY = 'omega.timelineToolbarColors.v1'
 
-type ToolbarVisibilityKey =
+export type ToolbarVisibilityKey =
   | 'selectTool'
   | 'cutTool'
   | 'transport'
@@ -387,11 +387,11 @@ type ToolbarVisibilityKey =
   | 'autoScrollMode'
   | 'export'
 
-type ToolbarSeparatorState = Record<ToolbarVisibilityKey, { before: boolean; after: boolean }>
-type ToolbarColorKey = 'default' | 'blue' | 'emerald' | 'amber' | 'rose' | 'violet'
-type ToolbarColorState = Record<ToolbarVisibilityKey, ToolbarColorKey>
+export type ToolbarSeparatorState = Record<ToolbarVisibilityKey, { before: boolean; after: boolean }>
+export type ToolbarColorKey = 'default' | 'blue' | 'emerald' | 'amber' | 'rose' | 'violet'
+export type ToolbarColorState = Record<ToolbarVisibilityKey, ToolbarColorKey>
 
-const DEFAULT_TOOLBAR_ORDER: ToolbarVisibilityKey[] = [
+export const DEFAULT_TOOLBAR_ORDER: ToolbarVisibilityKey[] = [
   'selectTool',
   'cutTool',
   'transport',
@@ -408,7 +408,7 @@ const DEFAULT_TOOLBAR_ORDER: ToolbarVisibilityKey[] = [
   'export'
 ]
 
-const TOOLBAR_LABELS: Record<ToolbarVisibilityKey, string> = {
+export const TOOLBAR_LABELS: Record<ToolbarVisibilityKey, string> = {
   selectTool: 'Auswahl',
   cutTool: 'Schneiden',
   transport: 'Transport',
@@ -425,7 +425,7 @@ const TOOLBAR_LABELS: Record<ToolbarVisibilityKey, string> = {
   export: 'Mixdown Export'
 }
 
-const TOOLBAR_DESCRIPTIONS: Record<ToolbarVisibilityKey, string> = {
+export const TOOLBAR_DESCRIPTIONS: Record<ToolbarVisibilityKey, string> = {
   selectTool: 'Normales Auswahlwerkzeug',
   cutTool: 'Schnittwerkzeug fuer Trennungen',
   transport: 'Play, Pause und Stop',
@@ -442,7 +442,7 @@ const TOOLBAR_DESCRIPTIONS: Record<ToolbarVisibilityKey, string> = {
   export: 'Mixdown direkt starten'
 }
 
-const TOOLBAR_GROUPS: Array<{
+export const TOOLBAR_GROUPS: Array<{
   id: string
   label: string
   description: string
@@ -486,7 +486,7 @@ const TOOLBAR_GROUPS: Array<{
   }
 ]
 
-const createDefaultToolbarSeparators = (): ToolbarSeparatorState => ({
+export const createDefaultToolbarSeparators = (): ToolbarSeparatorState => ({
   selectTool: { before: false, after: false },
   cutTool: { before: false, after: false },
   transport: { before: false, after: false },
@@ -503,7 +503,7 @@ const createDefaultToolbarSeparators = (): ToolbarSeparatorState => ({
   export: { before: false, after: false }
 })
 
-const createDefaultToolbarColors = (): ToolbarColorState => ({
+export const createDefaultToolbarColors = (): ToolbarColorState => ({
   selectTool: 'default',
   cutTool: 'default',
   transport: 'default',
@@ -716,7 +716,8 @@ export function Timeline({
   initialTracks,
   selectedRegionIds = new Set(),
   onSelectedRegionIdsChange,
-  keyboardShortcuts = DEFAULT_KEYBOARD_SHORTCUTS
+  keyboardShortcuts = DEFAULT_KEYBOARD_SHORTCUTS,
+  onOpenSymbolManager
 }: { 
   onTracksChange?: (tracks: Track[]) => void, 
   onOpenExport?: (customTracks?: Track[], selection?: { selectionStart: number | null; selectionEnd: number | null }, customExportSettings?: any) => void,
@@ -724,7 +725,8 @@ export function Timeline({
   initialTracks?: Track[],
   selectedRegionIds?: Set<string>,
   onSelectedRegionIdsChange?: (ids: Set<string>) => void,
-  keyboardShortcuts?: KeyboardShortcuts
+  keyboardShortcuts?: KeyboardShortcuts,
+  onOpenSymbolManager?: () => void
 }) {
   const engine = AudioEngine.getInstance()
   const [zoomLevel, setZoomLevel] = useState(1)
@@ -3411,11 +3413,51 @@ export function Timeline({
     checkVstRecordingState();
     checkAudioRecordingState();
 
+    const loadToolbarSettingsFromStorage = () => {
+      try {
+        const visibilityRaw = localStorage.getItem(TIMELINE_TOOLBAR_VISIBILITY_STORAGE_KEY)
+        if (visibilityRaw) {
+          setToolbarVisibility(JSON.parse(visibilityRaw))
+        }
+        const orderRaw = localStorage.getItem(TIMELINE_TOOLBAR_ORDER_STORAGE_KEY)
+        if (orderRaw) {
+          const parsed = JSON.parse(orderRaw)
+          if (Array.isArray(parsed)) {
+            const filtered = parsed.filter((item): item is ToolbarVisibilityKey => DEFAULT_TOOLBAR_ORDER.includes(item))
+            const missing = DEFAULT_TOOLBAR_ORDER.filter((item) => !filtered.includes(item))
+            setToolbarOrder([...filtered, ...missing])
+          }
+        }
+        const separatorsRaw = localStorage.getItem(TIMELINE_TOOLBAR_SEPARATORS_STORAGE_KEY)
+        if (separatorsRaw) {
+          setToolbarSeparators(JSON.parse(separatorsRaw))
+        }
+        const colorsRaw = localStorage.getItem(TIMELINE_TOOLBAR_COLORS_STORAGE_KEY)
+        if (colorsRaw) {
+          setToolbarColors(JSON.parse(colorsRaw))
+        }
+        const editLockedRaw = localStorage.getItem(TIMELINE_TOOLBAR_EDIT_LOCKED_STORAGE_KEY)
+        if (editLockedRaw) {
+          setToolbarEditLocked(editLockedRaw === 'true')
+        }
+      } catch (err) {
+        console.error('Failed to load toolbar settings from storage:', err)
+      }
+    }
+
     const handleStorage = (e: StorageEvent) => {
       if (e.key === 'vst_recording_state') {
         checkVstRecordingState();
       } else if (e.key === 'audio_recording_state') {
         checkAudioRecordingState();
+      } else if (
+        e.key === TIMELINE_TOOLBAR_VISIBILITY_STORAGE_KEY ||
+        e.key === TIMELINE_TOOLBAR_ORDER_STORAGE_KEY ||
+        e.key === TIMELINE_TOOLBAR_SEPARATORS_STORAGE_KEY ||
+        e.key === TIMELINE_TOOLBAR_COLORS_STORAGE_KEY ||
+        e.key === TIMELINE_TOOLBAR_EDIT_LOCKED_STORAGE_KEY
+      ) {
+        loadToolbarSettingsFromStorage();
       } else if (e.key === 'vst_recording_action' && e.newValue) {
         try {
           const parsed = JSON.parse(e.newValue);
@@ -3489,16 +3531,22 @@ export function Timeline({
       }
     };
 
+    const handleToolbarUpdate = () => {
+      loadToolbarSettingsFromStorage();
+    };
+
     window.addEventListener('storage', handleStorage);
     window.addEventListener('AUDIO_RECORD_START', handleAudioRecordStart);
     window.addEventListener('AUDIO_RECORD_STOP', handleAudioRecordStop);
     window.addEventListener('AUDIO_RECORD_ACTION', handleAudioRecordAction);
+    window.addEventListener('omega-toolbar-update', handleToolbarUpdate);
 
     return () => {
       window.removeEventListener('storage', handleStorage);
       window.removeEventListener('AUDIO_RECORD_START', handleAudioRecordStart);
       window.removeEventListener('AUDIO_RECORD_STOP', handleAudioRecordStop);
       window.removeEventListener('AUDIO_RECORD_ACTION', handleAudioRecordAction);
+      window.removeEventListener('omega-toolbar-update', handleToolbarUpdate);
     };
   }, [togglePlayback]);
 
@@ -5140,17 +5188,15 @@ export function Timeline({
         <div className="relative">
           <button
             title="Sichtbare Toolbar-Bereiche anpassen"
-            className={`h-8 px-2 rounded border text-xs flex items-center gap-1.5 transition-colors ${
-              toolbarManagerOpen
-                ? 'border-blue-500/50 bg-omega-accent text-white'
-                : 'border-gray-700 bg-[#1a1d21] text-gray-300 hover:bg-gray-700 hover:text-white'
-            }`}
+            className="h-8 px-2 rounded border border-gray-700 bg-[#1a1d21] text-gray-300 hover:bg-gray-700 hover:text-white hover:border-blue-500/30 text-xs flex items-center gap-1.5 transition-colors"
             onClick={(e) => {
               e.stopPropagation()
-              setToolbarManagerOpen((open) => !open)
               setTimeFormatMenuOpen(false)
               setSelectionFormatMenuOpen(false)
               setAutoScrollMenuOpen(false)
+              if (onOpenSymbolManager) {
+                onOpenSymbolManager()
+              }
             }}
           >
             <Eye size={14} />
@@ -5159,208 +5205,6 @@ export function Timeline({
               {visibleToolbarSectionCount}/{toolbarOrder.length}
             </span>
           </button>
-          {toolbarManagerOpen && (
-            <div
-              className="absolute top-full left-0 mt-1 w-72 overflow-hidden rounded border border-gray-700 bg-[#202327] shadow-2xl z-[1000]"
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="border-b border-gray-700/80 px-3 py-2.5">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-200">Toolbar-Manager</div>
-                    <div className="text-[10px] text-gray-400">
-                      {visibleToolbarSectionCount} von {toolbarOrder.length} Bereichen sichtbar
-                    </div>
-                  </div>
-                  <div className="rounded border border-blue-500/30 bg-blue-500/10 px-2 py-1 text-[10px] font-medium text-blue-100">
-                    Reihenfolge + Sichtbarkeit
-                  </div>
-                </div>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  <button
-                    type="button"
-                    className="rounded border border-gray-600 bg-[#181b1f] px-2 py-1 text-[10px] text-gray-200 transition-colors hover:border-blue-500/50 hover:text-white"
-                    onClick={showAllToolbarSections}
-                  >
-                    Alle einblenden
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded border border-gray-600 bg-[#181b1f] px-2 py-1 text-[10px] text-gray-200 transition-colors hover:border-blue-500/50 hover:text-white"
-                    onClick={resetToolbarOrder}
-                  >
-                    Reihenfolge Standard
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[10px] text-amber-100 transition-colors hover:border-amber-400/70 hover:text-white"
-                    onClick={resetToolbarManagerState}
-                  >
-                    Standard
-                  </button>
-                </div>
-              </div>
-              <div className="py-1">
-                {TOOLBAR_GROUPS.map((group) => {
-                  const groupKeys = toolbarOrder.filter((key) => group.keys.includes(key))
-                  if (groupKeys.length === 0) {
-                    return null
-                  }
-
-                  const visibleCount = groupKeys.filter((key) => toolbarVisibility[key]).length
-
-                  return (
-                    <div key={`toolbar-group-${group.id}`} className="border-t border-gray-800/70 first:border-t-0">
-                      <div className="flex items-start justify-between gap-3 px-3 py-2.5">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-200">{group.label}</div>
-                            <span className="rounded bg-black/25 px-1.5 py-0.5 text-[10px] text-gray-400">
-                              {visibleCount}/{groupKeys.length}
-                            </span>
-                          </div>
-                          <div className="text-[10px] text-gray-500">{group.description}</div>
-                        </div>
-                        <div className="flex flex-wrap justify-end gap-1">
-                          <button
-                            type="button"
-                            className="rounded border border-gray-600 bg-[#181b1f] px-1.5 py-0.5 text-[10px] text-gray-200 transition-colors hover:border-blue-500/50 hover:text-white"
-                            onClick={() => setToolbarGroupVisibility(groupKeys, true)}
-                          >
-                            Alle
-                          </button>
-                          <button
-                            type="button"
-                            className="rounded border border-gray-600 bg-[#181b1f] px-1.5 py-0.5 text-[10px] text-gray-200 transition-colors hover:border-blue-500/50 hover:text-white"
-                            onClick={() => setToolbarGroupVisibility(groupKeys, false)}
-                          >
-                            Aus
-                          </button>
-                          <button
-                            type="button"
-                            className="rounded border border-gray-600 bg-[#181b1f] px-1.5 py-0.5 text-[10px] text-gray-200 transition-colors hover:border-blue-500/50 hover:text-white"
-                            onClick={() => showOnlyToolbarGroup(groupKeys)}
-                          >
-                            Nur diese
-                          </button>
-                        </div>
-                      </div>
-                      {groupKeys.map((key) => {
-                        const index = toolbarOrder.indexOf(key)
-                        const isDragging = toolbarManagerDraggingKey === key
-                        const showBeforeDropHint =
-                          toolbarManagerDropTarget?.key === key && toolbarManagerDropTarget.position === 'before'
-                        const showAfterDropHint =
-                          toolbarManagerDropTarget?.key === key && toolbarManagerDropTarget.position === 'after'
-
-                        return (
-                          <div key={`toolbar-visibility-${key}`} className="px-2 py-1">
-                            {showBeforeDropHint && (
-                              <div className="mb-1 flex items-center gap-2 rounded border border-blue-400/50 bg-blue-500/10 px-2 py-1 text-[10px] font-medium text-blue-100 shadow-[0_0_12px_rgba(59,130,246,0.2)]">
-                                <div className="h-0.5 flex-1 rounded-full bg-blue-400" />
-                                Hier einfuegen
-                                <div className="h-0.5 flex-1 rounded-full bg-blue-400" />
-                              </div>
-                            )}
-                            <label
-                              draggable
-                              onDragStart={(event) => {
-                                event.dataTransfer.effectAllowed = 'move'
-                                event.dataTransfer.setData('text/plain', key)
-                                setToolbarManagerDraggingKey(key)
-                                setToolbarManagerDropTarget(null)
-                              }}
-                              onDragEnd={() => {
-                                setToolbarManagerDraggingKey(null)
-                                setToolbarManagerDropTarget(null)
-                              }}
-                              onDragOver={(event) => {
-                                event.preventDefault()
-                                const bounds = event.currentTarget.getBoundingClientRect()
-                                const position = event.clientY < bounds.top + bounds.height / 2 ? 'before' : 'after'
-                                setToolbarManagerDropTarget({ key, position })
-                              }}
-                              onDrop={(event) => {
-                                event.preventDefault()
-                                event.stopPropagation()
-                                const draggedKey = event.dataTransfer.getData('text/plain') as ToolbarVisibilityKey
-                                const bounds = event.currentTarget.getBoundingClientRect()
-                                const position = event.clientY < bounds.top + bounds.height / 2 ? 'before' : 'after'
-                                reorderToolbarSection(draggedKey, key, position)
-                                setToolbarManagerDraggingKey(null)
-                                setToolbarManagerDropTarget(null)
-                              }}
-                              className={`flex items-center justify-between gap-3 rounded px-2 py-2 text-xs transition-all cursor-grab ${
-                                isDragging
-                                  ? 'scale-[0.985] border border-blue-400/40 bg-blue-500/10 text-white opacity-70 shadow-[0_0_16px_rgba(59,130,246,0.18)]'
-                                  : 'border border-transparent text-gray-300 hover:border-blue-500/30 hover:bg-omega-accent hover:text-white'
-                              }`}
-                            >
-                              <div className="flex items-center gap-2 min-w-0 flex-1">
-                                <div className="flex flex-col items-center gap-1 text-gray-400">
-                                  <div className="grid grid-cols-2 gap-[2px] rounded bg-black/20 p-1">
-                                    {Array.from({ length: 6 }).map((_, dotIndex) => (
-                                      <span key={`${key}-dot-${dotIndex}`} className="h-1 w-1 rounded-full bg-current" />
-                                    ))}
-                                  </div>
-                                  <div className="flex flex-col gap-1">
-                                    <button
-                                      type="button"
-                                      className="text-[10px] leading-none text-gray-400 hover:text-white disabled:opacity-30"
-                                      disabled={index === 0}
-                                      onClick={(event) => {
-                                        event.preventDefault()
-                                        event.stopPropagation()
-                                        moveToolbarSection(key, -1)
-                                      }}
-                                    >^</button>
-                                    <button
-                                      type="button"
-                                      className="text-[10px] leading-none text-gray-400 hover:text-white disabled:opacity-30"
-                                      disabled={index === toolbarOrder.length - 1}
-                                      onClick={(event) => {
-                                        event.preventDefault()
-                                        event.stopPropagation()
-                                        moveToolbarSection(key, 1)
-                                      }}
-                                    >v</button>
-                                  </div>
-                                </div>
-                                <div className="min-w-0">
-                                  <div className="truncate font-medium">{TOOLBAR_LABELS[key]}</div>
-                                  <div className="truncate text-[10px] text-gray-500">{TOOLBAR_DESCRIPTIONS[key]}</div>
-                                </div>
-                              </div>
-                              <input
-                                type="checkbox"
-                                className="accent-omega-accent"
-                                checked={toolbarVisibility[key]}
-                                onChange={(e) => {
-                                  setToolbarVisibility((current) => ({
-                                    ...current,
-                                    [key]: e.target.checked
-                                  }))
-                                }}
-                                onClick={(event) => event.stopPropagation()}
-                              />
-                            </label>
-                            {showAfterDropHint && (
-                              <div className="mt-1 flex items-center gap-2 rounded border border-blue-400/50 bg-blue-500/10 px-2 py-1 text-[10px] font-medium text-blue-100 shadow-[0_0_12px_rgba(59,130,246,0.2)]">
-                                <div className="h-0.5 flex-1 rounded-full bg-blue-400" />
-                                Hier einfuegen
-                                <div className="h-0.5 flex-1 rounded-full bg-blue-400" />
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
         </div>
         {!toolbarEditLocked && (
           <div className="rounded border border-amber-500/35 bg-amber-500/10 px-2 py-1 text-[10px] text-amber-100">

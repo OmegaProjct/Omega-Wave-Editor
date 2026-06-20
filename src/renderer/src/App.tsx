@@ -14,6 +14,7 @@ import { LogViewerModal } from './components/LogViewerModal'
 import { StartDashboard } from './components/StartDashboard'
 import { SaveConfirmationModal } from './components/SaveConfirmationModal'
 import { UpdateModal } from './components/UpdateModal'
+import { SymbolManagerModal } from './components/SymbolManagerModal'
 import { useHistory } from './lib/useHistory'
 import { ProjectManager } from './lib/ProjectManager'
 import { AudioEngine } from './lib/AudioEngine'
@@ -280,6 +281,7 @@ function App(): JSX.Element {
   const [showChangelog, setShowChangelog] = useState(false)
   const [updateAvailable, setUpdateAvailable] = useState<any | null>(null)
   const [keyboardShortcuts, setKeyboardShortcuts] = useState<KeyboardShortcuts>(DEFAULT_KEYBOARD_SHORTCUTS)
+  const [showSymbolManager, setShowSymbolManager] = useState(false)
   
   // Custom Modals & Dashboard States
   const [showStartDashboard, setShowStartDashboard] = useState(false)
@@ -503,7 +505,7 @@ function App(): JSX.Element {
   }, [panelLayoutLocked, panelPopoutState, persistCurrentWindowLayout, isPanelPopoutWindow])
 
   const openModalPopoutOrInline = (
-    name: 'settings' | 'manual' | 'about' | 'update' | 'logs',
+    name: 'settings' | 'manual' | 'about' | 'update' | 'logs' | 'symbol-manager',
     openInline: () => void,
     popoutOptions: { width: number; height: number; title: string; payload?: any }
   ) => {
@@ -527,6 +529,16 @@ function App(): JSX.Element {
       height: 725,
       title: 'Einstellungen',
       payload: { tab }
+    });
+  }
+
+  const openSymbolManager = () => {
+    openModalPopoutOrInline('symbol-manager', () => {
+      setShowSymbolManager(true)
+    }, {
+      width: 480,
+      height: 650,
+      title: 'Symbol-Manager'
     });
   }
 
@@ -1694,6 +1706,7 @@ function App(): JSX.Element {
       {showManual && <ManualModal onClose={() => setShowManual(false)} />}
       {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
       {showChangelog && <ChangelogModal onClose={() => setShowChangelog(false)} />}
+      {showSymbolManager && <SymbolManagerModal onClose={() => setShowSymbolManager(false)} />}
       {modalConfig && (
         <MessageModal 
           type={modalConfig.type} 
@@ -1972,6 +1985,7 @@ function App(): JSX.Element {
                     selectedRegionIds={selectedRegionIds}
                     onSelectedRegionIdsChange={setSelectedRegionIds}
                     keyboardShortcuts={keyboardShortcuts}
+                    onOpenSymbolManager={openSymbolManager}
                   />
                 )}
               </div>
