@@ -991,8 +991,8 @@ function App(): JSX.Element {
     }
     if (type === 'TRIGGER_UPDATE') {
        openModalPopoutOrInline('update', () => setActiveUpdateInfo(payload), {
-         width: 740,
-         height: 780,
+         width: 980,
+         height: 760,
          title: 'Software Update',
          payload: payload
        });
@@ -1682,8 +1682,8 @@ function App(): JSX.Element {
           onTriggerUpdate={(updateInfo) => {
             setShowSettings(false)
             openModalPopoutOrInline('update', () => setActiveUpdateInfo(updateInfo), {
-              width: 740,
-              height: 780,
+              width: 980,
+              height: 760,
               title: 'Software Update',
               payload: updateInfo
             });
@@ -1792,8 +1792,8 @@ function App(): JSX.Element {
             <button 
               onClick={() => {
                 openModalPopoutOrInline('update', () => setActiveUpdateInfo(updateAvailable), {
-                  width: 740,
-                  height: 780,
+                  width: 980,
+                  height: 760,
                   title: 'Software Update',
                   payload: updateAvailable
                 });
