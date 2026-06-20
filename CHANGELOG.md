@@ -2,17 +2,74 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.13.6] - 2026-06-20
+
+### English
+
+#### Added
+- **Persistent Update Notice Suppressing**: Added a user setting (`showUpdateUpgradeNotice`) to permanently suppress the update dialog's upgrade warning notice via a new checkbox in the hide confirmation dialog.
+- **Warning Dialog Reactivation**: Integrated the update notice status with the "Reactivate warning dialogs" button in the System Settings tab, allowing the notice to be restored.
+
+#### Changed
+- **Optimized Update Dialog Layout**: Expanded the default size of the update window to `980x760` to maximize space, and redesigned the internal layout with a more compact header and flexible, scrollable patch notes sections.
+- **Dynamic Popout Resizing**: Improved the update dialog popout window to dynamically scale its height (between 700px and 940px) based on the actual height of the parsed release entries.
+- **Redesigned Update Warning Alert**: Converted the static yellow warning block in the update dialog into a high-visibility red alert banner with a close button and confirmation flow.
+
+### Deutsch
+
+#### Hinzugefügt
+- **Dauerhaftes Ausblenden von Update-Hinweisen**: Neue Option zur dauerhaften Unterdrückung des Update-Hinweises (`showUpdateUpgradeNotice`) über eine Checkbox im Bestätigungsdialog.
+- **Reaktivierung ausgeblendeter Hinweise**: Verknüpfung der Einstellung mit dem Button "Hinweisdialoge reaktivieren" im System-Einstellungsmenü, um alle stummgeschalteten Hinweise wiederherzustellen.
+
+#### Geändert
+- **Optimiertes Update-Dialog-Layout**: Vergrößerung der Standardgröße des Update-Fensters auf `980x760` zur besseren Platzausnutzung sowie Neugestaltung des Layouts mit kompakterem Header und flexibleren, scrollbaren Patch-Notes-Bereichen.
+- **Dynamische Skalierung des Popout-Fensters**: Das Update-Popout-Fenster passt seine Höhe jetzt automatisch (zwischen 700px und 940px) an die tatsächliche Inhaltsgröße an.
+- **Überarbeitetes Update-Warnbanner**: Umgestaltung des statischen gelben Hinweistextes in ein gut sichtbares rotes Warnbanner mit Schließen-Schaltfläche und Bestätigungs-Overlay.
+
 ## [0.13.5] - 2026-06-15
 
 ### English
 
 #### Added
-- **Popout Preset Bounds Persistence**: Updated `WINDOW_LAYOUT_SAVE` and `WINDOW_LAYOUT_LOAD` in the renderer to persist and restore popout window bounds for `panel-file-explorer`, `panel-effects`, and `panel-timeline` via IPC.
+- **Customizable Timeline Toolbar**: Introduced a persistent timeline toolbar with modular, editable control groups for transport, recording, undo/redo operations, snap behavior, track grouping, time/selection display, auto-scroll, and export actions.
+- **Interactive Toolbar Edit Mode**: Added a lockable edit mode allowing users to customize visibility, insert custom separators, manage group-level quick actions, and define color-coded category markers.
+- **Time and Playback Monitoring**: Added high-legibility toolbar indicators for current playhead time, active selection duration, and playback auto-scroll status.
+- **Window Layout Presets**: Implemented a layout management system allowing users to save, load, update, and reset workspace configurations, including detached panel bounds and docking positions.
+- **Popout Bounds Persistence**: Added asynchronous saving and restoration of bounds for detached panels (such as File Explorer, Effects, and Timeline) using dedicated IPC channels.
+
+#### Changed
+- **Waveform Precision & Deep Zoom**: Enhanced adaptive zoom stepping and refined sample-detail rendering for smoother, high-speed waveform navigation at maximum zoom depths.
+- **Playhead Seek Behavior**: Adjusted seek behavior during playback to redefine the active playback start position, preventing the playhead from snapping back to its original location upon pause.
+- **UI Snap & Dock Feedback**: Refined the visual guides, insert markers, and snap target overlays when dragging to rearrange toolbar items or dock panels.
+
+#### Fixed
+- **Deep Zoom Blank Canvas**: Fixed a rendering issue that caused the waveform canvas to display as empty or white during aggressive horizontal zooming by stabilizing the renderer path.
+- **Renderer Update Loop Safeguards**: Added prevention logic against recursive `Maximum update depth exceeded` exceptions within the main layout and timeline flows.
+- **Toolbar Dropdown Stability**: Fixed a bug causing context menus and popups to close prematurely, and improved viewport boundary clamping.
+- **Layout Restore on Multi-Monitor Setups**: Fixed a bug where detached panel window bounds failed to restore correctly on multiple displays.
+- **Vertical Slider Warning Cleanup**: Removed legacy styling properties from vertical sliders that generated avoidable console warnings.
 
 ### Deutsch
 
 #### Hinzugefügt
-- **Popout-Preset-Grenzen-Speicherung**: Aktionen `WINDOW_LAYOUT_SAVE` und `WINDOW_LAYOUT_LOAD` im Renderer erweitert, um die Popout-Fenstergrenzen für `panel-file-explorer`, `panel-effects` und `panel-timeline` asynchron über IPC zu speichern und wiederherzustellen.
+- **Anpassbare Timeline-Toolbar**: Einführung einer dauerhaften Timeline-Toolbar mit modular editierbaren Steuerungsgruppen für Transport, Aufnahme, Undo/Redo, Snap-Verhalten, Spur-Gruppierung, Zeit-/Auswahlanzeige, Auto-Scroll und Exportaktionen.
+- **Interaktiver Bearbeitungsmodus für Toolbars**: Neuer sperrbarer Editiermodus zur Anpassung der Sichtbarkeit, zum Einfügen eigener Trennzeichen, zur Verwaltung von Schnellaktionen auf Gruppenebene sowie zur Zuweisung farblicher Kategorie-Marker.
+- **Zeit- und Wiedergabesteuerung**: Gut lesbare Anzeigen in der Toolbar für die aktuelle Abspielposition, die aktive Auswahldauer und den Wiedergabe-Auto-Scroll-Modus.
+- **Fenster-Layout-Presets**: Implementierung einer Layout-Verwaltung zum Speichern, Laden, Aktualisieren und Zurücksetzen von Arbeitsbereich-Konfigurationen, einschließlich ausgelagerter Panel-Grenzen und Hauptfenster-Positionen.
+- **Speicherung von Popout-Fenstergrenzen**: Asynchrones Sichern und Wiederherstellen der Positionen und Dimensionen ausgelagerter Panels (wie File Explorer, Effects und Timeline) über dedizierte IPC-Kanäle.
+
+#### Geändert
+- **Präzisions-Wellenform-Zoom**: Verfeinerung der adaptiven Zoomschritte und der Sample-Detaildarstellung für flüssigere Navigation bei maximalen Zoomtiefen.
+- **Wiedergabe-Seek-Verhalten**: Das manuelle Versetzen des Playheads während des Abspielens definiert nun direkt die aktive Wiedergabe-Startposition neu, anstatt nach dem Pausieren an die vorherige Position zurückzuspringen.
+- **Drag- und Snap-Feedback**: Grafische Einfügemarkierungen und Snap-Zielbereiche beim Verschieben von Toolbar-Elementen und Andocken von Panels wurden visuell verbessert.
+
+#### Behoben
+- **Leere Wellenform bei extremem Zoom**: Behebung eines Fehlers, bei dem die Wellenform-Zeichenfläche bei aggressivem horizontalen Zoom weiß oder leer blieb, durch Stabilisierung des Renderer-Pfads.
+- **Schutz vor Renderer-Update-Schleifen**: Integration von Sicherheitsmechanismen gegen rekursive `Maximum update depth exceeded`-Fehler im Haupt-Renderer.
+- **Stabilität von Toolbar-Popups**: Fehler behoben, bei dem sich Kontextmenüs vorzeitig schlossen, und Verbesserung des Clamping-Verhaltens an den Bildschirmrändern.
+- **Wiederherstellung bei Mehrmonitor-Setups**: Fehler behoben, bei dem ausgelagerte Panel-Positionen auf sekundären Bildschirmen nicht zuverlässig wiederhergestellt wurden.
+- **Warnungen bei vertikalen Slidern**: Bereinigung veralteter CSS-Eigenschaften bei vertikalen Schiebereglern, die vermeidbare Konsolenwarnungen auslösten.
+
 
 ## [0.13.4] - 2026-06-14
 

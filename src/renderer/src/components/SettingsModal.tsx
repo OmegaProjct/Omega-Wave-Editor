@@ -44,7 +44,8 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
     jumpSizePlayback: 3.0,
     jumpSizeStopped: 1.0,
     showDiscardWarning: true,
-    discardBehavior: 'discard'
+    discardBehavior: 'discard',
+    showUpdateUpgradeNotice: true
   })
   const initialSettingsRef = useRef<any>(null)
   const [showUnsavedConfirmDialog, setShowUnsavedConfirmDialog] = useState(false)
@@ -59,7 +60,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
       'autoSave', 'autoSaveInterval', 'sampleRate', 'tracksCount', 
       'maxUndoSteps', 'showStartScreen', 'halfWaveform', 'showExportGapWarning', 
       'showDeleteConfirmation', 'importOverlapBehavior', 'language', 'textScale',
-      'showDiscardWarning', 'discardBehavior'
+      'showDiscardWarning', 'discardBehavior', 'showUpdateUpgradeNotice'
     ]
     
     for (const key of keysToCompare) {
@@ -235,6 +236,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
           textScale: 'normal',
           showDiscardWarning: true,
           discardBehavior: 'discard',
+          showUpdateUpgradeNotice: true,
           ...s,
           keyboardShortcuts: normalizeKeyboardShortcuts(s?.keyboardShortcuts)
         }
@@ -879,7 +881,8 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
       showStartScreen: true,
       showExportGapWarning: true,
       showDeleteConfirmation: true,
-      showDiscardWarning: true
+      showDiscardWarning: true,
+      showUpdateUpgradeNotice: true
     }))
     window.dispatchEvent(new CustomEvent('SHOW_GLOBAL_MODAL', {
       detail: {
