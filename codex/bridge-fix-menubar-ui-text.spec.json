@@ -1,0 +1,23 @@
+{
+  "goal": "Fix remaining visible mojibake-like user-facing strings in src/renderer/src/components/MenuBar.tsx while keeping the change tightly scoped.",
+  "workspace": "C:\\Users\\Dave1\\Coding\\Omega Wave Editor",
+  "constraints": [
+    "Only modify src/renderer/src/components/MenuBar.tsx.",
+    "Change only user-facing strings or tiny display glyphs that are visibly malformed or mojibake-like.",
+    "Do not refactor logic, handlers, or menu structure.",
+    "Prefer ASCII-safe replacements like ae/oe/ue if there is any encoding risk.",
+    "Run a relevant local check if practical."
+  ],
+  "success_criteria": [
+    "Visible malformed MenuBar.tsx UI strings are corrected.",
+    "No unrelated files are modified.",
+    "A relevant local check is reported."
+  ],
+  "allow_write": true,
+  "max_subjobs": 2,
+  "timeout_minutes": 20,
+  "report_format": "json",
+  "engine": "agy",
+  "model": "gemini-3.5-flash-low",
+  "review_pass_limit": 2
+}

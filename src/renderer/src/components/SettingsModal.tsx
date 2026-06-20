@@ -12,7 +12,7 @@ import { MidiEngine } from '../lib/MidiEngine'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle } from 'lucide-react'
 
-type Tab = 'Wiedergabe' | 'Ordner' | 'Ansicht' | 'System' | 'Tastaturkürzel' | 'Projekteinstellungen' | 'MIDI' | 'Sprache & Anzeige'
+export type Tab = 'Wiedergabe' | 'Ordner' | 'Ansicht' | 'System' | 'Tastaturkuerzel' | 'Projekteinstellungen' | 'MIDI' | 'Sprache & Anzeige'
 
 export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', onTriggerUpdate }: { onClose: () => void; initialTab?: Tab; onTriggerUpdate?: (info: any) => void }) {
   const { t, i18n } = useTranslation()
@@ -204,14 +204,14 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
 
   const handleCheckForUpdates = async () => {
     setCheckingUpdates(true)
-    setUpdateStatus(t('settings.checking_updates', { defaultValue: 'Prüfe auf Updates...' }))
+    setUpdateStatus(t('settings.checking_updates', { defaultValue: 'Pruefe auf Updates...' }))
     setUpdateInfo(null)
     try {
       const result = await window.api.checkForUpdates()
       if (result.error) {
         setUpdateStatus(`${t('common.error', { defaultValue: 'Fehler' })}: ${result.error}`)
       } else if (result.available) {
-        setUpdateStatus(t('settings.update_available', { defaultValue: 'Update verfügbar: v{{version}}', version: result.latestVersion }))
+        setUpdateStatus(t('settings.update_available', { defaultValue: 'Update verfuegbar: v{{version}}', version: result.latestVersion }))
         setUpdateInfo(result)
       } else {
         setUpdateStatus(t('settings.up_to_date', { defaultValue: 'App ist auf dem neuesten Stand (v{{version}}).', version: result.currentVersion }))
@@ -358,7 +358,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
               </p>
               <p className="text-[11px] text-gray-400 leading-normal">
                 {t('settings.custom_locales_info_body', { 
-                  defaultValue: 'Du kannst eigene Übersetzungsdateien (.json) im Locales-Ordner ablegen, um die App in andere Sprachen zu übersetzen oder Texte anzupassen. Sie werden beim App-Start automatisch geladen.' 
+                  defaultValue: 'Du kannst eigene Uebersetzungsdateien (.json) im Locales-Ordner ablegen, um die App in andere Sprachen zu uebersetzen oder Texte anzupassen. Sie werden beim App-Start automatisch geladen.' 
                 })}
               </p>
             </div>
@@ -377,19 +377,19 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
           }}
           className="w-full py-2 mt-4 bg-gray-750 hover:bg-gray-700 active:scale-[0.98] border border-gray-700 text-white rounded text-xs font-semibold tracking-wide transition-all shadow flex items-center justify-center gap-1.5"
         >
-          <span>📁 {t('settings.open_locales_folder', { defaultValue: 'Locales-Ordner öffnen' })}</span>
+          <span>📁 {t('settings.open_locales_folder', { defaultValue: 'Locales-Ordner oeffnen' })}</span>
         </button>
       </div>
 
-      {/* Skalierung der Benutzeroberfläche */}
+      {/* Skalierung der Benutzeroberflaeche */}
       <div className="flex-1 border border-gray-700 p-4 rounded bg-[#1e2124] flex flex-col justify-between">
         <div>
           <h3 className="text-center font-semibold mb-4 text-sm flex items-center gap-1.5 justify-center">
-            🔎 {t('settings.text_scale', { defaultValue: 'Schriftgröße' })}
+            🔎 {t('settings.text_scale', { defaultValue: 'Schriftgroesse' })}
           </h3>
           <div className="flex flex-col gap-4 text-sm">
             <div className="flex justify-between items-center">
-              <span className="text-gray-400">{t('settings.text_size', { defaultValue: 'Schriftgröße:' })}</span>
+              <span className="text-gray-400">{t('settings.text_size', { defaultValue: 'Schriftgroesse:' })}</span>
               <select 
                 value={settings.textScale || 'normal'} 
                 onChange={(e) => handleTextScaleChange(e.target.value)}
@@ -397,8 +397,8 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
               >
                 <option value="normal">{t('settings.text_scale_normal', { defaultValue: 'Normal (100%)' })}</option>
                 <option value="medium">{t('settings.text_scale_medium', { defaultValue: 'Mittel (+10%)' })}</option>
-                <option value="large">{t('settings.text_scale_large', { defaultValue: 'Groß (+20%)' })}</option>
-                <option value="xlarge">{t('settings.text_scale_xlarge', { defaultValue: 'Sehr groß (+30%)' })}</option>
+                <option value="large">{t('settings.text_scale_large', { defaultValue: 'Gross (+20%)' })}</option>
+                <option value="xlarge">{t('settings.text_scale_xlarge', { defaultValue: 'Sehr gross (+30%)' })}</option>
               </select>
             </div>
 
@@ -408,7 +408,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
               </p>
               <p className="text-[11px] text-gray-400 leading-normal">
                 {t('settings.scale_preview_body', { 
-                  defaultValue: 'Die Skalierung wird sofort auf alle Menüs, Editor-Bereiche und Beschriftungen angewendet. So kannst du direkt prüfen, ob die Textgröße angenehm ist.' 
+                  defaultValue: 'Die Skalierung wird sofort auf alle Menues, Editor-Bereiche und Beschriftungen angewendet. So kannst du direkt pruefen, ob die Textgroesse angenehm ist.' 
                 })}
               </p>
             </div>
@@ -528,7 +528,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
               </div>
 
               <div className="flex justify-between items-center">
-                <span className="text-gray-400">{t('settings.playback.asio_buffer_size', { defaultValue: 'Puffergröße:' })}</span>
+                <span className="text-gray-400">{t('settings.playback.asio_buffer_size', { defaultValue: 'Puffergroesse:' })}</span>
                 <select 
                   value={settings.asioBufferSize || '512'} 
                   onChange={(e) => {
@@ -570,7 +570,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
                     }}
                     className="bg-omega-accent/15 border border-omega-accent/30 hover:bg-omega-accent/25 text-omega-accent hover:text-white px-3 py-1 rounded text-xs font-semibold transition-all shadow-sm active:scale-[0.98]"
                   >
-                    ⚙️ {t('settings.playback.open_control_panel', { defaultValue: 'Control Panel öffnen' })}
+                    ⚙️ {t('settings.playback.open_control_panel', { defaultValue: 'Control Panel oeffnen' })}
                   </button>
                 </div>
               )}
@@ -578,7 +578,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
           ) : (
             <>
               <div className="flex justify-between items-center">
-                <span className="text-gray-400">{t('settings.playback.output_device', { defaultValue: 'Ausgabegerät:' })}</span>
+                <span className="text-gray-400">{t('settings.playback.output_device', { defaultValue: 'Ausgabegeraet:' })}</span>
                 <select 
                   value={settings.activeDeviceId || 'default'} 
                   onChange={async (e) => {
@@ -591,7 +591,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
                   <option value="default">{t('settings.playback.system_default', { defaultValue: 'System (Standard)' })}</option>
                   {devices.map(d => (
                     <option key={d.deviceId} value={d.deviceId}>
-                      {d.label || t('settings.playback.output_device_id', { defaultValue: 'Ausgabegerät ({{id}})', id: d.deviceId.slice(0, 8) })}
+                      {d.label || t('settings.playback.output_device_id', { defaultValue: 'Ausgabegeraet ({{id}})', id: d.deviceId.slice(0, 8) })}
                     </option>
                   ))}
                 </select>
@@ -630,7 +630,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
             <div className="mt-4 border border-gray-700/60 rounded bg-[#16181b] p-3 text-xs leading-relaxed">
               <div className="flex justify-between items-center mb-2 border-b border-gray-800 pb-1.5">
                 <span className="font-semibold text-omega-accent flex items-center gap-1">
-                  ⚡ ASIO Latenz-Übersicht
+                  ⚡ ASIO Latenz-Uebersicht
                 </span>
                 <span className="text-[10px] text-gray-500 font-mono">
                   SR: {asioDetails.sampleRate} Hz
@@ -670,7 +670,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
               </div>
               
               <div className="mt-2 text-[10px] text-gray-400 flex items-center justify-between">
-                <span>Kanäle: {asioDetails.inputsCount} in / {asioDetails.outputsCount} out</span>
+                <span>Kanaele: {asioDetails.inputsCount} in / {asioDetails.outputsCount} out</span>
                 <span className="text-gray-500 italic text-[9px]">Live-Werte direkt vom COM-Client</span>
               </div>
             </div>
@@ -690,13 +690,14 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
         <h3 className="text-center font-semibold mb-4 text-sm">{t('settings.playback.arranger', { defaultValue: 'Arranger' })}</h3>
         <div className="flex flex-col gap-4 text-sm">
            <div>
-             <span className="text-gray-400 block mb-2">{t('settings.playback.autoscroll', { defaultValue: 'Autoscroll während des Abspielens:' })}</span>
-             <div className="flex gap-4">
-              <label className="flex items-center gap-1 cursor-pointer"><input type="radio" name="scroll" checked={settings.autoScroll === 'Aus'} onChange={() => setSettings({...settings, autoScroll: 'Aus'})} /> {t('common.off', { defaultValue: 'Aus' })}</label>
-              <label className="flex items-center gap-1 cursor-pointer"><input type="radio" name="scroll" checked={settings.autoScroll === 'Langsam'} onChange={() => setSettings({...settings, autoScroll: 'Langsam'})} /> {t('common.slow', { defaultValue: 'Langsam' })}</label>
-              <label className="flex items-center gap-1 cursor-pointer"><input type="radio" name="scroll" checked={settings.autoScroll === 'Schnell'} onChange={() => setSettings({...settings, autoScroll: 'Schnell'})} /> {t('common.fast', { defaultValue: 'Schnell' })}</label>
-             </div>
-           </div>
+             <span className="text-gray-400 block mb-2">{t('settings.playback.autoscroll', { defaultValue: 'Autoscroll waehrend des Abspielens:' })}</span>
+              <div className="flex flex-wrap gap-4">
+               <label className="flex items-center gap-1 cursor-pointer"><input type="radio" name="scroll" checked={settings.autoScroll === 'Aus'} onChange={() => setSettings({...settings, autoScroll: 'Aus'})} /> {t('common.off', { defaultValue: 'Aus' })}</label>
+               <label className="flex items-center gap-1 cursor-pointer"><input type="radio" name="scroll" checked={settings.autoScroll === 'Langsam'} onChange={() => setSettings({...settings, autoScroll: 'Langsam'})} /> {t('common.slow', { defaultValue: 'Langsam' })}</label>
+               <label className="flex items-center gap-1 cursor-pointer"><input type="radio" name="scroll" checked={settings.autoScroll === 'Schnell'} onChange={() => setSettings({...settings, autoScroll: 'Schnell'})} /> {t('common.fast', { defaultValue: 'Schnell' })}</label>
+               <label className="flex items-center gap-1 cursor-pointer"><input type="radio" name="scroll" checked={settings.autoScroll === 'Zentriert'} onChange={() => setSettings({...settings, autoScroll: 'Zentriert'})} /> {t('settings.playback.centered', { defaultValue: 'Zentriert' })}</label>
+              </div>
+            </div>
            <div className="mt-4">
              <span className="text-gray-400 block mb-2">{t('settings.playback.spacebar_behavior', { defaultValue: 'Verhalten Leertaste:' })}</span>
              <label className="flex items-center gap-2 cursor-pointer">
@@ -710,7 +711,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
               <span className="text-gray-400 block mb-2 font-semibold">{t('settings.playback.jump_sizes', { defaultValue: 'Sprungweiten (Pfeiltasten Links/Rechts)' })}</span>
               <div className="flex flex-col gap-3">
                 <div className="flex justify-between items-center text-xs">
-                  <span className="text-gray-400">{t('settings.playback.jump_playback', { defaultValue: 'Während der Wiedergabe:' })}</span>
+                  <span className="text-gray-400">{t('settings.playback.jump_playback', { defaultValue: 'Waehrend der Wiedergabe:' })}</span>
                   <select
                     value={settings.jumpSizePlayback !== undefined ? settings.jumpSizePlayback : 3}
                     onChange={(e) => setSettings({ ...settings, jumpSizePlayback: parseFloat(e.target.value) })}
@@ -771,11 +772,11 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
           </div>
         ))}
         
-        {/* Zusätzliche VST Pfade */}
+        {/* Zusaetzliche VST Pfade */}
         <div className="mt-4 border-t border-gray-700/60 pt-4">
-          <span className="text-gray-400 block mb-2 font-bold uppercase text-[10px] tracking-wider">{t('settings.folders.vst_paths', { defaultValue: 'Zusätzliche VST2- & VST3-Suchpfade:' })}</span>
+          <span className="text-gray-400 block mb-2 font-bold uppercase text-[10px] tracking-wider">{t('settings.folders.vst_paths', { defaultValue: 'Zusaetzliche VST2- & VST3-Suchpfade:' })}</span>
           {(!settings.vstPaths || settings.vstPaths.length === 0) ? (
-            <div className="text-xs text-gray-500 italic mb-3">{t('settings.folders.no_vst_paths', { defaultValue: 'Keine zusätzlichen Pfade konfiguriert (es werden nur die System-Standardpfade gescannt).' })}</div>
+            <div className="text-xs text-gray-500 italic mb-3">{t('settings.folders.no_vst_paths', { defaultValue: 'Keine zusaetzlichen Pfade konfiguriert (es werden nur die System-Standardpfade gescannt).' })}</div>
           ) : (
             <div className="flex flex-col gap-2 mb-3 bg-[#1a1d21] p-2.5 rounded border border-gray-800">
               {(settings.vstPaths || []).map((path: string, idx: number) => (
@@ -800,7 +801,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
               type="button"
               className="bg-omega-accent hover:bg-blue-500 px-4 py-1.5 rounded text-xs text-white font-semibold flex items-center gap-1.5 transition-colors shadow" 
               onClick={async () => {
-                const res = await window.api.showOpenDialog({ properties: ['openDirectory'], title: t('settings.folders.select_vst_title', { defaultValue: 'VST Plug-in-Pfad auswählen' }) })
+                const res = await window.api.showOpenDialog({ properties: ['openDirectory'], title: t('settings.folders.select_vst_title', { defaultValue: 'VST Plug-in-Pfad auswaehlen' }) })
                 if (!res.canceled && res.filePaths.length > 0) {
                   const pathToAdd = res.filePaths[0]
                   const currentPaths = settings.vstPaths || []
@@ -808,12 +809,12 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
                     const updated = [...currentPaths, pathToAdd]
                     setSettings({ ...settings, vstPaths: updated })
                   } else {
-                    alert(t('settings.folders.path_already_added', { defaultValue: 'Dieser Pfad wurde bereits hinzugefügt.' }))
+                    alert(t('settings.folders.path_already_added', { defaultValue: 'Dieser Pfad wurde bereits hinzugefuegt.' }))
                   }
                 }
               }}
             >
-              <span>+ {t('settings.folders.add_vst_path', { defaultValue: 'VST Plug-in-Pfad hinzufügen...' })}</span>
+              <span>+ {t('settings.folders.add_vst_path', { defaultValue: 'VST Plug-in-Pfad hinzufuegen...' })}</span>
             </button>
           </div>
         </div>
@@ -893,7 +894,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
     <div className="flex gap-4 h-full">
       <div className="flex-1 flex flex-col gap-4">
         <div className="border border-gray-700 p-4 rounded bg-[#1e2124]">
-          <h3 className="text-center font-semibold mb-3 text-sm">{t('settings.system.ui', { defaultValue: 'Programmoberfläche' })}</h3>
+          <h3 className="text-center font-semibold mb-3 text-sm">{t('settings.system.ui', { defaultValue: 'Programmoberflaeche' })}</h3>
           <button 
             className="w-full py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors text-white mb-3" 
             onClick={handleReactivateWarnings}
@@ -901,7 +902,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
             {t('settings.system.reactivate_warnings', { defaultValue: 'Hinweisdialoge reaktivieren' })}
           </button>
           <div className="border-t border-gray-750 pt-3 flex flex-col gap-1.5 text-xs text-gray-300">
-            <span className="text-gray-400 font-semibold">{t('settings.system.discard_warning_label', { defaultValue: 'Ungespeicherte Änderungen beim Schließen:' })}</span>
+            <span className="text-gray-400 font-semibold">{t('settings.system.discard_warning_label', { defaultValue: 'Ungespeicherte Aenderungen beim Schliessen:' })}</span>
             <select
               value={
                 settings.showDiscardWarning === false
@@ -919,8 +920,8 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
               className="bg-[#1a1d21] border border-gray-650 rounded px-2 py-1 outline-none text-white focus:border-omega-accent cursor-pointer"
             >
               <option value="ask">{t('settings.system.discard_warning_ask', { defaultValue: 'Nachfragen' })}</option>
-              <option value="save">{t('settings.system.discard_warning_save', { defaultValue: 'Speichern und Schließen' })}</option>
-              <option value="discard">{t('settings.system.discard_warning_discard', { defaultValue: 'Änderungen verwerfen' })}</option>
+              <option value="save">{t('settings.system.discard_warning_save', { defaultValue: 'Speichern und Schliessen' })}</option>
+              <option value="discard">{t('settings.system.discard_warning_discard', { defaultValue: 'Aenderungen verwerfen' })}</option>
             </select>
           </div>
         </div>
@@ -1012,7 +1013,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
     return (
       <div className="border border-gray-700 p-4 rounded bg-[#1e2124] h-full flex flex-col overflow-hidden">
         <div className="flex items-center justify-between mb-3 gap-3">
-          <h3 className="font-semibold text-sm text-gray-300">{t('settings.shortcuts.title', { defaultValue: 'Tastaturkürzel' })}</h3>
+          <h3 className="font-semibold text-sm text-gray-300">{t('settings.shortcuts.title', { defaultValue: 'Tastaturkuerzel' })}</h3>
           <button
             className="px-3 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded"
             onClick={() => setSettings({ ...settings, keyboardShortcuts: DEFAULT_KEYBOARD_SHORTCUTS })}
@@ -1042,7 +1043,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
                       onKeyUp={(event) => handleShortcutKeyUp(event, item.id)}
                     >
                       {capturingShortcut === item.id 
-                        ? (tempShortcut ? formatShortcut(tempShortcut) : t('settings.shortcuts.press_key', { defaultValue: 'Taste drücken...' }))
+                        ? (tempShortcut ? formatShortcut(tempShortcut) : t('settings.shortcuts.press_key', { defaultValue: 'Taste druecken...' }))
                         : formatShortcut(keyboardShortcuts[item.id])}
                     </button>
                     <button
@@ -1076,15 +1077,15 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
          </div>
       </div>
 
-      {/* Import-Verhalten bei Überlappungen */}
+      {/* Import-Verhalten bei Ueberlappungen */}
       <div className="flex-1 border border-gray-700 p-4 rounded bg-[#1e2124]">
          <h3 className="text-center font-semibold mb-4 text-sm">{t('settings.project.import_behavior_title', { defaultValue: 'Import-Verhalten' })}</h3>
          <div className="flex flex-col gap-2 text-sm pl-4">
            {[
              { value: 'ask', label: t('settings.project.import_behavior.ask', { defaultValue: 'Jedes Mal fragen' }) },
-             { value: 'overlap', label: t('settings.project.import_behavior.overlap', { defaultValue: 'Überlagern (Layer)' }) },
+             { value: 'overlap', label: t('settings.project.import_behavior.overlap', { defaultValue: 'Ueberlagern (Layer)' }) },
              { value: 'newTrack', label: t('settings.project.import_behavior.newTrack', { defaultValue: 'Untereinander (Freie Spur)' }) },
-             { value: 'sequential', label: t('settings.project.import_behavior.sequential', { defaultValue: 'Hintereinander (Anhängen)' }) }
+             { value: 'sequential', label: t('settings.project.import_behavior.sequential', { defaultValue: 'Hintereinander (Anhaengen)' }) }
            ].map(item => (
              <label key={item.value} className="flex items-center gap-2 cursor-pointer text-gray-300 hover:text-white transition-colors">
                <input 
@@ -1124,9 +1125,9 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
       { action: 'timeline_zoom', label: t('midi.actions.zoom', { defaultValue: 'Timeline: Zoom' }) },
       { action: 'timeline_scrub', label: t('midi.actions.scrub', { defaultValue: 'Timeline: Scrubben' }) },
       { action: 'metronome_toggle', label: t('midi.actions.metronome', { defaultValue: 'System: Metronom Umschalten' }) },
-      { action: 'master_volume', label: t('midi.actions.master_vol', { defaultValue: 'Mixer: Master Lautstärke' }) },
+      { action: 'master_volume', label: t('midi.actions.master_vol', { defaultValue: 'Mixer: Master Lautstaerke' }) },
       ...[0, 1, 2, 3, 4, 5, 6, 7].flatMap(idx => [
-        { action: 'track_volume', trackIndex: idx, label: t('midi.actions.track_vol', { defaultValue: 'Mixer: Spur {{num}} Lautstärke', num: idx + 1 }) },
+        { action: 'track_volume', trackIndex: idx, label: t('midi.actions.track_vol', { defaultValue: 'Mixer: Spur {{num}} Lautstaerke', num: idx + 1 }) },
         { action: 'track_mute', trackIndex: idx, label: t('midi.actions.track_mute', { defaultValue: 'Mixer: Spur {{num}} Mute', num: idx + 1 }) },
         { action: 'track_solo', trackIndex: idx, label: t('midi.actions.track_solo', { defaultValue: 'Mixer: Spur {{num}} Solo', num: idx + 1 }) },
       ])
@@ -1187,7 +1188,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
         {/* Device & Channel Selector */}
         <div className="flex gap-4 mb-4">
           <div className="flex-1">
-            <label className="block text-xs text-gray-400 mb-1">{t('settings.midi.input_device', { defaultValue: 'MIDI-Eingangsgerät' })}</label>
+            <label className="block text-xs text-gray-400 mb-1">{t('settings.midi.input_device', { defaultValue: 'MIDI-Eingangsgeraet' })}</label>
             <select
               value={settings.midiInputDeviceId || ''}
               onChange={(e) => setSettings({ ...settings, midiInputDeviceId: e.target.value })}
@@ -1200,7 +1201,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
             </select>
           </div>
           <div className="flex-1">
-            <label className="block text-xs text-gray-400 mb-1">{t('settings.midi.output_device', { defaultValue: 'MIDI-Ausgangsgerät' })}</label>
+            <label className="block text-xs text-gray-400 mb-1">{t('settings.midi.output_device', { defaultValue: 'MIDI-Ausgangsgeraet' })}</label>
             <select
               value={settings.midiOutputDeviceId || ''}
               onChange={(e) => setSettings({ ...settings, midiOutputDeviceId: e.target.value })}
@@ -1254,7 +1255,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
                     <td className="p-2 text-gray-300 font-medium">{cfg.label}</td>
                     <td className="p-2 text-gray-400">
                       {isLearning ? (
-                        <span className="text-omega-accent font-semibold">{t('settings.midi.learning', { defaultValue: 'Lerne... (Bewege Regler / Drücke Taste)' })}</span>
+                        <span className="text-omega-accent font-semibold">{t('settings.midi.learning', { defaultValue: 'Lerne... (Bewege Regler / Druecke Taste)' })}</span>
                       ) : (
                         <span className={mapping ? 'text-green-400 font-medium' : ''}>{assignmentText}</span>
                       )}
@@ -1280,7 +1281,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
                               onClick={() => clearMapping(cfg.action, cfg.trackIndex)}
                               className="px-2.5 py-1 text-[11px] bg-gray-750 hover:bg-gray-700 rounded text-gray-400 font-medium shadow-sm transition-colors"
                             >
-                              {t('common.delete', { defaultValue: 'Löschen' })}
+                              {t('common.delete', { defaultValue: 'Loeschen' })}
                             </button>
                           )}
                         </>
@@ -1318,7 +1319,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
     setOriginalLanguage(settings.language || 'de')
   }
 
-  const tabs: Tab[] = ['Projekteinstellungen', 'Wiedergabe', 'Ordner', 'Ansicht', 'System', 'Tastaturkürzel', 'MIDI', 'Sprache & Anzeige']
+  const tabs: Tab[] = ['Projekteinstellungen', 'Wiedergabe', 'Ordner', 'Ansicht', 'System', 'Tastaturkuerzel', 'MIDI', 'Sprache & Anzeige']
 
   const getTabLabel = (tab: Tab) => {
     switch (tab) {
@@ -1327,7 +1328,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
       case 'Ordner': return t('settings.tabs.folders', { defaultValue: 'Ordner' })
       case 'Ansicht': return t('settings.tabs.view', { defaultValue: 'Ansicht' })
       case 'System': return t('settings.tabs.system', { defaultValue: 'System' })
-      case 'Tastaturkürzel': return t('settings.tabs.shortcuts', { defaultValue: 'Tastaturkürzel' })
+      case 'Tastaturkuerzel': return t('settings.tabs.shortcuts', { defaultValue: 'Tastaturkuerzel' })
       case 'MIDI': return t('settings.tabs.midi', { defaultValue: 'MIDI' })
       case 'Sprache & Anzeige': return t('settings.lang_display_tab', { defaultValue: 'Sprache & Anzeige' })
       default: return tab
@@ -1363,7 +1364,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
           {activeTab === 'Ordner' && renderOrdner()}
           {activeTab === 'Ansicht' && renderAnsicht()}
           {activeTab === 'System' && renderSystem()}
-          {activeTab === 'Tastaturkürzel' && renderTastaturkuerzel()}
+          {activeTab === 'Tastaturkuerzel' && renderTastaturkuerzel()}
           {activeTab === 'Projekteinstellungen' && renderFilmeinstellungen()}
           {activeTab === 'MIDI' && renderMidi()}
           {activeTab === 'Sprache & Anzeige' && renderSpracheAnzeige()}
@@ -1372,7 +1373,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
         {/* Footer Buttons */}
         <div className="p-3 border-t border-gray-700 flex justify-end gap-2 bg-[#1e2124] rounded-b text-sm">
           <button onClick={handleCancelClick} className="px-6 py-1.5 text-xs bg-gray-600 hover:bg-gray-500 rounded text-white">{t('common.cancel', { defaultValue: 'Abbrechen' })}</button>
-          <button onClick={handleApply} className="px-6 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 rounded text-white font-semibold shadow-sm">{t('common.apply', { defaultValue: 'Übernehmen' })}</button>
+          <button onClick={handleApply} className="px-6 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 rounded text-white font-semibold shadow-sm">{t('common.apply', { defaultValue: 'Uebernehmen' })}</button>
           <button onClick={handleSave} className="px-6 py-1.5 text-xs bg-omega-accent hover:bg-blue-500 rounded text-white shadow font-semibold">{t('common.ok', { defaultValue: 'OK' })}</button>
           <button className="px-6 py-1.5 text-xs bg-gray-600 hover:bg-gray-500 rounded ml-4 text-white" onClick={() => window.api.openExternal('https://github.com/OmegaProjct/Omega-Wave-Editor/issues')}>{t('common.help', { defaultValue: 'Hilfe' })}</button>
         </div>
@@ -1386,9 +1387,9 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
                   <AlertTriangle size={20} />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <h4 className="font-bold text-sm text-white">{t('settings.unsaved.title', { defaultValue: 'Ungespeicherte Änderungen' })}</h4>
+                  <h4 className="font-bold text-sm text-white">{t('settings.unsaved.title', { defaultValue: 'Ungespeicherte Aenderungen' })}</h4>
                   <p className="text-xs text-gray-400 leading-relaxed">
-                    {t('settings.unsaved.message', { defaultValue: 'Sie haben Änderungen an den Einstellungen vorgenommen. Möchten Sie diese Änderungen speichern oder verwerfen?' })}
+                    {t('settings.unsaved.message', { defaultValue: 'Sie haben Aenderungen an den Einstellungen vorgenommen. Moechten Sie diese Aenderungen speichern oder verwerfen?' })}
                   </p>
                 </div>
               </div>

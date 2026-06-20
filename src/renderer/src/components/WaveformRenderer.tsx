@@ -45,8 +45,11 @@ type RenderWindow = {
 
 const TILE_SIZE_PX = 512
 const TILE_BUFFER_PX = 768
-const MAX_REQUEST_PIXELS = 10000
+const MAX_REQUEST_PIXELS = 40000
 const MAX_DEVICE_PIXEL_RATIO = 2
+const MAX_CANVAS_BITMAP_SIZE = 16384
+const WAVEFORM_REQUEST_DEBOUNCE_MS = 75
+const rendererWaveformCache = new Map<string, WaveformWindowData>()
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
@@ -60,6 +63,27 @@ function getChannelLength(channel: WaveformChannel | undefined, mode: 'peaks' | 
 
 function getCssPixelRatio(): number {
   return clamp(window.devicePixelRatio || 1, 1, MAX_DEVICE_PIXEL_RATIO)
+}
+
+function rememberRendererWaveform(key: string, data: WaveformWindowData): void {
+  if (rendererWaveformCache.has(key)) {
+    rendererWaveformCache.delete(key)
+  }
+  rendererWaveformCache.set(key, data)
+
+  while (rendererWaveformCache.size > 160) {
+    const oldest = rendererWaveformCache.keys().next().value
+    if (!oldest) break
+    rendererWaveformCache.delete(oldest)
+  }
+}
+
+function getSafeCanvasRatio(cssWidth: number, cssHeight: number): number {
+  const desired = getCssPixelRatio()
+  const maxByWidth = MAX_CANVAS_BITMAP_SIZE / Math.max(1, cssWidth)
+  const maxByHeight = MAX_CANVAS_BITMAP_SIZE / Math.max(1, cssHeight)
+  const minVisibleRatio = 1 / Math.max(1, cssWidth, cssHeight)
+  return Math.max(minVisibleRatio, Math.min(desired, maxByWidth, maxByHeight, MAX_DEVICE_PIXEL_RATIO))
 }
 
 function buildRenderWindow({
@@ -318,9 +342,14 @@ export function WaveformRenderer({
 
     const updateSize = () => {
       const rect = node.getBoundingClientRect()
-      setSize({
-        width: Math.max(1, rect.width),
-        height: Math.max(1, rect.height)
+      const nextWidth = Math.max(1, Math.round(rect.width))
+      const nextHeight = Math.max(1, Math.round(rect.height))
+      setSize((current) => {
+        if (current.width === nextWidth && current.height === nextHeight) return current
+        return {
+          width: nextWidth,
+          height: nextHeight
+        }
       })
     }
 
@@ -372,37 +401,46 @@ export function WaveformRenderer({
     ? [
         filePath,
         channel || 'stereo',
-        renderWindow.sourceStart.toFixed(3),
-        renderWindow.sourceDuration.toFixed(3),
+        renderWindow.sourceStart.toFixed(6),
+        renderWindow.sourceDuration.toFixed(6),
         renderWindow.requestPixels
       ].join('|')
     : ''
 
   useEffect(() => {
     if (!filePath || !renderWindow || renderWindow.sourceDuration <= 0) {
-      setWaveform(null)
       return
     }
 
     let active = true
     setError(null)
+    const cached = rendererWaveformCache.get(requestKey)
+    if (cached) {
+      setWaveform(cached)
+      return () => {
+        active = false
+      }
+    }
 
-    window.api.getWaveformWindow(filePath, {
-      startTime: renderWindow.sourceStart,
-      duration: renderWindow.sourceDuration,
-      pixels: renderWindow.requestPixels,
-      channel
-    }).then((data: WaveformWindowData) => {
-      if (!active) return
-      setWaveform(data)
-    }).catch((err: any) => {
-      if (!active) return
-      setWaveform(null)
-      setError(err?.message || 'Waveform konnte nicht berechnet werden')
-    })
+    const timeout = window.setTimeout(() => {
+      window.api.getWaveformWindow(filePath, {
+        startTime: renderWindow.sourceStart,
+        duration: renderWindow.sourceDuration,
+        pixels: renderWindow.requestPixels,
+        channel
+      }).then((data: WaveformWindowData) => {
+        if (!active) return
+        rememberRendererWaveform(requestKey, data)
+        setWaveform(data)
+      }).catch((err: any) => {
+        if (!active) return
+        setError(err?.message || 'Waveform konnte nicht berechnet werden')
+      })
+    }, WAVEFORM_REQUEST_DEBOUNCE_MS)
 
     return () => {
       active = false
+      window.clearTimeout(timeout)
     }
   }, [channel, filePath, requestKey, renderWindow])
 
@@ -413,7 +451,7 @@ export function WaveformRenderer({
 
     const cssWidth = Math.max(1, renderWindow.widthPx)
     const cssHeight = Math.max(1, size.height || 80)
-    const dpr = getCssPixelRatio()
+    const dpr = getSafeCanvasRatio(cssWidth, cssHeight)
     canvas.width = Math.max(1, Math.round(cssWidth * dpr))
     canvas.height = Math.max(1, Math.round(cssHeight * dpr))
     canvas.style.width = `${cssWidth}px`

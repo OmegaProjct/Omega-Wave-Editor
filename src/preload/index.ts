@@ -116,6 +116,9 @@ const api = {
   resizeWindow: (width: number, height: number) => 
     ipcRenderer.send('resize-window', { width, height }),
   
+  getMainWindowBounds: () => ipcRenderer.invoke('get-main-window-bounds'),
+  getDefaultMainWindowBounds: () => ipcRenderer.invoke('get-default-main-window-bounds'),
+  setMainWindowBounds: (bounds: Electron.Rectangle) => ipcRenderer.invoke('set-main-window-bounds', bounds),
   getPopoutBounds: () => ipcRenderer.invoke('get-popout-bounds'),
   setPopoutBounds: (bounds: Record<string, Electron.Rectangle>) => ipcRenderer.invoke('set-popout-bounds', bounds),
   

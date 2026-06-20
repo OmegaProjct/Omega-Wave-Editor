@@ -1,0 +1,21 @@
+{
+  "goal": "Fix the remaining visible malformed negative-infinity dB displays in src/renderer/src/components/Timeline.tsx and keep the change tightly scoped.",
+  "workspace": "..",
+  "constraints": [
+    "Only modify src/renderer/src/components/Timeline.tsx.",
+    "Only fix user-facing malformed infinity displays such as '-âˆž' in rendered UI text.",
+    "Prefer ASCII-safe output like '-inf' if there is any encoding risk.",
+    "Do not perform unrelated refactors or formatting churn.",
+    "Run a relevant local check if practical."
+  ],
+  "success_criteria": [
+    "All remaining visible malformed infinity displays in Timeline.tsx are corrected.",
+    "No unrelated files are modified.",
+    "A relevant local check is reported."
+  ],
+  "allow_write": true,
+  "max_subjobs": 2,
+  "timeout_minutes": 15,
+  "model": "gemini-3.5-flash-low",
+  "report_format": "json"
+}

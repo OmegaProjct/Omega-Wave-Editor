@@ -3,7 +3,7 @@ import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import { FileExplorer } from './components/FileExplorer'
 import { Timeline } from './components/Timeline'
 import { MenuBar } from './components/MenuBar'
-import { SettingsModal } from './components/SettingsModal'
+import { SettingsModal, type Tab as SettingsTab } from './components/SettingsModal'
 import { EffectsPanel } from './components/EffectsPanel'
 import { ExportModal } from './components/ExportModal'
 import { MessageModal, ModalType } from './components/MessageModal'
@@ -33,6 +33,7 @@ type WindowLayoutPreset = {
   panelPopoutState?: Partial<Record<PanelPopoutId, boolean>>
   panelLayoutLocked?: boolean
   popoutBounds?: Record<string, any>
+  mainWindowBounds?: { x: number; y: number; width: number; height: number } | null
   savedAt: string
 }
 
@@ -51,6 +52,7 @@ const DEFAULT_WINDOW_LAYOUT: WindowLayoutPreset = {
 
 const WINDOW_LAYOUTS_STORAGE_KEY = 'omega.windowLayouts.v1'
 const CURRENT_WINDOW_LAYOUT_STORAGE_KEY = 'omega.windowLayout.current.v1'
+const ACTIVE_WINDOW_LAYOUT_NAME_STORAGE_KEY = 'omega.windowLayout.activeName.v1'
 const PANEL_LAYOUT_LOCKED_STORAGE_KEY = 'omega.panelLayout.locked.v1'
 const PANEL_POPOUT_SNAPSHOT_STORAGE_KEY = 'omega.panelPopout.snapshot.v1'
 const PANEL_POPOUT_ACTION_STORAGE_KEY = 'omega.panelPopout.action.v1'
@@ -85,6 +87,72 @@ function snapPanelLayout(layout: number[], snapPoints: number[]): number[] {
 
   const secondPanelSize = Math.max(0, 100 - bestSnapPoint)
   return [bestSnapPoint, secondPanelSize]
+}
+
+function getMinDistanceToSnapPoints(layout: number[], snapPoints: number[]): number {
+  if (!Array.isArray(layout) || layout.length !== 2) {
+    return Infinity
+  }
+  const firstPanelSize = layout[0]
+  let minDistance = Infinity
+  snapPoints.forEach((snapPoint) => {
+    const distance = Math.abs(firstPanelSize - snapPoint)
+    if (distance < minDistance) {
+      minDistance = distance
+    }
+  })
+  return minDistance
+}
+
+function getClosestSnapPoint(layout: number[], snapPoints: number[]): number | null {
+  if (!Array.isArray(layout) || layout.length !== 2 || snapPoints.length === 0) {
+    return null
+  }
+
+  const firstPanelSize = layout[0]
+  let closestSnapPoint = snapPoints[0]
+  let minDistance = Math.abs(firstPanelSize - closestSnapPoint)
+
+  snapPoints.forEach((snapPoint) => {
+    const distance = Math.abs(firstPanelSize - snapPoint)
+    if (distance < minDistance) {
+      minDistance = distance
+      closestSnapPoint = snapPoint
+    }
+  })
+
+  return closestSnapPoint
+}
+
+async function captureCurrentWindowLayoutSnapshot(
+  getCurrentWindowLayout: () => WindowLayoutPreset,
+  api: typeof window.api
+): Promise<WindowLayoutPreset> {
+  let popoutBounds: Record<string, any> = {}
+  let mainWindowBounds: { x: number; y: number; width: number; height: number } | null = null
+
+  try {
+    const allBounds = await api.getPopoutBounds()
+    const targetPanels = ['panel-file-explorer', 'panel-effects', 'panel-timeline']
+    for (const panelId of targetPanels) {
+      if (allBounds && allBounds[panelId]) {
+        popoutBounds[panelId] = allBounds[panelId]
+      }
+    }
+  } catch (err) {
+    console.error('Fehler beim Abrufen der Popout-Bounds:', err)
+  }
+
+  try {
+    mainWindowBounds = await api.getMainWindowBounds()
+  } catch (err) {
+    console.error('Fehler beim Abrufen der Hauptfenster-Bounds:', err)
+  }
+
+  const layout = getCurrentWindowLayout()
+  layout.popoutBounds = popoutBounds
+  layout.mainWindowBounds = mainWindowBounds
+  return layout
 }
 
 function logTimelineChanges(oldTracks: any[], newTracks: any[]) {
@@ -205,7 +273,7 @@ function App(): JSX.Element {
   const windowType = new URLSearchParams(window.location.search).get('window')
   const isPanelPopoutWindow = windowType === 'panel-file-explorer' || windowType === 'panel-effects' || windowType === 'panel-timeline'
   const [showSettings, setShowSettings] = useState(false)
-  const [settingsTab, setSettingsTab] = useState<'Wiedergabe' | 'Ordner' | 'Ansicht' | 'System' | 'Tastaturkürzel' | 'Projekteinstellungen' | 'Sprache & Anzeige'>('Projekteinstellungen')
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>('Projekteinstellungen')
   const [showExport, setShowExport] = useState(false)
   const [showManual, setShowManual] = useState(false)
   const [showAbout, setShowAbout] = useState(false)
@@ -225,12 +293,17 @@ function App(): JSX.Element {
   const [autoSaveInterval, setAutoSaveInterval] = useState(10)
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(true)
   const [windowLayouts, setWindowLayouts] = useState<Record<string, WindowLayoutPreset>>({})
+  const [activeWindowLayoutName, setActiveWindowLayoutName] = useState<string | null>(null)
   const [panelLayoutLocked, setPanelLayoutLocked] = useState(true)
   const [panelPopoutState, setPanelPopoutState] = useState<Record<PanelPopoutId, boolean>>({
     'panel-file-explorer': false,
     'panel-effects': false,
     'panel-timeline': false
   })
+  const [isDraggingMain, setIsDraggingMain] = useState(false)
+  const [isDraggingTop, setIsDraggingTop] = useState(false)
+  const [mainLayout, setMainLayout] = useState<number[]>([50, 50])
+  const [topLayout, setTopLayout] = useState<number[]>([30, 70])
   // Global Modal State
   const [modalConfig, setModalConfig] = useState<{ 
     type: ModalType, 
@@ -279,13 +352,16 @@ function App(): JSX.Element {
     requestAnimationFrame(() => {
       mainPanelGroupRef.current?.setLayout?.(layout.mainVertical)
       topPanelGroupRef.current?.setLayout?.(layout.topHorizontal)
+      setMainLayout(layout.mainVertical)
+      setTopLayout(layout.topHorizontal)
       if (persistCurrent) {
         persistCurrentWindowLayout(layout)
       }
     })
-  }, [persistCurrentWindowLayout])
+  }, [persistCurrentWindowLayout, setMainLayout, setTopLayout])
 
   const handleMainPanelLayout = useCallback((layout: number[]) => {
+    setMainLayout(layout)
     if (snappingMainLayoutRef.current) {
       snappingMainLayoutRef.current = false
       persistCurrentWindowLayout()
@@ -308,9 +384,10 @@ function App(): JSX.Element {
     }
 
     persistCurrentWindowLayout()
-  }, [getCurrentWindowLayout, persistCurrentWindowLayout])
+  }, [getCurrentWindowLayout, persistCurrentWindowLayout, setMainLayout])
 
   const handleTopPanelLayout = useCallback((layout: number[]) => {
+    setTopLayout(layout)
     if (snappingTopLayoutRef.current) {
       snappingTopLayoutRef.current = false
       persistCurrentWindowLayout()
@@ -333,7 +410,7 @@ function App(): JSX.Element {
     }
 
     persistCurrentWindowLayout()
-  }, [getCurrentWindowLayout, persistCurrentWindowLayout])
+  }, [getCurrentWindowLayout, persistCurrentWindowLayout, setTopLayout])
 
   useEffect(() => {
     tracksRef.current = tracks;
@@ -367,6 +444,11 @@ function App(): JSX.Element {
         }
       }
 
+      const activeLayoutNameRaw = localStorage.getItem(ACTIVE_WINDOW_LAYOUT_NAME_STORAGE_KEY)
+      if (activeLayoutNameRaw) {
+        setActiveWindowLayoutName(activeLayoutNameRaw)
+      }
+
       const currentLayoutRaw = localStorage.getItem(CURRENT_WINDOW_LAYOUT_STORAGE_KEY)
       if (currentLayoutRaw) {
         const parsedCurrent = JSON.parse(currentLayoutRaw)
@@ -388,7 +470,9 @@ function App(): JSX.Element {
     applyWindowLayout(DEFAULT_WINDOW_LAYOUT, false)
     setPanelPopoutState(DEFAULT_WINDOW_LAYOUT.panelPopoutState as Record<PanelPopoutId, boolean>)
     setPanelLayoutLocked(true)
-  }, [applyWindowLayout])
+    setActiveWindowLayoutName(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     try {
@@ -434,7 +518,7 @@ function App(): JSX.Element {
     }
   }
 
-  const openSettings = (tab: 'Wiedergabe' | 'Ordner' | 'Ansicht' | 'System' | 'Tastaturkürzel' | 'Projekteinstellungen' | 'Sprache & Anzeige' = 'Projekteinstellungen') => {
+  const openSettings = (tab: SettingsTab = 'Projekteinstellungen') => {
     openModalPopoutOrInline('settings', () => {
       setSettingsTab(tab)
       setShowSettings(true)
@@ -967,46 +1051,70 @@ function App(): JSX.Element {
     }
     if (type === 'WINDOW_LAYOUT_SAVE') {
       const suggestedName = `Ansicht ${Object.keys(windowLayouts).length + 1}`
-      const enteredName = window.prompt('Name für die aktuelle Fensteransicht:', suggestedName)
+      const enteredName = window.prompt('Name f?r die aktuelle Fensteransicht:', suggestedName)
       const name = enteredName?.trim()
       if (!name) {
         return
       }
       
-      // Popout-Bounds asynchron abrufen und filtern
       ;(async () => {
-        let popoutBounds: Record<string, any> = {}
-        try {
-          const allBounds = await window.api.getPopoutBounds()
-          const targetPanels = ['panel-file-explorer', 'panel-effects', 'panel-timeline']
-          for (const panelId of targetPanels) {
-            if (allBounds && allBounds[panelId]) {
-              popoutBounds[panelId] = allBounds[panelId]
-            }
-          }
-        } catch (err) {
-          console.error('Fehler beim Abrufen der Popout-Bounds:', err)
-        }
-
-        const layout = getCurrentWindowLayout()
-        layout.popoutBounds = popoutBounds
-
+        const layout = await captureCurrentWindowLayoutSnapshot(getCurrentWindowLayout, window.api)
         const nextLayouts = {
           ...windowLayouts,
           [name]: layout
         }
         setWindowLayouts(nextLayouts)
         localStorage.setItem(WINDOW_LAYOUTS_STORAGE_KEY, JSON.stringify(nextLayouts))
+        localStorage.setItem(ACTIVE_WINDOW_LAYOUT_NAME_STORAGE_KEY, name)
+        setActiveWindowLayoutName(name)
         persistCurrentWindowLayout(layout)
         showModal('info', 'Fensteransicht gespeichert', `Die Ansicht "${name}" wurde gespeichert.`)
       })()
       return
     }
+    if (type === 'WINDOW_LAYOUT_UPDATE') {
+      if (!activeWindowLayoutName) {
+        showModal('info', 'Keine aktive Fensteransicht', 'Bitte lade oder speichere zuerst eine Fensteransicht, bevor du sie aktualisierst.')
+        return
+      }
+      if (!windowLayouts[activeWindowLayoutName]) {
+        showModal('warn', 'Fensteransicht nicht gefunden', 'Die aktive Fensteransicht existiert nicht mehr und kann nicht aktualisiert werden.')
+        localStorage.removeItem(ACTIVE_WINDOW_LAYOUT_NAME_STORAGE_KEY)
+        setActiveWindowLayoutName(null)
+        return
+      }
+
+      ;(async () => {
+        const layout = await captureCurrentWindowLayoutSnapshot(getCurrentWindowLayout, window.api)
+        const nextLayouts = {
+          ...windowLayouts,
+          [activeWindowLayoutName]: layout
+        }
+        setWindowLayouts(nextLayouts)
+        localStorage.setItem(WINDOW_LAYOUTS_STORAGE_KEY, JSON.stringify(nextLayouts))
+        localStorage.setItem(ACTIVE_WINDOW_LAYOUT_NAME_STORAGE_KEY, activeWindowLayoutName)
+        persistCurrentWindowLayout(layout)
+        showModal('info', 'Fensteransicht aktualisiert', `Die Ansicht "${activeWindowLayoutName}" wurde aktualisiert.`)
+      })()
+      return
+    }
     if (type === 'WINDOW_LAYOUT_RESET') {
-      redockAllPanels()
-      setPanelLayoutLocked(DEFAULT_WINDOW_LAYOUT.panelLayoutLocked ?? true)
-      applyWindowLayout(DEFAULT_WINDOW_LAYOUT)
-      showModal('info', 'Fensteransicht zurückgesetzt', 'Die Standardansicht wurde wiederhergestellt.')
+      ;(async () => {
+        redockAllPanels()
+        try {
+          const defaultBounds = await window.api.getDefaultMainWindowBounds()
+          if (defaultBounds) {
+            await window.api.setMainWindowBounds(defaultBounds)
+          }
+        } catch (err) {
+          console.error('Fehler beim Wiederherstellen der Standard-Hauptfenster-Bounds:', err)
+        }
+        setPanelLayoutLocked(DEFAULT_WINDOW_LAYOUT.panelLayoutLocked ?? true)
+        applyWindowLayout(DEFAULT_WINDOW_LAYOUT)
+        localStorage.removeItem(ACTIVE_WINDOW_LAYOUT_NAME_STORAGE_KEY)
+        setActiveWindowLayoutName(null)
+        showModal('info', 'Fensteransicht zur?ckgesetzt', 'Die Standardansicht wurde wiederhergestellt.')
+      })()
       return
     }
     if (type === 'WINDOW_LAYOUT_LOAD') {
@@ -1019,6 +1127,14 @@ function App(): JSX.Element {
 
       // Popout-Bounds an den Hauptprozess senden, bevor die Popout-Panels geöffnet/positioniert werden
       ;(async () => {
+        if (layout.mainWindowBounds) {
+          try {
+            await window.api.setMainWindowBounds(layout.mainWindowBounds)
+          } catch (err) {
+            console.error('Fehler beim Setzen der Hauptfenster-Bounds:', err)
+          }
+        }
+
         if (layout.popoutBounds) {
           try {
             await window.api.setPopoutBounds(layout.popoutBounds)
@@ -1032,6 +1148,8 @@ function App(): JSX.Element {
           setPanelLayoutLocked(layout.panelLayoutLocked)
         }
         applyWindowLayout(layout)
+        localStorage.setItem(ACTIVE_WINDOW_LAYOUT_NAME_STORAGE_KEY, layoutName)
+        setActiveWindowLayoutName(layoutName)
         showModal('info', 'Fensteransicht geladen', `Die Ansicht "${layoutName}" wurde geladen.`)
       })()
       return
@@ -1046,6 +1164,10 @@ function App(): JSX.Element {
       delete nextLayouts[layoutName]
       setWindowLayouts(nextLayouts)
       localStorage.setItem(WINDOW_LAYOUTS_STORAGE_KEY, JSON.stringify(nextLayouts))
+      if (activeWindowLayoutName === layoutName) {
+        localStorage.removeItem(ACTIVE_WINDOW_LAYOUT_NAME_STORAGE_KEY)
+        setActiveWindowLayoutName(null)
+      }
       showModal('info', 'Fensteransicht entfernt', `Die Ansicht "${layoutName}" wurde entfernt.`)
       return
     }
@@ -1446,8 +1568,105 @@ function App(): JSX.Element {
     )
   }
 
+  const mainDistance = getMinDistanceToSnapPoints(mainLayout, MAIN_VERTICAL_SNAP_POINTS)
+  const isMainSnapActive = !panelLayoutLocked && isDraggingMain && mainDistance <= PANEL_LAYOUT_SNAP_THRESHOLD
+  const isMainNearActive = !panelLayoutLocked && isDraggingMain && mainDistance > PANEL_LAYOUT_SNAP_THRESHOLD && mainDistance <= 6.0
+  const mainClosestSnapPoint = getClosestSnapPoint(mainLayout, MAIN_VERTICAL_SNAP_POINTS)
+
+  const topDistance = getMinDistanceToSnapPoints(topLayout, TOP_HORIZONTAL_SNAP_POINTS)
+  const isTopSnapActive = !panelLayoutLocked && isDraggingTop && topDistance <= PANEL_LAYOUT_SNAP_THRESHOLD
+  const isTopNearActive = !panelLayoutLocked && isDraggingTop && topDistance > PANEL_LAYOUT_SNAP_THRESHOLD && topDistance <= 6.0
+  const topClosestSnapPoint = getClosestSnapPoint(topLayout, TOP_HORIZONTAL_SNAP_POINTS)
+  const activeSnapHint = (() => {
+    if (panelLayoutLocked) return null
+
+    if ((isDraggingTop || isTopNearActive || isTopSnapActive) && topClosestSnapPoint !== null) {
+      return {
+        axis: 'horizontal' as const,
+        title: isTopSnapActive ? 'Snap aktiv' : 'Snap in Naehe',
+        label: `Obere Bereiche ${topClosestSnapPoint}% / ${100 - topClosestSnapPoint}%`,
+        distance: topDistance
+      }
+    }
+
+    if ((isDraggingMain || isMainNearActive || isMainSnapActive) && mainClosestSnapPoint !== null) {
+      return {
+        axis: 'vertical' as const,
+        title: isMainSnapActive ? 'Snap aktiv' : 'Snap in Naehe',
+        label: `Workspace / Timeline ${mainClosestSnapPoint}% / ${100 - mainClosestSnapPoint}%`,
+        distance: mainDistance
+      }
+    }
+
+    return null
+  })()
+
   return (
     <div className="h-full w-full flex flex-col bg-omega-dark text-omega-text relative select-none">
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes snapGlowPulse {
+          0%, 100% {
+            box-shadow: 0 0 6px rgba(0, 120, 215, 0.7), 0 0 15px rgba(0, 120, 215, 0.5);
+            background-color: #0078d7;
+          }
+          50% {
+            box-shadow: 0 0 12px rgba(59, 156, 255, 1), 0 0 28px rgba(59, 156, 255, 0.8), 0 0 40px rgba(0, 120, 215, 0.6);
+            background-color: #3b9cff;
+          }
+        }
+        .snap-glow-active {
+          animation: snapGlowPulse 1.0s infinite ease-in-out;
+          background-color: #0078d7 !important;
+          z-index: 50 !important;
+        }
+        .snap-glow-near {
+          box-shadow: 0 0 4px rgba(0, 120, 215, 0.45), 0 0 10px rgba(0, 120, 215, 0.25);
+          background-color: rgba(0, 120, 215, 0.7) !important;
+          z-index: 50 !important;
+          transition: box-shadow 0.15s ease, background-color 0.15s ease;
+        }
+        @keyframes snapHintFloat {
+          0%, 100% {
+            transform: translateY(0px);
+          }
+          50% {
+            transform: translateY(-1px);
+          }
+        }
+        .snap-hint-float {
+          animation: snapHintFloat 1.4s ease-in-out infinite;
+        }
+      ` }} />
+      {activeSnapHint && (
+        <div className="pointer-events-none absolute right-4 top-12 z-[180]">
+          <div
+            className={`snap-hint-float min-w-[250px] rounded-lg border px-3 py-2 shadow-2xl backdrop-blur-sm ${
+              activeSnapHint.title === 'Snap aktiv'
+                ? 'border-cyan-400/60 bg-cyan-500/12 text-cyan-100 shadow-[0_0_22px_rgba(34,211,238,0.18)]'
+                : 'border-blue-400/40 bg-slate-900/88 text-blue-100 shadow-[0_0_18px_rgba(59,130,246,0.16)]'
+            }`}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/75">
+                {activeSnapHint.axis === 'horizontal' ? 'Oberer Bereich' : 'Hauptlayout'}
+              </span>
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                activeSnapHint.title === 'Snap aktiv'
+                  ? 'bg-cyan-400/18 text-cyan-100'
+                  : 'bg-blue-400/18 text-blue-100'
+              }`}>
+                {activeSnapHint.title}
+              </span>
+            </div>
+            <div className="mt-1 text-sm font-semibold">
+              {activeSnapHint.label}
+            </div>
+            <div className="mt-1 text-[11px] text-white/55">
+              Abstand zum Snap-Punkt: {activeSnapHint.distance.toFixed(1)}%
+            </div>
+          </div>
+        </div>
+      )}
       {showSettings && (
         <SettingsModal 
           onClose={() => {
@@ -1605,6 +1824,7 @@ function App(): JSX.Element {
           onFileAction={triggerTimelineAction}
           shortcuts={keyboardShortcuts}
           windowLayouts={Object.keys(windowLayouts).sort((a, b) => a.localeCompare(b, 'de'))}
+          activeWindowLayoutName={activeWindowLayoutName}
         />
       </div>
 
@@ -1646,7 +1866,18 @@ function App(): JSX.Element {
                 </div>
               </Panel>
               
-              <PanelResizeHandle className={`w-1 transition-colors ${panelLayoutLocked ? 'bg-omega-border/60 cursor-default pointer-events-none' : 'bg-omega-border cursor-col-resize hover:bg-omega-accent'}`} />
+              <PanelResizeHandle
+                onDragging={setIsDraggingTop}
+                className={`w-1 transition-all duration-150 ${
+                  panelLayoutLocked
+                    ? 'bg-omega-border/60 cursor-default pointer-events-none'
+                    : isTopSnapActive
+                      ? 'snap-glow-active cursor-col-resize'
+                      : isTopNearActive
+                        ? 'snap-glow-near cursor-col-resize'
+                        : 'bg-omega-border cursor-col-resize hover:bg-omega-accent'
+                }`}
+              />
               
               {/* Properties/Preview (Right) */}
               <Panel defaultSize={70} minSize={20} className="bg-omega-dark relative">
@@ -1687,7 +1918,18 @@ function App(): JSX.Element {
             </PanelGroup>
           </Panel>
 
-          <PanelResizeHandle className={`h-1 transition-colors ${panelLayoutLocked ? 'bg-omega-border/60 cursor-default pointer-events-none' : 'bg-omega-border cursor-row-resize hover:bg-omega-accent'}`} />
+          <PanelResizeHandle
+            onDragging={setIsDraggingMain}
+            className={`h-1 transition-all duration-150 ${
+              panelLayoutLocked
+                ? 'bg-omega-border/60 cursor-default pointer-events-none'
+                : isMainSnapActive
+                  ? 'snap-glow-active cursor-row-resize'
+                  : isMainNearActive
+                    ? 'snap-glow-near cursor-row-resize'
+                    : 'bg-omega-border cursor-row-resize hover:bg-omega-accent'
+            }`}
+          />
 
           {/* Timeline (Bottom) */}
           <Panel defaultSize={50} minSize={20} className="bg-omega-panel">

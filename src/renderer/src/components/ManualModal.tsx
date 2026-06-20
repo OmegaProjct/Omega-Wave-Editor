@@ -73,6 +73,18 @@ export function ManualModal({ onClose }: { onClose: () => void }) {
                   </p>
                </div>
             </div>
+            <div className="mt-4 bg-black/20 p-4 rounded border border-gray-800">
+               <h4 className="font-bold text-white text-xs mb-1.5 flex items-center gap-2">
+                 <span className="w-1.5 h-1.5 bg-omega-accent rounded-sm inline-block"></span>
+                 {t('manual.sec2_workspace_title', { defaultValue: 'Workspace anpassen: Toolbar, Layouts und Pop-out-Fenster' })}
+               </h4>
+               <p className="text-xs text-gray-400 leading-relaxed">
+                 {t('manual.sec2_workspace_desc', { defaultValue: 'Die Bereiche Import/Player, Effekte und Timeline koennen flexibel neu angeordnet, aus dem Hauptfenster ausgekoppelt und spaeter wieder angedockt werden. Im Menue "Fenster" koennen Sie Ansichten speichern, laden oder auf die Standardanordnung zuruecksetzen. Entsperren Sie das Bereichslayout ueber das Schloss-Symbol, um Trenner zu verschieben, Fenster neu zu platzieren oder Pop-out-Ansichten zu oeffnen. Beim Verschieben rasten Bereiche an sinnvollen Positionen ein, damit auch Mehrmonitor-Setups leichter reproduzierbar bleiben.' })}
+               </p>
+               <p className="text-xs text-gray-400 leading-relaxed mt-3">
+                 {t('manual.sec2_toolbar_desc', { defaultValue: 'Die Timeline-Werkzeugleiste ist ebenfalls anpassbar: Im entsperrten Zustand lassen sich Werkzeuge, Player-Buttons und Anzeigeelemente per Drag-and-Drop umsortieren. Die Einfuegemarkierung zeigt dabei deutlich an, an welcher Position ein Element landet. Ueber den Button "Symbole" oeffnen Sie den Toolbar-Manager und waehlen gezielt aus, welche Elemente ueberhaupt sichtbar sein sollen. Per Rechtsklick koennen Sie Trennstriche vor oder nach einem Element einfuegen und Farbmarkierungen vergeben. Die Zeit- und Auswahlanzeigen besitzen eigene Formatwaehler, damit Sie je nach Aufgabe zwischen Sekunden, Samples oder Frame-basierten Formaten umschalten koennen.' })}
+               </p>
+            </div>
           </section>
 
           {/* 3. Schneiden und Arrangieren */}
@@ -143,7 +155,7 @@ export function ManualModal({ onClose }: { onClose: () => void }) {
               {t('manual.sec5_title', { defaultValue: '5. Audioaufnahme (Recording)' })}
             </h2>
             <p className="leading-relaxed text-gray-300 text-sm">
-              {t('manual.sec5_text', { defaultValue: 'Klicken Sie in der Werkzeugleiste auf das Mikrofon-Symbol. Der Editor fragt gegebenenfalls nach Berechtigungen für Ihr System-Mikrofon. Während der Aufnahme pulsiert das Symbol rot. Ein erneuter Klick beendet die Aufnahme. Die erzeugte Audio-Datei wird auf Ihrem Desktop gespeichert und sofort als neues Objekt an den Beginn von Spur 1 gelegt.' })}
+              {t('manual.sec5_text', { defaultValue: 'Nutzen Sie den Record-Button in der Timeline-Werkzeugleiste, um den Audio-Recorder zu oeffnen. Der Editor fragt gegebenenfalls nach Berechtigungen fuer Ihr System-Mikrofon. Waehrend der Aufnahme signalisiert die rote Aufnahme-Schaltflaeche den aktiven Zustand. Nach dem Beenden steht die erzeugte Audio-Datei sofort fuer den weiteren Schnitt im Projekt bereit.' })}
             </p>
           </section>
 

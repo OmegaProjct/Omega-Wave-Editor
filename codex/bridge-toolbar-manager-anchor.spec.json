@@ -1,0 +1,23 @@
+{
+  "goal": "Verbessere die UX des Timeline-Toolbar-Managers in der Omega-Wave-Editor-Toolbar mit einem eng begrenzten Feinschliff. Arbeite nur in src/renderer/src/components/Timeline.tsx. Der Toolbar-Manager fuer den Button 'Symbole' soll nicht mehr hart bei festen Pixelkoordinaten erscheinen, sondern sinnvoll am Button bzw. an der Toolbar angedockt und innerhalb des sichtbaren Viewports geklemmt werden. Die sichtbare Zustandskommunikation darf etwas klarer werden, zum Beispiel ueber eine kleine sichtbare Anzahl der eingeblendeten Symbole oder eine gleichwertige knappe Anzeige direkt am Button oder im Panel. Die bestehende Toolbar-Manager-Funktionalitaet, das Ausblenden der letzten verbleibenden Aktion, die Toolbar-Sperrlogik und die bestehende Kontextmenue-Logik duerfen nicht kaputtgehen.",
+  "workspace": "C:/Users/Dave1/Coding/Omega Wave Editor",
+  "constraints": [
+    "Arbeite nur in src/renderer/src/components/Timeline.tsx.",
+    "Aendere keine andere Datei.",
+    "Greife keine bestehende Playhead-, Zoom-, Playback- oder Docking-Logik an.",
+    "Nutze vorhandene React-Patterns im File und halte die Aenderung eng begrenzt.",
+    "Revertiere keine fremden oder bestehenden Aenderungen im Workspace."
+  ],
+  "success_criteria": [
+    "Der Toolbar-Manager ist nicht mehr auf feste top/left-Werte verdrahtet, sondern wird relativ zur Toolbar oder zum Symbole-Button positioniert und auf den Viewport begrenzt.",
+    "Der Symbole-Bereich kommuniziert den aktuellen Sichtbarkeitszustand etwas klarer.",
+    "Die bestehende Sichtbarkeitslogik fuer Toolbar-Elemente funktioniert weiterhin.",
+    "Die Aenderung bleibt auf Timeline.tsx begrenzt.",
+    "Im Abschlussbericht werden die konkreten Aenderungen und die geaenderte Datei genannt."
+  ],
+  "allow_write": true,
+  "max_subjobs": 2,
+  "timeout_minutes": 20,
+  "model": "gemini-3.5-flash-low",
+  "report_format": "full"
+}

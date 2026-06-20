@@ -1,0 +1,24 @@
+{
+  "goal": "Improve the internal panel docking UX by making snap behavior more visible when resizing the three main areas in the Omega workspace.",
+  "workspace": "C:\\Users\\Dave1\\Coding\\Omega Wave Editor",
+  "constraints": [
+    "Modify only src/renderer/src/App.tsx unless a tiny adjacent import/type adjustment is strictly required.",
+    "Do not remove or weaken the existing panel layout lock behavior, popout behavior, or saved layout behavior.",
+    "Keep the current Omega dark visual language.",
+    "Build on the existing snapPanelLayout / handleMainPanelLayout / handleTopPanelLayout logic instead of replacing the architecture."
+  ],
+  "success_criteria": [
+    "While resizing internal panels, the UI gives a clearer visible hint when a snap point is being hit or is about to be applied.",
+    "The implementation remains scoped to the workspace layout UX and does not disturb unrelated panels or timeline behavior.",
+    "The existing panel snapping and persistence still work.",
+    "npm run typecheck passes."
+  ],
+  "allow_write": true,
+  "max_subjobs": 1,
+  "timeout_minutes": 18,
+  "report_format": "json",
+  "engine": "agy",
+  "model": "gemini-3.5-flash-low",
+  "review_pass_limit": 1,
+  "state_dir": "C:\\Users\\Dave1\\.omega-agent-bridge"
+}

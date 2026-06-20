@@ -1,0 +1,25 @@
+{
+  "goal": "Extend window layout presets in App.tsx so they also save and restore the main window bounds, not only panel splits and popout bounds.",
+  "workspace": "C:\\Users\\Dave1\\Coding\\Omega Wave Editor",
+  "constraints": [
+    "Modify only src/renderer/src/App.tsx unless a tiny adjacent type adjustment is strictly required.",
+    "Use the existing preload APIs for getMainWindowBounds, getDefaultMainWindowBounds, and setMainWindowBounds instead of inventing new IPC.",
+    "Preserve the existing layout preset behavior for panel splits, lock state, and popout bounds.",
+    "When restoring the default layout, reset the main window to the default bounds if available.",
+    "Keep the implementation conservative and local; do not redesign the menu structure."
+  ],
+  "success_criteria": [
+    "Saving a layout preset captures the current main window bounds alongside the existing layout data.",
+    "Loading a saved layout preset restores the main window bounds before or together with the layout application.",
+    "Resetting to the default layout also restores default main window bounds when available.",
+    "npm run typecheck passes."
+  ],
+  "allow_write": true,
+  "max_subjobs": 1,
+  "timeout_minutes": 18,
+  "report_format": "json",
+  "engine": "agy",
+  "model": "gemini-3.5-flash-low",
+  "review_pass_limit": 1,
+  "state_dir": "C:\\Users\\Dave1\\.omega-agent-bridge"
+}

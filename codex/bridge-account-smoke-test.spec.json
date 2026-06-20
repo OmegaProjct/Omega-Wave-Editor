@@ -1,0 +1,21 @@
+{
+  "goal": "Run a minimal read-only smoke test to verify that agy can execute a bounded task again after the account switch.",
+  "workspace": "C:\\Users\\Dave1\\Coding\\Omega Wave Editor",
+  "constraints": [
+    "Do not modify any files.",
+    "Read only src/renderer/src/App.tsx.",
+    "Report a one-sentence summary of what the file is responsible for."
+  ],
+  "success_criteria": [
+    "The run completes without quota/auth failure.",
+    "No files are modified.",
+    "A short summary is reported."
+  ],
+  "allow_write": false,
+  "max_subjobs": 1,
+  "timeout_minutes": 10,
+  "report_format": "json",
+  "engine": "agy",
+  "model": "gemini-3.5-flash-low",
+  "review_pass_limit": 1
+}

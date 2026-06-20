@@ -1,0 +1,21 @@
+{
+  "goal": "Fix the 8 remaining visible mojibake-like user-facing strings in src/renderer/src/components/Timeline.tsx and keep the change tightly scoped.",
+  "workspace": "..",
+  "constraints": [
+    "Only modify src/renderer/src/components/Timeline.tsx.",
+    "Only change the 8 remaining user-facing strings previously identified at lines around 1603, 1611, 1675, 1856, 3342, 4732, 5124, and 5698.",
+    "Do not perform unrelated refactors or formatting churn.",
+    "Prefer ASCII-safe replacements like ue/ae/oe if there is any encoding risk.",
+    "Run a relevant local check if practical."
+  ],
+  "success_criteria": [
+    "The 8 targeted visible UI strings in Timeline.tsx are corrected.",
+    "No unrelated files are modified.",
+    "A relevant local check is reported."
+  ],
+  "allow_write": true,
+  "max_subjobs": 2,
+  "timeout_minutes": 20,
+  "model": "gemini-3.5-flash-low",
+  "report_format": "json"
+}

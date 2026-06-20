@@ -1,0 +1,21 @@
+{
+  "goal": "Extend Omega Wave Editor so saved window layout presets also persist and restore panel popout window bounds for panel-file-explorer, panel-effects, and panel-timeline.",
+  "workspace": "..",
+  "constraints": [
+    "Keep changes tightly scoped to the existing window layout and popout infrastructure.",
+    "Prefer adding small IPC helpers instead of large refactors.",
+    "Use the existing saved popout bounds behavior in the main process rather than inventing a second storage system.",
+    "Only touch files that are necessary for this feature.",
+    "Run a relevant local check if practical."
+  ],
+  "success_criteria": [
+    "A saved window layout preset can include popout bounds for the three panel popouts.",
+    "Loading a saved window layout restores those saved popout bounds before or while reopening the popout panels.",
+    "Typecheck or an equivalent relevant local check is reported."
+  ],
+  "allow_write": true,
+  "max_subjobs": 3,
+  "timeout_minutes": 25,
+  "model": "gemini-3.5-flash-low",
+  "report_format": "json"
+}

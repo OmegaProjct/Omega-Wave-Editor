@@ -1,0 +1,24 @@
+{
+  "goal": "Improve the toolbar editing UX in the timeline with clearer drag-and-drop placement feedback and a more informative toolbar manager.",
+  "workspace": "C:\\Users\\Dave1\\Coding\\Omega Wave Editor",
+  "constraints": [
+    "Modify only src/renderer/src/components/Timeline.tsx unless a tiny adjacent type/import adjustment is strictly required.",
+    "Keep all existing toolbar behaviors working: lock/edit mode, drag reordering, separators, manager toggles, context menu, time/selection format menus.",
+    "Do not remove existing features.",
+    "Stay within the current dark blue Omega look and avoid broad redesign."
+  ],
+  "success_criteria": [
+    "When dragging toolbar items or separators in edit mode, the intended insertion position is visually much clearer than before.",
+    "The toolbar manager communicates the purpose and current state more clearly than before, while preserving the existing visibility toggles.",
+    "The implementation remains scoped and consistent with the existing Timeline.tsx patterns.",
+    "npm run typecheck passes."
+  ],
+  "allow_write": true,
+  "max_subjobs": 1,
+  "timeout_minutes": 18,
+  "report_format": "json",
+  "engine": "agy",
+  "model": "gemini-3.5-flash-low",
+  "review_pass_limit": 1,
+  "state_dir": "C:\\Users\\Dave1\\.omega-agent-bridge"
+}

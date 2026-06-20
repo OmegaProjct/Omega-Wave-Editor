@@ -1,0 +1,27 @@
+{
+  "goal": "Add time and selection display controls with selectable display formats to the existing Timeline toolbar, and expose the centered auto-scroll mode in the visible UI.",
+  "workspace": "C:\\Users\\Dave1\\Coding\\Omega Wave Editor",
+  "constraints": [
+    "Modify only src/renderer/src/components/Timeline.tsx unless a tiny adjacent import/type adjustment is strictly required.",
+    "Build on the existing Timeline toolbar instead of redesigning the whole toolbar system.",
+    "Keep the current Omega dark look and the existing transport, snap, grouping, and export controls.",
+    "Store the chosen time and selection display formats locally so they survive reloads.",
+    "Add a visible way to choose the auto-scroll mode including a centered mode, while preserving existing playback behavior.",
+    "Keep the implementation conservative and scoped; do not attempt the full draggable toolbar-manager architecture in this task."
+  ],
+  "success_criteria": [
+    "The Timeline toolbar shows a current time display and a selection-duration display.",
+    "Each display has a dropdown with multiple formats including hh:mm:ss variants, samples, and frame-based formats.",
+    "The chosen formats are persisted locally.",
+    "The visible UI exposes the auto-scroll mode including a centered option.",
+    "npm run typecheck passes."
+  ],
+  "allow_write": true,
+  "max_subjobs": 1,
+  "timeout_minutes": 20,
+  "report_format": "json",
+  "engine": "agy",
+  "model": "gemini-3.5-flash-low",
+  "review_pass_limit": 1,
+  "state_dir": "C:\\Users\\Dave1\\.omega-agent-bridge"
+}

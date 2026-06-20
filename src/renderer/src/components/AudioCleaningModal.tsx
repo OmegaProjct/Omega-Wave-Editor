@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react'
+import React, { useState } from 'react'
 import { Play, Square, SkipBack, SkipForward, Info, ChevronDown } from 'lucide-react'
 
 import { AudioEngine } from '../lib/AudioEngine'
@@ -101,12 +101,13 @@ export function AudioCleaningModal({ onClose, trackId }: { onClose: () => void, 
       <div className="flex justify-between items-end h-32 px-4 bg-black/10 rounded border border-gray-800 py-2">
         {[60, 170, 310, 600, 800, '1K', '3K', '6K', '12K', '16K'].map((f, i) => (
           <div key={f} className="flex flex-col items-center gap-1 h-full">
+            {/* Range-Slider fuer EQ-Baender (Klassennamen bereinigt) */}
             <input 
               type="range" 
               min="-20" max="20" step="0.1" 
               value={eqGains[i]} 
               onChange={(e) => handleEqChange(i, parseFloat(e.target.value))}
-              className="w-1 h-24 -rotate-90 appearance-none bg-gray-700 outline-none cursor-pointer slider-vertical"
+              className="w-1 h-24 -rotate-90 appearance-none bg-gray-700 outline-none cursor-pointer"
             />
             <span className="text-[9px] text-gray-500 mt-2">{f}</span>
           </div>

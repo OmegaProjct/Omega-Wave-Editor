@@ -1,0 +1,25 @@
+{
+  "goal": "Fix remaining visible or state-relevant encoding/mojibake issues in App.tsx and SettingsModal.tsx that affect settings tabs and user-facing settings text, while keeping the change tightly scoped.",
+  "workspace": "C:\\Users\\Dave1\\Coding\\Omega Wave Editor",
+  "constraints": [
+    "Only modify src/renderer/src/App.tsx and src/renderer/src/components/SettingsModal.tsx.",
+    "Fix only clearly malformed tab identifiers, user-facing strings, and directly related text literals.",
+    "Do not refactor unrelated logic or alter settings behavior beyond what is needed to normalize the affected strings.",
+    "Preserve tab identity consistency between App.tsx and SettingsModal.tsx.",
+    "Prefer ASCII-safe replacements like ae/oe/ue if there is any encoding risk.",
+    "Run a relevant local check if practical."
+  ],
+  "success_criteria": [
+    "Malformed settings tab identifiers and visible settings text in the two target files are corrected.",
+    "App.tsx and SettingsModal.tsx use consistent values for affected tab names.",
+    "No unrelated files are modified.",
+    "A relevant local check is reported."
+  ],
+  "allow_write": true,
+  "max_subjobs": 2,
+  "timeout_minutes": 20,
+  "report_format": "json",
+  "engine": "agy",
+  "model": "gemini-3.5-flash-low",
+  "review_pass_limit": 2
+}

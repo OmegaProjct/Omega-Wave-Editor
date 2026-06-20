@@ -1,0 +1,25 @@
+{
+  "goal": "Improve the internal panel docking UX in App.tsx by adding clearer live snap guidance while dragging the main layout resize handles.",
+  "workspace": "C:\\Users\\Dave1\\Coding\\Omega Wave Editor",
+  "constraints": [
+    "Modify only src/renderer/src/App.tsx unless a tiny adjacent import/type adjustment is strictly required.",
+    "Build on the existing snapPanelLayout, handleMainPanelLayout, handleTopPanelLayout, isMainSnapActive, isTopSnapActive, and related drag state instead of replacing the architecture.",
+    "Do not weaken existing layout persistence, pop-out behavior, or panel layout locking.",
+    "Keep the current Omega dark visual language.",
+    "Prefer a compact, informative visual hint such as an overlay chip, target label, or live snap marker that makes the imminent docking result clearer."
+  ],
+  "success_criteria": [
+    "While dragging the top or main resize handle, the UI communicates more clearly which snap target is active or near-active.",
+    "The added guidance remains scoped to the internal panel docking UX and does not disturb unrelated UI.",
+    "Existing snapping and persistence still work.",
+    "npm run typecheck passes."
+  ],
+  "allow_write": true,
+  "max_subjobs": 1,
+  "timeout_minutes": 18,
+  "report_format": "json",
+  "engine": "agy",
+  "model": "gemini-3.5-flash-low",
+  "review_pass_limit": 1,
+  "state_dir": "C:\\Users\\Dave1\\.omega-agent-bridge"
+}

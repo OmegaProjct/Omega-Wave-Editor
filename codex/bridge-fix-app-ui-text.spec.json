@@ -1,0 +1,21 @@
+{
+  "goal": "Fix remaining visible mojibake-like user-facing strings in src/renderer/src/App.tsx, especially around layout, window, popout, and modal UI, while keeping the change tightly scoped.",
+  "workspace": "..",
+  "constraints": [
+    "Only modify src/renderer/src/App.tsx.",
+    "Change only user-facing strings that are visibly malformed or mojibake-like.",
+    "Do not refactor behavior or change logic beyond what is needed for the text cleanup.",
+    "Prefer ASCII-safe replacements like ae/oe/ue if there is any encoding risk.",
+    "Run a relevant local check if practical."
+  ],
+  "success_criteria": [
+    "Visible malformed App.tsx UI strings are corrected.",
+    "No unrelated files are modified.",
+    "A relevant local check is reported."
+  ],
+  "allow_write": true,
+  "max_subjobs": 2,
+  "timeout_minutes": 20,
+  "model": "gemini-3.5-flash-low",
+  "report_format": "json"
+}

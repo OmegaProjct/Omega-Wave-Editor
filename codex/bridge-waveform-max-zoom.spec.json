@@ -1,0 +1,27 @@
+{
+  "goal": "Increase the maximum practical waveform detail in the timeline by expanding high-zoom behavior and making sample-level waveform rendering kick in more aggressively for close zoom levels.",
+  "workspace": "C:\\Users\\Dave1\\Coding\\Omega Wave Editor",
+  "constraints": [
+    "Modify only src/renderer/src/components/Timeline.tsx, src/renderer/src/components/WaveformRenderer.tsx, and src/main/waveform/waveformAnalysisService.ts unless a tiny adjacent type/import adjustment is strictly required.",
+    "Preserve the existing playhead-anchored zoom behavior, playback logic, and current dark Omega visual style.",
+    "Do not remove the existing waveform caching/windowing architecture; refine it.",
+    "Favor a clearly higher maximum zoom range, stronger zoom acceleration at high zoom, and earlier sample-mode usage where it improves visible detail.",
+    "Keep the implementation conservative enough to avoid obvious white-canvas regressions.",
+    "Run npm run typecheck before finishing."
+  ],
+  "success_criteria": [
+    "The timeline can zoom in substantially further than before, beyond the current hard cap of 20.",
+    "Wheel and button zooming feel faster at high zoom levels so the user needs fewer steps to reach extreme detail.",
+    "Waveform rendering switches into fine-grained sample rendering earlier or more reliably at close zoom levels, producing more distinct small waveform detail.",
+    "The implementation stays scoped to the zoom/rendering pipeline and remains consistent with the existing code style.",
+    "npm run typecheck passes."
+  ],
+  "allow_write": true,
+  "max_subjobs": 1,
+  "timeout_minutes": 20,
+  "report_format": "json",
+  "engine": "agy",
+  "model": "gemini-3.5-flash-low",
+  "review_pass_limit": 1,
+  "state_dir": "C:\\Users\\Dave1\\.omega-agent-bridge"
+}

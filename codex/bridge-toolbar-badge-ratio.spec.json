@@ -1,0 +1,22 @@
+{
+  "goal": "Fuehre einen kleinen, eng begrenzten UX-Feinschliff in der Timeline-Toolbar aus. Arbeite nur in src/renderer/src/components/Timeline.tsx. Der Button 'Symbole' soll den Sichtbarkeitszustand klarer direkt als Verhaeltnis sichtbar/gesamt anzeigen statt nur die sichtbare Anzahl. Wenn der Nutzer im Toolbar-Manager auf 'Standard' klickt, soll sich der Reset auch sauber anfuehlen; ein sinnvolles kleines Verhalten ist zum Beispiel das direkte Schliessen des Managers nach dem Reset oder eine gleichwertig klare Rueckmeldung. Bestehende Sichtbarkeitslogik, Kontextmenues, Lock-Logik und Drag-Verhalten duerfen nicht kaputtgehen.",
+  "workspace": "C:/Users/Dave1/Coding/Omega Wave Editor",
+  "constraints": [
+    "Arbeite nur in src/renderer/src/components/Timeline.tsx.",
+    "Aendere keine andere Datei.",
+    "Halte die Aenderung eng begrenzt und ohne Architekturumbau.",
+    "Revertiere keine bestehenden oder fremden Aenderungen im Workspace."
+  ],
+  "success_criteria": [
+    "Der 'Symbole'-Button zeigt den Zustand als sichtbar/gesamt an.",
+    "Der Reset ueber 'Standard' fuehlt sich im Toolbar-Manager sauberer an.",
+    "Die bestehende Toolbar-Sichtbarkeitslogik bleibt intakt.",
+    "Die Aenderung bleibt auf Timeline.tsx begrenzt.",
+    "TypeScript-Typecheck bleibt grün."
+  ],
+  "allow_write": true,
+  "max_subjobs": 2,
+  "timeout_minutes": 20,
+  "model": "gemini-3.5-flash-low",
+  "report_format": "full"
+}

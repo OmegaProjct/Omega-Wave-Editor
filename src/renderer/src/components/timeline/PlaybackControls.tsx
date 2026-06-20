@@ -196,6 +196,21 @@ export const TransportBar: React.FC<TransportBarProps> = ({
 }
 
 // --- ZOOM CONTROLS ---
+const TIMELINE_ZOOM_MIN = 0.05
+const TIMELINE_ZOOM_MAX = 1000
+const TIMELINE_ZOOM_PRESETS = [10, 25, 50, 100, 200, 400, 800, 1600, 3200, 8000, 16000, 40000, 100000]
+
+function clampTimelineZoom(value: number): number {
+  return Math.max(TIMELINE_ZOOM_MIN, Math.min(TIMELINE_ZOOM_MAX, value))
+}
+
+function stepTimelineZoom(currentZoom: number, direction: 1 | -1): number {
+  const zoomPressure = Math.log10(Math.max(1, currentZoom))
+  const factor = Math.max(1.28, Math.min(1.78, 1.28 + zoomPressure * 0.18))
+  const nextZoom = direction > 0 ? currentZoom * factor : currentZoom / factor
+  return clampTimelineZoom(nextZoom)
+}
+
 export interface ZoomControlsProps {
   zoomLevel: number
   setZoomLevel: React.Dispatch<React.SetStateAction<number>>
@@ -224,11 +239,11 @@ export const ZoomControls: React.FC<ZoomControlsProps> = ({
         <ChevronDown size={10} />
         {zoomMenuOpen && (
           <div className="absolute bottom-full mb-1 left-0 bg-[#2b2d31] border border-gray-700 shadow-xl py-1 z-[1000] rounded text-omega-text flex flex-col w-24">
-            {[10, 25, 50, 100, 200, 400].map((z) => (
+            {TIMELINE_ZOOM_PRESETS.map((z) => (
               <div
                 key={z}
                 className="px-3 py-1 hover:bg-omega-accent cursor-pointer text-xs"
-                onClick={() => setZoomLevel(z / 100)}
+                onClick={() => setZoomLevel(clampTimelineZoom(z / 100))}
               >
                 {z}%
               </div>
@@ -245,13 +260,13 @@ export const ZoomControls: React.FC<ZoomControlsProps> = ({
       </button>
       <button
         className="p-1 hover:bg-gray-700 rounded text-gray-400 hover:text-white"
-        onClick={() => setZoomLevel((z) => Math.max(0.05, z - 0.1))}
+        onClick={() => setZoomLevel((z) => stepTimelineZoom(z, -1))}
       >
         <Minus size={14} />
       </button>
       <button
         className="p-1 hover:bg-gray-700 rounded text-gray-400 hover:text-white"
-        onClick={() => setZoomLevel((z) => Math.min(20, z + 0.1))}
+        onClick={() => setZoomLevel((z) => stepTimelineZoom(z, 1))}
       >
         <Plus size={14} />
       </button>

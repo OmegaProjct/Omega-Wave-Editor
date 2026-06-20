@@ -1,0 +1,21 @@
+{
+  "goal": "Remove the browser warning about slider-vertical by updating Omega Wave Editor vertical range slider styling to the modern writing-mode based approach.",
+  "workspace": "..",
+  "constraints": [
+    "Keep the change tightly scoped to vertical range slider styling and the components that use it.",
+    "Do not modify toolbar ordering, docking, popout, playback, waveform, or layout preset logic.",
+    "Preserve the current visual orientation and interaction of the affected sliders.",
+    "Only touch files that are necessary for this warning cleanup.",
+    "Do not revert or overwrite unrelated local changes."
+  ],
+  "success_criteria": [
+    "The use of slider-vertical is removed from the renderer codebase for the affected UI controls.",
+    "Vertical sliders still render vertically using a standards-friendly approach.",
+    "A relevant local check such as typecheck is reported."
+  ],
+  "allow_write": true,
+  "max_subjobs": 2,
+  "timeout_minutes": 20,
+  "model": "gemini-3.5-flash-low",
+  "report_format": "json"
+}

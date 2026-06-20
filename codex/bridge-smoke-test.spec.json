@@ -1,0 +1,19 @@
+{
+  "goal": "Inspect the Omega Wave Editor workspace and identify remaining visible mojibake or malformed UI labels in src/renderer/src/components/Timeline.tsx. Report findings only and do not modify files.",
+  "workspace": "..",
+  "constraints": [
+    "Read-only task. Do not edit, create, delete, or rename files.",
+    "Focus on visible UI labels, tooltips, status text, and user-facing strings in Timeline.tsx.",
+    "Return concise findings with line references where practical."
+  ],
+  "success_criteria": [
+    "The report states whether remaining mojibake-like UI text is present.",
+    "The report names the affected user-facing strings or areas if found.",
+    "No files are modified."
+  ],
+  "allow_write": false,
+  "max_subjobs": 2,
+  "timeout_minutes": 15,
+  "model": "gemini-3.5-flash-low",
+  "report_format": "json"
+}
