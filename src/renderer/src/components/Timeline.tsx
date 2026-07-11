@@ -18,715 +18,71 @@ import {
   matchesMouseModifiers
 } from '../lib/keyboardShortcuts'
 import { shouldLogDiagnostic, writeDiagnosticLog } from '../lib/diagnosticLogging'
+import {
+  REGION_COLORS,
+  mergeSplitTracks,
+  splitMergedTracks,
+  shareChannels,
+  hasOverlap,
+  getFreeTrackOrNew,
+  getSequentialPosition,
+  PIXELS_PER_SECOND_BASE,
+  TIMELINE_TIME_FORMAT_STORAGE_KEY,
+  TIMELINE_SELECTION_FORMAT_STORAGE_KEY,
+  TIMELINE_TOOLBAR_VISIBILITY_STORAGE_KEY,
+  TIMELINE_TOOLBAR_ORDER_STORAGE_KEY,
+  TIMELINE_TOOLBAR_EDIT_LOCKED_STORAGE_KEY,
+  TIMELINE_TOOLBAR_SEPARATORS_STORAGE_KEY,
+  TIMELINE_TOOLBAR_COLORS_STORAGE_KEY,
+  DEFAULT_TOOLBAR_ORDER,
+  TOOLBAR_LABELS,
+  TOOLBAR_DESCRIPTIONS,
+  TOOLBAR_GROUPS,
+  createDefaultToolbarSeparators,
+  createDefaultToolbarColors,
+  TOOLBAR_COLOR_STYLES,
+  TIME_DISPLAY_FORMATS,
+  pad2,
+  pad3,
+  splitTimeParts,
+  formatDropFrameTimecode,
+  formatFrameTime,
+  formatTimeDisplay,
+  MIN_ZOOM_LEVEL,
+  MAX_ZOOM_LEVEL,
+  ZOOM_MENU_LEVELS,
+  clampZoomLevel,
+  getNextZoomLevel,
+  formatTime,
+  getDbHeightPercentage,
+  gainToDb
+} from './timeline/timelineUtils'
+import type {
+  RegionEffects,
+  Region,
+  Track,
+  ToolbarVisibilityKey,
+  ToolbarSeparatorState,
+  ToolbarColorKey,
+  ToolbarColorState,
+  TimeDisplayFormat,
+  TimelinePerformanceStats,
+  TimelineDiagnosticEvent
+} from './timeline/timelineTypes'
+import { useTimelineDiagnostics } from './timeline/useTimelineDiagnostics'
+import { LiveWaveformCanvas } from './timeline/LiveWaveformCanvas'
 
-export type RegionEffects = {
-  eqGains?: number[]
-  compActive?: boolean
-  compThreshold?: number
-  compRatio?: number
-  deEsserActive?: boolean
-  deEsserReduction?: number
-  reverbMix?: number
-  reverbTime?: number
-  delayTime?: number
-  delayFeedback?: number
-  pitchRate?: number
-  keepPitch?: boolean
-}
-
-export type Region = {
-  id: string
-  file: { name: string; path: string; isDirectory: boolean }
-  startPos: number 
-  duration: number 
-  sourceOffset?: number
-  fileDuration?: number
-  color: string
-  fadeIn?: number    // seconds
-  fadeOut?: number   // seconds
-  gain?: number      // linear multiplier, 1.0 = 0dB
-  groupId?: string   // group membership
-  stereoMode?: 'stereo' | 'left-only' | 'right-only'
-  effects?: RegionEffects
-  channels?: number
-  visualNameSuffix?: string
-  name?: string
-  comment?: string
-}
-
-export const REGION_COLORS: { label: string; value: string }[] = [
-  { label: 'Standard', value: 'bg-omega-accent' },
-  { label: 'Türkis', value: 'bg-cyan-500' },
-  { label: 'Blaugrün', value: 'bg-teal-600' },
-  { label: 'Grün', value: 'bg-green-600' },
-  { label: 'Hellgrün', value: 'bg-lime-500' },
-  { label: 'Orange', value: 'bg-orange-500' },
-  { label: 'Braun', value: 'bg-amber-800' },
-  { label: 'Rot', value: 'bg-red-600' },
-  { label: 'Pink', value: 'bg-pink-500' },
-  { label: 'Lila', value: 'bg-purple-500' },
-  { label: 'Violett', value: 'bg-violet-600' },
-  { label: 'Dunkelblau', value: 'bg-blue-900' },
-]
-
-const mergeSplitTracks = (tracksList: Track[]): Track[] => {
-  let updatedTracks = tracksList.map(t => ({ ...t, regions: [...t.regions] }));
-  
-  for (let i = 0; i < updatedTracks.length; i++) {
-    const trackL = updatedTracks[i];
-    const leftRegions = trackL.regions.filter(r => r.stereoMode === 'left-only');
-    
-    for (const rL of leftRegions) {
-      let bestTrackIdx = -1;
-      let bestRegionIdx = -1;
-      let minDistance = Infinity;
-      
-      for (let j = i + 1; j < updatedTracks.length; j++) {
-        const trackR = updatedTracks[j];
-        for (let k = 0; k < trackR.regions.length; k++) {
-          const rR = trackR.regions[k];
-          if (rR.stereoMode === 'right-only' && rR.file.path === rL.file.path) {
-            const dist = Math.abs(rR.startPos - rL.startPos);
-            if (dist < minDistance) {
-              minDistance = dist;
-              bestTrackIdx = j;
-              bestRegionIdx = k;
-            }
-          }
-        }
-      }
-      
-      if (bestTrackIdx !== -1 && bestRegionIdx !== -1) {
-        const rR = updatedTracks[bestTrackIdx].regions[bestRegionIdx];
-        trackL.regions.push(rR);
-        updatedTracks[bestTrackIdx].regions.splice(bestRegionIdx, 1);
-      }
-    }
-  }
-  
-  updatedTracks = updatedTracks.filter((t, idx) => t.regions.length > 0 || idx === 0);
-  updatedTracks = updatedTracks.map((t, idx) => ({ ...t, index: idx + 1 }));
-  return updatedTracks;
-};
-
-const splitMergedTracks = (tracksList: Track[]): Track[] => {
-  let updatedTracks = tracksList.map(t => ({ ...t, regions: [...t.regions] }));
-  
-  for (let i = 0; i < updatedTracks.length; i++) {
-    const track = updatedTracks[i];
-    const leftRegions = track.regions.filter(r => r.stereoMode === 'left-only');
-    const rightRegions = track.regions.filter(r => r.stereoMode === 'right-only');
-    
-    const rightToMove: Region[] = [];
-    
-    for (const rR of rightRegions) {
-      const hasMatchingLeft = leftRegions.some(rL => rL.file.path === rR.file.path);
-      if (hasMatchingLeft) {
-        rightToMove.push(rR);
-      }
-    }
-    
-    if (rightToMove.length > 0) {
-      track.regions = track.regions.filter(r => !rightToMove.includes(r));
-      
-      const targetTrackIdx = i + 1;
-      if (targetTrackIdx >= updatedTracks.length) {
-        const nextIdx = updatedTracks.length + 1;
-        const newTrack: Track = {
-          id: nextIdx.toString(),
-          index: nextIdx,
-          name: '',
-          regions: [],
-          muted: false,
-          solo: false,
-          locked: false,
-          visible: true,
-          volume: 1,
-          height: 64,
-          automation: []
-        };
-        updatedTracks.push(newTrack);
-      } else {
-        updatedTracks[targetTrackIdx].regions.push(...rightToMove);
-      }
-    }
-  }
-  
-  updatedTracks = updatedTracks.map((t, idx) => ({ ...t, index: idx + 1 }));
-  return updatedTracks;
-};
-
-const shareChannels = (r1: Region, r2: Region): boolean => {
-  const m1 = r1.stereoMode || 'stereo';
-  const m2 = r2.stereoMode || 'stereo';
-  return m1 === 'stereo' || m2 === 'stereo' || m1 === m2;
-};
-
-// Hilfsfunktion: Prüft, ob ein Zeitfenster mit existierenden Regionen auf der Spur überlappt
-const hasOverlap = (track: Track, startPos: number, duration: number): boolean => {
-  return track.regions.some(r => {
-    const pitchRate = r.effects?.pitchRate || 1.0;
-    const rEnd = r.startPos + (r.duration / pitchRate);
-    return startPos < rEnd && startPos + duration > r.startPos;
-  });
-};
-
-// Hilfsfunktion: Sucht die erste freie Spur darunter oder erstellt eine neue
-const getFreeTrackOrNew = (
-  tracksList: Track[],
-  targetTrackId: string,
-  startPos: number,
-  duration: number
-): { updatedTracks: Track[]; targetTrackId: string } => {
-  const targetIdx = tracksList.findIndex(t => t.id === targetTrackId);
-  if (targetIdx === -1) return { updatedTracks: tracksList, targetTrackId };
-
-  // 1. Falls die Zielspur selbst frei ist, nimm diese
-  if (!hasOverlap(tracksList[targetIdx], startPos, duration)) {
-    return { updatedTracks: tracksList, targetTrackId };
-  }
-
-  // 2. Suche auf Spuren darunter
-  for (let i = targetIdx + 1; i < tracksList.length; i++) {
-    if (!hasOverlap(tracksList[i], startPos, duration)) {
-      return { updatedTracks: tracksList, targetTrackId: tracksList[i].id };
-    }
-  }
-
-  // 3. Keine Spur frei, erstelle eine neue
-  const nextIdx = tracksList.length + 1;
-  const newTrackId = nextIdx.toString();
-  const newTrack: Track = {
-    id: newTrackId,
-    index: nextIdx,
-    name: `Spur ${nextIdx}`,
-    regions: [],
-    muted: false,
-    solo: false,
-    locked: false,
-    visible: true,
-    volume: 1,
-    height: 64,
-    automation: []
-  };
-  return {
-    updatedTracks: [...tracksList, newTrack],
-    targetTrackId: newTrackId
-  };
-};
-
-// Hilfsfunktion: Ermittelt die nächste freie Position hinter blockierenden Regionen auf derselben Spur
-const getSequentialPosition = (track: Track, startPos: number, duration: number): number => {
-  let currentStart = startPos;
-  const sortedRegions = [...track.regions].sort((a, b) => a.startPos - b.startPos);
-  for (const r of sortedRegions) {
-    const pitchRate = r.effects?.pitchRate || 1.0;
-    const rEnd = r.startPos + (r.duration / pitchRate);
-    if (rEnd <= currentStart) {
-      continue;
-    }
-    if (r.startPos < currentStart + duration && rEnd > currentStart) {
-      currentStart = rEnd;
-    }
-  }
-  return currentStart;
-};
-
-
-function LiveWaveformCanvas({ duration, pixelsPerSecond }: { duration: number; pixelsPerSecond: number }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [halfWaveform, setHalfWaveform] = useState<boolean>(false);
-
-  useEffect(() => {
-    if (window.api && typeof window.api.getSettings === 'function') {
-      window.api.getSettings().then((s: any) => {
-        if (s && typeof s.halfWaveform === 'boolean') {
-          setHalfWaveform(s.halfWaveform);
-        }
-      });
-    }
-
-    const handleSettingsUpdate = (e: any) => {
-      if (e.detail && typeof e.detail.halfWaveform === 'boolean') {
-        setHalfWaveform(e.detail.halfWaveform);
-      }
-    };
-    window.addEventListener('SETTINGS_UPDATED', handleSettingsUpdate as EventListener);
-    return () => {
-      window.removeEventListener('SETTINGS_UPDATED', handleSettingsUpdate as EventListener);
-    };
-  }, []);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const dpr = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
-    const width = rect.width;
-    const height = rect.height;
-
-    if (width === 0 || height === 0) return;
-
-    canvas.width = width * dpr;
-    canvas.height = height * dpr;
-    ctx.scale(dpr, dpr);
-
-    ctx.clearRect(0, 0, width, height);
-
-    let peaksHistory: number[] = [];
-    try {
-      const historyStr = localStorage.getItem('recording_peaks_history');
-      if (historyStr) {
-        peaksHistory = JSON.parse(historyStr);
-      }
-    } catch (e) {}
-
-    const centerY = height / 2;
-
-    if (peaksHistory.length === 0) {
-      ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      const baselineY = halfWaveform ? height * 0.95 : centerY;
-      ctx.moveTo(0, baselineY);
-      ctx.lineTo(width, baselineY);
-      ctx.stroke();
-      return;
-    }
-
-    const gradient = ctx.createLinearGradient(0, 0, 0, height);
-    gradient.addColorStop(0, '#f87171');
-    gradient.addColorStop(0.5, '#ef4444');
-    gradient.addColorStop(1, '#b91c1c');
-
-    ctx.strokeStyle = gradient;
-    ctx.lineWidth = 1.5;
-
-    ctx.beginPath();
-    const step = width / peaksHistory.length;
-    const boost = 2.5;
-
-    if (halfWaveform) {
-      const baseline = height * 0.95;
-      peaksHistory.forEach((peak, i) => {
-        const x = i * step;
-        const amplitude = Math.min(1.0, Math.max(0.03, peak * boost));
-        const drawHeight = amplitude * height * 0.90;
-        ctx.moveTo(x, baseline);
-        ctx.lineTo(x, baseline - drawHeight);
-      });
-    } else {
-      peaksHistory.forEach((peak, i) => {
-        const x = i * step;
-        const amplitude = Math.min(1.0, Math.max(0.03, peak * boost));
-        const drawHeight = amplitude * (height / 2) * 0.85;
-        ctx.moveTo(x, centerY - drawHeight);
-        ctx.lineTo(x, centerY + drawHeight);
-      });
-    }
-    ctx.stroke();
-  }, [duration, pixelsPerSecond, halfWaveform]);
-
-  return <canvas ref={canvasRef} className="w-full h-full opacity-90 pointer-events-none" />;
-}
-
-export type Track = {
-  id: string
-  index: number
-  name: string
-  regions: Region[]
-  muted: boolean
-  solo: boolean
-  locked: boolean
-  visible: boolean
-  volume: number
-  preMuteVolume?: number
-  height: number
-  automation: { time: number, value: number }[]
-  volumeL?: number
-  volumeR?: number
-  mutedL?: boolean
-  mutedR?: boolean
-  soloL?: boolean
-  soloR?: boolean
-  lockedL?: boolean
-  lockedR?: boolean
-  nameL?: string
-  nameR?: string
-  preMuteVolumeL?: number
-  preMuteVolumeR?: number
-  pan?: number
-  panL?: number
-  panR?: number
-}
-
-const PIXELS_PER_SECOND_BASE = 50 
-const TIMELINE_TIME_FORMAT_STORAGE_KEY = 'omega.timelineTimeFormat.v1'
-const TIMELINE_SELECTION_FORMAT_STORAGE_KEY = 'omega.timelineSelectionFormat.v1'
-export const TIMELINE_TOOLBAR_VISIBILITY_STORAGE_KEY = 'omega.timelineToolbarVisibility.v1'
-export const TIMELINE_TOOLBAR_ORDER_STORAGE_KEY = 'omega.timelineToolbarOrder.v1'
-export const TIMELINE_TOOLBAR_EDIT_LOCKED_STORAGE_KEY = 'omega.timelineToolbarEditLocked.v1'
-export const TIMELINE_TOOLBAR_SEPARATORS_STORAGE_KEY = 'omega.timelineToolbarSeparators.v1'
-export const TIMELINE_TOOLBAR_COLORS_STORAGE_KEY = 'omega.timelineToolbarColors.v1'
-
-export type ToolbarVisibilityKey =
-  | 'selectTool'
-  | 'cutTool'
-  | 'transport'
-  | 'record'
-  | 'undo'
-  | 'redo'
-  | 'snap'
-  | 'group'
-  | 'ungroup'
-  | 'gapClose'
-  | 'timeDisplay'
-  | 'selectionDisplay'
-  | 'autoScrollMode'
-  | 'export'
-
-export type ToolbarSeparatorState = Record<ToolbarVisibilityKey, { before: boolean; after: boolean }>
-export type ToolbarColorKey = 'default' | 'blue' | 'emerald' | 'amber' | 'rose' | 'violet'
-export type ToolbarColorState = Record<ToolbarVisibilityKey, ToolbarColorKey>
-
-export const DEFAULT_TOOLBAR_ORDER: ToolbarVisibilityKey[] = [
-  'selectTool',
-  'cutTool',
-  'transport',
-  'record',
-  'undo',
-  'redo',
-  'snap',
-  'group',
-  'ungroup',
-  'gapClose',
-  'timeDisplay',
-  'selectionDisplay',
-  'autoScrollMode',
-  'export'
-]
-
-export const TOOLBAR_LABELS: Record<ToolbarVisibilityKey, string> = {
-  selectTool: 'Auswahl',
-  cutTool: 'Schneiden',
-  transport: 'Transport',
-  record: 'Aufnahme',
-  undo: 'Undo',
-  redo: 'Redo',
-  snap: 'Snap',
-  group: 'Gruppieren',
-  ungroup: 'Loesen',
-  gapClose: 'Luecken schliessen',
-  timeDisplay: 'Zeit',
-  selectionDisplay: 'Auswahl',
-  autoScrollMode: 'Auto-Scroll',
-  export: 'Mixdown Export'
-}
-
-export const TOOLBAR_DESCRIPTIONS: Record<ToolbarVisibilityKey, string> = {
-  selectTool: 'Normales Auswahlwerkzeug',
-  cutTool: 'Schnittwerkzeug fuer Trennungen',
-  transport: 'Play, Pause und Stop',
-  record: 'Recorder und Aufnahmezugriff',
-  undo: 'Letzten Schritt rueckgaengig',
-  redo: 'Letzten Schritt wiederholen',
-  snap: 'Magnetische Ausrichtung',
-  group: 'Auswahl zusammenfassen',
-  ungroup: 'Gruppe wieder loesen',
-  gapClose: 'Luecken automatisch schliessen',
-  timeDisplay: 'Aktuelle Abspielzeit',
-  selectionDisplay: 'Laenge der Auswahl',
-  autoScrollMode: 'Scrollverhalten beim Abspielen',
-  export: 'Mixdown direkt starten'
-}
-
-export const TOOLBAR_GROUPS: Array<{
-  id: string
-  label: string
-  description: string
-  keys: ToolbarVisibilityKey[]
-}> = [
-  {
-    id: 'tools',
-    label: 'Werkzeuge',
-    description: 'Auswahl- und Schnittfunktionen',
-    keys: ['selectTool', 'cutTool']
-  },
-  {
-    id: 'playback',
-    label: 'Player',
-    description: 'Transport und Aufnahme',
-    keys: ['transport', 'record']
-  },
-  {
-    id: 'history',
-    label: 'Verlauf',
-    description: 'Rueckgaengig und Wiederholen',
-    keys: ['undo', 'redo']
-  },
-  {
-    id: 'editing',
-    label: 'Bearbeitung',
-    description: 'Snap, Gruppen und Luecken',
-    keys: ['snap', 'group', 'ungroup', 'gapClose']
-  },
-  {
-    id: 'display',
-    label: 'Anzeige',
-    description: 'Zeit, Auswahl und Scrollmodus',
-    keys: ['timeDisplay', 'selectionDisplay', 'autoScrollMode']
-  },
-  {
-    id: 'output',
-    label: 'Export',
-    description: 'Mixdown und Ausgabe',
-    keys: ['export']
-  }
-]
-
-export const createDefaultToolbarSeparators = (): ToolbarSeparatorState => ({
-  selectTool: { before: false, after: false },
-  cutTool: { before: false, after: false },
-  transport: { before: false, after: false },
-  record: { before: false, after: false },
-  undo: { before: false, after: false },
-  redo: { before: false, after: false },
-  snap: { before: false, after: false },
-  group: { before: false, after: false },
-  ungroup: { before: false, after: false },
-  gapClose: { before: false, after: false },
-  timeDisplay: { before: false, after: false },
-  selectionDisplay: { before: false, after: false },
-  autoScrollMode: { before: false, after: false },
-  export: { before: false, after: false }
-})
-
-export const createDefaultToolbarColors = (): ToolbarColorState => ({
-  selectTool: 'default',
-  cutTool: 'default',
-  transport: 'default',
-  record: 'default',
-  undo: 'default',
-  redo: 'default',
-  snap: 'default',
-  group: 'default',
-  ungroup: 'default',
-  gapClose: 'default',
-  timeDisplay: 'default',
-  selectionDisplay: 'default',
-  autoScrollMode: 'default',
-  export: 'default'
-})
-
-const TOOLBAR_COLOR_STYLES: Record<ToolbarColorKey, { border: string; bg: string; grip: string; label: string }> = {
-  default: { border: 'border-blue-500/35', bg: 'bg-blue-500/8', grip: 'text-blue-300', label: 'Standard' },
-  blue: { border: 'border-sky-400/45', bg: 'bg-sky-500/10', grip: 'text-sky-300', label: 'Blau' },
-  emerald: { border: 'border-emerald-400/45', bg: 'bg-emerald-500/10', grip: 'text-emerald-300', label: 'Gruen' },
-  amber: { border: 'border-amber-400/45', bg: 'bg-amber-500/10', grip: 'text-amber-200', label: 'Gold' },
-  rose: { border: 'border-rose-400/45', bg: 'bg-rose-500/10', grip: 'text-rose-300', label: 'Rot' },
-  violet: { border: 'border-violet-400/45', bg: 'bg-violet-500/10', grip: 'text-violet-300', label: 'Violett' }
-}
-
-type TimeDisplayFormat =
-  | 'seconds'
-  | 'seconds-ms'
-  | 'hhmmss'
-  | 'ddhhmmss'
-  | 'hhmmss-hundredths'
-  | 'hhmmss-ms'
-  | 'hhmmss-samples'
-  | 'samples'
-  | 'hhmmss-film24'
-  | 'film24'
-  | 'hhmmss-ntsc-drop'
-  | 'hhmmss-ntsc-nondrop'
-  | 'ntsc'
-  | 'hhmmss-pal'
-  | 'pal'
-  | 'hhmmss-cdda'
-  | 'cdda'
-
-const TIME_DISPLAY_FORMATS: Array<{ id: TimeDisplayFormat; label: string }> = [
-  { id: 'seconds', label: 'Sekunden' },
-  { id: 'seconds-ms', label: 'Sekunden + Millisekunden' },
-  { id: 'hhmmss', label: 'hh:mm:ss' },
-  { id: 'ddhhmmss', label: 'dd:hh:mm:ss' },
-  { id: 'hhmmss-hundredths', label: 'hh:mm:ss + Hundertstel' },
-  { id: 'hhmmss-ms', label: 'hh:mm:ss + Millisekunden' },
-  { id: 'hhmmss-samples', label: 'hh:mm:ss + Samples' },
-  { id: 'samples', label: 'Samples' },
-  { id: 'hhmmss-film24', label: 'hh:mm:ss + Film-Frames (24 fps)' },
-  { id: 'film24', label: 'Film-Frames (24 fps)' },
-  { id: 'hhmmss-ntsc-drop', label: 'hh:mm:ss + NTSC-Drop-Frames' },
-  { id: 'hhmmss-ntsc-nondrop', label: 'hh:mm:ss + NTSC-Non-Drop-Frames' },
-  { id: 'ntsc', label: 'NTSC-Frames' },
-  { id: 'hhmmss-pal', label: 'hh:mm:ss + PAL-Frames (25 fps)' },
-  { id: 'pal', label: 'PAL-Frames (25 fps)' },
-  { id: 'hhmmss-cdda', label: 'hh:mm:ss + CDDA-Frames (75 fps)' },
-  { id: 'cdda', label: 'CDDA-Frames (75 fps)' }
-]
-
-const pad2 = (value: number): string => value.toString().padStart(2, '0')
-const pad3 = (value: number): string => value.toString().padStart(3, '0')
-
-const splitTimeParts = (seconds: number) => {
-  const safeSeconds = Math.max(0, seconds)
-  const totalWholeSeconds = Math.floor(safeSeconds)
-  const days = Math.floor(totalWholeSeconds / 86400)
-  const hours = Math.floor((totalWholeSeconds % 86400) / 3600)
-  const minutes = Math.floor((totalWholeSeconds % 3600) / 60)
-  const secs = totalWholeSeconds % 60
-  const milliseconds = Math.floor((safeSeconds - totalWholeSeconds) * 1000)
-  const hundredths = Math.floor(milliseconds / 10)
-  return { days, hours, minutes, secs, milliseconds, hundredths }
-}
-
-const formatDropFrameTimecode = (seconds: number): string => {
-  const fps = 30000 / 1001
-  const dropFrames = 2
-  const framesPerHour = 107892
-  const framesPer24Hours = framesPerHour * 24
-  const framesPer10Minutes = 17982
-  const framesPerMinute = 1798
-  let totalFrames = Math.round(Math.max(0, seconds) * fps)
-  totalFrames %= framesPer24Hours
-
-  const tenMinuteChunks = Math.floor(totalFrames / framesPer10Minutes)
-  const remainingFrames = totalFrames % framesPer10Minutes
-  const droppedFrames =
-    dropFrames * 9 * tenMinuteChunks +
-    dropFrames * Math.max(0, Math.floor((remainingFrames - dropFrames) / framesPerMinute))
-
-  const timecodeFrames = totalFrames + droppedFrames
-  const hours = Math.floor(timecodeFrames / (30 * 60 * 60))
-  const minutes = Math.floor(timecodeFrames / (30 * 60)) % 60
-  const secs = Math.floor(timecodeFrames / 30) % 60
-  const frames = timecodeFrames % 30
-  return `${pad2(hours)}:${pad2(minutes)}:${pad2(secs)};${pad2(frames)}`
-}
-
-const formatFrameTime = (seconds: number, fps: number, delimiter: string = ':'): string => {
-  const { hours, minutes, secs } = splitTimeParts(seconds)
-  const frame = Math.floor((((Math.max(0, seconds) % 1) * fps)) + 1e-6)
-  return `${pad2(hours)}:${pad2(minutes)}:${pad2(secs)}${delimiter}${pad2(Math.max(0, frame))}`
-}
-
-const formatTimeDisplay = (seconds: number, format: TimeDisplayFormat, sampleRate: number): string => {
-  const safeSeconds = Math.max(0, seconds)
-  const { days, hours, minutes, secs, milliseconds, hundredths } = splitTimeParts(safeSeconds)
-  const totalSamples = Math.round(safeSeconds * sampleRate)
-
-  switch (format) {
-    case 'seconds':
-      return `${safeSeconds.toFixed(0)} s`
-    case 'seconds-ms':
-      return `${safeSeconds.toFixed(3)} s`
-    case 'hhmmss':
-      return `${pad2(hours)}:${pad2(minutes)}:${pad2(secs)}`
-    case 'ddhhmmss':
-      return `${pad2(days)}:${pad2(hours)}:${pad2(minutes)}:${pad2(secs)}`
-    case 'hhmmss-hundredths':
-      return `${pad2(hours)}:${pad2(minutes)}:${pad2(secs)}.${hundredths.toString().padStart(2, '0')}`
-    case 'hhmmss-ms':
-      return `${pad2(hours)}:${pad2(minutes)}:${pad2(secs)}.${pad3(milliseconds)}`
-    case 'hhmmss-samples':
-      return `${pad2(hours)}:${pad2(minutes)}:${pad2(secs)} + ${totalSamples} spl`
-    case 'samples':
-      return `${totalSamples} spl`
-    case 'hhmmss-film24':
-      return formatFrameTime(safeSeconds, 24)
-    case 'film24':
-      return `${Math.round(safeSeconds * 24)} fr`
-    case 'hhmmss-ntsc-drop':
-      return formatDropFrameTimecode(safeSeconds)
-    case 'hhmmss-ntsc-nondrop':
-      return formatFrameTime(safeSeconds, 30)
-    case 'ntsc':
-      return `${Math.round(safeSeconds * (30000 / 1001))} fr`
-    case 'hhmmss-pal':
-      return formatFrameTime(safeSeconds, 25)
-    case 'pal':
-      return `${Math.round(safeSeconds * 25)} fr`
-    case 'hhmmss-cdda':
-      return formatFrameTime(safeSeconds, 75)
-    case 'cdda':
-      return `${Math.round(safeSeconds * 75)} fr`
-    default:
-      return `${safeSeconds.toFixed(3)} s`
-  }
-}
-
-const MIN_ZOOM_LEVEL = 0.05
-const MAX_ZOOM_LEVEL = 2000
-const ZOOM_MENU_LEVELS = [10, 25, 50, 100, 200, 400, 800, 1600, 3200, 6400, 12800, 25600, 50000, 100000, 150000, 200000]
-
-const clampZoomLevel = (value: number): number => {
-  return Math.max(MIN_ZOOM_LEVEL, Math.min(MAX_ZOOM_LEVEL, value))
-}
-
-const getNextZoomLevel = (currentZoom: number, direction: 'in' | 'out'): number => {
-  const safeZoom = clampZoomLevel(currentZoom)
-
-  const factor =
-    safeZoom >= 800 ? 2.2 :
-    safeZoom >= 240 ? 1.85 :
-    safeZoom >= 80 ? 1.55 :
-    safeZoom >= 24 ? 1.34 :
-    safeZoom >= 4 ? 1.18 :
-    1.1
-
-  return clampZoomLevel(direction === 'in' ? safeZoom * factor : safeZoom / factor)
-}
-
-const formatTime = (seconds: number) => {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  const getDecimals = (val: number) => {
-    if (Math.abs(val - Math.round(val)) < 1e-9) return 0;
-    if (Math.abs(val * 10 - Math.round(val * 10)) < 1e-9) return 1;
-    if (Math.abs(val * 100 - Math.round(val * 100)) < 1e-9) return 2;
-    return 3;
-  };
-  if (m > 0) {
-    const sFixed = s.toFixed(getDecimals(s));
-    return sFixed !== '0' ? `${m}m ${sFixed}s` : `${m}m`;
-  }
-  return `${seconds.toFixed(getDecimals(seconds))}s`;
-};
-
-const getDbHeightPercentage = (linearLevel: number): number => {
-  if (linearLevel <= 0.001) return 0;
-  const db = 20 * Math.log10(linearLevel);
-  const clampedDb = Math.max(-60, Math.min(0, db));
-  return ((clampedDb + 60) / 60) * 100;
-};
-
-const gainToDb = (gain: number): string => {
-  if (gain <= 0.001) return '-∞ dB';
-  const db = 20 * Math.log10(gain);
-  if (Math.abs(db) < 0.05) return '0.0 dB';
-  return `${db > 0 ? '+' : ''}${db.toFixed(1)} dB`;
-};
-
-type TimelinePerformanceStats = {
-  cpuUsage: number
-  processRamBytes: number
-  systemRamPct: number
-  systemCpuPct: number
-  gpuProcessCpuPct?: number
-  gpuProcessRamBytes?: number
-  gpuModel?: string
-  gpuFeatureStatus?: Record<string, string> | null
-}
-
-type TimelineDiagnosticEvent = {
-  seq: number
-  kind: string
-  atMs: number
-  details?: Record<string, unknown>
+export type {
+  RegionEffects,
+  Region,
+  Track,
+  ToolbarVisibilityKey,
+  ToolbarSeparatorState,
+  ToolbarColorKey,
+  ToolbarColorState,
+  TimeDisplayFormat,
+  TimelinePerformanceStats,
+  TimelineDiagnosticEvent
 }
 
 export function Timeline({ 
@@ -1301,150 +657,20 @@ export function Timeline({
     }
   }, [playheadPos, recalculateTrackVolumes, tracks]);
 
-  const [perfStats, setPerfStats] = useState<TimelinePerformanceStats>({ cpuUsage: 0, processRamBytes: 0, systemRamPct: 0, systemCpuPct: 0 });
+  const {
+    perfStats,
+    queueTimelineDiagnostic,
+    recordWaveformGestureTick,
+    keepDiagnosticPerformanceSampling,
+    flushTimelineDiagnostics,
+    logScrollEvent
+  } = useTimelineDiagnostics()
   const [globalProgress, setGlobalProgress] = useState<number | null>(null);
   const [globalProgressLabel, setGlobalProgressLabel] = useState<string>('');
   const [zoomLimitNotice, setZoomLimitNotice] = useState<string | null>(null)
   const zoomLimitNoticeTimerRef = useRef<number | null>(null)
-  const diagnosticSeqRef = useRef(0)
-  const diagnosticBufferRef = useRef<TimelineDiagnosticEvent[]>([])
-  const diagnosticFlushTimeoutRef = useRef<number | null>(null)
-  const diagnosticPerfTimerRef = useRef<number | null>(null)
-  const diagnosticPerfUntilRef = useRef(0)
-  const lastDiagnosticPerfSampleRef = useRef(0)
-  const lastDiagnosticScrollRef = useRef({ left: 0, top: 0, at: 0 })
 
-  // Sammelt Zoom-/Scroll-Gesten (Phase A Trace-Logging): eine Geste laeuft von
-  // der ersten Eingabe bis 300ms Ruhe; danach wird EIN Sammel-Log mit
-  // Schrittzahl, Dauer und effektiver Schrittrate geschrieben. So laesst sich
-  // im Log direkt ablesen, ob eine Zoom-/Scroll-Geste insgesamt fluessig war,
-  // statt jede einzelne Eingabe separat interpretieren zu muessen.
-  const waveformGestureRef = useRef<{ kind: string; startedAt: number; lastAt: number; steps: number } | null>(null)
-  const waveformGestureIdleTimeoutRef = useRef<number | null>(null)
 
-  const flushTimelineDiagnostics = useCallback(() => {
-    diagnosticFlushTimeoutRef.current = null
-    const events = diagnosticBufferRef.current.splice(0, diagnosticBufferRef.current.length)
-    if (events.length === 0) return
-    if (!shouldLogDiagnostic('timeline')) return
-
-    writeDiagnosticLog('timeline', 'Timeline-Eingaben und Wirkung', {
-      count: events.length,
-      events
-    })
-  }, [])
-
-  const queueTimelineDiagnostic = useCallback((kind: string, details?: Record<string, unknown>) => {
-    if (!shouldLogDiagnostic('timeline')) return
-
-    diagnosticBufferRef.current.push({
-      seq: ++diagnosticSeqRef.current,
-      kind,
-      atMs: Math.round(performance.now()),
-      details
-    })
-
-    while (diagnosticBufferRef.current.length > 80) {
-      diagnosticBufferRef.current.shift()
-    }
-
-    if (diagnosticFlushTimeoutRef.current === null) {
-      diagnosticFlushTimeoutRef.current = window.setTimeout(flushTimelineDiagnostics, 250)
-    }
-  }, [flushTimelineDiagnostics])
-
-  // Schreibt das Sammel-Log fuer die gerade abgeschlossene Zoom-/Scroll-Geste.
-  const flushWaveformGesture = useCallback(() => {
-    waveformGestureIdleTimeoutRef.current = null
-    const gesture = waveformGestureRef.current
-    waveformGestureRef.current = null
-    if (!gesture || !shouldLogDiagnostic('waveformTrace')) return
-
-    const durationMs = Math.max(1, gesture.lastAt - gesture.startedAt)
-    const stepsPerSecond = gesture.steps / (durationMs / 1000)
-    const showRate = gesture.steps >= 3 && durationMs >= 50
-    writeDiagnosticLog('waveformTrace', 'Zoom-/Scroll-Geste abgeschlossen', {
-      kind: gesture.kind,
-      steps: gesture.steps,
-      durationMs: Math.round(durationMs),
-      ...(showRate ? { stepsPerSecond: Number(stepsPerSecond.toFixed(1)) } : {})
-    })
-  }, [])
-
-  // Ordnet eine einzelne Zoom-/Scroll-Eingabe der laufenden Geste zu (oder
-  // startet eine neue, wenn die letzte Eingabe mehr als 300ms zurueckliegt).
-  const recordWaveformGestureTick = useCallback((kind: 'zoom' | 'scroll') => {
-    if (!shouldLogDiagnostic('waveformTrace')) return
-    const now = performance.now()
-    const current = waveformGestureRef.current
-
-    if (!current || now - current.lastAt > 300) {
-      waveformGestureRef.current = { kind, startedAt: now, lastAt: now, steps: 1 }
-    } else {
-      current.lastAt = now
-      current.steps += 1
-      if (current.kind !== kind) current.kind = 'mixed'
-    }
-
-    if (waveformGestureIdleTimeoutRef.current !== null) {
-      window.clearTimeout(waveformGestureIdleTimeoutRef.current)
-    }
-    waveformGestureIdleTimeoutRef.current = window.setTimeout(flushWaveformGesture, 300)
-  }, [flushWaveformGesture])
-
-  useEffect(() => {
-    return () => {
-      if (waveformGestureIdleTimeoutRef.current !== null) {
-        window.clearTimeout(waveformGestureIdleTimeoutRef.current)
-      }
-    }
-  }, [])
-
-  const sampleDiagnosticPerformance = useCallback(async (reason: string) => {
-    if (!shouldLogDiagnostic('timeline') || !shouldLogDiagnostic('performance')) return
-
-    const now = Date.now()
-    if (now - lastDiagnosticPerfSampleRef.current < 450) return
-    lastDiagnosticPerfSampleRef.current = now
-
-    try {
-      const stats = await window.api.getPerformanceStats()
-      setPerfStats(stats)
-      queueTimelineDiagnostic('performance-sample', {
-        reason,
-        cpuUsage: stats.cpuUsage,
-        systemCpuPct: stats.systemCpuPct,
-        processRamMb: Math.round((stats.processRamBytes / (1024 * 1024)) * 10) / 10,
-        systemRamPct: stats.systemRamPct,
-        gpuProcessCpuPct: stats.gpuProcessCpuPct ?? null,
-        gpuProcessRamMb: stats.gpuProcessRamBytes ? Math.round((stats.gpuProcessRamBytes / (1024 * 1024)) * 10) / 10 : null,
-        gpuModel: stats.gpuModel || null
-      })
-    } catch (err: any) {
-      queueTimelineDiagnostic('performance-sample-error', {
-        reason,
-        error: err?.message || String(err)
-      })
-    }
-  }, [queueTimelineDiagnostic])
-
-  const keepDiagnosticPerformanceSampling = useCallback((reason: string) => {
-    diagnosticPerfUntilRef.current = Math.max(diagnosticPerfUntilRef.current, Date.now() + 4500)
-    sampleDiagnosticPerformance(reason)
-
-    if (diagnosticPerfTimerRef.current !== null) return
-
-    diagnosticPerfTimerRef.current = window.setInterval(() => {
-      if (Date.now() > diagnosticPerfUntilRef.current) {
-        if (diagnosticPerfTimerRef.current !== null) {
-          window.clearInterval(diagnosticPerfTimerRef.current)
-          diagnosticPerfTimerRef.current = null
-        }
-        return
-      }
-      sampleDiagnosticPerformance('active-window')
-    }, 500)
-  }, [sampleDiagnosticPerformance])
 
   const showZoomLimitNotice = useCallback((direction: 'in' | 'out') => {
     const message = direction === 'in'
@@ -1489,41 +715,11 @@ export function Timeline({
     }
   }, [])
 
-  useEffect(() => {
-    return () => {
-      if (diagnosticFlushTimeoutRef.current !== null) {
-        window.clearTimeout(diagnosticFlushTimeoutRef.current)
-        diagnosticFlushTimeoutRef.current = null
-        flushTimelineDiagnostics()
-      }
-      if (diagnosticPerfTimerRef.current !== null) {
-        window.clearInterval(diagnosticPerfTimerRef.current)
-        diagnosticPerfTimerRef.current = null
-      }
-    }
-  }, [flushTimelineDiagnostics])
+
 
   useEffect(() => {
     setActiveShortcuts(normalizeKeyboardShortcuts(keyboardShortcuts))
   }, [keyboardShortcuts])
-
-  useEffect(() => {
-    let active = true;
-    const interval = setInterval(async () => {
-      try {
-        const stats = await window.api.getPerformanceStats();
-        if (active && stats) {
-          setPerfStats(stats);
-        }
-      } catch (err) {
-        console.error('Error polling performance stats:', err);
-      }
-    }, 2000);
-    return () => {
-      active = false;
-      clearInterval(interval);
-    };
-  }, []);
 
   useEffect(() => {
     const handleProgress = (e: Event) => {
@@ -3541,23 +2737,7 @@ export function Timeline({
     applyScrollVisuals(nextLeft, nextTop)
     syncScrollState(nextLeft, nextTop)
     recordWaveformGestureTick('scroll')
-
-    const now = performance.now()
-    const last = lastDiagnosticScrollRef.current
-    const leftDelta = Math.abs(nextLeft - last.left)
-    const topDelta = Math.abs(nextTop - last.top)
-    if (leftDelta >= 96 || topDelta >= 24 || now - last.at > 300) {
-      queueTimelineDiagnostic('scroll-event', {
-        scrollLeft: Math.round(nextLeft),
-        scrollTop: Math.round(nextTop),
-        leftDelta: Math.round(nextLeft - last.left),
-        topDelta: Math.round(nextTop - last.top),
-        zoomPct: Math.round(zoomLevel * 100),
-        playhead: Number(playheadPosRef.current.toFixed(3))
-      })
-      lastDiagnosticScrollRef.current = { left: nextLeft, top: nextTop, at: now }
-      keepDiagnosticPerformanceSampling('scroll-event')
-    }
+    logScrollEvent(nextLeft, nextTop, zoomLevel, playheadPosRef.current)
   }
 
   const rulerDoubleClickPendingRef = useRef(false);

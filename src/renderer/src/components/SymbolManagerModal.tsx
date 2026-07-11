@@ -7,14 +7,14 @@ import {
   TIMELINE_TOOLBAR_SEPARATORS_STORAGE_KEY,
   TIMELINE_TOOLBAR_COLORS_STORAGE_KEY,
   TIMELINE_TOOLBAR_EDIT_LOCKED_STORAGE_KEY,
-  ToolbarVisibilityKey,
   DEFAULT_TOOLBAR_ORDER,
   TOOLBAR_LABELS,
   TOOLBAR_DESCRIPTIONS,
   TOOLBAR_GROUPS,
   createDefaultToolbarSeparators,
   createDefaultToolbarColors
-} from './Timeline'
+} from './timeline/timelineUtils'
+import { ToolbarVisibilityKey } from './Timeline'
 
 interface SymbolManagerModalProps {
   onClose: () => void
