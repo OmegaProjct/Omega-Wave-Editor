@@ -16,6 +16,11 @@ const api = {
   getMediaInfo: (filePath: string) => ipcRenderer.invoke('get-media-info', filePath),
   getPeaks: (filePath: string, samples?: number, channel?: 'left' | 'right') => ipcRenderer.invoke('get-peaks', filePath, samples, channel),
   getWaveformWindow: (filePath: string, options?: any) => ipcRenderer.invoke('waveform:get-window', filePath, options),
+  onWaveformPyramidReady: (callback: (data: { filePath: string }) => void) => {
+    const sub = (_event: any, data: any) => callback(data)
+    ipcRenderer.on('waveform:pyramid-ready', sub)
+    return () => { ipcRenderer.removeListener('waveform:pyramid-ready', sub) }
+  },
   readFileBuffer: (filePath: string) => ipcRenderer.invoke('read-file-buffer', filePath),
   exportProject: (tracksData: any, outputPath: string, id3Tags?: any) => ipcRenderer.invoke('export-project', tracksData, outputPath, id3Tags),
   saveProject: (filePath: string, data: any) => ipcRenderer.invoke('save-project', filePath, data),

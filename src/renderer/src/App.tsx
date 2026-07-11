@@ -18,6 +18,7 @@ import { SymbolManagerModal } from './components/SymbolManagerModal'
 import { useHistory } from './lib/useHistory'
 import { ProjectManager } from './lib/ProjectManager'
 import { AudioEngine } from './lib/AudioEngine'
+import { initDiagnosticLogging, writeDiagnosticLog } from './lib/diagnosticLogging'
 import {
   DEFAULT_KEYBOARD_SHORTCUTS,
   KeyboardShortcuts,
@@ -154,6 +155,27 @@ async function captureCurrentWindowLayoutSnapshot(
   layout.popoutBounds = popoutBounds
   layout.mainWindowBounds = mainWindowBounds
   return layout
+}
+
+function describeDiagnosticPayload(payload: any): Record<string, unknown> | undefined {
+  if (payload === undefined || payload === null) return undefined
+  if (typeof payload === 'string' || typeof payload === 'number' || typeof payload === 'boolean') {
+    return { value: payload }
+  }
+  if (Array.isArray(payload)) {
+    return { type: 'array', length: payload.length }
+  }
+  if (typeof payload === 'object') {
+    return {
+      type: payload.type,
+      title: payload.title,
+      panelId: payload.panelId,
+      tab: payload.tab,
+      name: payload.name,
+      keys: Object.keys(payload).slice(0, 12)
+    }
+  }
+  return { type: typeof payload }
 }
 
 function logTimelineChanges(oldTracks: any[], newTracks: any[]) {
@@ -333,6 +355,10 @@ function App(): JSX.Element {
   const snappingMainLayoutRef = useRef(false)
   const snappingTopLayoutRef = useRef(false)
 
+  useEffect(() => {
+    initDiagnosticLogging()
+  }, [])
+
   const getCurrentWindowLayout = useCallback((): WindowLayoutPreset => {
     const mainVertical = mainPanelGroupRef.current?.getLayout?.() || DEFAULT_WINDOW_LAYOUT.mainVertical
     const topHorizontal = topPanelGroupRef.current?.getLayout?.() || DEFAULT_WINDOW_LAYOUT.topHorizontal
@@ -510,10 +536,26 @@ function App(): JSX.Element {
     popoutOptions: { width: number; height: number; title: string; payload?: any }
   ) => {
     const isCropped = window.innerWidth < (popoutOptions.width + 20) || window.innerHeight < (popoutOptions.height + 20);
+    writeDiagnosticLog('modals', 'Dialog-Aufruf vorbereitet', {
+      name,
+      placement: isCropped ? 'popout' : 'inline',
+      windowWidth: window.innerWidth,
+      windowHeight: window.innerHeight,
+      requestedWidth: popoutOptions.width,
+      requestedHeight: popoutOptions.height,
+      title: popoutOptions.title,
+      payload: describeDiagnosticPayload(popoutOptions.payload)
+    })
     if (isCropped) {
       if (popoutOptions.payload) {
         localStorage.setItem(`popout_${name}_payload`, JSON.stringify(popoutOptions.payload));
       }
+      writeDiagnosticLog('popouts', 'Dialog-Popout geoeffnet', {
+        name,
+        width: popoutOptions.width,
+        height: popoutOptions.height,
+        title: popoutOptions.title
+      }, 'info')
       window.api.openPopoutWindow(name, popoutOptions);
     } else {
       openInline();
@@ -521,6 +563,7 @@ function App(): JSX.Element {
   }
 
   const openSettings = (tab: SettingsTab = 'Projekteinstellungen') => {
+    writeDiagnosticLog('settings', 'Einstellungen angefordert', { tab }, 'info')
     openModalPopoutOrInline('settings', () => {
       setSettingsTab(tab)
       setShowSettings(true)
@@ -533,6 +576,7 @@ function App(): JSX.Element {
   }
 
   const openSymbolManager = () => {
+    writeDiagnosticLog('toolbar', 'Symbol-Manager angefordert', {}, 'info')
     openModalPopoutOrInline('symbol-manager', () => {
       setShowSymbolManager(true)
     }, {
@@ -816,10 +860,22 @@ function App(): JSX.Element {
     checkboxLabel?: string,
     defaultCheckboxChecked?: boolean
   ) => {
+    writeDiagnosticLog('modals', 'Globaler Dialog angezeigt', {
+      type,
+      title,
+      hasConfirmHandler: typeof onConfirm === 'function',
+      hasCheckbox: !!checkboxLabel
+    }, type === 'error' ? 'error' : type === 'warn' ? 'warn' : 'info')
     setModalConfig({ type, title, message, onConfirm, checkboxLabel, defaultCheckboxChecked })
   }
 
   const handleModalClose = (result?: boolean, checkboxChecked?: boolean) => {
+    writeDiagnosticLog('modals', 'Globaler Dialog geschlossen', {
+      type: modalConfig?.type,
+      title: modalConfig?.title,
+      result,
+      checkboxChecked
+    }, 'info')
     const callback = modalConfig?.onConfirm;
     setModalConfig(null)
     if (result && callback) {
@@ -863,6 +919,9 @@ function App(): JSX.Element {
 
     setPanelPopoutState(mergedState)
     localStorage.setItem(PANEL_POPOUT_STATE_STORAGE_KEY, JSON.stringify(mergedState))
+    writeDiagnosticLog('popouts', 'Panel-Popout-Zustand wiederhergestellt', {
+      state: mergedState
+    }, 'info')
 
     ALL_PANEL_POPOUT_IDS.forEach((panelId) => {
       if (mergedState[panelId]) {
@@ -878,6 +937,10 @@ function App(): JSX.Element {
   }, [sendPanelPopoutAction])
 
   const togglePanelPopout = useCallback((panelId: PanelPopoutId, shouldOpen: boolean) => {
+    writeDiagnosticLog('popouts', shouldOpen ? 'Panel-Popout geoeffnet' : 'Panel angedockt', {
+      panelId
+    }, 'info')
+
     setPanelPopoutState(prev => {
       const nextState = { ...prev, [panelId]: shouldOpen }
       localStorage.setItem(PANEL_POPOUT_STATE_STORAGE_KEY, JSON.stringify(nextState))
@@ -907,6 +970,7 @@ function App(): JSX.Element {
   }, [sendPanelPopoutAction])
 
   const redockAllPanels = useCallback(() => {
+    writeDiagnosticLog('popouts', 'Alle Panel-Popouts angedockt', {}, 'info')
     setPanelPopoutState({
       'panel-file-explorer': false,
       'panel-effects': false,
@@ -967,6 +1031,12 @@ function App(): JSX.Element {
   }, [isPanelPopoutWindow, panelPopoutState, togglePanelPopout])
 
   const triggerTimelineAction = (type: string, payload?: any) => {
+    writeDiagnosticLog('menus', 'App-Aktion empfangen', {
+      type,
+      payload: describeDiagnosticPayload(payload),
+      panelLayoutLocked
+    })
+
     if (type === 'UNDO') {
       const prev = undo();
       if (prev) {
@@ -1545,38 +1615,42 @@ function App(): JSX.Element {
 
   if (windowType === 'panel-timeline') {
     return (
-      <div className="h-full w-full flex flex-col bg-omega-dark text-omega-text">
-        <div className="h-10 border-b border-omega-border flex items-center justify-between px-3 bg-omega-panel flex-shrink-0">
-          <span className="text-sm font-semibold text-omega-accent">Timeline</span>
-          <button
-            className="px-2 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-white"
-            onClick={() => {
-              sendPanelPopoutAction('REDOCK_PANEL', { panelId: 'panel-timeline' })
-              window.close()
-            }}
-          >
-            Andocken
-          </button>
+      <>
+        <div className="h-full w-full flex flex-col bg-omega-dark text-omega-text">
+          <div className="h-10 border-b border-omega-border flex items-center justify-between px-3 bg-omega-panel flex-shrink-0">
+            <span className="text-sm font-semibold text-omega-accent">Timeline</span>
+            <button
+              className="px-2 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-white"
+              onClick={() => {
+                sendPanelPopoutAction('REDOCK_PANEL', { panelId: 'panel-timeline' })
+                window.close()
+              }}
+            >
+              Andocken
+            </button>
+          </div>
+          <div className="flex-1 overflow-hidden">
+            <Timeline
+              onTracksChange={(updatedTracks) => {
+                setPopoutTracks(updatedTracks)
+                sendPanelPopoutAction('SYNC_TRACKS', { tracks: updatedTracks })
+              }}
+              onOpenExport={(customTracks, selection, customExportSettings) => {
+                window.api.openExportSettings(customTracks || popoutTracks, selection || null, customExportSettings || null)
+              }}
+              initialTracks={popoutTracks}
+              selectedRegionIds={popoutSelectedRegionIds}
+              onSelectedRegionIdsChange={(ids) => {
+                setPopoutSelectedRegionIds(new Set(ids))
+                sendPanelPopoutAction('SYNC_SELECTED_REGION_IDS', { ids: [...ids] })
+              }}
+              keyboardShortcuts={keyboardShortcuts}
+              onOpenSymbolManager={openSymbolManager}
+            />
+          </div>
         </div>
-        <div className="flex-1 overflow-hidden">
-          <Timeline
-            onTracksChange={(updatedTracks) => {
-              setPopoutTracks(updatedTracks)
-              sendPanelPopoutAction('SYNC_TRACKS', { tracks: updatedTracks })
-            }}
-            onOpenExport={(customTracks, selection, customExportSettings) => {
-              window.api.openExportSettings(customTracks || popoutTracks, selection || null, customExportSettings || null)
-            }}
-            initialTracks={popoutTracks}
-            selectedRegionIds={popoutSelectedRegionIds}
-            onSelectedRegionIdsChange={(ids) => {
-              setPopoutSelectedRegionIds(new Set(ids))
-              sendPanelPopoutAction('SYNC_SELECTED_REGION_IDS', { ids: [...ids] })
-            }}
-            keyboardShortcuts={keyboardShortcuts}
-          />
-        </div>
-      </div>
+        {showSymbolManager && <SymbolManagerModal onClose={() => setShowSymbolManager(false)} />}
+      </>
     )
   }
 

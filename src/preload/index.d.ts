@@ -36,6 +36,7 @@ declare global {
         pixels?: number
         channel?: 'left' | 'right'
       }) => Promise<any>
+      onWaveformPyramidReady: (callback: (data: { filePath: string }) => void) => (() => void)
       readFileBuffer: (filePath: string) => Promise<any>
       savePreset: (filePath: string, data: any) => Promise<any>
       saveProjectBackup: (filePath: string, data: any) => Promise<any>
@@ -76,7 +77,16 @@ declare global {
       openAsioControlPanel: (driverName: string) => Promise<{ success: boolean }>
       saveRecording: (outputPath: string, arrayBuffer: ArrayBuffer) => Promise<any>
       getDiskSpace: (dirPath: string) => Promise<{ success: boolean, freeBytes: number }>
-      getPerformanceStats: () => Promise<{ cpuUsage: number, processRamBytes: number, systemRamPct: number, systemCpuPct: number }>
+      getPerformanceStats: () => Promise<{
+        cpuUsage: number
+        processRamBytes: number
+        systemRamPct: number
+        systemCpuPct: number
+        gpuProcessCpuPct?: number
+        gpuProcessRamBytes?: number
+        gpuModel?: string
+        gpuFeatureStatus?: Record<string, string> | null
+      }>
       showOpenDialog: (options: any) => Promise<any>
       showSaveDialog: (options: any) => Promise<any>
       openExportSettings: (tracks: any, selection: any, exportSettings: any) => void

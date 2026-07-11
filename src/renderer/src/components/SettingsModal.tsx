@@ -11,8 +11,13 @@ import {
 import { MidiEngine } from '../lib/MidiEngine'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle } from 'lucide-react'
+import {
+  DEFAULT_DIAGNOSTIC_LOGGING_SETTINGS,
+  normalizeDiagnosticLoggingSettings,
+  writeDiagnosticLog
+} from '../lib/diagnosticLogging'
 
-export type Tab = 'Wiedergabe' | 'Ordner' | 'Ansicht' | 'System' | 'Tastaturkuerzel' | 'Projekteinstellungen' | 'MIDI' | 'Sprache & Anzeige'
+export type Tab = 'Wiedergabe' | 'Ordner' | 'Ansicht' | 'System' | 'Logs' | 'Tastaturkuerzel' | 'Projekteinstellungen' | 'MIDI' | 'Sprache & Anzeige'
 
 export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', onTriggerUpdate }: { onClose: () => void; initialTab?: Tab; onTriggerUpdate?: (info: any) => void }) {
   const { t, i18n } = useTranslation()
@@ -45,7 +50,8 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
     jumpSizeStopped: 1.0,
     showDiscardWarning: true,
     discardBehavior: 'discard',
-    showUpdateUpgradeNotice: true
+    showUpdateUpgradeNotice: true,
+    diagnosticLogging: DEFAULT_DIAGNOSTIC_LOGGING_SETTINGS
   })
   const initialSettingsRef = useRef<any>(null)
   const [showUnsavedConfirmDialog, setShowUnsavedConfirmDialog] = useState(false)
@@ -80,6 +86,10 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
     if (JSON.stringify(current.keyboardShortcuts) !== JSON.stringify(initial.keyboardShortcuts)) {
       return true
     }
+
+    if (JSON.stringify(normalizeDiagnosticLoggingSettings(current.diagnosticLogging)) !== JSON.stringify(normalizeDiagnosticLoggingSettings(initial.diagnosticLogging))) {
+      return true
+    }
     
     return false
   }
@@ -92,9 +102,13 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
     }
     const settingsToSave = {
       ...finalSettings,
-      keyboardShortcuts: normalizeKeyboardShortcuts(finalSettings.keyboardShortcuts)
+      keyboardShortcuts: normalizeKeyboardShortcuts(finalSettings.keyboardShortcuts),
+      diagnosticLogging: normalizeDiagnosticLoggingSettings(finalSettings.diagnosticLogging)
     }
     await window.api.saveSettings(settingsToSave)
+    writeDiagnosticLog('settings', 'Einstellungen aus Warn-Dialog gespeichert', {
+      diagnosticLogging: settingsToSave.diagnosticLogging
+    }, 'info')
     initialSettingsRef.current = settingsToSave
     AudioEngine.getInstance().setAudioDriver(settingsToSave.driverType || 'wave', settingsToSave.bufferCount || 6)
     
@@ -114,7 +128,8 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
       const updatedSaved = {
         ...currentSaved,
         showDiscardWarning: false,
-        discardBehavior: 'discard'
+        discardBehavior: 'discard',
+        diagnosticLogging: normalizeDiagnosticLoggingSettings(currentSaved?.diagnosticLogging)
       }
       await window.api.saveSettings(updatedSaved)
       window.dispatchEvent(new CustomEvent('SETTINGS_UPDATED', { detail: updatedSaved }))
@@ -228,6 +243,11 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
   const [asioDrivers, setAsioDrivers] = useState<{ name: string; description: string }[]>([])
 
   useEffect(() => {
+    writeDiagnosticLog('settings', 'Einstellungsfenster geoeffnet', {
+      initialTab,
+      isPopout
+    }, 'info')
+
     window.api.getSettings().then(s => {
       setSettings((prev: any) => {
         const merged = {
@@ -238,7 +258,8 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
           discardBehavior: 'discard',
           showUpdateUpgradeNotice: true,
           ...s,
-          keyboardShortcuts: normalizeKeyboardShortcuts(s?.keyboardShortcuts)
+          keyboardShortcuts: normalizeKeyboardShortcuts(s?.keyboardShortcuts),
+          diagnosticLogging: normalizeDiagnosticLoggingSettings(s?.diagnosticLogging)
         }
         setOriginalScale(merged.textScale || 'normal')
         setOriginalLanguage(merged.language || 'de')
@@ -284,9 +305,14 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
   const handleSave = async () => {
     const settingsToSave = {
       ...settings,
-      keyboardShortcuts: normalizeKeyboardShortcuts(settings.keyboardShortcuts)
+      keyboardShortcuts: normalizeKeyboardShortcuts(settings.keyboardShortcuts),
+      diagnosticLogging: normalizeDiagnosticLoggingSettings(settings.diagnosticLogging)
     }
     await window.api.saveSettings(settingsToSave)
+    writeDiagnosticLog('settings', 'Einstellungen gespeichert', {
+      activeTab,
+      diagnosticLogging: settingsToSave.diagnosticLogging
+    }, 'info')
     initialSettingsRef.current = settingsToSave
     AudioEngine.getInstance().setAudioDriver(settingsToSave.driverType || 'wave', settingsToSave.bufferCount || 6)
     
@@ -875,6 +901,68 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
     </div>
   )
 
+  const updateDiagnosticLogging = (key: keyof typeof DEFAULT_DIAGNOSTIC_LOGGING_SETTINGS, value: boolean) => {
+    setSettings((prev: any) => ({
+      ...prev,
+      diagnosticLogging: {
+        ...normalizeDiagnosticLoggingSettings(prev.diagnosticLogging),
+        [key]: value
+      }
+    }))
+    writeDiagnosticLog('settings', 'Log-Kategorie geaendert', { key, value })
+  }
+
+  const renderLogs = () => {
+    const diagnosticLogging = normalizeDiagnosticLoggingSettings(settings.diagnosticLogging)
+    const logOptions: { key: keyof typeof DEFAULT_DIAGNOSTIC_LOGGING_SETTINGS; label: string; desc: string }[] = [
+      { key: 'timeline', label: 'Timeline-Eingaben', desc: 'Mausrad, Scrollen, Zoom, Tastatur und Playhead-Wirkung.' },
+      { key: 'performance', label: 'Performance-Samples', desc: 'CPU, RAM und GPU-Prozesswerte waehrend aktiver Timeline-Aktionen.' },
+      { key: 'menus', label: 'Menues', desc: 'Oeffnen von Menues und ausgewaehlte Menuebefehle.' },
+      { key: 'settings', label: 'Einstellungen', desc: 'Oeffnen, Tabwechsel, Speichern und Aenderungen an Log-Schaltern.' },
+      { key: 'modals', label: 'Dialoge', desc: 'Globale Hinweise, Fehlerdialoge und vorbereitete Popout-Dialoge.' },
+      { key: 'popouts', label: 'Fenster & Popouts', desc: 'Auskoppeln, Andocken und Wiederherstellen von Arbeitsbereichen.' },
+      { key: 'toolbar', label: 'Toolbar', desc: 'Toolbar-Menues, Manager, Sichtbarkeit und Bearbeitungsmodus.' }
+    ]
+
+    return (
+      <div className="border border-gray-700 p-4 rounded bg-[#1e2124] h-full overflow-y-auto">
+        <h3 className="text-center font-semibold mb-4 text-sm">Log-Einstellungen</h3>
+        <div className="flex flex-col gap-3 text-sm">
+          <label className="flex items-center justify-between gap-4 p-3 rounded border border-gray-700 bg-[#181b1f] cursor-pointer">
+            <span>
+              <span className="block text-white font-semibold">Diagnose-Logging aktiv</span>
+              <span className="block text-xs text-gray-400 mt-1">Schaltet die zusaetzlichen UI-Diagnosen gesammelt ein oder aus.</span>
+            </span>
+            <input
+              type="checkbox"
+              checked={diagnosticLogging.enabled}
+              onChange={(e) => updateDiagnosticLogging('enabled', e.target.checked)}
+              className="w-4 h-4"
+            />
+          </label>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {logOptions.map(option => (
+              <label key={option.key} className={`flex items-start gap-3 p-3 rounded border border-gray-700 bg-[#181b1f] cursor-pointer ${diagnosticLogging.enabled ? '' : 'opacity-60'}`}>
+                <input
+                  type="checkbox"
+                  checked={diagnosticLogging[option.key]}
+                  disabled={!diagnosticLogging.enabled}
+                  onChange={(e) => updateDiagnosticLogging(option.key, e.target.checked)}
+                  className="w-4 h-4 mt-0.5"
+                />
+                <span>
+                  <span className="block text-white font-semibold">{option.label}</span>
+                  <span className="block text-xs text-gray-400 mt-1 leading-relaxed">{option.desc}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   const handleReactivateWarnings = () => {
     setSettings((prev: any) => ({
       ...prev,
@@ -1303,9 +1391,14 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
   const handleApply = async () => {
     const settingsToSave = {
       ...settings,
-      keyboardShortcuts: normalizeKeyboardShortcuts(settings.keyboardShortcuts)
+      keyboardShortcuts: normalizeKeyboardShortcuts(settings.keyboardShortcuts),
+      diagnosticLogging: normalizeDiagnosticLoggingSettings(settings.diagnosticLogging)
     }
     await window.api.saveSettings(settingsToSave)
+    writeDiagnosticLog('settings', 'Einstellungen uebernommen', {
+      activeTab,
+      diagnosticLogging: settingsToSave.diagnosticLogging
+    }, 'info')
     initialSettingsRef.current = settingsToSave
     AudioEngine.getInstance().setAudioDriver(settingsToSave.driverType || 'wave', settingsToSave.bufferCount || 6)
     
@@ -1322,7 +1415,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
     setOriginalLanguage(settings.language || 'de')
   }
 
-  const tabs: Tab[] = ['Projekteinstellungen', 'Wiedergabe', 'Ordner', 'Ansicht', 'System', 'Tastaturkuerzel', 'MIDI', 'Sprache & Anzeige']
+  const tabs: Tab[] = ['Projekteinstellungen', 'Wiedergabe', 'Ordner', 'Ansicht', 'System', 'Logs', 'Tastaturkuerzel', 'MIDI', 'Sprache & Anzeige']
 
   const getTabLabel = (tab: Tab) => {
     switch (tab) {
@@ -1331,6 +1424,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
       case 'Ordner': return t('settings.tabs.folders', { defaultValue: 'Ordner' })
       case 'Ansicht': return t('settings.tabs.view', { defaultValue: 'Ansicht' })
       case 'System': return t('settings.tabs.system', { defaultValue: 'System' })
+      case 'Logs': return t('settings.tabs.logs', { defaultValue: 'Logs' })
       case 'Tastaturkuerzel': return t('settings.tabs.shortcuts', { defaultValue: 'Tastaturkuerzel' })
       case 'MIDI': return t('settings.tabs.midi', { defaultValue: 'MIDI' })
       case 'Sprache & Anzeige': return t('settings.lang_display_tab', { defaultValue: 'Sprache & Anzeige' })
@@ -1353,7 +1447,10 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
           {tabs.map(tab => (
             <button 
               key={tab}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => {
+                writeDiagnosticLog('settings', 'Settings-Tab gewechselt', { from: activeTab, to: tab })
+                setActiveTab(tab)
+              }}
               className={`px-4 py-2 text-xs font-medium whitespace-nowrap border-b-2 transition-colors ${activeTab === tab ? 'border-omega-accent text-omega-accent bg-[#282b30]' : 'border-transparent text-gray-400 hover:text-white hover:bg-[#282b30]'}`}
             >
               {getTabLabel(tab)}
@@ -1367,6 +1464,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
           {activeTab === 'Ordner' && renderOrdner()}
           {activeTab === 'Ansicht' && renderAnsicht()}
           {activeTab === 'System' && renderSystem()}
+          {activeTab === 'Logs' && renderLogs()}
           {activeTab === 'Tastaturkuerzel' && renderTastaturkuerzel()}
           {activeTab === 'Projekteinstellungen' && renderFilmeinstellungen()}
           {activeTab === 'MIDI' && renderMidi()}

@@ -66,6 +66,16 @@ export function setupSettingsIpc() {
     showExportGapWarning: true,
     showDeleteConfirmation: true,
     showUpdateUpgradeNotice: true,
+    diagnosticLogging: {
+      enabled: true,
+      timeline: true,
+      performance: true,
+      menus: true,
+      settings: true,
+      modals: true,
+      popouts: true,
+      toolbar: true
+    },
     importOverlapBehavior: 'ask', // Standardverhalten bei Spur-Überlappungen ('ask', 'overlap', 'newTrack', 'sequential')
     recentProjects: [],
     keyboardShortcuts: {
@@ -163,6 +173,8 @@ export function setupSettingsIpc() {
 
   let startCpuUsage = process.cpuUsage();
   let startTime = process.hrtime();
+  let cachedGpuContext: any = null;
+  let gpuContextPromise: Promise<any> | null = null;
 
   function getCpuTotalAndIdle() {
     const cpus = os.cpus();
@@ -179,12 +191,42 @@ export function setupSettingsIpc() {
 
   let prevCpus = getCpuTotalAndIdle();
 
-  ipcMain.handle('get-performance-stats', () => {
+  async function getGpuContext() {
+    if (cachedGpuContext) return cachedGpuContext;
+    if (gpuContextPromise) return gpuContextPromise;
+
+    gpuContextPromise = Promise.all([
+      app.getGPUInfo('basic').catch(() => null),
+      Promise.resolve(app.getGPUFeatureStatus()).catch(() => null)
+    ]).then(([gpuInfo, gpuFeatureStatus]) => {
+      const activeGpu = (gpuInfo as any)?.gpuDevice?.find((device: any) => device.active)
+        || (gpuInfo as any)?.gpuDevice?.[0]
+        || null;
+      cachedGpuContext = {
+        gpuModel: activeGpu?.deviceString || 'Unbekannt',
+        gpuVendorId: activeGpu?.vendorId,
+        gpuDeviceId: activeGpu?.deviceId,
+        gpuFeatureStatus
+      };
+      return cachedGpuContext;
+    }).finally(() => {
+      gpuContextPromise = null;
+    });
+
+    return gpuContextPromise;
+  }
+
+  ipcMain.handle('get-performance-stats', async () => {
     try {
       const totalMem = os.totalmem();
       const freeMem = os.freemem();
       const systemRamPct = Math.round(((totalMem - freeMem) / totalMem) * 100);
       const processRamBytes = process.memoryUsage().heapUsed;
+      const metrics = app.getAppMetrics();
+      const gpuMetric = metrics.find((metric: any) => String(metric.type).toLowerCase() === 'gpu');
+      const gpuProcessCpuPct = Math.round(Number((gpuMetric as any)?.cpu?.percentCPUUsage || 0));
+      const gpuProcessRamBytes = Math.round(Number((gpuMetric as any)?.memory?.workingSetSize || 0) * 1024);
+      const gpuContext = await getGpuContext();
 
       const elapCpu = process.cpuUsage(startCpuUsage);
       const elapTime = process.hrtime(startTime);
@@ -207,11 +249,24 @@ export function setupSettingsIpc() {
         cpuUsage: cpuPercent,
         processRamBytes,
         systemRamPct,
-        systemCpuPct
+        systemCpuPct,
+        gpuProcessCpuPct,
+        gpuProcessRamBytes,
+        gpuModel: gpuContext?.gpuModel || 'Unbekannt',
+        gpuFeatureStatus: gpuContext?.gpuFeatureStatus || null
       };
     } catch (err) {
       console.error('Error fetching performance stats:', err);
-      return { cpuUsage: 0, processRamBytes: 0, systemRamPct: 0, systemCpuPct: 0 };
+      return {
+        cpuUsage: 0,
+        processRamBytes: 0,
+        systemRamPct: 0,
+        systemCpuPct: 0,
+        gpuProcessCpuPct: 0,
+        gpuProcessRamBytes: 0,
+        gpuModel: 'Unbekannt',
+        gpuFeatureStatus: null
+      };
     }
   });
 

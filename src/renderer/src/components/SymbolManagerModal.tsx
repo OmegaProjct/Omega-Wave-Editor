@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
-import { X, GripVertical, Eye, EyeOff, RotateCcw, Sliders, Check, Settings } from 'lucide-react'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { X, GripVertical, RotateCcw, Sliders } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import {
   TIMELINE_TOOLBAR_VISIBILITY_STORAGE_KEY,
@@ -8,9 +8,6 @@ import {
   TIMELINE_TOOLBAR_COLORS_STORAGE_KEY,
   TIMELINE_TOOLBAR_EDIT_LOCKED_STORAGE_KEY,
   ToolbarVisibilityKey,
-  ToolbarSeparatorState,
-  ToolbarColorKey,
-  ToolbarColorState,
   DEFAULT_TOOLBAR_ORDER,
   TOOLBAR_LABELS,
   TOOLBAR_DESCRIPTIONS,
@@ -23,67 +20,85 @@ interface SymbolManagerModalProps {
   onClose: () => void
 }
 
+function createDefaultToolbarVisibility(): Record<ToolbarVisibilityKey, boolean> {
+  return {
+    selectTool: true,
+    cutTool: true,
+    transport: true,
+    record: true,
+    undo: true,
+    redo: true,
+    snap: true,
+    group: true,
+    ungroup: true,
+    gapClose: true,
+    timeDisplay: true,
+    selectionDisplay: true,
+    autoScrollMode: true,
+    export: true
+  }
+}
+
+function readToolbarVisibilityFromStorage(): Record<ToolbarVisibilityKey, boolean> {
+  try {
+    const raw = localStorage.getItem(TIMELINE_TOOLBAR_VISIBILITY_STORAGE_KEY)
+    const parsed = raw ? JSON.parse(raw) : null
+    return {
+      selectTool: parsed?.selectTool !== false,
+      cutTool: parsed?.cutTool !== false,
+      transport: parsed?.transport !== false,
+      record: parsed?.record !== false,
+      undo: parsed?.undo !== false,
+      redo: parsed?.redo !== false,
+      snap: parsed?.snap !== false,
+      group: parsed?.group !== false,
+      ungroup: parsed?.ungroup !== false,
+      gapClose: parsed?.gapClose !== false,
+      timeDisplay: parsed?.timeDisplay !== false,
+      selectionDisplay: parsed?.selectionDisplay !== false,
+      autoScrollMode: parsed?.autoScrollMode !== false,
+      export: parsed?.export !== false
+    }
+  } catch {
+    return createDefaultToolbarVisibility()
+  }
+}
+
+function readToolbarOrderFromStorage(): ToolbarVisibilityKey[] {
+  try {
+    const raw = localStorage.getItem(TIMELINE_TOOLBAR_ORDER_STORAGE_KEY)
+    const parsed = raw ? JSON.parse(raw) : null
+    if (!Array.isArray(parsed)) return DEFAULT_TOOLBAR_ORDER
+    const filtered = parsed.filter((item): item is ToolbarVisibilityKey => DEFAULT_TOOLBAR_ORDER.includes(item))
+    const missing = DEFAULT_TOOLBAR_ORDER.filter((item) => !filtered.includes(item))
+    return [...filtered, ...missing]
+  } catch {
+    return DEFAULT_TOOLBAR_ORDER
+  }
+}
+
 export function SymbolManagerModal({ onClose }: SymbolManagerModalProps) {
   const { t } = useTranslation()
-  const isPopout = new URLSearchParams(window.location.search).get('window') === 'symbol-manager';
+  const isPopout = new URLSearchParams(window.location.search).get('window') === 'symbol-manager'
 
-  const [toolbarVisibility, setToolbarVisibility] = useState<Record<ToolbarVisibilityKey, boolean>>(() => {
-    try {
-      const raw = localStorage.getItem(TIMELINE_TOOLBAR_VISIBILITY_STORAGE_KEY)
-      const parsed = raw ? JSON.parse(raw) : null
-      return {
-        selectTool: parsed?.selectTool !== false,
-        cutTool: parsed?.cutTool !== false,
-        transport: parsed?.transport !== false,
-        record: parsed?.record !== false,
-        undo: parsed?.undo !== false,
-        redo: parsed?.redo !== false,
-        snap: parsed?.snap !== false,
-        group: parsed?.group !== false,
-        ungroup: parsed?.ungroup !== false,
-        gapClose: parsed?.gapClose !== false,
-        timeDisplay: parsed?.timeDisplay !== false,
-        selectionDisplay: parsed?.selectionDisplay !== false,
-        autoScrollMode: parsed?.autoScrollMode !== false,
-        export: parsed?.export !== false
-      }
-    } catch {
-      return {
-        selectTool: true,
-        cutTool: true,
-        transport: true,
-        record: true,
-        undo: true,
-        redo: true,
-        snap: true,
-        group: true,
-        ungroup: true,
-        gapClose: true,
-        timeDisplay: true,
-        selectionDisplay: true,
-        autoScrollMode: true,
-        export: true
-      }
-    }
-  })
-
-  const [toolbarOrder, setToolbarOrder] = useState<ToolbarVisibilityKey[]>(() => {
-    try {
-      const raw = localStorage.getItem(TIMELINE_TOOLBAR_ORDER_STORAGE_KEY)
-      const parsed = raw ? JSON.parse(raw) : null
-      if (!Array.isArray(parsed)) return DEFAULT_TOOLBAR_ORDER
-      const filtered = parsed.filter((item): item is ToolbarVisibilityKey => DEFAULT_TOOLBAR_ORDER.includes(item))
-      const missing = DEFAULT_TOOLBAR_ORDER.filter((item) => !filtered.includes(item))
-      return [...filtered, ...missing]
-    } catch {
-      return DEFAULT_TOOLBAR_ORDER
-    }
-  })
-
+  const [toolbarVisibility, setToolbarVisibility] = useState<Record<ToolbarVisibilityKey, boolean>>(
+    () => readToolbarVisibilityFromStorage()
+  )
+  const [toolbarOrder, setToolbarOrder] = useState<ToolbarVisibilityKey[]>(() => readToolbarOrderFromStorage())
   const [draggingKey, setDraggingKey] = useState<ToolbarVisibilityKey | null>(null)
   const [dropTarget, setDropTarget] = useState<{ key: ToolbarVisibilityKey; position: 'before' | 'after' } | null>(null)
 
-  // Save changes to localStorage and dispatch custom event for local synchronization
+  const toolbarVisibilityRef = useRef(toolbarVisibility)
+  const toolbarOrderRef = useRef(toolbarOrder)
+
+  useEffect(() => {
+    toolbarVisibilityRef.current = toolbarVisibility
+  }, [toolbarVisibility])
+
+  useEffect(() => {
+    toolbarOrderRef.current = toolbarOrder
+  }, [toolbarOrder])
+
   useEffect(() => {
     localStorage.setItem(TIMELINE_TOOLBAR_VISIBILITY_STORAGE_KEY, JSON.stringify(toolbarVisibility))
     window.dispatchEvent(new CustomEvent('omega-toolbar-update'))
@@ -94,6 +109,45 @@ export function SymbolManagerModal({ onClose }: SymbolManagerModalProps) {
     window.dispatchEvent(new CustomEvent('omega-toolbar-update'))
   }, [toolbarOrder])
 
+  const syncToolbarStateFromStorage = useCallback(() => {
+    const nextVisibility = readToolbarVisibilityFromStorage()
+    const nextOrder = readToolbarOrderFromStorage()
+
+    if (JSON.stringify(toolbarVisibilityRef.current) !== JSON.stringify(nextVisibility)) {
+      setToolbarVisibility(nextVisibility)
+    }
+
+    if (JSON.stringify(toolbarOrderRef.current) !== JSON.stringify(nextOrder)) {
+      setToolbarOrder(nextOrder)
+    }
+  }, [])
+
+  useEffect(() => {
+    const handleToolbarUpdate = () => {
+      syncToolbarStateFromStorage()
+    }
+
+    const handleStorage = (event: StorageEvent) => {
+      if (
+        event.key &&
+        event.key !== TIMELINE_TOOLBAR_VISIBILITY_STORAGE_KEY &&
+        event.key !== TIMELINE_TOOLBAR_ORDER_STORAGE_KEY
+      ) {
+        return
+      }
+
+      syncToolbarStateFromStorage()
+    }
+
+    window.addEventListener('omega-toolbar-update', handleToolbarUpdate)
+    window.addEventListener('storage', handleStorage)
+
+    return () => {
+      window.removeEventListener('omega-toolbar-update', handleToolbarUpdate)
+      window.removeEventListener('storage', handleStorage)
+    }
+  }, [syncToolbarStateFromStorage])
+
   const visibleToolbarSectionCount = useMemo(() => {
     return toolbarOrder.filter((key) => toolbarVisibility[key]).length
   }, [toolbarOrder, toolbarVisibility])
@@ -103,41 +157,11 @@ export function SymbolManagerModal({ onClose }: SymbolManagerModalProps) {
   }
 
   const handleShowAll = () => {
-    setToolbarVisibility({
-      selectTool: true,
-      cutTool: true,
-      transport: true,
-      record: true,
-      undo: true,
-      redo: true,
-      snap: true,
-      group: true,
-      ungroup: true,
-      gapClose: true,
-      timeDisplay: true,
-      selectionDisplay: true,
-      autoScrollMode: true,
-      export: true
-    })
+    setToolbarVisibility(createDefaultToolbarVisibility())
   }
 
   const handleResetAll = () => {
-    setToolbarVisibility({
-      selectTool: true,
-      cutTool: true,
-      transport: true,
-      record: true,
-      undo: true,
-      redo: true,
-      snap: true,
-      group: true,
-      ungroup: true,
-      gapClose: true,
-      timeDisplay: true,
-      selectionDisplay: true,
-      autoScrollMode: true,
-      export: true
-    })
+    setToolbarVisibility(createDefaultToolbarVisibility())
     setToolbarOrder(DEFAULT_TOOLBAR_ORDER)
     localStorage.setItem(TIMELINE_TOOLBAR_SEPARATORS_STORAGE_KEY, JSON.stringify(createDefaultToolbarSeparators()))
     localStorage.setItem(TIMELINE_TOOLBAR_COLORS_STORAGE_KEY, JSON.stringify(createDefaultToolbarColors()))
@@ -206,7 +230,6 @@ export function SymbolManagerModal({ onClose }: SymbolManagerModalProps) {
   return (
     <div className={modalWrapperClass} onClick={!isPopout ? onClose : undefined}>
       <div className={contentWrapperClass} onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
         <div className="bg-[#1a1d21]/60 px-5 py-3.5 border-b border-gray-800/80 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-2.5">
             <Sliders className="text-omega-accent" size={18} />
@@ -234,7 +257,6 @@ export function SymbolManagerModal({ onClose }: SymbolManagerModalProps) {
           </div>
         </div>
 
-        {/* Global Toolbar Quick Actions */}
         <div className="bg-[#181a1e] px-4 py-2.5 border-b border-gray-800/80 flex items-center justify-between flex-shrink-0 gap-2">
           <span className="text-[10px] uppercase font-bold text-gray-500 tracking-wide">
             Globale Aktionen
@@ -262,7 +284,6 @@ export function SymbolManagerModal({ onClose }: SymbolManagerModalProps) {
           </div>
         </div>
 
-        {/* Scrollable list of symbols grouped */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
           {TOOLBAR_GROUPS.map((group) => {
             const groupKeys = toolbarOrder.filter((key) => group.keys.includes(key))
@@ -275,7 +296,6 @@ export function SymbolManagerModal({ onClose }: SymbolManagerModalProps) {
                 key={`group-${group.id}`}
                 className="bg-[#1e2124]/40 border border-gray-800/80 rounded-lg overflow-hidden"
               >
-                {/* Group Header */}
                 <div className="bg-[#1b1e22] px-3 py-2 flex items-center justify-between border-b border-gray-800/60">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-[11px] font-bold text-gray-300 uppercase tracking-wide truncate">
@@ -307,7 +327,6 @@ export function SymbolManagerModal({ onClose }: SymbolManagerModalProps) {
                   </div>
                 </div>
 
-                {/* Group Items */}
                 <div className="divide-y divide-gray-800/40">
                   {groupKeys.map((key) => {
                     const isDragging = draggingKey === key
@@ -357,7 +376,6 @@ export function SymbolManagerModal({ onClose }: SymbolManagerModalProps) {
                           }`}
                         >
                           <div className="flex items-center gap-3 min-w-0 flex-1">
-                            {/* Drag handle */}
                             <div className="text-gray-600 group-hover/item:text-gray-400 cursor-grab active:cursor-grabbing">
                               <GripVertical size={14} />
                             </div>
@@ -372,7 +390,6 @@ export function SymbolManagerModal({ onClose }: SymbolManagerModalProps) {
                           </div>
 
                           <div className="flex items-center gap-3">
-                            {/* Checkbox */}
                             <label className="relative flex items-center cursor-pointer">
                               <input
                                 type="checkbox"
@@ -397,13 +414,12 @@ export function SymbolManagerModal({ onClose }: SymbolManagerModalProps) {
           })}
         </div>
 
-        {/* Footer */}
         <div className="bg-[#1a1d21]/60 px-5 py-3 border-t border-gray-800/80 flex items-center justify-end flex-shrink-0">
           <button
             onClick={isPopout ? () => window.close() : onClose}
             className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white text-xs font-bold rounded-lg shadow-md transition-all"
           >
-            {isPopout ? 'Schließen' : 'Fertig'}
+            {isPopout ? 'Schliessen' : 'Fertig'}
           </button>
         </div>
       </div>
