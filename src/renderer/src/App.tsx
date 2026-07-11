@@ -1,20 +1,22 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef, lazy, Suspense } from 'react'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import { FileExplorer } from './components/FileExplorer'
 import { Timeline } from './components/Timeline'
 import { MenuBar } from './components/MenuBar'
-import { SettingsModal, type Tab as SettingsTab } from './components/SettingsModal'
+import type { Tab as SettingsTab } from './components/SettingsModal'
 import { EffectsPanel } from './components/EffectsPanel'
-import { ExportModal } from './components/ExportModal'
 import { MessageModal, ModalType } from './components/MessageModal'
-import { ManualModal } from './components/ManualModal'
-import { AboutModal } from './components/AboutModal'
-import ChangelogModal from './components/ChangelogModal'
 import { LogViewerModal } from './components/LogViewerModal'
 import { StartDashboard } from './components/StartDashboard'
 import { SaveConfirmationModal } from './components/SaveConfirmationModal'
-import { UpdateModal } from './components/UpdateModal'
-import { SymbolManagerModal } from './components/SymbolManagerModal'
+
+const SettingsModal = lazy(() => import('./components/SettingsModal').then(m => ({ default: m.SettingsModal })))
+const ExportModal = lazy(() => import('./components/ExportModal').then(m => ({ default: m.ExportModal })))
+const ManualModal = lazy(() => import('./components/ManualModal').then(m => ({ default: m.ManualModal })))
+const AboutModal = lazy(() => import('./components/AboutModal').then(m => ({ default: m.AboutModal })))
+const ChangelogModal = lazy(() => import('./components/ChangelogModal'))
+const SymbolManagerModal = lazy(() => import('./components/SymbolManagerModal').then(m => ({ default: m.SymbolManagerModal })))
+const UpdateModal = lazy(() => import('./components/UpdateModal').then(m => ({ default: m.UpdateModal })))
 import { useHistory } from './lib/useHistory'
 import { ProjectManager } from './lib/ProjectManager'
 import { AudioEngine } from './lib/AudioEngine'
@@ -1754,33 +1756,55 @@ function App(): JSX.Element {
         </div>
       )}
       {showSettings && (
-        <SettingsModal 
-          onClose={() => {
-            setShowSettings(false)
-            window.api.getSettings().then((s: any) => {
-              if (s.maxUndoSteps) setMaxUndoSteps(s.maxUndoSteps)
-              if (typeof s.autoSave === 'boolean') setAutoSaveEnabled(s.autoSave)
-              if (s.autoSaveInterval) setAutoSaveInterval(s.autoSaveInterval)
-              setKeyboardShortcuts(normalizeKeyboardShortcuts(s.keyboardShortcuts))
-            })
-          }} 
-          initialTab={settingsTab} 
-          onTriggerUpdate={(updateInfo) => {
-            setShowSettings(false)
-            openModalPopoutOrInline('update', () => setActiveUpdateInfo(updateInfo), {
-              width: 980,
-              height: 760,
-              title: 'Software Update',
-              payload: updateInfo
-            });
-          }}
-        />
+        <Suspense fallback={null}>
+          <SettingsModal 
+            onClose={() => {
+              setShowSettings(false)
+              window.api.getSettings().then((s: any) => {
+                if (s.maxUndoSteps) setMaxUndoSteps(s.maxUndoSteps)
+                if (typeof s.autoSave === 'boolean') setAutoSaveEnabled(s.autoSave)
+                if (s.autoSaveInterval) setAutoSaveInterval(s.autoSaveInterval)
+                setKeyboardShortcuts(normalizeKeyboardShortcuts(s.keyboardShortcuts))
+              })
+            }} 
+            initialTab={settingsTab} 
+            onTriggerUpdate={(updateInfo) => {
+              setShowSettings(false)
+              openModalPopoutOrInline('update', () => setActiveUpdateInfo(updateInfo), {
+                width: 980,
+                height: 760,
+                title: 'Software Update',
+                payload: updateInfo
+              })
+            }}
+          />
+        </Suspense>
       )}
-      {showExport && <ExportModal onClose={() => setShowExport(false)} tracks={tracks} />}
-      {showManual && <ManualModal onClose={() => setShowManual(false)} />}
-      {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
-      {showChangelog && <ChangelogModal onClose={() => setShowChangelog(false)} />}
-      {showSymbolManager && <SymbolManagerModal onClose={() => setShowSymbolManager(false)} />}
+      {showExport && (
+        <Suspense fallback={null}>
+          <ExportModal onClose={() => setShowExport(false)} tracks={tracks} />
+        </Suspense>
+      )}
+      {showManual && (
+        <Suspense fallback={null}>
+          <ManualModal onClose={() => setShowManual(false)} />
+        </Suspense>
+      )}
+      {showAbout && (
+        <Suspense fallback={null}>
+          <AboutModal onClose={() => setShowAbout(false)} />
+        </Suspense>
+      )}
+      {showChangelog && (
+        <Suspense fallback={null}>
+          <ChangelogModal onClose={() => setShowChangelog(false)} />
+        </Suspense>
+      )}
+      {showSymbolManager && (
+        <Suspense fallback={null}>
+          <SymbolManagerModal onClose={() => setShowSymbolManager(false)} />
+        </Suspense>
+      )}
       {modalConfig && (
         <MessageModal 
           type={modalConfig.type} 
@@ -1845,15 +1869,17 @@ function App(): JSX.Element {
 
       {/* Update Download Modal */}
       {activeUpdateInfo && (
-        <UpdateModal
-          updateInfo={activeUpdateInfo}
-          onClose={(deferred) => {
-            setActiveUpdateInfo(null)
-            if (deferred) {
-              showModal('info', 'Update geplant', 'Das Update wurde erfolgreich heruntergeladen und wird ausgeführt, sobald der Editor beendet wird.')
-            }
-          }}
-        />
+        <Suspense fallback={null}>
+          <UpdateModal
+            updateInfo={activeUpdateInfo}
+            onClose={(deferred) => {
+              setActiveUpdateInfo(null)
+              if (deferred) {
+                showModal('info', 'Update geplant', 'Das Update wurde erfolgreich heruntergeladen und wird ausgeführt, sobald der Editor beendet wird.')
+              }
+            }}
+          />
+        </Suspense>
       )}
 
       {/* Premium Update Toast */}

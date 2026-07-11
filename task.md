@@ -9,6 +9,8 @@ Release 0.13.10 (Peak-Pyramide-Nacharbeiten: Playhead-Zoom, Stretch-then-Refine,
 | ROT | `implementation_plan_rot.md` | 2 bewiesene Fehler: Proxy-Speicherung schlägt immer fehl (Puffer 4 Bytes zu klein); 14-Sekunden-Einfrierer durch zu früh greifenden Sample-Modus | 0.13.11 | erledigt |
 | ORANGE | `implementation_plan_orange.md` | Toten get-peaks-Pfad mit Zufallsdaten-Fallback entfernen; Doppel-Decode beim Start trotz Proxy vermeiden; Renderer-Caches fingerprint-sicher machen; Cache-Budgets nach Bytes | 0.13.12 | erledigt |
 | GELB | `implementation_plan_gelb.md` | Punkte 1–3 (Float32Array, ehrliche Fehler, SHA-256-Proxy-Namen) wurden bereits mit ORANGE miterledigt und von Claude nachgeprüft. NUR NOCH offen: totes ClipRegion-Modul löschen (4), MidiEngine-Import-Warnung (5), Gesten-Statistik-Kosmetik (6) | 0.13.13 | erledigt |
+| GRÜN | `implementation_plan_gruen.md` | Drei weitere tote Timeline-Altmodule löschen (PlaybackControls, TimelineRuler, TrackHeader); Renderer-Bundle aufteilen (Vendor-Chunks + Lazy-Loading seltener Dialoge) für schnelleren App-Start | 0.13.14 | erledigt |
+| BLAU | `implementation_plan_blau.md` | Timeline-Monolith (~6600 Zeilen) in 4 vorsichtigen Scheiben teilzerlegen: Hilfsfunktionen, Typen, Diagnostik-Hook, LiveWaveformCanvas. Reines Verschieben, kein Verhalten ändern; Zoom/Scroll/Drag und justDraggedRef bleiben unangetastet in Timeline.tsx | 0.13.15 | offen (erst nach GRÜN) |
 
 Jeder Plan enthält in Abschnitt 0 alle Regeln und ist so geschrieben, dass ein Agent ohne weiteres Kontextwissen damit arbeiten kann.
 
@@ -26,4 +28,5 @@ Jeder Plan enthält in Abschnitt 0 alle Regeln und ist so geschrieben, dass ein 
 
 ## Nächster Schritt
 
-Warten auf manuelle Abnahme und Freigabe durch David.
+1. Manuelle Abnahme 0.13.13 durch David (Playhead-Zoom + Proxy-Neustart-Test), dann Release-Freigabe.
+2. Danach delegierbar: Plan GRÜN (`implementation_plan_gruen.md`), anschließend Plan BLAU (`implementation_plan_blau.md`). Reihenfolge einhalten: BLAU setzt auf GRÜN auf.

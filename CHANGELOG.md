@@ -2,6 +2,24 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.13.14] - 2026-07-12
+
+### English
+
+#### Changed
+- Configured Rollup vendor chunk splitting and implemented React lazy loading for modal windows, optimizing the application startup bundle.
+
+#### Removed
+- Removed deprecated and unused legacy timeline modules (`PlaybackControls`, `TimelineRuler`, `TrackHeader`).
+
+### Deutsch
+
+#### Geändert
+- Rollup-Vendor-Splitting konfiguriert und React-Lazy-Loading für Modalfenster implementiert, um die Dateigröße des Startpakets zu optimieren und den Programmstart zu beschleunigen.
+
+#### Entfernt
+- Die veralteten und unbenutzten Timeline-Altmodule (`PlaybackControls`, `TimelineRuler`, `TrackHeader`) gelöscht.
+
 ## [0.13.13] - 2026-07-11
 
 ### English
