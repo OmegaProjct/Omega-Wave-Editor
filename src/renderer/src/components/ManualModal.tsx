@@ -85,6 +85,15 @@ export function ManualModal({ onClose }: { onClose: () => void }) {
                  {t('manual.sec2_toolbar_desc', { defaultValue: 'Die Timeline-Werkzeugleiste ist ebenfalls anpassbar: Im entsperrten Zustand lassen sich Werkzeuge, Player-Buttons und Anzeigeelemente per Drag-and-Drop umsortieren. Die Einfuegemarkierung zeigt dabei deutlich an, an welcher Position ein Element landet. Ueber den Button "Symbole" oeffnen Sie den Toolbar-Manager und waehlen gezielt aus, welche Elemente ueberhaupt sichtbar sein sollen. Per Rechtsklick koennen Sie Trennstriche vor oder nach einem Element einfuegen und Farbmarkierungen vergeben. Die Zeit- und Auswahlanzeigen besitzen eigene Formatwaehler, damit Sie je nach Aufgabe zwischen Sekunden, Samples oder Frame-basierten Formaten umschalten koennen.' })}
                </p>
             </div>
+            <div className="mt-4 bg-black/20 p-4 rounded border border-gray-800">
+               <h4 className="font-bold text-white text-xs mb-1.5 flex items-center gap-2">
+                 <span className="w-1.5 h-1.5 bg-omega-accent rounded-sm inline-block"></span>
+                 {t('manual.sec2_waveform_title', { defaultValue: 'Wellenform-Analyse & Proxy-Dateien' })}
+               </h4>
+               <p className="text-xs text-gray-400 leading-relaxed">
+                 {t('manual.sec2_waveform_desc', { defaultValue: 'Beim ersten Laden einer Audiodatei wird sie einmalig vollstaendig analysiert, damit Zoomen und Scrollen in der Timeline anschliessend ohne Verzoegerung reagieren. Waehrend dieser kurzen Analyse zeigt der Clip einen dezenten Fortschrittsbalken. Das Ergebnis wird als kompakte Proxy-Datei im Programm-Datenordner ("waveform-proxies") gespeichert, sodass die Analyse nach einem Neustart nicht erneut anfaellt. Proxys, die zu einem gespeicherten Projekt gehoeren, bleiben dauerhaft erhalten; nicht mehr benoetigte, keinem Projekt zugeordnete Proxys werden beim naechsten Programmstart automatisch aufgeraeumt.' })}
+               </p>
+            </div>
           </section>
 
           {/* 3. Schneiden und Arrangieren */}

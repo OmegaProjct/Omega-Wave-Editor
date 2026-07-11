@@ -124,13 +124,14 @@ export function registerAudioIpc() {
   })
 
   ipcMain.handle('waveform:get-window', async (_, filePath: string, options: any = {}) => {
-    logger.debug('Waveform', 'Waveform-Fenster angefordert', { filePath, options })
+    logger.debug('Waveform', 'Waveform-Fenster angefordert', { traceId: options.traceId, filePath, options })
     if (!isSafePath(filePath)) throw new Error('Ungueltiger Pfad')
     return await getWaveformWindow(filePath, {
       startTime: typeof options.startTime === 'number' ? options.startTime : 0,
       duration: typeof options.duration === 'number' ? options.duration : undefined,
       pixels: typeof options.pixels === 'number' ? options.pixels : undefined,
-      channel: options.channel === 'left' || options.channel === 'right' ? options.channel : undefined
+      channel: options.channel === 'left' || options.channel === 'right' ? options.channel : undefined,
+      traceId: typeof options.traceId === 'string' ? options.traceId : undefined
     })
   })
 

@@ -55,8 +55,10 @@ interface Window {
       duration?: number;
       pixels?: number;
       channel?: 'left' | 'right';
+      traceId?: string;
     }) => Promise<any>;
     onWaveformPyramidReady: (callback: (data: { filePath: string }) => void) => (() => void);
+    onWaveformPyramidProgress: (callback: (data: { filePath: string; percent: number }) => void) => (() => void);
     openPath: (dirPath: string) => Promise<{ success: boolean; error?: string }>;
     downloadPluginFile: (payload: { url: string; fileName?: string; pluginName?: string }) => Promise<{ success: boolean; error?: string; filePath?: string; directory?: string }>;
     transcodeExport: (tempWavPath: string, outputPath: string, options: any, id3Tags?: any) => Promise<boolean>;

@@ -74,7 +74,8 @@ export function setupSettingsIpc() {
       settings: true,
       modals: true,
       popouts: true,
-      toolbar: true
+      toolbar: true,
+      waveformTrace: true
     },
     importOverlapBehavior: 'ask', // Standardverhalten bei Spur-Überlappungen ('ask', 'overlap', 'newTrack', 'sequential')
     recentProjects: [],

@@ -2,6 +2,26 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.13.10] - 2026-07-11
+
+### English
+
+#### Fixed
+- **Waveform Zoom Now Follows the Playhead**: Zooming (mouse wheel, keyboard shortcuts, toolbar buttons, zoom menu) now always keeps the playhead in place on screen — if it is currently visible it stays exactly where it is, and if it is outside the visible area it is brought to the center first, matching the behavior of common reference video/audio editors. Previously, mouse-wheel zoom could push the playhead out of view.
+- **Smoother Zooming and Scrolling**: The waveform now visually follows zoom and scroll changes immediately by scaling and repositioning the already-rendered image, instead of waiting for freshly recalculated data before showing anything; the precise redraw follows moments later. Previously rendered waveform views (same file, view, size and zoom) are also kept in a short-term image cache and reused instantly when revisited instead of being redrawn from scratch every time.
+- **Faster File Loading After Restart**: The one-time waveform analysis of an audio file is now saved to a compact proxy file in the program's data folder. On later sessions the same file loads its waveform instantly instead of being re-analyzed. While a file is analyzed for the first time, its clip shows a subtle progress bar. Proxies belonging to a saved project are kept permanently; proxies no longer linked to any project are cleaned up automatically after 7 days, and the overall proxy storage is capped in size.
+- Added an optional, detailed logging mode that traces each waveform data request end to end and summarizes zoom/scroll gestures, to make waveform responsiveness measurable.
+- The one-time full-file analysis that builds the waveform overview now automatically retries once if the initial pass fails due to a transient decoding interruption.
+
+### Deutsch
+
+#### Behoben
+- **Waveform-Zoom folgt jetzt dem Playhead**: Zoomen (Mausrad, Tastaturkürzel, Werkzeugleisten-Buttons, Zoom-Menü) hält den Playhead jetzt immer an seiner Bildschirmposition — ist er sichtbar, bleibt er exakt stehen, ist er außerhalb des sichtbaren Bereichs, wird er zunächst in die Mitte geholt. Das entspricht dem Verhalten gängiger Referenz-Video-/Audioeditoren. Zuvor konnte der Mausrad-Zoom den Playhead aus dem Sichtbereich schieben.
+- **Flüssigeres Zoomen und Scrollen**: Die Wellenform folgt Zoom- und Scroll-Änderungen jetzt sofort optisch, indem das bereits gezeichnete Bild skaliert und neu positioniert wird, statt auf frisch berechnete Daten zu warten; die präzise Neuzeichnung folgt kurz darauf. Bereits gezeichnete Waveform-Ansichten (gleiche Datei, gleicher Ausschnitt, Größe und Zoom) werden zudem kurzfristig zwischengespeichert und bei erneutem Aufruf sofort wiederverwendet statt jedes Mal neu gezeichnet zu werden.
+- **Schnelleres Laden nach Neustart**: Die einmalige Waveform-Analyse einer Audiodatei wird jetzt als kompakte Proxy-Datei im Programm-Datenordner gespeichert. Bei einer späteren Sitzung lädt dieselbe Datei ihre Wellenform sofort, statt erneut analysiert zu werden. Während eine Datei zum ersten Mal analysiert wird, zeigt ihr Clip einen dezenten Fortschrittsbalken. Proxys, die zu einem gespeicherten Projekt gehören, bleiben dauerhaft erhalten; nicht mehr verknüpfte Proxys werden nach 7 Tagen automatisch aufgeräumt, und die Gesamtgröße des Proxy-Speichers ist begrenzt.
+- Optionalen, detaillierten Protokoll-Modus hinzugefügt, der jede Waveform-Datenanfrage von Anfrage bis Zeichnung verfolgt und Zoom-/Scroll-Gesten zusammenfasst, damit sich die Reaktionsfreudigkeit der Waveform messen lässt.
+- Die einmalige Gesamtanalyse einer Datei für die Waveform-Übersicht wiederholt sich jetzt automatisch einmal, falls der erste Versuch durch eine kurzzeitige Dekodierungsunterbrechung fehlschlägt.
+
 ## [0.13.9] - 2026-07-11
 
 ### English

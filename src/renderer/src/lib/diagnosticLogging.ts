@@ -6,6 +6,7 @@ export type DiagnosticLoggingCategory =
   | 'modals'
   | 'popouts'
   | 'toolbar'
+  | 'waveformTrace'
 
 export type DiagnosticLoggingSettings = Record<DiagnosticLoggingCategory | 'enabled', boolean>
 
@@ -17,7 +18,11 @@ export const DEFAULT_DIAGNOSTIC_LOGGING_SETTINGS: DiagnosticLoggingSettings = {
   settings: true,
   modals: true,
   popouts: true,
-  toolbar: true
+  toolbar: true,
+  // Praezise Zeitmessung der Waveform-Anfragekette (Anfrage, IPC, Zeichnen).
+  // Vorerst standardmaessig an, damit David die Performance-Probleme
+  // im Log nachvollziehen kann; kann spaeter per Default abgeschaltet werden.
+  waveformTrace: true
 }
 
 let currentSettings: DiagnosticLoggingSettings = { ...DEFAULT_DIAGNOSTIC_LOGGING_SETTINGS }

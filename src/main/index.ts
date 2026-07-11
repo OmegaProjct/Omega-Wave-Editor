@@ -6,6 +6,7 @@ import { setupSettingsIpc } from './settingsIpc'
 import { setupUpdateDownloader } from './updateDownloader'
 import { setupVstBridgeIpc } from './ipc/vstBridgeIpc'
 import { logger } from './logger'
+import { runProxyStoreMaintenance } from './waveform/proxyStore'
 
 // Set custom AppData folder structure: AppData/Roaming/OmegaProjects/Omega Wave Editor
 const appDataPath = app.getPath('appData')
@@ -400,6 +401,9 @@ if (gotTheLock) {
     setupIpc()
     setupSettingsIpc()
     setupVstBridgeIpc()
+    // Aufraeumen unverknuepfter/veralteter Waveform-Proxy-Dateien, einmal
+    // pro Programmstart (nicht beim Beenden, um robust gegen Abstuerze zu sein).
+    runProxyStoreMaintenance()
 
     // Register COOP/COEP headers for SharedArrayBuffer support
     session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
