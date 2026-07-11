@@ -1362,11 +1362,12 @@ export function Timeline({
 
     const durationMs = Math.max(1, gesture.lastAt - gesture.startedAt)
     const stepsPerSecond = gesture.steps / (durationMs / 1000)
+    const showRate = gesture.steps >= 3 && durationMs >= 50
     writeDiagnosticLog('waveformTrace', 'Zoom-/Scroll-Geste abgeschlossen', {
       kind: gesture.kind,
       steps: gesture.steps,
       durationMs: Math.round(durationMs),
-      stepsPerSecond: Number(stepsPerSecond.toFixed(1))
+      ...(showRate ? { stepsPerSecond: Number(stepsPerSecond.toFixed(1)) } : {})
     })
   }, [])
 
