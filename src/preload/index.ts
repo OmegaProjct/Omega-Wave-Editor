@@ -21,6 +21,11 @@ const api = {
     ipcRenderer.on('waveform:pyramid-ready', sub)
     return () => { ipcRenderer.removeListener('waveform:pyramid-ready', sub) }
   },
+  onWaveformPyramidProgress: (callback: (data: { filePath: string; percent: number }) => void) => {
+    const sub = (_event: any, data: any) => callback(data)
+    ipcRenderer.on('waveform:pyramid-progress', sub)
+    return () => { ipcRenderer.removeListener('waveform:pyramid-progress', sub) }
+  },
   readFileBuffer: (filePath: string) => ipcRenderer.invoke('read-file-buffer', filePath),
   exportProject: (tracksData: any, outputPath: string, id3Tags?: any) => ipcRenderer.invoke('export-project', tracksData, outputPath, id3Tags),
   saveProject: (filePath: string, data: any) => ipcRenderer.invoke('save-project', filePath, data),

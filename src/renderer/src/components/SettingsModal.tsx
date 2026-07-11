@@ -921,7 +921,8 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
       { key: 'settings', label: 'Einstellungen', desc: 'Oeffnen, Tabwechsel, Speichern und Aenderungen an Log-Schaltern.' },
       { key: 'modals', label: 'Dialoge', desc: 'Globale Hinweise, Fehlerdialoge und vorbereitete Popout-Dialoge.' },
       { key: 'popouts', label: 'Fenster & Popouts', desc: 'Auskoppeln, Andocken und Wiederherstellen von Arbeitsbereichen.' },
-      { key: 'toolbar', label: 'Toolbar', desc: 'Toolbar-Menues, Manager, Sichtbarkeit und Bearbeitungsmodus.' }
+      { key: 'toolbar', label: 'Toolbar', desc: 'Toolbar-Menues, Manager, Sichtbarkeit und Bearbeitungsmodus.' },
+      { key: 'waveformTrace', label: 'Waveform-Zeitmessung', desc: 'Praezise Zeiten je Waveform-Anfrage (Anfrage, IPC-Antwort, Zeichnen) und Zoom-/Scroll-Gesten.' }
     ]
 
     return (

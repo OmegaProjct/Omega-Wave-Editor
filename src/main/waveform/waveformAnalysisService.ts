@@ -11,6 +11,9 @@
  *   kleine, rasterfeste PCM-Chunks dekodiert und im LRU-Cache gehalten.
  * - Solange die Pyramide baut, antwortet der Overview-Pfad als Uebergang;
  *   solche Antworten tragen provisional=true und werden nicht gecacht.
+ * - Fertige Pyramiden werden zusaetzlich als Proxy-Datei auf Platte
+ *   gesichert (proxyStore.ts), damit ein Neustart die Analyse nicht erneut
+ *   anstossen muss.
  */
 
 import * as fs from 'fs'
@@ -24,6 +27,7 @@ import {
   PYRAMID_BASE_SPP,
   queryPyramid
 } from './peakPyramid'
+import { computeFileFingerprint, loadProxyFromDisk, saveProxyToDisk } from './proxyStore'
 
 // Kann als normales Array (Overview-/Sample-Pfad) oder als Float32Array
 // (Pyramiden-Pfad) uebertragen werden — Electron-IPC beherrscht beides.
@@ -41,6 +45,9 @@ export type WaveformWindowRequest = {
   duration?: number
   pixels?: number
   channel?: 'left' | 'right'
+  // Vom Renderer vergebene Kennung fuer die Trace-Logs (Phase A);
+  // rein diagnostisch, hat keinen Einfluss auf den Cache-Schluessel.
+  traceId?: string
 }
 
 export type WaveformWindowResponse = {
@@ -57,6 +64,8 @@ export type WaveformWindowResponse = {
   filePeak?: number
   // true = Uebergangsantwort, solange die Pyramide noch baut
   provisional?: boolean
+  // Spiegelt request.traceId, damit der Renderer Anfrage und Antwort im Log verketten kann
+  traceId?: string
   channels: WaveformChannel[]
 }
 
@@ -118,11 +127,6 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
 }
 
-function makeFingerprint(filePath: string): string {
-  const stat = fs.statSync(filePath)
-  return `${path.resolve(filePath)}|${stat.size}|${Math.floor(stat.mtimeMs)}`
-}
-
 function rememberWindow(key: string, response: WaveformWindowResponse): void {
   if (windowCache.has(key)) {
     windowCache.delete(key)
@@ -150,7 +154,7 @@ function rememberOverview(key: string, promise: Promise<DecodedPcm>): void {
 }
 
 function readMediaInfo(filePath: string): Promise<MediaInfo> {
-  const fingerprint = makeFingerprint(filePath)
+  const fingerprint = computeFileFingerprint(filePath)
   const cached = metadataCache.get(fingerprint)
   if (cached) return Promise.resolve(cached)
 
@@ -276,7 +280,59 @@ function broadcastPyramidReady(filePath: string): void {
   }
 }
 
-// Startet (einmalig pro Datei) den Pyramidenbau und verwaltet den LRU-Cache
+// Meldet den Analysefortschritt beim erstmaligen Aufbau einer Pyramide
+// (Datei-Import), damit der Clip in der Timeline einen Ladezustand zeigen kann.
+function broadcastPyramidProgress(filePath: string, percent: number): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) {
+      win.webContents.send('waveform:pyramid-progress', { filePath, percent })
+    }
+  }
+}
+
+// Baut die Pyramide fuer eine Datei einmal durch (ein Streaming-Decode-Versuch)
+function buildPyramidOnce(
+  filePath: string,
+  info: MediaInfo,
+  onProgress?: (percent: number) => void
+): Promise<PeakPyramid> {
+  const startedAt = Date.now()
+  const builder = new PyramidBuilder(info.sampleRate, info.channels)
+  const expectedFrames = Math.max(1, info.duration * info.sampleRate)
+  let framesSeen = 0
+  let lastReportedPercent = -1
+  let lastReportedAt = 0
+
+  return decodePcmStream(filePath, info.sampleRate, info.channels, (samples) => {
+    builder.push(samples)
+    if (!onProgress) return
+    framesSeen += Math.floor(samples.length / Math.max(1, info.channels))
+    const percent = Math.min(99, Math.floor((framesSeen / expectedFrames) * 100))
+    const now = Date.now()
+    if (percent !== lastReportedPercent && now - lastReportedAt > 150) {
+      lastReportedPercent = percent
+      lastReportedAt = now
+      onProgress(percent)
+    }
+  }).then(() => {
+    const pyramid = builder.finish()
+    onProgress?.(100)
+    logger.info('Waveform', 'Peak-Pyramide fertig', {
+      filePath,
+      frames: pyramid.frames,
+      levels: pyramid.levels.length,
+      filePeak: Number(pyramid.filePeak.toFixed(4)),
+      buildMs: Date.now() - startedAt
+    })
+    return pyramid
+  })
+}
+
+// Startet (einmalig pro Datei) den Pyramidenaufbau: zuerst wird ein zuvor
+// gespeicherter Proxy von der Platte geladen; nur wenn keiner existiert,
+// wird per Streaming-Decode neu analysiert (mit einem automatischen
+// Wiederholungsversuch bei sporadischen Decode-Fehlern) und danach als
+// Proxy-Datei gesichert. Verwaltet zudem den RAM-LRU-Cache.
 function ensurePyramid(filePath: string, info: MediaInfo): PyramidState {
   const existing = pyramidCache.get(info.fingerprint)
   if (existing) {
@@ -285,31 +341,51 @@ function ensurePyramid(filePath: string, info: MediaInfo): PyramidState {
     return existing
   }
 
-  const builder = new PyramidBuilder(info.sampleRate, info.channels)
   const state: PyramidState = {
     status: 'building',
     promise: null as unknown as Promise<PeakPyramid>
   }
-  state.promise = decodePcmStream(filePath, info.sampleRate, info.channels, (samples) => {
-    builder.push(samples)
-  }).then(() => {
-    const pyramid = builder.finish()
-    state.status = 'ready'
-    state.pyramid = pyramid
-    logger.info('Waveform', 'Peak-Pyramide fertig', {
-      filePath,
-      frames: pyramid.frames,
-      levels: pyramid.levels.length,
-      filePeak: Number(pyramid.filePeak.toFixed(4))
-    })
-    broadcastPyramidReady(filePath)
+
+  const buildAndPersist = async (): Promise<PeakPyramid> => {
+    const fromDisk = loadProxyFromDisk(info.fingerprint)
+    if (fromDisk) {
+      logger.info('Waveform', 'Peak-Pyramide von Proxy-Datei geladen', {
+        filePath,
+        frames: fromDisk.frames,
+        levels: fromDisk.levels.length
+      })
+      broadcastPyramidProgress(filePath, 100)
+      return fromDisk
+    }
+
+    const onProgress = (percent: number) => broadcastPyramidProgress(filePath, percent)
+    let pyramid: PeakPyramid
+    try {
+      pyramid = await buildPyramidOnce(filePath, info, onProgress)
+    } catch (err) {
+      // Ein Fehlversuch (z. B. "Output stream closed") wird nicht sofort
+      // als endgueltig gewertet — ein zweiter Versuch behebt in der Praxis
+      // die meisten dieser sporadischen FFmpeg-Stream-Abbrueche.
+      logger.warn('Waveform', 'Peak-Pyramide fehlgeschlagen, versuche erneut', err)
+      pyramid = await buildPyramidOnce(filePath, info, onProgress)
+    }
+    saveProxyToDisk(info.fingerprint, filePath, pyramid)
     return pyramid
-  }).catch((err) => {
-    state.status = 'error'
-    pyramidCache.delete(info.fingerprint)
-    logger.error('Waveform', 'Peak-Pyramide fehlgeschlagen', err)
-    throw err
-  })
+  }
+
+  state.promise = buildAndPersist()
+    .then((pyramid) => {
+      state.status = 'ready'
+      state.pyramid = pyramid
+      broadcastPyramidReady(filePath)
+      return pyramid
+    })
+    .catch((err) => {
+      state.status = 'error'
+      pyramidCache.delete(info.fingerprint)
+      logger.error('Waveform', 'Peak-Pyramide endgueltig fehlgeschlagen', err)
+      throw err
+    })
   // Verhindert unhandled-rejection-Warnungen, falls niemand wartet
   state.promise.catch(() => {})
 
@@ -602,18 +678,21 @@ export async function getWaveformWindow(
     pixels
   ].join('|')
 
+  const traceId = request.traceId
   const cached = windowCache.get(key)
   if (cached) {
     windowCache.delete(key)
     windowCache.set(key, cached)
-    return cached
+    logger.debug('Waveform', 'Waveform-Fenster aus Cache beantwortet', { traceId, filePath, startTime, duration, pixels })
+    return { ...cached, traceId }
   }
 
   const inflight = inflightWindowCache.get(key)
   if (inflight) {
-    return inflight
+    return inflight.then((response) => ({ ...response, traceId }))
   }
 
+  const requestStartedAt = Date.now()
   const requestPromise = (async () => {
     const samplesPerPixel = (duration * info.sampleRate) / pixels
     const channelIndex = request.channel === 'right'
@@ -623,6 +702,7 @@ export async function getWaveformWindow(
 
     let response: WaveformWindowResponse
     let source: 'pyramid' | 'overview-fallback' | 'pcm-chunks'
+    const decodeStartedAt = Date.now()
 
     if (samplesPerPixel >= PYRAMID_BASE_SPP || duration > MAX_PCM_WINDOW_SECONDS) {
       if (pyramidState.status === 'ready' && pyramidState.pyramid) {
@@ -646,6 +726,8 @@ export async function getWaveformWindow(
       source = 'pcm-chunks'
     }
 
+    const decodeMs = Date.now() - decodeStartedAt
+
     // Globalen Datei-Peak mitgeben, sobald die Pyramide ihn kennt
     if (pyramidState.status === 'ready' && pyramidState.pyramid) {
       response.filePeak = pyramidState.pyramid.filePeak
@@ -654,7 +736,9 @@ export async function getWaveformWindow(
     if (!response.provisional) {
       rememberWindow(key, response)
     }
+    response.traceId = traceId
     logger.debug('Waveform', 'Waveform-Fenster berechnet', {
+      traceId,
       filePath,
       startTime,
       duration,
@@ -662,7 +746,9 @@ export async function getWaveformWindow(
       source,
       mode: response.mode,
       points: response.points,
-      channels: response.channels.length
+      channels: response.channels.length,
+      decodeMs,
+      totalMs: Date.now() - requestStartedAt
     })
     return response
   })()

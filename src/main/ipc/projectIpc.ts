@@ -8,6 +8,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
 import { logger } from '../logger'
+import { computeFileFingerprint, linkProxiesToProject } from '../waveform/proxyStore'
 
 // Local helper checks
 function isSafePath(filePath: any): boolean {
@@ -82,6 +83,7 @@ export function registerProjectIpc() {
 
       // Convert absolute paths inside data to relative paths
       const projectDir = path.dirname(targetPath)
+      const sourceFileAbsPaths: string[] = []
       if (data && Array.isArray(data.tracks)) {
         data.tracks.forEach((track: any) => {
           if (track && Array.isArray(track.regions)) {
@@ -89,6 +91,7 @@ export function registerProjectIpc() {
               if (region && region.file && region.file.path) {
                 const fileAbsPath = region.file.path
                 if (path.isAbsolute(fileAbsPath)) {
+                  sourceFileAbsPaths.push(fileAbsPath)
                   const relativePath = path.relative(projectDir, fileAbsPath)
                   if (!path.isAbsolute(relativePath)) {
                     region.file.path = relativePath
@@ -102,6 +105,19 @@ export function registerProjectIpc() {
 
       await fs.promises.writeFile(targetPath, JSON.stringify(data, null, 2), 'utf-8')
       logger.info('Project', 'Projekt erfolgreich gespeichert', { targetPath })
+
+      // Waveform-Proxys der verwendeten Quelldateien mit diesem Projekt
+      // verknuepfen, damit sie die automatische Aufraeumung ueberleben.
+      const fingerprints: string[] = []
+      for (const absPath of sourceFileAbsPaths) {
+        try {
+          fingerprints.push(computeFileFingerprint(absPath))
+        } catch {
+          // Quelldatei aktuell nicht erreichbar -> ueberspringen
+        }
+      }
+      linkProxiesToProject(fingerprints, targetPath)
+
       return { success: true, filePath: targetPath }
     } catch (err: any) {
       logger.error('Project', 'Fehler beim Speichern des Projekts', { filePath, error: err.message })

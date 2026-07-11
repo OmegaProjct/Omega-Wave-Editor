@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { writeDiagnosticLog } from '../lib/diagnosticLogging'
+import { shouldLogDiagnostic, writeDiagnosticLog } from '../lib/diagnosticLogging'
 
 // Waveform-Daten koennen als normale Arrays (Uebergangs-/Sample-Pfad) oder
 // als Float32Arrays (Pyramiden-Pfad) ankommen.
@@ -24,6 +24,7 @@ type WaveformWindowData = {
   peak: number
   filePeak?: number
   provisional?: boolean
+  traceId?: string
   channels: WaveformChannel[]
 }
 
@@ -67,6 +68,58 @@ const MAX_CANVAS_BITMAP_SIZE = 16384
 // Kurze Entprellung reicht: Anfragen sind dank Peak-Pyramide billig
 const WAVEFORM_REQUEST_DEBOUNCE_MS = 16
 const rendererWaveformCache = new Map<string, WaveformWindowData>()
+
+// Laufende Kennung fuer Trace-Logs (Phase A): jede Anfrage bekommt eine ID,
+// die durch Renderer, IPC und Hauptprozess-Log mitgereicht wird.
+let waveformTraceCounter = 0
+function nextWaveformTraceId(): string {
+  waveformTraceCounter += 1
+  return `wf-${waveformTraceCounter}`
+}
+
+// Bitmap-Cache (Phase B3): haelt bereits fertig gezeichnete Canvas-Inhalte
+// pro (Datei, Kanal, Fenster, Groesse, Darstellung) vor. Bei einem Treffer
+// wird nur noch kopiert (drawImage), statt Gradient und Pfade neu zu
+// berechnen — macht das Wiederkehren zu einem zuvor gesehenen Zoom/Ausschnitt
+// praktisch kostenlos. Uebergangsdaten (provisional) werden nie gecacht,
+// damit spaeter keine veraltete Grobansicht faelschlich wiederverwendet wird.
+type WaveformTileBitmap = { canvas: HTMLCanvasElement; width: number; height: number }
+const waveformTileBitmapCache = new Map<string, WaveformTileBitmap>()
+const MAX_TILE_BITMAP_ENTRIES = 48
+
+function rememberTileBitmap(key: string, entry: WaveformTileBitmap): void {
+  if (waveformTileBitmapCache.has(key)) {
+    waveformTileBitmapCache.delete(key)
+  }
+  waveformTileBitmapCache.set(key, entry)
+
+  while (waveformTileBitmapCache.size > MAX_TILE_BITMAP_ENTRIES) {
+    const oldest = waveformTileBitmapCache.keys().next().value
+    if (!oldest) break
+    waveformTileBitmapCache.delete(oldest)
+  }
+}
+
+function getTileBitmap(key: string): WaveformTileBitmap | undefined {
+  const entry = waveformTileBitmapCache.get(key)
+  if (entry) {
+    // Zuletzt genutzte Eintraege nach hinten verschieben (LRU)
+    waveformTileBitmapCache.delete(key)
+    waveformTileBitmapCache.set(key, entry)
+  }
+  return entry
+}
+
+// Geometrie-Schnappschuss des zuletzt tatsaechlich gezeichneten Canvas-Inhalts.
+// Bis neue Daten eintreffen, wird dieser Inhalt bei Zoom-/Scroll-Aenderungen
+// nur noch per CSS gestreckt/verschoben (siehe Reposition-Effekt), statt neu
+// gezeichnet zu werden ("Stretch-then-Refine").
+type PaintedWindow = {
+  leftPx: number
+  widthPx: number
+  sourceStart: number
+  sourceDuration: number
+}
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
@@ -390,12 +443,19 @@ export function WaveformRenderer({
   const wrapperRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const lastRenderWindowRef = useRef<RenderWindow | null>(null)
+  // Geometrie des zuletzt gemalten Bitmaps; treibt den Reposition-Effekt
+  // (CSS-Stretch bei Zoom/Scroll, bevor frische Daten eintreffen).
+  const paintedWindowRef = useRef<PaintedWindow | null>(null)
   const [waveform, setWaveform] = useState<WaveformWindowData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [size, setSize] = useState({ width: 0, height: 0 })
   const [halfWaveform, setHalfWaveform] = useState<boolean>(false)
   // Zaehler, um nach Fertigstellung der Peak-Pyramide einmal neu anzufragen
   const [refreshTick, setRefreshTick] = useState(0)
+  // Analysefortschritt (Phase C, Proxy-Dateien): waehrend eine Datei zum
+  // ersten Mal analysiert wird, zeigt der Clip einen dezenten Ladehinweis.
+  // Bleibt null, wenn die Pyramide bereits im Cache/als Proxy vorliegt.
+  const [pyramidProgress, setPyramidProgress] = useState<number | null>(null)
   const lastRendererDiagnosticRef = useRef('')
 
   useEffect(() => {
@@ -447,6 +507,19 @@ export function WaveformRenderer({
     const unsubscribe = window.api.onWaveformPyramidReady((data: { filePath: string }) => {
       if (data && data.filePath === filePath) {
         setRefreshTick((tick) => tick + 1)
+        setPyramidProgress(null)
+      }
+    })
+    return unsubscribe
+  }, [filePath])
+
+  // Analysefortschritt der Datei verfolgen (nur relevant beim allerersten
+  // Zugriff auf eine Datei ohne vorhandenen Proxy).
+  useEffect(() => {
+    if (!window.api || typeof window.api.onWaveformPyramidProgress !== 'function') return
+    const unsubscribe = window.api.onWaveformPyramidProgress((data: { filePath: string; percent: number }) => {
+      if (data && data.filePath === filePath) {
+        setPyramidProgress(data.percent >= 100 ? null : data.percent)
       }
     })
     return unsubscribe
@@ -498,20 +571,44 @@ export function WaveformRenderer({
     setError(null)
     const cached = rendererWaveformCache.get(requestKey)
     if (cached) {
+      if (shouldLogDiagnostic('waveformTrace')) {
+        writeDiagnosticLog('waveformTrace', 'Waveform-Anfrage aus Renderer-Cache', {
+          filePath,
+          requestPixels: renderWindow.requestPixels,
+          cacheHit: true
+        })
+      }
       setWaveform(cached)
       return () => {
         active = false
       }
     }
 
+    const traceId = nextWaveformTraceId()
+    const requestedAt = performance.now()
+
     const timeout = window.setTimeout(() => {
       window.api.getWaveformWindow(filePath, {
         startTime: renderWindow.sourceStart,
         duration: renderWindow.sourceDuration,
         pixels: renderWindow.requestPixels,
-        channel
+        channel,
+        traceId
       }).then((data: WaveformWindowData) => {
         if (!active) return
+        const ipcMs = performance.now() - requestedAt
+        if (shouldLogDiagnostic('waveformTrace')) {
+          writeDiagnosticLog('waveformTrace', 'Waveform-Antwort im Renderer eingetroffen', {
+            traceId,
+            filePath,
+            requestPixels: renderWindow.requestPixels,
+            cacheHit: false,
+            provisional: !!data.provisional,
+            mode: data.mode,
+            points: data.points,
+            ipcMs: Math.round(ipcMs)
+          })
+        }
         // Uebergangsantworten nicht cachen — sie werden nach dem
         // pyramid-ready-Event durch praezise Daten ersetzt.
         if (!data.provisional) {
@@ -530,11 +627,16 @@ export function WaveformRenderer({
     }
   }, [channel, filePath, requestKey, renderWindow?.sourceDuration, refreshTick])
 
+  // Paint-Effekt: zeichnet den Canvas-Inhalt neu. Laeuft NUR, wenn sich die
+  // Daten oder Darstellungs-Einstellungen aendern — nicht bei jeder Zoom-/
+  // Scroll-Geometrieaenderung. Diese wird stattdessen vom Reposition-Effekt
+  // (unten) per CSS behandelt, solange die Daten noch die alten sind.
   useEffect(() => {
     const canvas = canvasRef.current
     const ctx = canvas?.getContext('2d')
     if (!canvas || !ctx || !effectiveRenderWindow) return
 
+    const drawStartedAt = performance.now()
     const cssWidth = Math.max(1, effectiveRenderWindow.widthPx)
     const cssHeight = Math.max(1, size.height || 80)
     const dpr = getSafeCanvasRatio(cssWidth, cssHeight)
@@ -542,6 +644,17 @@ export function WaveformRenderer({
     canvas.height = Math.max(1, Math.round(cssHeight * dpr))
     canvas.style.width = `${cssWidth}px`
     canvas.style.height = '100%'
+
+    // Frisch gemalter Inhalt: an der richtigen Stelle positionieren und
+    // jede vom Reposition-Effekt gesetzte Zwischen-Verzerrung zuruecksetzen.
+    canvas.style.left = `${effectiveRenderWindow.leftPx}px`
+    canvas.style.transform = 'none'
+    paintedWindowRef.current = {
+      leftPx: effectiveRenderWindow.leftPx,
+      widthPx: effectiveRenderWindow.widthPx,
+      sourceStart: effectiveRenderWindow.sourceStart,
+      sourceDuration: effectiveRenderWindow.sourceDuration
+    }
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     ctx.clearRect(0, 0, cssWidth, cssHeight)
@@ -564,6 +677,13 @@ export function WaveformRenderer({
       for (let i = 0; i < laneCount; i++) {
         const laneTop = (cssHeight / laneCount) * i
         drawZeroLine(ctx, cssWidth, laneTop + (cssHeight / laneCount) / 2)
+      }
+      if (shouldLogDiagnostic('waveformTrace')) {
+        writeDiagnosticLog('waveformTrace', 'Waveform gezeichnet (ohne Daten)', {
+          filePath,
+          widthPx: Math.round(cssWidth),
+          drawMs: Math.round(performance.now() - drawStartedAt)
+        })
       }
       return
     }
@@ -588,6 +708,39 @@ export function WaveformRenderer({
     const normPeak = Math.max(waveform.filePeak || waveform.peak || 0, 0.0001)
     const visualScale = clamp(0.92 / normPeak, 0.5, 16)
     const safeGain = clamp(gain || 1, 0, 8)
+
+    // Bitmap-Cache (Phase B3): bereits fertig gezeichnete Ansichten desselben
+    // Ausschnitts/Zooms nur kopieren statt neu zu zeichnen. Uebergangsdaten
+    // werden nie ueber den Cache bedient, um spaeter keine veraltete
+    // Grobansicht faelschlich als Ergebnis zu zeigen.
+    const tileCacheKey = waveform.provisional ? null : [
+      filePath,
+      channel || 'stereo',
+      waveform.mode,
+      waveform.startTime.toFixed(6),
+      waveform.duration.toFixed(6),
+      Math.round(cssWidth),
+      Math.round(cssHeight),
+      Math.round(dpr * 100),
+      halfWaveform ? 1 : 0,
+      Math.round(safeGain * 1000)
+    ].join('|')
+
+    const cachedBitmap = tileCacheKey ? getTileBitmap(tileCacheKey) : undefined
+    if (cachedBitmap && cachedBitmap.width === canvas.width && cachedBitmap.height === canvas.height) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0)
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      ctx.drawImage(cachedBitmap.canvas, 0, 0)
+      if (shouldLogDiagnostic('waveformTrace')) {
+        writeDiagnosticLog('waveformTrace', 'Waveform aus Bitmap-Cache kopiert', {
+          traceId: waveform.traceId,
+          filePath,
+          widthPx: Math.round(cssWidth),
+          drawMs: Math.round(performance.now() - drawStartedAt)
+        })
+      }
+      return
+    }
 
     if (localMaxAbs < 0.015 || cssWidth > 12000 || waveform.points < 2) {
       const diagnosticKey = `flat:${filePath}:${waveform.mode}:${waveform.startTime.toFixed(5)}:${waveform.duration.toFixed(5)}:${localMaxAbs.toFixed(5)}:${cssWidth}`
@@ -633,13 +786,67 @@ export function WaveformRenderer({
         drawPeakChannel(ctx, waveChannel, cssWidth, mapping, contentTop, contentHeight, visualScale, safeGain, halfWaveform)
       }
     })
+
+    // Frisch gezeichneten Inhalt fuer spaetere Wiederverwendung sichern.
+    if (tileCacheKey) {
+      const snapshot = document.createElement('canvas')
+      snapshot.width = canvas.width
+      snapshot.height = canvas.height
+      const snapshotCtx = snapshot.getContext('2d')
+      if (snapshotCtx) {
+        snapshotCtx.drawImage(canvas, 0, 0)
+        rememberTileBitmap(tileCacheKey, { canvas: snapshot, width: snapshot.width, height: snapshot.height })
+      }
+    }
+
+    if (shouldLogDiagnostic('waveformTrace')) {
+      writeDiagnosticLog('waveformTrace', 'Waveform gezeichnet', {
+        traceId: waveform.traceId,
+        filePath,
+        mode: waveform.mode,
+        points: waveform.points,
+        channels: drawableChannels.length,
+        widthPx: Math.round(cssWidth),
+        provisional: !!waveform.provisional,
+        drawMs: Math.round(performance.now() - drawStartedAt)
+      })
+    }
+    // Bewusst OHNE effectiveRenderWindow.* in den Deps: eine reine Zoom-/
+    // Scroll-Geometrieaenderung (ohne neue Daten) soll hier KEIN Neuzeichnen
+    // ausloesen — das uebernimmt der Reposition-Effekt unten per CSS.
+    // Sobald sich `waveform` aendert, liest dieser Effekt trotzdem die
+    // jeweils aktuelle Fenstergeometrie (sie ist Teil des Closures).
+  }, [channel, gain, halfWaveform, size.height, sourceChannels, waveform])
+
+  // Reposition-Effekt: laeuft bei jeder Zoom-/Scroll-Geometrieaenderung.
+  // Solange der Paint-Effekt noch nicht mit frischen Daten nachgezogen hat,
+  // wird der vorhandene Canvas-Inhalt per CSS sofort an die neue Geometrie
+  // angenaehert (verschoben + gestreckt) — kein Neuzeichnen, keine Wartezeit,
+  // kein kurzzeitig leerer Canvas ("Stretch-then-Refine").
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas || !effectiveRenderWindow) return
+
+    const painted = paintedWindowRef.current
+    if (!painted) {
+      canvas.style.left = `${effectiveRenderWindow.leftPx}px`
+      canvas.style.transform = 'none'
+      return
+    }
+
+    const ppsOld = painted.widthPx / Math.max(0.000001, painted.sourceDuration)
+    const ppsNew = effectiveRenderWindow.widthPx / Math.max(0.000001, effectiveRenderWindow.sourceDuration)
+    const scaleX = clamp(ppsNew / Math.max(0.000001, ppsOld), 0.05, 20)
+    const targetLeftForPaintedStart = effectiveRenderWindow.leftPx
+      + (painted.sourceStart - effectiveRenderWindow.sourceStart) * ppsNew
+    const translateX = targetLeftForPaintedStart - painted.leftPx
+
+    canvas.style.left = `${painted.leftPx}px`
+    canvas.style.transformOrigin = '0 0'
+    canvas.style.transform = (Math.abs(scaleX - 1) < 0.001 && Math.abs(translateX) < 0.5)
+      ? 'none'
+      : `translateX(${translateX}px) scaleX(${scaleX})`
   }, [
-    channel,
-    gain,
-    halfWaveform,
-    size.height,
-    sourceChannels,
-    waveform,
     effectiveRenderWindow?.leftPx,
     effectiveRenderWindow?.widthPx,
     effectiveRenderWindow?.sourceStart,
@@ -652,12 +859,21 @@ export function WaveformRenderer({
         <canvas
           ref={canvasRef}
           className="absolute top-0 bottom-0 opacity-95"
-          style={{ left: `${effectiveRenderWindow.leftPx}px` }}
         />
       )}
       {error && (
         <div className="absolute inset-0 flex items-center justify-center text-[10px] text-cyan-100/45">
           Waveform nicht verfuegbar
+        </div>
+      )}
+      {pyramidProgress !== null && (
+        <div className="absolute inset-x-0 bottom-0 h-3 flex items-center px-1.5">
+          <div className="w-full h-[3px] rounded-full bg-black/40 overflow-hidden">
+            <div
+              className="h-full bg-omega-accent/80 transition-[width] duration-150"
+              style={{ width: `${Math.max(4, pyramidProgress)}%` }}
+            />
+          </div>
         </div>
       )}
     </div>

@@ -35,8 +35,10 @@ declare global {
         duration?: number
         pixels?: number
         channel?: 'left' | 'right'
+        traceId?: string
       }) => Promise<any>
       onWaveformPyramidReady: (callback: (data: { filePath: string }) => void) => (() => void)
+      onWaveformPyramidProgress: (callback: (data: { filePath: string; percent: number }) => void) => (() => void)
       readFileBuffer: (filePath: string) => Promise<any>
       savePreset: (filePath: string, data: any) => Promise<any>
       saveProjectBackup: (filePath: string, data: any) => Promise<any>

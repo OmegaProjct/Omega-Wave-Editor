@@ -778,7 +778,6 @@ export function Timeline({
   const queuedZoomStepsRef = useRef(0)
   const queuedZoomAnimationFrameRef = useRef<number | null>(null)
   const pendingZoomTargetRef = useRef<number | null>(null)
-  const zoomAnchorRef = useRef<{ time: number; screenX: number } | null>(null)
   const currentTracksRef = useRef<Track[]>(tracks)
   useEffect(() => {
     currentTracksRef.current = tracks
@@ -1315,6 +1314,14 @@ export function Timeline({
   const lastDiagnosticPerfSampleRef = useRef(0)
   const lastDiagnosticScrollRef = useRef({ left: 0, top: 0, at: 0 })
 
+  // Sammelt Zoom-/Scroll-Gesten (Phase A Trace-Logging): eine Geste laeuft von
+  // der ersten Eingabe bis 300ms Ruhe; danach wird EIN Sammel-Log mit
+  // Schrittzahl, Dauer und effektiver Schrittrate geschrieben. So laesst sich
+  // im Log direkt ablesen, ob eine Zoom-/Scroll-Geste insgesamt fluessig war,
+  // statt jede einzelne Eingabe separat interpretieren zu muessen.
+  const waveformGestureRef = useRef<{ kind: string; startedAt: number; lastAt: number; steps: number } | null>(null)
+  const waveformGestureIdleTimeoutRef = useRef<number | null>(null)
+
   const flushTimelineDiagnostics = useCallback(() => {
     diagnosticFlushTimeoutRef.current = null
     const events = diagnosticBufferRef.current.splice(0, diagnosticBufferRef.current.length)
@@ -1345,6 +1352,52 @@ export function Timeline({
       diagnosticFlushTimeoutRef.current = window.setTimeout(flushTimelineDiagnostics, 250)
     }
   }, [flushTimelineDiagnostics])
+
+  // Schreibt das Sammel-Log fuer die gerade abgeschlossene Zoom-/Scroll-Geste.
+  const flushWaveformGesture = useCallback(() => {
+    waveformGestureIdleTimeoutRef.current = null
+    const gesture = waveformGestureRef.current
+    waveformGestureRef.current = null
+    if (!gesture || !shouldLogDiagnostic('waveformTrace')) return
+
+    const durationMs = Math.max(1, gesture.lastAt - gesture.startedAt)
+    const stepsPerSecond = gesture.steps / (durationMs / 1000)
+    writeDiagnosticLog('waveformTrace', 'Zoom-/Scroll-Geste abgeschlossen', {
+      kind: gesture.kind,
+      steps: gesture.steps,
+      durationMs: Math.round(durationMs),
+      stepsPerSecond: Number(stepsPerSecond.toFixed(1))
+    })
+  }, [])
+
+  // Ordnet eine einzelne Zoom-/Scroll-Eingabe der laufenden Geste zu (oder
+  // startet eine neue, wenn die letzte Eingabe mehr als 300ms zurueckliegt).
+  const recordWaveformGestureTick = useCallback((kind: 'zoom' | 'scroll') => {
+    if (!shouldLogDiagnostic('waveformTrace')) return
+    const now = performance.now()
+    const current = waveformGestureRef.current
+
+    if (!current || now - current.lastAt > 300) {
+      waveformGestureRef.current = { kind, startedAt: now, lastAt: now, steps: 1 }
+    } else {
+      current.lastAt = now
+      current.steps += 1
+      if (current.kind !== kind) current.kind = 'mixed'
+    }
+
+    if (waveformGestureIdleTimeoutRef.current !== null) {
+      window.clearTimeout(waveformGestureIdleTimeoutRef.current)
+    }
+    waveformGestureIdleTimeoutRef.current = window.setTimeout(flushWaveformGesture, 300)
+  }, [flushWaveformGesture])
+
+  useEffect(() => {
+    return () => {
+      if (waveformGestureIdleTimeoutRef.current !== null) {
+        window.clearTimeout(waveformGestureIdleTimeoutRef.current)
+      }
+    }
+  }, [])
 
   const sampleDiagnosticPerformance = useCallback(async (reason: string) => {
     if (!shouldLogDiagnostic('timeline') || !shouldLogDiagnostic('performance')) return
@@ -2622,21 +2675,18 @@ export function Timeline({
         
         const currentScroll = tracksRef.current.scrollLeft
         const viewportWidth = tracksRef.current.clientWidth
-        const zoomAnchor = zoomAnchorRef.current
-        
-        let newScrollLeft: number
-        
-        if (zoomAnchor) {
-          newScrollLeft = (zoomAnchor.time * pixelsPerSecondNew) - zoomAnchor.screenX
-        } else if (playheadXOld >= currentScroll && playheadXOld <= currentScroll + viewportWidth) {
-          const screenPos = playheadXOld - currentScroll
-          newScrollLeft = playheadXNew - screenPos
-        } else {
-          newScrollLeft = playheadXNew - (viewportWidth / 2)
-        }
-        
+
+        // Zoom verankert sich immer am Playhead: bleibt er im Sichtbereich,
+        // haelt er seine Bildschirmposition; ist er ausserhalb, wird er beim
+        // Zoomen zunaechst in die Bildschirmmitte geholt. Gilt fuer jede
+        // Zoom-Quelle (Mausrad, Tastatur, Buttons, Zoom-Menue) gleichermassen.
+        const playheadVisible = playheadXOld >= currentScroll && playheadXOld <= currentScroll + viewportWidth
+        const newScrollLeft = playheadVisible
+          ? playheadXNew - (playheadXOld - currentScroll)
+          : playheadXNew - (viewportWidth / 2)
+
         const finalScrollLeft = Math.max(0, newScrollLeft)
-        
+
         tracksRef.current.scrollLeft = finalScrollLeft
         applyScrollVisuals(finalScrollLeft, tracksRef.current.scrollTop)
         syncScrollState(finalScrollLeft, tracksRef.current.scrollTop, { force: true })
@@ -2650,13 +2700,9 @@ export function Timeline({
           previousScrollLeft: Math.round(currentScroll),
           finalScrollLeft: Math.round(finalScrollLeft),
           viewportWidth: Math.round(viewportWidth),
-          anchor: zoomAnchor ? {
-            time: Number(zoomAnchor.time.toFixed(3)),
-            screenX: Math.round(zoomAnchor.screenX)
-          } : 'playhead'
+          anchor: playheadVisible ? 'playhead-visible' : 'playhead-centered'
         })
         keepDiagnosticPerformanceSampling('zoom-commit')
-        zoomAnchorRef.current = null
       }
     }
     prevZoomLevelRef.current = zoomLevel
@@ -3166,19 +3212,18 @@ export function Timeline({
       // 2. Zoom Horizontal (Ctrl)
       else if (e.ctrlKey) {
         e.preventDefault();
-        const rect = container.getBoundingClientRect()
-        const screenX = Math.max(0, Math.min(e.clientX - rect.left, container.clientWidth || rect.width || 1))
-        const effectivePixelsPerSecond = Math.max(1, PIXELS_PER_SECOND_BASE * (pendingZoomTargetRef.current ?? zoomLevelRef.current))
-        zoomAnchorRef.current = {
-          time: Math.max(0, (container.scrollLeft + screenX) / effectivePixelsPerSecond),
-          screenX
-        }
+        // Kein Maus-Anker mehr setzen: der Zoom-Commit-Effekt verankert
+        // automatisch am Playhead (sichtbar -> Position halten, sonst
+        // zentrieren) — das entspricht dem gewuenschten Verhalten aus
+        // Referenz-Videoeditoren und gilt jetzt fuer alle Zoom-Eingaenge.
+        recordWaveformGestureTick('zoom')
         queueHorizontalZoom(e.deltaY)
       }
       // 3. Scroll Vertical (e.g. Shift)
       else if (matchesMouseModifiers(e, activeShortcuts.scrollVertical)) {
         e.preventDefault();
         container.scrollTop += e.deltaY;
+        recordWaveformGestureTick('scroll')
         queueTimelineDiagnostic('wheel-scroll-applied', {
           axis: 'vertical',
           from: Math.round(beforeTop),
@@ -3190,6 +3235,7 @@ export function Timeline({
       else {
         e.preventDefault();
         container.scrollLeft += e.deltaY;
+        recordWaveformGestureTick('scroll')
         queueTimelineDiagnostic('wheel-scroll-applied', {
           axis: 'horizontal',
           from: Math.round(beforeLeft),
@@ -3207,10 +3253,9 @@ export function Timeline({
       }
       queuedZoomStepsRef.current = 0
       pendingZoomTargetRef.current = null
-      zoomAnchorRef.current = null
       container.removeEventListener('wheel', handleWheelNative);
     };
-  }, [activeShortcuts.zoomVertical, activeShortcuts.scrollVertical, keepDiagnosticPerformanceSampling, queueTimelineDiagnostic, showZoomLimitNotice, zoomLevel]);
+  }, [activeShortcuts.zoomVertical, activeShortcuts.scrollVertical, keepDiagnosticPerformanceSampling, queueTimelineDiagnostic, recordWaveformGestureTick, showZoomLimitNotice, zoomLevel]);
 
   const [vuLevel, setVuLevel] = useState(0);
   const [masterVolume, setMasterVolume] = useState(engine.getMasterVolume ? engine.getMasterVolume() : 0.8);
@@ -3494,6 +3539,7 @@ export function Timeline({
     const nextTop = e.currentTarget.scrollTop
     applyScrollVisuals(nextLeft, nextTop)
     syncScrollState(nextLeft, nextTop)
+    recordWaveformGestureTick('scroll')
 
     const now = performance.now()
     const last = lastDiagnosticScrollRef.current
