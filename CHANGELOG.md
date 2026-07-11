@@ -2,6 +2,18 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.13.15] - 2026-07-12
+
+### English
+
+#### Changed
+- Refactored the timeline monolith component into separate sub-modules (utilities, types, custom hook for diagnostics, and dedicated LiveWaveformCanvas component) to improve maintainability and clean up code organization.
+
+### Deutsch
+
+#### Geändert
+- Interne Umstrukturierung der Timeline in Teilmodule (Hilfsfunktionen, Typen, Diagnostik-Hook und eigenständiges LiveWaveformCanvas-Modul) zur besseren Wartbarkeit; keine funktionalen Änderungen.
+
 ## [0.13.14] - 2026-07-12
 
 ### English
