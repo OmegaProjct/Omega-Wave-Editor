@@ -14,7 +14,6 @@ const api = {
   readDir: (dirPath: string) => ipcRenderer.invoke('read-dir', dirPath),
   extractAudio: (videoPath: string, outputPath: string) => ipcRenderer.invoke('extract-audio', videoPath, outputPath),
   getMediaInfo: (filePath: string) => ipcRenderer.invoke('get-media-info', filePath),
-  getPeaks: (filePath: string, samples?: number, channel?: 'left' | 'right') => ipcRenderer.invoke('get-peaks', filePath, samples, channel),
   getWaveformWindow: (filePath: string, options?: any) => ipcRenderer.invoke('waveform:get-window', filePath, options),
   onWaveformPyramidReady: (callback: (data: { filePath: string }) => void) => {
     const sub = (_event: any, data: any) => callback(data)

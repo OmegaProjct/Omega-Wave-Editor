@@ -10,12 +10,14 @@
 
 import * as fs from 'fs'
 import * as path from 'path'
+import crypto from 'node:crypto'
 import { app } from 'electron'
 import { logger } from '../logger'
 import { PeakPyramid, PyramidLevel } from './peakPyramid'
 
 const PROXY_FORMAT_VERSION = 1
 const PROXY_MAGIC = 0x4f574550 // "OWEP" als u32-Markierung
+const HEADER_FIELD_COUNT = 7 // Anzahl der u32/f32 Felder im Header
 const MAX_PROXY_AGE_MS = 7 * 24 * 60 * 60 * 1000 // 7 Tage
 const MAX_PROXY_STORE_BYTES = 2 * 1024 * 1024 * 1024 // 2 GB Gesamtbudget
 
@@ -75,11 +77,8 @@ function writeIndexAtomic(index: ProxyIndex): void {
 // Stabiler, dateisystemsicherer Name aus dem Fingerprint (der Schraegstriche
 // und Doppelpunkte aus dem Quellpfad enthaelt).
 function fingerprintToFileName(fingerprint: string): string {
-  let hash = 0
-  for (let i = 0; i < fingerprint.length; i++) {
-    hash = (Math.imul(hash, 31) + fingerprint.charCodeAt(i)) >>> 0
-  }
-  return `proxy_${hash.toString(16).padStart(8, '0')}.owp`
+  const hash = crypto.createHash('sha256').update(fingerprint).digest('hex').slice(0, 24)
+  return `proxy_${hash}.owp`
 }
 
 /**
@@ -104,7 +103,7 @@ function serializePyramid(pyramid: PeakPyramid): Buffer {
     levelHeaderBytes += 8
     dataBytes += level.points * 4 * 3 * pyramid.channels
   }
-  const totalSize = 4 * 6 + levelHeaderBytes + dataBytes
+  const totalSize = 4 * HEADER_FIELD_COUNT + levelHeaderBytes + dataBytes
   const buffer = Buffer.alloc(totalSize)
   const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength)
   let offset = 0
@@ -235,6 +234,14 @@ export function saveProxyToDisk(fingerprint: string, sourcePath: string, pyramid
     const tempPath = `${targetPath}.tmp`
 
     const buffer = serializePyramid(pyramid)
+
+    // Selbsttest: Buffer deserialisieren und pruefen
+    const testPyramid = deserializePyramid(buffer)
+    if (!testPyramid) {
+      logger.warn('WaveformProxy', 'Selbsttest fuer Proxy-Serialisierung fehlgeschlagen, speichere nicht', { sourcePath })
+      return
+    }
+
     fs.writeFileSync(tempPath, buffer)
     fs.renameSync(tempPath, targetPath)
 

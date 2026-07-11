@@ -29,7 +29,6 @@ declare global {
       confirmClose: () => void
       onDownloadProgress: (callback: (data: any) => void) => () => void
       onCloseRequest: (callback: () => void) => () => void
-      getPeaks: (filePath: string, samples?: number, channel?: 'left' | 'right') => Promise<number[]>
       getWaveformWindow: (filePath: string, options?: {
         startTime?: number
         duration?: number

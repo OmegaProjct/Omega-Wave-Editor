@@ -2,6 +2,64 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.13.13] - 2026-07-11
+
+### English
+
+#### Fixed
+- Improved IPC performance by transmitting sample values as a structured Float32Array instead of a standard JS array.
+- Proper error propagation in the media-info IPC handler instead of returning 10-second placeholder metadata.
+- Collision-proof waveform proxy file naming using a SHA-256 hash.
+- Removed the deprecated, unused ClipRegion component.
+- Resolved a dynamic import warning for MidiEngine.
+- Refined micro-gesture step-rate logging in diagnostic trace logs.
+
+### Deutsch
+
+#### Behoben
+- Die IPC-Performance beim Übertragen von Einzelsample-Daten durch die Nutzung von Float32Array anstelle eines normalen JS-Arrays optimiert.
+- Klare Fehlermeldungen im get-media-info IPC-Handler anstelle von stillschweigend erzeugten 10-Sekunden-Metadaten.
+- Kollisionssichere Benennung von Waveform-Proxy-Dateien mittels eines SHA-256-Hashes.
+- Das veraltete und unbenutzte ClipRegion-Modul vollständig entfernt.
+- Eine Build-Warnung bezüglich des doppelten MidiEngine-Imports bereinigt.
+- Präzisere Gesten-Statistiken im Diagnose-Log für sehr kurze Interaktionen.
+
+## [0.13.12] - 2026-07-11
+
+### English
+
+#### Changed
+- Capped waveform cache memory consumption by limiting size budgets based on estimated bytes instead of entry counts.
+
+#### Fixed
+- Removed a legacy, unused peak data path that could return placeholder random data on errors.
+- Prevented redundant analysis decodes on startup when a saved waveform analysis proxy file exists on disk.
+- Automatically refresh the waveform display if an audio source file is replaced on disk.
+
+### Deutsch
+
+#### Geändert
+- Speicherverbrauch der Waveform-Zwischenspeicher nach geschätzter Datenmenge in Bytes begrenzt.
+
+#### Behoben
+- Veralteten, ungenutzten Peak-Datenpfad entfernt, der bei Fehlern Platzhalterdaten liefern konnte.
+- Doppelten Analyse-Durchlauf beim Start vermieden, wenn eine gespeicherte Analyse-Proxy-Datei auf der Festplatte existiert.
+- Wellenform-Anzeige aktualisiert sich jetzt automatisch, wenn eine Quelldatei auf der Festplatte ersetzt wurde.
+
+## [0.13.11] - 2026-07-11
+
+### English
+
+#### Fixed
+- Fixed waveform proxy files failing to save due to an undersized binary header, which caused every file to be re-analyzed after each restart.
+- Fixed multi-second UI freezes when zooming into a range where the sample-level view was selected far too early; the sample view now activates only at very high zoom levels.
+
+### Deutsch
+
+#### Behoben
+- Fehler behoben, durch den Waveform-Proxy-Dateien wegen eines zu klein berechneten Binär-Headers nie gespeichert wurden und jede Datei nach einem Neustart erneut analysiert werden musste.
+- Mehrsekündige Einfrierer beim Hineinzoomen behoben: Die Einzelsample-Darstellung wurde viel zu früh aktiviert und musste über eine Million Punkte zeichnen; sie greift jetzt erst bei sehr starkem Zoom.
+
 ## [0.13.10] - 2026-07-11
 
 ### English

@@ -60,6 +60,7 @@ export type WaveformWindowResponse = {
   samplesPerPoint: number
   points: number
   peak: number
+  fingerprint: string
   // Globaler Peak der gesamten Datei (aus der Pyramide); fuer stabile Skalierung
   filePeak?: number
   // true = Uebergangsantwort, solange die Pyramide noch baut
@@ -96,19 +97,42 @@ const pyramidCache = new Map<string, PyramidState>()
 const pcmChunkCache = new Map<string, Promise<DecodedPcm>>()
 
 const MAX_WINDOW_CACHE_ENTRIES = 120
+const MAX_WINDOW_CACHE_BYTES = 64 * 1024 * 1024 // 64 MB Budget
 const MAX_OVERVIEW_CACHE_ENTRIES = 12
 const MAX_POINTS = 120000
-const MAX_SAMPLE_MODE_POINTS = 1_200_000
+const MAX_SAMPLE_MODE_POINTS = 200_000
 const OVERVIEW_MAX_FRAMES = 900_000
 const OVERVIEW_MAX_SAMPLE_RATE = 24000
 // Unterhalb dieser Samples-pro-Pixel-Grenze werden echte Samples gezeichnet
-const SAMPLE_MODE_MAX_SPP = 192
+const SAMPLE_MODE_MAX_SPP = 4
 // Schutz: laengere Fenster werden immer aus der Pyramide beantwortet
 const MAX_PCM_WINDOW_SECONDS = 120
 // PCM-Chunks liegen an einem festen 10-Sekunden-Raster
 const PCM_CHUNK_SECONDS = 10
 const MAX_PCM_CHUNKS = 24
 const MAX_PYRAMID_ENTRIES = 6
+
+// Schaetzt den Speicherverbrauch einer WaveformWindowResponse in Bytes.
+// Jedes Array in einem Kanal (min, max, rms, samples) enthaelt Fließkommazahlen (4 Bytes pro Wert).
+// Wir addieren die Laengen dieser Arrays ueber alle Kanaele und multiplizieren mit 4.
+function estimateWindowResponseBytes(response: WaveformWindowResponse): number {
+  let valuesCount = 0
+  for (const ch of response.channels) {
+    if (ch.min) valuesCount += ch.min.length
+    if (ch.max) valuesCount += ch.max.length
+    if (ch.rms) valuesCount += ch.rms.length
+    if (ch.samples) valuesCount += ch.samples.length
+  }
+  return valuesCount * 4
+}
+
+function getWindowCacheBytes(): number {
+  let sum = 0
+  for (const response of windowCache.values()) {
+    sum += estimateWindowResponseBytes(response)
+  }
+  return sum
+}
 
 function isSafePath(filePath: unknown): filePath is string {
   if (typeof filePath !== 'string' || filePath.trim() === '') return false
@@ -133,7 +157,7 @@ function rememberWindow(key: string, response: WaveformWindowResponse): void {
   }
   windowCache.set(key, response)
 
-  while (windowCache.size > MAX_WINDOW_CACHE_ENTRIES) {
+  while (windowCache.size > MAX_WINDOW_CACHE_ENTRIES || getWindowCacheBytes() > MAX_WINDOW_CACHE_BYTES) {
     const oldest = windowCache.keys().next().value
     if (!oldest) break
     windowCache.delete(oldest)
@@ -341,23 +365,31 @@ function ensurePyramid(filePath: string, info: MediaInfo): PyramidState {
     return existing
   }
 
+  // Versuche zuerst, den Proxy synchron von Platte zu laden
+  const fromDisk = loadProxyFromDisk(info.fingerprint)
+  if (fromDisk) {
+    logger.info('Waveform', 'Peak-Pyramide von Proxy-Datei geladen (synchron)', {
+      filePath,
+      frames: fromDisk.frames,
+      levels: fromDisk.levels.length
+    })
+    const state: PyramidState = {
+      status: 'ready',
+      pyramid: fromDisk,
+      promise: Promise.resolve(fromDisk)
+    }
+    broadcastPyramidReady(filePath)
+    pyramidCache.set(info.fingerprint, state)
+    evictPyramidCacheIfNeeded()
+    return state
+  }
+
   const state: PyramidState = {
     status: 'building',
     promise: null as unknown as Promise<PeakPyramid>
   }
 
   const buildAndPersist = async (): Promise<PeakPyramid> => {
-    const fromDisk = loadProxyFromDisk(info.fingerprint)
-    if (fromDisk) {
-      logger.info('Waveform', 'Peak-Pyramide von Proxy-Datei geladen', {
-        filePath,
-        frames: fromDisk.frames,
-        levels: fromDisk.levels.length
-      })
-      broadcastPyramidProgress(filePath, 100)
-      return fromDisk
-    }
-
     const onProgress = (percent: number) => broadcastPyramidProgress(filePath, percent)
     let pyramid: PeakPyramid
     try {
@@ -390,6 +422,11 @@ function ensurePyramid(filePath: string, info: MediaInfo): PyramidState {
   state.promise.catch(() => {})
 
   pyramidCache.set(info.fingerprint, state)
+  evictPyramidCacheIfNeeded()
+  return state
+}
+
+function evictPyramidCacheIfNeeded(): void {
   while (pyramidCache.size > MAX_PYRAMID_ENTRIES) {
     // Noch bauende Eintraege nicht rauswerfen
     let evictKey: string | null = null
@@ -401,7 +438,6 @@ function ensurePyramid(filePath: string, info: MediaInfo): PyramidState {
     if (evictKey === null) break
     pyramidCache.delete(evictKey)
   }
-  return state
 }
 
 // Liefert einen rasterfesten PCM-Chunk (10 s) aus dem LRU-Cache oder dekodiert ihn
@@ -528,6 +564,7 @@ function makeEmptyResponse(info: MediaInfo, startTime: number, duration: number)
     samplesPerPoint: 1,
     points: 0,
     peak: 0,
+    fingerprint: info.fingerprint,
     channels: []
   }
 }
@@ -543,7 +580,7 @@ function buildSampleResponse(
   let peak = 0
 
   for (let ch = 0; ch < decoded.channels; ch++) {
-    const samples: number[] = new Array(frames)
+    const samples = new Float32Array(frames)
     for (let frame = 0; frame < frames; frame++) {
       const sample = clamp(decoded.data[frame * decoded.channels + ch] || 0, -1, 1)
       samples[frame] = sample
@@ -563,6 +600,7 @@ function buildSampleResponse(
     samplesPerPoint: 1,
     points: frames,
     peak,
+    fingerprint: info.fingerprint,
     channels
   }
 }
@@ -628,6 +666,7 @@ function buildPeakResponse(
     samplesPerPoint,
     points,
     peak,
+    fingerprint: info.fingerprint,
     channels
   }
 }
@@ -653,6 +692,7 @@ function buildPyramidResponse(
     points: result.points,
     peak: result.windowPeak,
     filePeak: pyramid.filePeak,
+    fingerprint: info.fingerprint,
     channels: result.channels.map((ch) => ({ min: ch.min, max: ch.max, rms: ch.rms }))
   }
 }
@@ -760,28 +800,4 @@ export async function getWaveformWindow(
   } finally {
     inflightWindowCache.delete(key)
   }
-}
-
-export async function getLegacyPeaks(
-  filePath: string,
-  samples: number,
-  channel?: 'left' | 'right'
-): Promise<number[]> {
-  const info = await readMediaInfo(filePath)
-  const response = await getWaveformWindow(filePath, {
-    startTime: 0,
-    duration: info.duration,
-    pixels: samples,
-    channel
-  })
-  const firstChannel = response.channels[0]
-  if (!firstChannel) return []
-
-  if (response.mode === 'samples' && firstChannel.samples) {
-    return Array.from(firstChannel.samples, (sample) => Math.abs(sample || 0))
-  }
-
-  const minValues = firstChannel.min || []
-  const maxValues = firstChannel.max || []
-  return Array.from(maxValues, (max, index) => Math.max(Math.abs(max || 0), Math.abs(minValues[index] || 0)))
 }

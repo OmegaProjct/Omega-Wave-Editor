@@ -22,6 +22,7 @@ type WaveformWindowData = {
   samplesPerPoint: number
   points: number
   peak: number
+  fingerprint?: string
   filePeak?: number
   provisional?: boolean
   traceId?: string
@@ -68,6 +69,7 @@ const MAX_CANVAS_BITMAP_SIZE = 16384
 // Kurze Entprellung reicht: Anfragen sind dank Peak-Pyramide billig
 const WAVEFORM_REQUEST_DEBOUNCE_MS = 16
 const rendererWaveformCache = new Map<string, WaveformWindowData>()
+const lastKnownFingerprintByPath = new Map<string, string>()
 
 // Laufende Kennung fuer Trace-Logs (Phase A): jede Anfrage bekommt eine ID,
 // die durch Renderer, IPC und Hauptprozess-Log mitgereicht wird.
@@ -87,13 +89,32 @@ type WaveformTileBitmap = { canvas: HTMLCanvasElement; width: number; height: nu
 const waveformTileBitmapCache = new Map<string, WaveformTileBitmap>()
 const MAX_TILE_BITMAP_ENTRIES = 48
 
+const MAX_TILE_BITMAP_BYTES = 96 * 1024 * 1024 // 96 MB Budget
+
+// Schaetzt den Speicherverbrauch eines Bitmap-Eintrags in Bytes.
+// Da Canvas-Bitmaps intern im RGBA-Format (4 Bytes pro Pixel) abgelegt sind,
+// schaetzen wir den Speicher ueber width * height * 4.
+// Dies ist ein Schätzwert, da der Browser interne Optimierungen vornehmen kann,
+// aber er reflektiert die tatsächliche Größenordnung des Bitmaps.
+function estimateTileBitmapBytes(entry: WaveformTileBitmap): number {
+  return entry.width * entry.height * 4
+}
+
+function getTileBitmapCacheBytes(): number {
+  let sum = 0
+  for (const entry of waveformTileBitmapCache.values()) {
+    sum += estimateTileBitmapBytes(entry)
+  }
+  return sum
+}
+
 function rememberTileBitmap(key: string, entry: WaveformTileBitmap): void {
   if (waveformTileBitmapCache.has(key)) {
     waveformTileBitmapCache.delete(key)
   }
   waveformTileBitmapCache.set(key, entry)
 
-  while (waveformTileBitmapCache.size > MAX_TILE_BITMAP_ENTRIES) {
+  while (waveformTileBitmapCache.size > MAX_TILE_BITMAP_ENTRIES || getTileBitmapCacheBytes() > MAX_TILE_BITMAP_BYTES) {
     const oldest = waveformTileBitmapCache.keys().next().value
     if (!oldest) break
     waveformTileBitmapCache.delete(oldest)
@@ -596,6 +617,25 @@ export function WaveformRenderer({
         traceId
       }).then((data: WaveformWindowData) => {
         if (!active) return
+
+        if (data.fingerprint) {
+          const knownFingerprint = lastKnownFingerprintByPath.get(filePath)
+          if (knownFingerprint && knownFingerprint !== data.fingerprint) {
+            // Fingerprint hat sich geaendert! Caches leeren.
+            for (const key of Array.from(rendererWaveformCache.keys())) {
+              if (key.startsWith(filePath + '|')) {
+                rendererWaveformCache.delete(key)
+              }
+            }
+            for (const key of Array.from(waveformTileBitmapCache.keys())) {
+              if (key.startsWith(filePath + '|')) {
+                waveformTileBitmapCache.delete(key)
+              }
+            }
+          }
+          lastKnownFingerprintByPath.set(filePath, data.fingerprint)
+        }
+
         const ipcMs = performance.now() - requestedAt
         if (shouldLogDiagnostic('waveformTrace')) {
           writeDiagnosticLog('waveformTrace', 'Waveform-Antwort im Renderer eingetroffen', {

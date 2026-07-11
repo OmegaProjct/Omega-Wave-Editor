@@ -3,6 +3,8 @@
  * Professional Multitrack Engine with Real-time DSP
  */
 
+import { MidiEngine } from './MidiEngine'
+
 export type EQBand = { freq: number; gain: number; type: BiquadFilterType };
 
 function shareChannels(r1: any, r2: any): boolean {
@@ -2390,8 +2392,6 @@ registerProcessor('omega-vst-bridge', OmegaVstBridgeProcessor);
       track.vstInputSAB = inputSAB;
       track.vstOutputSAB = outputSAB;
       track.vstMidiSAB = midiSAB;
-      
-      const { MidiEngine } = await import('./MidiEngine');
       MidiEngine.setLiveVstNode(vstNode);
       
       // Update instanceId in localStorage for editor access
@@ -2466,8 +2466,6 @@ registerProcessor('omega-vst-bridge', OmegaVstBridgeProcessor);
       track.vstInputSAB = undefined;
       track.vstOutputSAB = undefined;
       track.vstMidiSAB = undefined;
-      
-      const { MidiEngine } = await import('./MidiEngine');
       MidiEngine.setLiveVstNode(null);
       
       console.log(`VST plugin successfully unmounted from track ${trackId}`);

@@ -49,7 +49,6 @@ interface Window {
     getWaveformData: (path: string) => Promise<any>;
     exportProject: (tracks: any[], path: string, id3Tags?: any) => Promise<boolean>;
     openExternal: (url: string) => Promise<void>;
-    getPeaks: (path: string, samples?: number, channel?: 'left' | 'right') => Promise<number[]>;
     getWaveformWindow: (path: string, options?: {
       startTime?: number;
       duration?: number;

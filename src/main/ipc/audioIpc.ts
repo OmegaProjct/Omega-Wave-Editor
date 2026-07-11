@@ -49,11 +49,13 @@ function isSafePath(filePath: any): boolean {
 export function registerAudioIpc() {
   ipcMain.handle('get-media-info', async (_, filePath: string) => {
     logger.debug('Audio', 'Lese Medien-Info angefordert', { filePath })
-    if (!isSafePath(filePath)) return { duration: 10, tags: {} }
-    return new Promise((resolve) => {
+    if (!isSafePath(filePath)) {
+      throw new Error('Ungültiger oder unsicherer Dateipfad für Medien-Info')
+    }
+    return new Promise((resolve, reject) => {
       ffmpeg.ffprobe(filePath, (err, metadata) => {
         if (err || !metadata) {
-          resolve({ duration: 10, tags: {} })
+          reject(err || new Error('Keine Medieninformationen gefunden (ffprobe-Fehler)'))
         } else {
           const format = metadata.format || {}
           const streams = metadata.streams || []
@@ -133,79 +135,6 @@ export function registerAudioIpc() {
       channel: options.channel === 'left' || options.channel === 'right' ? options.channel : undefined,
       traceId: typeof options.traceId === 'string' ? options.traceId : undefined
     })
-  })
-
-  ipcMain.handle('get-peaks', async (_, filePath: string, samples: number = 1000, channel?: 'left' | 'right') => {
-    logger.debug('Audio', 'Berechne Peaks für Datei', { filePath, samples, channel })
-    if (!isSafePath(filePath)) return Array.from({ length: samples }, () => Math.random() * 0.8)
-    return new Promise((resolve) => {
-      try {
-        let pcmBuffer = Buffer.alloc(0);
-        const sampleRate = 8000;
-        const ffmpegCmd = ffmpeg(filePath)
-          .noVideo()
-          .audioChannels(1)
-          .audioFrequency(sampleRate)
-          .format('s16le'); // 16-bit Signed Integer PCM
-
-        if (channel === 'left') {
-          ffmpegCmd.audioFilters('pan=mono|c0=c0');
-        } else if (channel === 'right') {
-          ffmpegCmd.audioFilters('pan=mono|c0=c1');
-        }
-
-        ffmpegCmd.on('error', (err) => {
-          logger.error('Audio', 'Fehler bei get-peaks (FFmpeg)', { filePath, error: err.message })
-          resolve(Array.from({ length: samples }, () => Math.random() * 0.8));
-        });
-
-        ffmpegCmd.on('end', () => {
-          try {
-            if (pcmBuffer.length === 0) {
-              return resolve(Array.from({ length: samples }, () => Math.random() * 0.8));
-            }
-
-            const int16Data = new Int16Array(
-              pcmBuffer.buffer,
-              pcmBuffer.byteOffset,
-              pcmBuffer.length / 2
-            );
-
-            // Downsample to exactly 'samples' points
-            const blockSize = Math.max(1, Math.floor(int16Data.length / samples));
-            const peaks: number[] = [];
-
-            for (let i = 0; i < samples; i++) {
-              const start = i * blockSize;
-              const end = Math.min(int16Data.length, start + blockSize);
-              let maxVal = 0;
-              for (let j = start; j < end; j++) {
-                const val = Math.abs(int16Data[j]);
-                if (val > maxVal) {
-                  maxVal = val;
-                }
-              }
-              // Normalize 16-bit value (0 to 32767) to (0.0 to 1.0)
-              const normalized = maxVal / 32768;
-              peaks.push(Math.max(0.005, Math.min(1.0, normalized)));
-            }
-            logger.debug('Audio', 'Peaks erfolgreich berechnet', { filePath, samples })
-            resolve(peaks);
-          } catch (e) {
-            logger.error('Audio', 'Fehler bei get-peaks (Verarbeitung)', e)
-            resolve(Array.from({ length: samples }, () => Math.random() * 0.8));
-          }
-        });
-
-        const stdoutStream = ffmpegCmd.pipe();
-        stdoutStream.on('data', (chunk: Buffer) => {
-          pcmBuffer = Buffer.concat([pcmBuffer, chunk]);
-        });
-      } catch (err) {
-        logger.error('Audio', 'Allgemeiner Fehler bei get-peaks', err)
-        resolve(Array.from({ length: samples }, () => Math.random() * 0.8));
-      }
-    });
   })
 
   ipcMain.handle('export-project', async (_, tracksData: any, outputPath: string, id3Tags?: any) => {
