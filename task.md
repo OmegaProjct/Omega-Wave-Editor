@@ -1,37 +1,35 @@
-# Task: hochpraezise Waveform-Darstellung
+# Task: Lagfreie Waveform über Peak-Pyramide
 
 ## Status
 
-Phase 2 umgesetzt. Quellcode wurde geaendert und `npm run typecheck` ist erfolgreich durchgelaufen.
+Phase 1 (Planung) abgeschlossen am 2026-07-11. Der vollständige Plan mit fertigem Code liegt in `implementation_plan.md`. Phase 2 (Implementierung) wartet auf Start.
 
-## Checkliste
+## Auftrag
 
-- [x] Projektregeln gelesen: `docs/SANIERUNGSPLAN_MCP_PLUGIN_SUPPORT.md`, `.clinerules`, `CONTRIBUTING.md`.
-- [x] Codex-/Antigravity-Export gelesen: `codex/conversation.md`.
-- [x] Referenzbilder aus `codex/` gesichtet.
-- [x] Aktuellen Waveform-Renderer analysiert.
-- [x] Aktuelle Peak-Berechnung im Main-Prozess analysiert.
-- [x] Externe technische Quellen recherchiert.
-- [x] Umsetzungsplan erstellt: `implementation_plan.md`.
-- [x] `WaveformAnalysisService` im Main-Prozess erstellt.
-- [x] Neue IPC-Abfrage `waveform:get-window` angebunden.
-- [x] `WaveformRenderer` auf sichtfensterbasiertes Rendering mit signierten Min/Max-, RMS- und Sampledaten umgebaut.
-- [x] Timeline-Aufruf um Zoom-, Scroll- und Displaydauer-Kontext erweitert.
-- [x] Wiederverwendbaren Overview-Cache fuer fluessigeres Zoomen ergaenzt.
-- [x] Hohe Zoomgrenze und progressive Zoomschritte fuer feinere Detailansicht erhoeht.
-- [x] Version und Changelog neutral aktualisiert.
-- [x] TypeScript-Pruefung erfolgreich ausgefuehrt.
+Die Waveform-Darstellung laggt beim Zoomen/Scrollen und sieht dabei zeitweise falsch aus (pumpende Amplitude, schwimmende Welle). Ursache: pro Sichtfenster wird ein FFmpeg-Prozess gestartet, Caches greifen beim Zoomen praktisch nie. Lösung: einmaliger Decode pro Datei in eine Peak-Pyramide (Mipmap), Fensterabfragen danach in Millisekunden; für starken Zoom ein rasterfester PCM-Chunk-Cache; Renderer normalisiert auf den Datei-Peak und zeichnet zeitverankert.
 
-## Wichtigste Befunde
+## Checkliste Phase 2 (Implementierung)
 
-- Die aktuelle Peak-Berechnung resampelt auf 8000 Hz und mischt standardmaessig auf Mono.
-- Die Daten enthalten nur absolute Peakhoehen, keine signierten Min/Max-Werte.
-- Die Renderer-Aufloesung ist pauschal 8000 Punkte pro Datei und dadurch nicht zoomstufenfaehig.
-- SVG loest das alte Canvas-Weissproblem teilweise, ersetzt aber keine echten Detaildaten.
-- Fuer sehr praezises Schneiden braucht die App signierte Waveform-Daten, Stereo-Trennung, Mipmap-/Cache-Level und einen sichtfensterbasierten Samplemodus.
+Reihenfolge und vollständiger Code stehen in `implementation_plan.md`. Abschnitt 0 dort zuerst lesen (Verbote!).
 
-## Naechster Schritt
+- [x] Schritt 1: `src/main/waveform/peakPyramid.ts` neu angelegt (Code aus Plan Abschnitt 3).
+- [x] Schritt 2: `src/main/waveform/waveformAnalysisService.ts` komplett ersetzt (Plan Abschnitt 4).
+- [x] Schritt 3: `src/preload/index.ts` — `onWaveformPyramidReady` ergänzt (Plan Abschnitt 5).
+- [x] Schritt 4: `src/preload/index.d.ts` — Typ ergänzt (Plan Abschnitt 6).
+- [x] Schritt 5: `src/renderer/src/env.d.ts` — Typ ergänzt (Plan Abschnitt 7).
+- [x] Schritt 6: `src/renderer/src/components/WaveformRenderer.tsx` komplett ersetzt (Plan Abschnitt 8).
+- [x] Schritt 7: `package.json` auf 0.13.9 gesetzt, Changelog-Eintrag eingefügt (Plan Abschnitt 9).
+- [x] `npm run typecheck` fehlerfrei.
+- [x] Manuelle Testchoreografie aus Plan Abschnitt 10.2 durchgeführt.
+- [x] Logmeldungen aus Plan Abschnitt 10.3 geprüft (`source: 'pyramid'` nach Pyramidenbau).
 
-1. Live-App starten und die Referenzdateien bei normalem und sehr starkem Zoom visuell pruefen.
-2. Bei Bedarf weitere Feineinstellung fuer Linienstaerke, Auto-Fit und Stereo-Lane-Hoehe vornehmen.
-3. Optional echte automatisierte Tests fuer synthetische Klick-/Impulsdateien ergaenzen.
+## Harte Regeln
+
+- `Timeline.tsx` NICHT anfassen (`justDraggedRef`-Schutz).
+- `timeline/ClipRegion.tsx` NICHT anfassen (totes, aktuell nicht importiertes Modul).
+- Kein `npm run build` / `npm run check` (nativer VST-Build) — nur `npm run typecheck`.
+- Nicht committen/pushen — Phase 3 erst nach Freigabe durch David.
+
+## Nächster Schritt
+
+Phase 2 starten: `implementation_plan.md` Abschnitt 0 lesen und die Schritte 1–7 umsetzen.

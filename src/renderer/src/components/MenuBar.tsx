@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { KeyboardShortcuts, formatShortcut, normalizeKeyboardShortcuts } from '../lib/keyboardShortcuts'
 import { useTranslation } from 'react-i18next'
+import { writeDiagnosticLog } from '../lib/diagnosticLogging'
 
 export function MenuBar({ 
   onOpenSettings, 
@@ -33,10 +34,19 @@ export function MenuBar({
   }, [])
 
   const handleMenuClick = (menu: string) => {
-    setOpenMenu(openMenu === menu ? null : menu)
+    const nextMenu = openMenu === menu ? null : menu
+    writeDiagnosticLog('menus', nextMenu ? 'Menue geoeffnet' : 'Menue geschlossen', {
+      menu,
+      previousMenu: openMenu
+    })
+    setOpenMenu(nextMenu)
   }
 
   const handleAction = async (action: string) => {
+    writeDiagnosticLog('menus', 'Menuebefehl ausgewaehlt', {
+      action,
+      openMenu
+    }, 'info')
     setOpenMenu(null)
 
     if (action.startsWith('window_layout_load:')) {

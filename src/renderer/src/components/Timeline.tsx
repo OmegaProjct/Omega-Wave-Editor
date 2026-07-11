@@ -17,6 +17,7 @@ import {
   normalizeKeyboardShortcuts,
   matchesMouseModifiers
 } from '../lib/keyboardShortcuts'
+import { shouldLogDiagnostic, writeDiagnosticLog } from '../lib/diagnosticLogging'
 
 export type RegionEffects = {
   eqGains?: number[]
@@ -659,8 +660,8 @@ const formatTimeDisplay = (seconds: number, format: TimeDisplayFormat, sampleRat
 }
 
 const MIN_ZOOM_LEVEL = 0.05
-const MAX_ZOOM_LEVEL = 500
-const ZOOM_MENU_LEVELS = [10, 25, 50, 100, 200, 400, 800, 1600, 3200, 6400, 12800, 25600, 50000]
+const MAX_ZOOM_LEVEL = 2000
+const ZOOM_MENU_LEVELS = [10, 25, 50, 100, 200, 400, 800, 1600, 3200, 6400, 12800, 25600, 50000, 100000, 150000, 200000]
 
 const clampZoomLevel = (value: number): number => {
   return Math.max(MIN_ZOOM_LEVEL, Math.min(MAX_ZOOM_LEVEL, value))
@@ -670,9 +671,10 @@ const getNextZoomLevel = (currentZoom: number, direction: 'in' | 'out'): number 
   const safeZoom = clampZoomLevel(currentZoom)
 
   const factor =
-    safeZoom >= 120 ? 1.55 :
-    safeZoom >= 40 ? 1.4 :
-    safeZoom >= 12 ? 1.28 :
+    safeZoom >= 800 ? 2.2 :
+    safeZoom >= 240 ? 1.85 :
+    safeZoom >= 80 ? 1.55 :
+    safeZoom >= 24 ? 1.34 :
     safeZoom >= 4 ? 1.18 :
     1.1
 
@@ -709,6 +711,24 @@ const gainToDb = (gain: number): string => {
   return `${db > 0 ? '+' : ''}${db.toFixed(1)} dB`;
 };
 
+type TimelinePerformanceStats = {
+  cpuUsage: number
+  processRamBytes: number
+  systemRamPct: number
+  systemCpuPct: number
+  gpuProcessCpuPct?: number
+  gpuProcessRamBytes?: number
+  gpuModel?: string
+  gpuFeatureStatus?: Record<string, string> | null
+}
+
+type TimelineDiagnosticEvent = {
+  seq: number
+  kind: string
+  atMs: number
+  details?: Record<string, unknown>
+}
+
 export function Timeline({ 
   onTracksChange, 
   onOpenExport,
@@ -730,6 +750,7 @@ export function Timeline({
 }) {
   const engine = AudioEngine.getInstance()
   const [zoomLevel, setZoomLevel] = useState(1)
+  const zoomLevelRef = useRef(1)
   const pixelsPerSecond = PIXELS_PER_SECOND_BASE * zoomLevel
   const [showVerticalGuidelines, setShowVerticalGuidelines] = useState<boolean>(false)
   const [videoAudioOnOneTrack, setVideoAudioOnOneTrack] = useState<boolean>(true)
@@ -754,10 +775,20 @@ export function Timeline({
   const [playheadPos, setPlayheadPos] = useState<number>(0)
   const playheadPosRef = useRef(0)
   const isDraggingPlayheadRef = useRef(false)
+  const queuedZoomStepsRef = useRef(0)
+  const queuedZoomAnimationFrameRef = useRef<number | null>(null)
+  const pendingZoomTargetRef = useRef<number | null>(null)
+  const zoomAnchorRef = useRef<{ time: number; screenX: number } | null>(null)
   const currentTracksRef = useRef<Track[]>(tracks)
   useEffect(() => {
     currentTracksRef.current = tracks
   }, [tracks])
+  useEffect(() => {
+    zoomLevelRef.current = zoomLevel
+    if (pendingZoomTargetRef.current !== null && Math.abs(pendingZoomTargetRef.current - zoomLevel) < 0.000001) {
+      pendingZoomTargetRef.current = null
+    }
+  }, [zoomLevel])
 
   // Zustände für Import-Verhalten und Konflikthandhabung bei Überlappungen
   const [importOverlapBehavior, setImportOverlapBehavior] = useState<string>('ask');
@@ -810,6 +841,12 @@ export function Timeline({
   // playheadRulerMotionWidth removed – the blue bar is now an independent export selection marker
   const [scrollLeft, setScrollLeft] = useState(0)
   const [scrollTop, setScrollTop] = useState(0)
+  const scrollLeftRef = useRef(0)
+  const scrollTopRef = useRef(0)
+  const committedScrollLeftRef = useRef(0)
+  const committedScrollTopRef = useRef(0)
+  const scrollStateAnimationFrameRef = useRef<number | null>(null)
+  const scrollStateIdleTimeoutRef = useRef<number | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
 
@@ -1225,7 +1262,7 @@ export function Timeline({
       const clickX = e.clientX - rect.left;
       const clickY = e.clientY - rect.top;
 
-      const time = Math.max(0, (clickX + scrollLeft) / pixelsPerSecond);
+      const time = Math.max(0, (clickX + scrollLeftRef.current) / pixelsPerSecond);
       const value = Math.max(0, Math.min(1.5, 1.5 * (1 - clickY / trackHeight)));
 
       setTracks(prev => prev.map(t => {
@@ -1257,7 +1294,7 @@ export function Timeline({
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
-  }, [draggingNode, scrollLeft, pixelsPerSecond, trackHeight]);
+  }, [draggingNode, pixelsPerSecond, trackHeight]);
 
   useEffect(() => {
     if (!engine.isPlaying) {
@@ -1265,9 +1302,152 @@ export function Timeline({
     }
   }, [playheadPos, recalculateTrackVolumes, tracks]);
 
-  const [perfStats, setPerfStats] = useState<{ cpuUsage: number; processRamBytes: number; systemRamPct: number; systemCpuPct: number }>({ cpuUsage: 0, processRamBytes: 0, systemRamPct: 0, systemCpuPct: 0 });
+  const [perfStats, setPerfStats] = useState<TimelinePerformanceStats>({ cpuUsage: 0, processRamBytes: 0, systemRamPct: 0, systemCpuPct: 0 });
   const [globalProgress, setGlobalProgress] = useState<number | null>(null);
   const [globalProgressLabel, setGlobalProgressLabel] = useState<string>('');
+  const [zoomLimitNotice, setZoomLimitNotice] = useState<string | null>(null)
+  const zoomLimitNoticeTimerRef = useRef<number | null>(null)
+  const diagnosticSeqRef = useRef(0)
+  const diagnosticBufferRef = useRef<TimelineDiagnosticEvent[]>([])
+  const diagnosticFlushTimeoutRef = useRef<number | null>(null)
+  const diagnosticPerfTimerRef = useRef<number | null>(null)
+  const diagnosticPerfUntilRef = useRef(0)
+  const lastDiagnosticPerfSampleRef = useRef(0)
+  const lastDiagnosticScrollRef = useRef({ left: 0, top: 0, at: 0 })
+
+  const flushTimelineDiagnostics = useCallback(() => {
+    diagnosticFlushTimeoutRef.current = null
+    const events = diagnosticBufferRef.current.splice(0, diagnosticBufferRef.current.length)
+    if (events.length === 0) return
+    if (!shouldLogDiagnostic('timeline')) return
+
+    writeDiagnosticLog('timeline', 'Timeline-Eingaben und Wirkung', {
+      count: events.length,
+      events
+    })
+  }, [])
+
+  const queueTimelineDiagnostic = useCallback((kind: string, details?: Record<string, unknown>) => {
+    if (!shouldLogDiagnostic('timeline')) return
+
+    diagnosticBufferRef.current.push({
+      seq: ++diagnosticSeqRef.current,
+      kind,
+      atMs: Math.round(performance.now()),
+      details
+    })
+
+    while (diagnosticBufferRef.current.length > 80) {
+      diagnosticBufferRef.current.shift()
+    }
+
+    if (diagnosticFlushTimeoutRef.current === null) {
+      diagnosticFlushTimeoutRef.current = window.setTimeout(flushTimelineDiagnostics, 250)
+    }
+  }, [flushTimelineDiagnostics])
+
+  const sampleDiagnosticPerformance = useCallback(async (reason: string) => {
+    if (!shouldLogDiagnostic('timeline') || !shouldLogDiagnostic('performance')) return
+
+    const now = Date.now()
+    if (now - lastDiagnosticPerfSampleRef.current < 450) return
+    lastDiagnosticPerfSampleRef.current = now
+
+    try {
+      const stats = await window.api.getPerformanceStats()
+      setPerfStats(stats)
+      queueTimelineDiagnostic('performance-sample', {
+        reason,
+        cpuUsage: stats.cpuUsage,
+        systemCpuPct: stats.systemCpuPct,
+        processRamMb: Math.round((stats.processRamBytes / (1024 * 1024)) * 10) / 10,
+        systemRamPct: stats.systemRamPct,
+        gpuProcessCpuPct: stats.gpuProcessCpuPct ?? null,
+        gpuProcessRamMb: stats.gpuProcessRamBytes ? Math.round((stats.gpuProcessRamBytes / (1024 * 1024)) * 10) / 10 : null,
+        gpuModel: stats.gpuModel || null
+      })
+    } catch (err: any) {
+      queueTimelineDiagnostic('performance-sample-error', {
+        reason,
+        error: err?.message || String(err)
+      })
+    }
+  }, [queueTimelineDiagnostic])
+
+  const keepDiagnosticPerformanceSampling = useCallback((reason: string) => {
+    diagnosticPerfUntilRef.current = Math.max(diagnosticPerfUntilRef.current, Date.now() + 4500)
+    sampleDiagnosticPerformance(reason)
+
+    if (diagnosticPerfTimerRef.current !== null) return
+
+    diagnosticPerfTimerRef.current = window.setInterval(() => {
+      if (Date.now() > diagnosticPerfUntilRef.current) {
+        if (diagnosticPerfTimerRef.current !== null) {
+          window.clearInterval(diagnosticPerfTimerRef.current)
+          diagnosticPerfTimerRef.current = null
+        }
+        return
+      }
+      sampleDiagnosticPerformance('active-window')
+    }, 500)
+  }, [sampleDiagnosticPerformance])
+
+  const showZoomLimitNotice = useCallback((direction: 'in' | 'out') => {
+    const message = direction === 'in'
+      ? `Maximaler Zoom erreicht (${Math.round(MAX_ZOOM_LEVEL * 100)}%)`
+      : `Minimaler Zoom erreicht (${Math.round(MIN_ZOOM_LEVEL * 100)}%)`
+
+    setZoomLimitNotice(message)
+    queueTimelineDiagnostic('zoom-limit-hit', {
+      direction,
+      zoomPct: Math.round(zoomLevelRef.current * 100),
+      minZoomPct: Math.round(MIN_ZOOM_LEVEL * 100),
+      maxZoomPct: Math.round(MAX_ZOOM_LEVEL * 100),
+      scrollLeft: Math.round(scrollLeftRef.current),
+      playhead: Number(playheadPosRef.current.toFixed(3))
+    })
+
+    if (zoomLimitNoticeTimerRef.current !== null) {
+      window.clearTimeout(zoomLimitNoticeTimerRef.current)
+    }
+    zoomLimitNoticeTimerRef.current = window.setTimeout(() => {
+      zoomLimitNoticeTimerRef.current = null
+      setZoomLimitNotice(null)
+    }, 1200)
+  }, [queueTimelineDiagnostic])
+
+  const stepZoomLevel = useCallback((direction: 'in' | 'out') => {
+    const fromZoom = zoomLevelRef.current
+    const nextZoom = getNextZoomLevel(fromZoom, direction)
+    if (nextZoom === fromZoom) {
+      showZoomLimitNotice(direction)
+      return
+    }
+    setZoomLevel(nextZoom)
+  }, [showZoomLimitNotice])
+
+  useEffect(() => {
+    return () => {
+      if (zoomLimitNoticeTimerRef.current !== null) {
+        window.clearTimeout(zoomLimitNoticeTimerRef.current)
+        zoomLimitNoticeTimerRef.current = null
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (diagnosticFlushTimeoutRef.current !== null) {
+        window.clearTimeout(diagnosticFlushTimeoutRef.current)
+        diagnosticFlushTimeoutRef.current = null
+        flushTimelineDiagnostics()
+      }
+      if (diagnosticPerfTimerRef.current !== null) {
+        window.clearInterval(diagnosticPerfTimerRef.current)
+        diagnosticPerfTimerRef.current = null
+      }
+    }
+  }, [flushTimelineDiagnostics])
 
   useEffect(() => {
     setActiveShortcuts(normalizeKeyboardShortcuts(keyboardShortcuts))
@@ -2106,30 +2286,39 @@ export function Timeline({
 
   useEffect(() => {
     localStorage.setItem(TIMELINE_TIME_FORMAT_STORAGE_KEY, timeDisplayFormat)
+    writeDiagnosticLog('toolbar', 'Zeitformat geaendert', { timeDisplayFormat })
   }, [timeDisplayFormat])
 
   useEffect(() => {
     localStorage.setItem(TIMELINE_SELECTION_FORMAT_STORAGE_KEY, selectionDisplayFormat)
+    writeDiagnosticLog('toolbar', 'Auswahlformat geaendert', { selectionDisplayFormat })
   }, [selectionDisplayFormat])
 
   useEffect(() => {
     localStorage.setItem(TIMELINE_TOOLBAR_VISIBILITY_STORAGE_KEY, JSON.stringify(toolbarVisibility))
+    writeDiagnosticLog('toolbar', 'Toolbar-Sichtbarkeit gespeichert', { toolbarVisibility })
   }, [toolbarVisibility])
 
   useEffect(() => {
     localStorage.setItem(TIMELINE_TOOLBAR_ORDER_STORAGE_KEY, JSON.stringify(toolbarOrder))
+    writeDiagnosticLog('toolbar', 'Toolbar-Reihenfolge gespeichert', { toolbarOrder })
   }, [toolbarOrder])
 
   useEffect(() => {
     localStorage.setItem(TIMELINE_TOOLBAR_SEPARATORS_STORAGE_KEY, JSON.stringify(toolbarSeparators))
+    writeDiagnosticLog('toolbar', 'Toolbar-Trenner gespeichert', { toolbarSeparators })
   }, [toolbarSeparators])
 
   useEffect(() => {
     localStorage.setItem(TIMELINE_TOOLBAR_COLORS_STORAGE_KEY, JSON.stringify(toolbarColors))
+    writeDiagnosticLog('toolbar', 'Toolbar-Farben gespeichert', { toolbarColors })
   }, [toolbarColors])
 
   useEffect(() => {
     localStorage.setItem(TIMELINE_TOOLBAR_EDIT_LOCKED_STORAGE_KEY, toolbarEditLocked ? 'true' : 'false')
+    writeDiagnosticLog('toolbar', 'Toolbar-Bearbeitungsmodus geaendert', {
+      locked: toolbarEditLocked
+    }, 'info')
   }, [toolbarEditLocked])
 
   useEffect(() => {
@@ -2337,9 +2526,83 @@ export function Timeline({
   const [showCleaning, setShowCleaning] = useState(false)
   const [showProperties, setShowProperties] = useState(false)
 
+  const applyScrollVisuals = useCallback((nextLeft: number, nextTop: number) => {
+    if (stripContentRef.current) {
+      stripContentRef.current.style.transform = `translateX(-${nextLeft}px)`
+    }
+    if (rulerContentRef.current) {
+      rulerContentRef.current.style.transform = `translateX(-${nextLeft}px)`
+    }
+    if (trackHeadersContentRef.current) {
+      trackHeadersContentRef.current.style.transform = `translateY(-${nextTop}px)`
+    }
+
+    const currentPos = isPlaying ? (engine.isPlaying ? engine.currentTime : playheadPosRef.current) : playheadPosRef.current
+    playheadMotionX.set((currentPos * pixelsPerSecond) - nextLeft)
+  }, [engine, isPlaying, pixelsPerSecond, playheadMotionX])
+
+  const commitScrollState = useCallback(() => {
+    if (scrollStateAnimationFrameRef.current !== null) {
+      return
+    }
+
+    scrollStateAnimationFrameRef.current = window.requestAnimationFrame(() => {
+      scrollStateAnimationFrameRef.current = null
+      const nextLeft = scrollLeftRef.current
+      const nextTop = scrollTopRef.current
+      committedScrollLeftRef.current = nextLeft
+      committedScrollTopRef.current = nextTop
+      queueTimelineDiagnostic('scroll-state-commit', {
+        scrollLeft: Math.round(nextLeft),
+        scrollTop: Math.round(nextTop),
+        zoomPct: Math.round(zoomLevel * 100),
+        pixelsPerSecond: Math.round(pixelsPerSecond),
+        playhead: Number(playheadPosRef.current.toFixed(3))
+      })
+      setScrollLeft((current) => current === nextLeft ? current : nextLeft)
+      setScrollTop((current) => current === nextTop ? current : nextTop)
+    })
+  }, [pixelsPerSecond, queueTimelineDiagnostic, zoomLevel])
+
+  const syncScrollState = useCallback((nextLeft: number, nextTop: number, options?: { force?: boolean }) => {
+    scrollLeftRef.current = nextLeft
+    scrollTopRef.current = nextTop
+
+    if (scrollStateIdleTimeoutRef.current !== null) {
+      window.clearTimeout(scrollStateIdleTimeoutRef.current)
+    }
+
+    scrollStateIdleTimeoutRef.current = window.setTimeout(() => {
+      scrollStateIdleTimeoutRef.current = null
+      commitScrollState()
+    }, 72)
+
+    const leftDelta = Math.abs(nextLeft - committedScrollLeftRef.current)
+    const topDelta = Math.abs(nextTop - committedScrollTopRef.current)
+    if (options?.force || leftDelta >= 96 || topDelta >= 24) {
+      commitScrollState()
+    }
+  }, [commitScrollState])
+
+  useEffect(() => {
+    return () => {
+      if (scrollStateAnimationFrameRef.current !== null) {
+        window.cancelAnimationFrame(scrollStateAnimationFrameRef.current)
+        scrollStateAnimationFrameRef.current = null
+      }
+      if (scrollStateIdleTimeoutRef.current !== null) {
+        window.clearTimeout(scrollStateIdleTimeoutRef.current)
+        scrollStateIdleTimeoutRef.current = null
+      }
+    }
+  }, [])
+
   const tracksRef = useRef<HTMLDivElement>(null)
   const rulerRef = useRef<HTMLDivElement>(null)
   const stripRef = useRef<HTMLDivElement>(null)
+  const stripContentRef = useRef<HTMLDivElement>(null)
+  const rulerContentRef = useRef<HTMLDivElement>(null)
+  const trackHeadersContentRef = useRef<HTMLDivElement>(null)
   const hScrollTrackRef = useRef<HTMLDivElement>(null)
   const vScrollTrackRef = useRef<HTMLDivElement>(null)
 
@@ -2350,7 +2613,7 @@ export function Timeline({
       const newZoom = zoomLevel
       
       if (oldZoom !== newZoom) {
-        const currentPlayhead = isPlaying ? (engine.isPlaying ? engine.currentTime : playheadPosRef.current) : playheadPos
+        const currentPlayhead = isPlaying ? (engine.isPlaying ? engine.currentTime : playheadPosRef.current) : playheadPosRef.current
         const pixelsPerSecondOld = PIXELS_PER_SECOND_BASE * oldZoom
         const pixelsPerSecondNew = PIXELS_PER_SECOND_BASE * newZoom
         
@@ -2359,10 +2622,13 @@ export function Timeline({
         
         const currentScroll = tracksRef.current.scrollLeft
         const viewportWidth = tracksRef.current.clientWidth
+        const zoomAnchor = zoomAnchorRef.current
         
         let newScrollLeft: number
         
-        if (playheadXOld >= currentScroll && playheadXOld <= currentScroll + viewportWidth) {
+        if (zoomAnchor) {
+          newScrollLeft = (zoomAnchor.time * pixelsPerSecondNew) - zoomAnchor.screenX
+        } else if (playheadXOld >= currentScroll && playheadXOld <= currentScroll + viewportWidth) {
           const screenPos = playheadXOld - currentScroll
           newScrollLeft = playheadXNew - screenPos
         } else {
@@ -2372,11 +2638,29 @@ export function Timeline({
         const finalScrollLeft = Math.max(0, newScrollLeft)
         
         tracksRef.current.scrollLeft = finalScrollLeft
-        setScrollLeft(finalScrollLeft)
+        applyScrollVisuals(finalScrollLeft, tracksRef.current.scrollTop)
+        syncScrollState(finalScrollLeft, tracksRef.current.scrollTop, { force: true })
+        playheadMotionX.set(playheadXNew - finalScrollLeft)
+        queueTimelineDiagnostic('zoom-commit', {
+          fromZoomPct: Math.round(oldZoom * 100),
+          toZoomPct: Math.round(newZoom * 100),
+          playhead: Number(currentPlayhead.toFixed(3)),
+          oldPlayheadX: Math.round(playheadXOld),
+          newPlayheadX: Math.round(playheadXNew),
+          previousScrollLeft: Math.round(currentScroll),
+          finalScrollLeft: Math.round(finalScrollLeft),
+          viewportWidth: Math.round(viewportWidth),
+          anchor: zoomAnchor ? {
+            time: Number(zoomAnchor.time.toFixed(3)),
+            screenX: Math.round(zoomAnchor.screenX)
+          } : 'playhead'
+        })
+        keepDiagnosticPerformanceSampling('zoom-commit')
+        zoomAnchorRef.current = null
       }
     }
     prevZoomLevelRef.current = zoomLevel
-  }, [zoomLevel, playheadPos, isPlaying])
+  }, [applyScrollVisuals, zoomLevel, isPlaying, playheadMotionX, syncScrollState, keepDiagnosticPerformanceSampling, queueTimelineDiagnostic])
 
   const skipToStart = () => {
     setPlayheadPos(0);
@@ -2403,6 +2687,34 @@ export function Timeline({
         target.isContentEditable;
 
       if (isTextInput) return;
+
+      const isModifierOnlyRepeat = e.repeat && ['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)
+      if (!isModifierOnlyRepeat) {
+        queueTimelineDiagnostic('key-input', {
+          key: e.key,
+          code: e.code,
+          ctrlKey: e.ctrlKey,
+          shiftKey: e.shiftKey,
+          altKey: e.altKey,
+          repeat: e.repeat,
+          zoomPct: Math.round(zoomLevel * 100),
+          scrollLeft: Math.round(scrollLeftRef.current),
+          playhead: Number(playheadPosRef.current.toFixed(3)),
+          isPlaying: engine.isPlaying
+        })
+        keepDiagnosticPerformanceSampling('key-input')
+        window.requestAnimationFrame(() => {
+          queueTimelineDiagnostic('key-result', {
+            key: e.key,
+            zoomPct: Math.round(zoomLevelRef.current * 100),
+            scrollLeft: Math.round(scrollLeftRef.current),
+            scrollTop: Math.round(scrollTopRef.current),
+            playhead: Number(playheadPosRef.current.toFixed(3)),
+            enginePlaying: engine.isPlaying,
+            selectedRegions: selectedRegionIds.size
+          })
+        })
+      }
 
       if (matchesShortcut(e, activeShortcuts.setPlaybackStart)) {
         e.preventDefault();
@@ -2558,7 +2870,7 @@ export function Timeline({
         if (selectedRegionId) {
           loadEffectsPreset(selectedRegionId);
         } else {
-          setZoomLevel(z => getNextZoomLevel(z, 'in'));
+          stepZoomLevel('in');
         }
       } else if (matchesShortcut(e, activeShortcuts.saveEffectsPreset)) {
         if (selectedRegionId) {
@@ -2572,7 +2884,7 @@ export function Timeline({
         }
       } else if (matchesShortcut(e, activeShortcuts.zoomOut)) {
         e.preventDefault();
-        setZoomLevel(z => getNextZoomLevel(z, 'out'));
+        stepZoomLevel('out');
       } else if (matchesShortcut(e, activeShortcuts.deleteSelection) || matchesShortcut(e, activeShortcuts.deleteSelectionAlt)) {
         if (selectedRegionIds.size > 0) {
           e.preventDefault();
@@ -2765,13 +3077,83 @@ export function Timeline({
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedRegionId, selectedRegionIds, deleteSelectedRegions, togglePlayback, tracks, handleCopy, handlePaste, activeShortcuts]);
+  }, [selectedRegionId, selectedRegionIds, deleteSelectedRegions, togglePlayback, tracks, handleCopy, handlePaste, activeShortcuts, engine, keepDiagnosticPerformanceSampling, queueTimelineDiagnostic, stepZoomLevel, zoomLevel]);
 
   useEffect(() => {
     const container = tracksRef.current;
     if (!container) return;
 
+    // Mausrad-Zoom wird pro Frame gebuendelt, damit tiefer Zoom fluessiger bleibt.
+    const queueHorizontalZoom = (deltaY: number) => {
+      const zoomDirection = deltaY < 0 ? -1 : 1
+      const normalizedMagnitude = Math.max(1, Math.min(6, Math.round(Math.abs(deltaY) / 40) || 1))
+      queuedZoomStepsRef.current += zoomDirection * normalizedMagnitude
+
+      if (queuedZoomAnimationFrameRef.current !== null) {
+        return
+      }
+
+      queuedZoomAnimationFrameRef.current = window.requestAnimationFrame(() => {
+        const queuedSteps = queuedZoomStepsRef.current
+        queuedZoomStepsRef.current = 0
+        queuedZoomAnimationFrameRef.current = null
+
+        if (queuedSteps === 0) {
+          return
+        }
+
+        const direction: 'in' | 'out' = queuedSteps < 0 ? 'in' : 'out'
+        const iterations = Math.min(10, Math.abs(queuedSteps))
+        const fromZoom = pendingZoomTargetRef.current ?? zoomLevelRef.current
+        let nextZoom = fromZoom
+
+        for (let step = 0; step < iterations; step++) {
+          nextZoom = getNextZoomLevel(nextZoom, direction)
+        }
+
+        if (nextZoom === fromZoom) {
+          showZoomLimitNotice(direction)
+          return
+        }
+
+        pendingZoomTargetRef.current = nextZoom
+
+        queueTimelineDiagnostic('zoom-batch-applied', {
+          queuedSteps,
+          iterations,
+          direction,
+          fromZoomPct: Math.round(fromZoom * 100),
+          toZoomPct: Math.round(nextZoom * 100),
+          scrollLeft: Math.round(scrollLeftRef.current),
+          playhead: Number(playheadPosRef.current.toFixed(3))
+        })
+
+        setZoomLevel(nextZoom)
+      })
+    }
+
     const handleWheelNative = (e: WheelEvent) => {
+      const beforeLeft = container.scrollLeft
+      const beforeTop = container.scrollTop
+      queueTimelineDiagnostic('wheel-input', {
+        deltaX: Math.round(e.deltaX),
+        deltaY: Math.round(e.deltaY),
+        ctrlKey: e.ctrlKey,
+        shiftKey: e.shiftKey,
+        altKey: e.altKey,
+        mode: matchesMouseModifiers(e, activeShortcuts.zoomVertical)
+          ? 'zoom-vertical'
+          : e.ctrlKey
+            ? 'zoom-horizontal'
+            : matchesMouseModifiers(e, activeShortcuts.scrollVertical)
+              ? 'scroll-vertical'
+              : 'scroll-horizontal',
+        beforeScrollLeft: Math.round(beforeLeft),
+        beforeScrollTop: Math.round(beforeTop),
+        zoomPct: Math.round(zoomLevel * 100)
+      })
+      keepDiagnosticPerformanceSampling('wheel-input')
+
       // 1. Zoom Vertical (e.g. Ctrl + Shift)
       if (matchesMouseModifiers(e, activeShortcuts.zoomVertical)) {
         e.preventDefault();
@@ -2784,29 +3166,51 @@ export function Timeline({
       // 2. Zoom Horizontal (Ctrl)
       else if (e.ctrlKey) {
         e.preventDefault();
-        if (e.deltaY < 0) {
-          setZoomLevel(z => getNextZoomLevel(z, 'in'));
-        } else {
-          setZoomLevel(z => getNextZoomLevel(z, 'out'));
+        const rect = container.getBoundingClientRect()
+        const screenX = Math.max(0, Math.min(e.clientX - rect.left, container.clientWidth || rect.width || 1))
+        const effectivePixelsPerSecond = Math.max(1, PIXELS_PER_SECOND_BASE * (pendingZoomTargetRef.current ?? zoomLevelRef.current))
+        zoomAnchorRef.current = {
+          time: Math.max(0, (container.scrollLeft + screenX) / effectivePixelsPerSecond),
+          screenX
         }
+        queueHorizontalZoom(e.deltaY)
       }
       // 3. Scroll Vertical (e.g. Shift)
       else if (matchesMouseModifiers(e, activeShortcuts.scrollVertical)) {
         e.preventDefault();
         container.scrollTop += e.deltaY;
+        queueTimelineDiagnostic('wheel-scroll-applied', {
+          axis: 'vertical',
+          from: Math.round(beforeTop),
+          to: Math.round(container.scrollTop),
+          delta: Math.round(container.scrollTop - beforeTop)
+        })
       }
       // 4. Scroll Horizontal (No modifiers)
       else {
         e.preventDefault();
         container.scrollLeft += e.deltaY;
+        queueTimelineDiagnostic('wheel-scroll-applied', {
+          axis: 'horizontal',
+          from: Math.round(beforeLeft),
+          to: Math.round(container.scrollLeft),
+          delta: Math.round(container.scrollLeft - beforeLeft)
+        })
       }
     };
 
     container.addEventListener('wheel', handleWheelNative, { passive: false });
     return () => {
+      if (queuedZoomAnimationFrameRef.current !== null) {
+        window.cancelAnimationFrame(queuedZoomAnimationFrameRef.current)
+        queuedZoomAnimationFrameRef.current = null
+      }
+      queuedZoomStepsRef.current = 0
+      pendingZoomTargetRef.current = null
+      zoomAnchorRef.current = null
       container.removeEventListener('wheel', handleWheelNative);
     };
-  }, [activeShortcuts.zoomVertical, activeShortcuts.scrollVertical]);
+  }, [activeShortcuts.zoomVertical, activeShortcuts.scrollVertical, keepDiagnosticPerformanceSampling, queueTimelineDiagnostic, showZoomLimitNotice, zoomLevel]);
 
   const [vuLevel, setVuLevel] = useState(0);
   const [masterVolume, setMasterVolume] = useState(engine.getMasterVolume ? engine.getMasterVolume() : 0.8);
@@ -2862,33 +3266,37 @@ export function Timeline({
       recalculateTrackVolumes(tracks);
       playheadPosRef.current = current;
       
-      let currentScrollLeft = scrollLeft;
+      let currentScrollLeft = scrollLeftRef.current;
       if (tracksRef.current && autoScroll !== 'Aus') {
         const visibleWidth = tracksRef.current.clientWidth;
         if (autoScroll === 'Schnell') {
-          if (current * pixelsPerSecond >= scrollLeft + visibleWidth) {
+          if (current * pixelsPerSecond >= currentScrollLeft + visibleWidth) {
             const page = Math.floor((current * pixelsPerSecond) / (visibleWidth || 1));
             tracksRef.current.scrollLeft = page * visibleWidth;
             currentScrollLeft = page * visibleWidth;
-            setScrollLeft(currentScrollLeft);
-          } else if (current * pixelsPerSecond < scrollLeft) {
+            applyScrollVisuals(currentScrollLeft, tracksRef.current.scrollTop);
+            syncScrollState(currentScrollLeft, tracksRef.current.scrollTop, { force: true });
+          } else if (current * pixelsPerSecond < currentScrollLeft) {
             const page = Math.floor((current * pixelsPerSecond) / (visibleWidth || 1));
             tracksRef.current.scrollLeft = page * visibleWidth;
             currentScrollLeft = page * visibleWidth;
-            setScrollLeft(currentScrollLeft);
+            applyScrollVisuals(currentScrollLeft, tracksRef.current.scrollTop);
+            syncScrollState(currentScrollLeft, tracksRef.current.scrollTop, { force: true });
           }
         } else if (autoScroll === 'Langsam') {
           const targetScroll = (current * pixelsPerSecond) - (visibleWidth * 0.72);
           const clampedScroll = Math.max(0, targetScroll);
           tracksRef.current.scrollLeft = clampedScroll;
           currentScrollLeft = clampedScroll;
-          setScrollLeft(currentScrollLeft);
+          applyScrollVisuals(currentScrollLeft, tracksRef.current.scrollTop);
+          syncScrollState(currentScrollLeft, tracksRef.current.scrollTop, { force: true });
         } else if (autoScroll === 'Zentriert') {
           const targetScroll = (current * pixelsPerSecond) - (visibleWidth / 2);
           const clampedScroll = Math.max(0, targetScroll);
           tracksRef.current.scrollLeft = clampedScroll;
           currentScrollLeft = clampedScroll;
-          setScrollLeft(currentScrollLeft);
+          applyScrollVisuals(currentScrollLeft, tracksRef.current.scrollTop);
+          syncScrollState(currentScrollLeft, tracksRef.current.scrollTop, { force: true });
         }
       }
 
@@ -3045,8 +3453,8 @@ export function Timeline({
   useLayoutEffect(() => {
     const currentPos = isPlaying ? (engine.isPlaying ? engine.currentTime : playheadPosRef.current) : playheadPos;
     playheadPosRef.current = currentPos;
-    playheadMotionX.set((currentPos * pixelsPerSecond) - scrollLeft);
-  }, [playheadPos, pixelsPerSecond, scrollLeft, isPlaying]);
+    applyScrollVisuals(scrollLeftRef.current, scrollTopRef.current)
+  }, [applyScrollVisuals, playheadPos, pixelsPerSecond, isPlaying]);
 
   useEffect(() => {
     const handleActionPlay = () => {
@@ -3082,8 +3490,27 @@ export function Timeline({
   }, [togglePlayback, engine, tracks]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    setScrollLeft(e.currentTarget.scrollLeft)
-    setScrollTop(e.currentTarget.scrollTop)
+    const nextLeft = e.currentTarget.scrollLeft
+    const nextTop = e.currentTarget.scrollTop
+    applyScrollVisuals(nextLeft, nextTop)
+    syncScrollState(nextLeft, nextTop)
+
+    const now = performance.now()
+    const last = lastDiagnosticScrollRef.current
+    const leftDelta = Math.abs(nextLeft - last.left)
+    const topDelta = Math.abs(nextTop - last.top)
+    if (leftDelta >= 96 || topDelta >= 24 || now - last.at > 300) {
+      queueTimelineDiagnostic('scroll-event', {
+        scrollLeft: Math.round(nextLeft),
+        scrollTop: Math.round(nextTop),
+        leftDelta: Math.round(nextLeft - last.left),
+        topDelta: Math.round(nextTop - last.top),
+        zoomPct: Math.round(zoomLevel * 100),
+        playhead: Number(playheadPosRef.current.toFixed(3))
+      })
+      lastDiagnosticScrollRef.current = { left: nextLeft, top: nextTop, at: now }
+      keepDiagnosticPerformanceSampling('scroll-event')
+    }
   }
 
   const rulerDoubleClickPendingRef = useRef(false);
@@ -3112,7 +3539,7 @@ export function Timeline({
     if (!stripEl) return;
     const rect = stripEl.getBoundingClientRect();
     const clickX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
-    const clickedTime = (clickX + scrollLeft) / pixelsPerSecond;
+    const clickedTime = (clickX + scrollLeftRef.current) / pixelsPerSecond;
 
     const isSelectionPresent = selectionStart !== null && selectionEnd !== null && selectionStart !== selectionEnd;
 
@@ -3159,7 +3586,7 @@ export function Timeline({
       if (!tracksRef.current) return;
       const rect = tracksRef.current.getBoundingClientRect();
       const clickX = Math.max(0, Math.min(clientX - rect.left, rect.width));
-      const newPos = (clickX + scrollLeft) / pixelsPerSecond;
+      const newPos = (clickX + scrollLeftRef.current) / pixelsPerSecond;
       setPlayheadPos(newPos);
       playheadPosRef.current = newPos;
     };
@@ -4145,7 +4572,7 @@ export function Timeline({
         return (
           <div key={key} className="flex items-center border-r border-gray-700 pr-2">
             <div className="relative">
-              <button className="h-8 min-w-[132px] rounded border border-gray-700 bg-[#1a1d21] px-2 text-left hover:border-blue-500/50 hover:text-white" onClick={() => { setTimeFormatMenuOpen((open) => !open); setSelectionFormatMenuOpen(false); setAutoScrollMenuOpen(false) }}>
+              <button className="h-8 min-w-[132px] rounded border border-gray-700 bg-[#1a1d21] px-2 text-left hover:border-blue-500/50 hover:text-white" onClick={() => { writeDiagnosticLog('toolbar', 'Toolbar-Menue geoeffnet', { menu: 'time-format' }); setTimeFormatMenuOpen((open) => !open); setSelectionFormatMenuOpen(false); setAutoScrollMenuOpen(false) }}>
                 <div className="text-[9px] uppercase tracking-wide text-gray-500">Zeit</div>
                 <div className="flex items-center justify-between gap-2 text-[11px] text-gray-200">
                   <span className="truncate">{formatTimeDisplay(playheadPos, timeDisplayFormat, sampleRate)}</span>
@@ -4155,7 +4582,7 @@ export function Timeline({
               {timeFormatMenuOpen && (
                 <div className="absolute top-full left-0 mt-1 w-64 rounded border border-gray-700 bg-[#202327] shadow-2xl z-[1000] py-1">
                   {TIME_DISPLAY_FORMATS.map((format) => (
-                    <button key={`time-format-${format.id}`} className={`w-full px-3 py-1.5 text-left text-xs hover:bg-omega-accent hover:text-white ${timeDisplayFormat === format.id ? 'text-white bg-blue-500/15' : 'text-gray-300'}`} onClick={() => { setTimeDisplayFormat(format.id); setTimeFormatMenuOpen(false) }}>
+                    <button key={`time-format-${format.id}`} className={`w-full px-3 py-1.5 text-left text-xs hover:bg-omega-accent hover:text-white ${timeDisplayFormat === format.id ? 'text-white bg-blue-500/15' : 'text-gray-300'}`} onClick={() => { writeDiagnosticLog('toolbar', 'Zeitformat ausgewaehlt', { format: format.id }); setTimeDisplayFormat(format.id); setTimeFormatMenuOpen(false) }}>
                       {format.label}
                     </button>
                   ))}
@@ -4168,7 +4595,7 @@ export function Timeline({
         return (
           <div key={key} className="flex items-center border-r border-gray-700 pr-2">
             <div className="relative">
-              <button className="h-8 min-w-[132px] rounded border border-gray-700 bg-[#1a1d21] px-2 text-left hover:border-blue-500/50 hover:text-white" onClick={() => { setSelectionFormatMenuOpen((open) => !open); setTimeFormatMenuOpen(false); setAutoScrollMenuOpen(false) }}>
+              <button className="h-8 min-w-[132px] rounded border border-gray-700 bg-[#1a1d21] px-2 text-left hover:border-blue-500/50 hover:text-white" onClick={() => { writeDiagnosticLog('toolbar', 'Toolbar-Menue geoeffnet', { menu: 'selection-format' }); setSelectionFormatMenuOpen((open) => !open); setTimeFormatMenuOpen(false); setAutoScrollMenuOpen(false) }}>
                 <div className="text-[9px] uppercase tracking-wide text-gray-500">Auswahl</div>
                 <div className="flex items-center justify-between gap-2 text-[11px] text-gray-200">
                   <span className="truncate">{selectionRange !== null && selectionRange > 0 ? formatTimeDisplay(selectionRange, selectionDisplayFormat, sampleRate) : '--'}</span>
@@ -4178,7 +4605,7 @@ export function Timeline({
               {selectionFormatMenuOpen && (
                 <div className="absolute top-full left-0 mt-1 w-64 rounded border border-gray-700 bg-[#202327] shadow-2xl z-[1000] py-1">
                   {TIME_DISPLAY_FORMATS.map((format) => (
-                    <button key={`selection-format-${format.id}`} className={`w-full px-3 py-1.5 text-left text-xs hover:bg-omega-accent hover:text-white ${selectionDisplayFormat === format.id ? 'text-white bg-blue-500/15' : 'text-gray-300'}`} onClick={() => { setSelectionDisplayFormat(format.id); setSelectionFormatMenuOpen(false) }}>
+                    <button key={`selection-format-${format.id}`} className={`w-full px-3 py-1.5 text-left text-xs hover:bg-omega-accent hover:text-white ${selectionDisplayFormat === format.id ? 'text-white bg-blue-500/15' : 'text-gray-300'}`} onClick={() => { writeDiagnosticLog('toolbar', 'Auswahlformat ausgewaehlt', { format: format.id }); setSelectionDisplayFormat(format.id); setSelectionFormatMenuOpen(false) }}>
                       {format.label}
                     </button>
                   ))}
@@ -4191,7 +4618,7 @@ export function Timeline({
         return (
           <div key={key} className="flex items-center border-r border-gray-700 pr-2">
             <div className="relative">
-              <button className="h-8 min-w-[118px] rounded border border-gray-700 bg-[#1a1d21] px-2 text-left hover:border-blue-500/50 hover:text-white" onClick={() => { setAutoScrollMenuOpen((open) => !open); setTimeFormatMenuOpen(false); setSelectionFormatMenuOpen(false) }}>
+              <button className="h-8 min-w-[118px] rounded border border-gray-700 bg-[#1a1d21] px-2 text-left hover:border-blue-500/50 hover:text-white" onClick={() => { writeDiagnosticLog('toolbar', 'Toolbar-Menue geoeffnet', { menu: 'auto-scroll' }); setAutoScrollMenuOpen((open) => !open); setTimeFormatMenuOpen(false); setSelectionFormatMenuOpen(false) }}>
                 <div className="text-[9px] uppercase tracking-wide text-gray-500">Auto-Scroll</div>
                 <div className="flex items-center justify-between gap-2 text-[11px] text-gray-200">
                   <span>{autoScroll}</span>
@@ -4201,7 +4628,7 @@ export function Timeline({
               {autoScrollMenuOpen && (
                 <div className="absolute top-full left-0 mt-1 w-40 rounded border border-gray-700 bg-[#202327] shadow-2xl z-[1000] py-1">
                   {(['Aus', 'Langsam', 'Schnell', 'Zentriert'] as const).map((mode) => (
-                    <button key={`auto-scroll-${mode}`} className={`w-full px-3 py-1.5 text-left text-xs hover:bg-omega-accent hover:text-white ${autoScroll === mode ? 'text-white bg-blue-500/15' : 'text-gray-300'}`} onClick={() => { setAutoScroll(mode); setAutoScrollMenuOpen(false) }}>
+                    <button key={`auto-scroll-${mode}`} className={`w-full px-3 py-1.5 text-left text-xs hover:bg-omega-accent hover:text-white ${autoScroll === mode ? 'text-white bg-blue-500/15' : 'text-gray-300'}`} onClick={() => { writeDiagnosticLog('toolbar', 'Autoscroll-Modus ausgewaehlt', { mode }); setAutoScroll(mode); setAutoScrollMenuOpen(false) }}>
                       {mode}
                     </button>
                   ))}
@@ -4264,6 +4691,11 @@ export function Timeline({
             const menuHeight = 150
             const constrainedX = Math.max(8, Math.min(event.clientX, window.innerWidth - menuWidth - 8))
             const constrainedY = Math.max(8, Math.min(event.clientY, window.innerHeight - menuHeight - 8))
+            writeDiagnosticLog('toolbar', 'Toolbar-Kontextmenue geoeffnet', {
+              key,
+              x: constrainedX,
+              y: constrainedY
+            })
             setToolbarContextMenu({ x: constrainedX, y: constrainedY, key })
           }}
           onDragStart={(event) => {
@@ -5088,6 +5520,7 @@ export function Timeline({
           <button
             className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors text-gray-300 cursor-pointer"
             onClick={() => {
+              writeDiagnosticLog('toolbar', 'Toolbar-Gruppe ausgeblendet', { key: toolbarContextMenu.key }, 'info')
               setToolbarVisibility((current) => ({
                 ...current,
                 [toolbarContextMenu.key]: false
@@ -5100,6 +5533,7 @@ export function Timeline({
           <button
             className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors text-gray-300 cursor-pointer"
             onClick={() => {
+              writeDiagnosticLog('toolbar', 'Toolbar-Gruppe an Rand verschoben', { key: toolbarContextMenu.key, edge: 'start' }, 'info')
               moveToolbarSectionToEdge(toolbarContextMenu.key, 'start')
               setToolbarContextMenu(null)
             }}
@@ -5109,6 +5543,7 @@ export function Timeline({
           <button
             className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors text-gray-300 cursor-pointer"
             onClick={() => {
+              writeDiagnosticLog('toolbar', 'Toolbar-Gruppe an Rand verschoben', { key: toolbarContextMenu.key, edge: 'end' }, 'info')
               moveToolbarSectionToEdge(toolbarContextMenu.key, 'end')
               setToolbarContextMenu(null)
             }}
@@ -5118,6 +5553,7 @@ export function Timeline({
           <button
             className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors text-gray-300 cursor-pointer"
             onClick={() => {
+              writeDiagnosticLog('toolbar', 'Toolbar-Gruppe auf Standardposition gesetzt', { key: toolbarContextMenu.key }, 'info')
               resetToolbarSectionPosition(toolbarContextMenu.key)
               setToolbarContextMenu(null)
             }}
@@ -5128,6 +5564,7 @@ export function Timeline({
           <button
             className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors text-gray-300 cursor-pointer"
             onClick={() => {
+              writeDiagnosticLog('toolbar', 'Toolbar-Trenner umgeschaltet', { key: toolbarContextMenu.key, side: 'before' }, 'info')
               toggleToolbarSeparator(toolbarContextMenu.key, 'before')
               setToolbarContextMenu(null)
             }}
@@ -5137,6 +5574,7 @@ export function Timeline({
           <button
             className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors text-gray-300 cursor-pointer"
             onClick={() => {
+              writeDiagnosticLog('toolbar', 'Toolbar-Trenner umgeschaltet', { key: toolbarContextMenu.key, side: 'after' }, 'info')
               toggleToolbarSeparator(toolbarContextMenu.key, 'after')
               setToolbarContextMenu(null)
             }}
@@ -5157,6 +5595,7 @@ export function Timeline({
                     : 'border-gray-600 bg-[#181b1f] text-gray-300 hover:border-blue-500/50 hover:text-white'
                 }`}
                 onClick={() => {
+                  writeDiagnosticLog('toolbar', 'Toolbar-Farbe gesetzt', { key: toolbarContextMenu.key, color: colorKey }, 'info')
                   setToolbarColor(toolbarContextMenu.key, colorKey)
                   setToolbarContextMenu(null)
                 }}
@@ -5178,6 +5617,9 @@ export function Timeline({
           }`}
           onClick={(e) => {
             e.stopPropagation()
+            writeDiagnosticLog('toolbar', 'Toolbar-Sperre umgeschaltet', {
+              lockedAfterClick: !toolbarEditLocked
+            }, 'info')
             setToolbarEditLocked((current) => !current)
             setToolbarDraggingKey(null)
             setToolbarDropTarget(null)
@@ -5191,6 +5633,10 @@ export function Timeline({
             className="h-8 px-2 rounded border border-gray-700 bg-[#1a1d21] text-gray-300 hover:bg-gray-700 hover:text-white hover:border-blue-500/30 text-xs flex items-center gap-1.5 transition-colors"
             onClick={(e) => {
               e.stopPropagation()
+              writeDiagnosticLog('toolbar', 'Symbol-Manager Button geklickt', {
+                visibleToolbarSectionCount,
+                totalToolbarSectionCount: toolbarOrder.length
+              }, 'info')
               setTimeFormatMenuOpen(false)
               setSelectionFormatMenuOpen(false)
               setAutoScrollMenuOpen(false)
@@ -5311,7 +5757,7 @@ export function Timeline({
             onDoubleClick={handleStripDoubleClick}
             onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
           >
-            <div className="absolute inset-0" style={{ transform: `translateX(-${scrollLeft}px)` }}>
+            <div ref={stripContentRef} className="absolute inset-0" style={{ transform: `translateX(-${scrollLeft}px)` }}>
               {selectionStart !== null && selectionEnd !== null && selectionStart !== selectionEnd && (() => {
                 const minVal = Math.min(selectionStart, selectionEnd);
                 const maxVal = Math.max(selectionStart, selectionEnd);
@@ -5340,7 +5786,7 @@ export function Timeline({
              onMouseDown={handlePlayheadDragMouseDown}
              onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
            >
-              <div className="absolute inset-0 flex items-center" style={{ transform: `translateX(-${scrollLeft}px)` }}>
+              <div ref={rulerContentRef} className="absolute inset-0 flex items-center" style={{ transform: `translateX(-${scrollLeft}px)` }}>
                   {visibleTicks.map((i) => {
                      const time = i * guidelineInterval;
                      return (
@@ -5362,7 +5808,7 @@ export function Timeline({
         <div className="flex-1 flex overflow-hidden relative">
            <div className="w-32 bg-omega-panel border-r border-omega-border z-[160] shadow-[2px_0_5px_rgba(0,0,0,0.3)] flex flex-col overflow-hidden relative">
               <div className="flex-1 overflow-hidden relative">
-                 <div className="flex flex-col" style={{ transform: `translateY(-${scrollTop}px)` }}>
+                 <div ref={trackHeadersContentRef} className="flex flex-col" style={{ transform: `translateY(-${scrollTop}px)` }}>
                    {displayedTracks.map(track => (
                         <div 
                            key={track.id} 
@@ -5642,7 +6088,7 @@ export function Timeline({
                           const rect = e.currentTarget.getBoundingClientRect();
                           const clickX = e.clientX - rect.left;
                           const clickY = e.clientY - rect.top;
-                          const time = Math.max(0, (clickX + scrollLeft) / pixelsPerSecond);
+                          const time = Math.max(0, (clickX + scrollLeftRef.current) / pixelsPerSecond);
                           const value = Math.max(0, Math.min(1.5, 1.5 * (1 - clickY / trackHeight)));
                           
                           addAutomationNode(track.id, time, value);
@@ -5997,6 +6443,11 @@ export function Timeline({
               <div className="flex items-center gap-0.5 text-gray-400 hover:text-white cursor-pointer px-1 h-full relative" onClick={(e) => { e.stopPropagation(); setZoomMenuOpen(!zoomMenuOpen); }}>
                  <span className="text-[10px] font-semibold min-w-[32px] text-right">{Math.round(zoomLevel * 100)}%</span>
                  <ChevronDown size={10} />
+                 {zoomLimitNotice && (
+                   <span className="absolute right-0 bottom-full mb-1 whitespace-nowrap rounded border border-amber-500/60 bg-[#1e2124] px-2 py-1 text-[10px] font-semibold text-amber-100 shadow-xl">
+                     {zoomLimitNotice}
+                   </span>
+                 )}
                  {zoomMenuOpen && (
                    <div className="absolute bottom-full mb-1 left-0 bg-[#2b2d31] border border-gray-700 shadow-xl py-1 z-[1000] rounded text-omega-text flex flex-col w-24 max-h-60 overflow-y-auto">
                      {ZOOM_MENU_LEVELS.map(z => (
@@ -6080,8 +6531,8 @@ export function Timeline({
               >
                 <Maximize2 size={14} />
               </button>
-              <button className="p-1 hover:bg-gray-700 rounded text-gray-400 hover:text-white" onClick={() => setZoomLevel(z => getNextZoomLevel(z, 'out'))}><Minus size={14} /></button>
-              <button className="p-1 hover:bg-gray-700 rounded text-gray-400 hover:text-white" onClick={() => setZoomLevel(z => getNextZoomLevel(z, 'in'))}><Plus size={14} /></button>
+              <button className="p-1 hover:bg-gray-700 rounded text-gray-400 hover:text-white" onClick={() => stepZoomLevel('out')}><Minus size={14} /></button>
+              <button className="p-1 hover:bg-gray-700 rounded text-gray-400 hover:text-white" onClick={() => stepZoomLevel('in')}><Plus size={14} /></button>
            </div>
            <div className="w-6 bg-[#282b30] h-full border-l border-omega-border flex-shrink-0 z-[160]"></div>
         </div>

@@ -1,10 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { writeDiagnosticLog } from '../lib/diagnosticLogging'
+
+// Waveform-Daten koennen als normale Arrays (Uebergangs-/Sample-Pfad) oder
+// als Float32Arrays (Pyramiden-Pfad) ankommen.
+type WaveformSeries = Float32Array | number[]
 
 type WaveformChannel = {
-  min?: number[]
-  max?: number[]
-  rms?: number[]
-  samples?: number[]
+  min?: WaveformSeries
+  max?: WaveformSeries
+  rms?: WaveformSeries
+  samples?: WaveformSeries
 }
 
 type WaveformWindowData = {
@@ -17,6 +22,8 @@ type WaveformWindowData = {
   samplesPerPoint: number
   points: number
   peak: number
+  filePeak?: number
+  provisional?: boolean
   channels: WaveformChannel[]
 }
 
@@ -43,12 +50,22 @@ type RenderWindow = {
   requestPixels: number
 }
 
+// Beschreibt, wo die gelieferten Datenpunkte im aktuellen Canvas liegen:
+// offsetPx = X-Position des ersten Punkts, spanPx = Breite aller Punkte.
+// Dadurch bleiben auch veraltete Daten beim Zoomen zeitlich korrekt verortet,
+// statt ueber die neue Fensterbreite gestreckt zu werden ("Schwimmen").
+type DrawMapping = {
+  offsetPx: number
+  spanPx: number
+}
+
 const TILE_SIZE_PX = 512
 const TILE_BUFFER_PX = 768
-const MAX_REQUEST_PIXELS = 40000
+const MAX_REQUEST_PIXELS = 120000
 const MAX_DEVICE_PIXEL_RATIO = 2
 const MAX_CANVAS_BITMAP_SIZE = 16384
-const WAVEFORM_REQUEST_DEBOUNCE_MS = 75
+// Kurze Entprellung reicht: Anfragen sind dank Peak-Pyramide billig
+const WAVEFORM_REQUEST_DEBOUNCE_MS = 16
 const rendererWaveformCache = new Map<string, WaveformWindowData>()
 
 function clamp(value: number, min: number, max: number): number {
@@ -59,6 +76,28 @@ function getChannelLength(channel: WaveformChannel | undefined, mode: 'peaks' | 
   if (!channel) return 0
   if (mode === 'samples') return channel.samples?.length || 0
   return Math.min(channel.min?.length || 0, channel.max?.length || 0)
+}
+
+function getChannelMaxAbs(channel: WaveformChannel | undefined, mode: 'peaks' | 'samples'): number {
+  if (!channel) return 0
+  if (mode === 'samples') {
+    const samples = channel.samples || []
+    let maxAbs = 0
+    for (let i = 0; i < samples.length; i++) {
+      const abs = Math.abs(samples[i] || 0)
+      if (abs > maxAbs) maxAbs = abs
+    }
+    return maxAbs
+  }
+
+  const minValues = channel.min || []
+  const maxValues = channel.max || []
+  const count = Math.min(minValues.length, maxValues.length)
+  let maxAbs = 0
+  for (let i = 0; i < count; i++) {
+    maxAbs = Math.max(maxAbs, Math.abs(minValues[i] || 0), Math.abs(maxValues[i] || 0))
+  }
+  return maxAbs
 }
 
 function getCssPixelRatio(): number {
@@ -110,13 +149,24 @@ function buildRenderWindow({
   const safeDisplayDuration = Math.max(0.001, displayDuration)
   const safeAudioDuration = Math.max(0.001, duration || fileDuration || safeDisplayDuration)
   const regionWidthPx = Math.max(1, safeDisplayDuration * pixelsPerSecond)
+  const effectiveViewportWidth = Math.max(1, viewportWidth || measuredWidth || regionWidthPx)
+  const overscanPx = Math.max(TILE_BUFFER_PX, Math.round(effectiveViewportWidth * 1.5))
   const viewportStartPx = clamp(scrollLeft - regionStart * pixelsPerSecond, 0, regionWidthPx)
-  const viewportEndPx = clamp(viewportStartPx + Math.max(1, viewportWidth || measuredWidth || regionWidthPx), 0, regionWidthPx)
+  const viewportEndPx = clamp(viewportStartPx + effectiveViewportWidth, 0, regionWidthPx)
+  const fallbackAnchorPx = clamp(
+    Math.min(viewportStartPx, Math.max(0, regionWidthPx - 1)),
+    0,
+    Math.max(0, regionWidthPx - 1)
+  )
+  const safeViewportStartPx = viewportEndPx > viewportStartPx ? viewportStartPx : fallbackAnchorPx
+  const safeViewportEndPx = viewportEndPx > viewportStartPx
+    ? viewportEndPx
+    : clamp(safeViewportStartPx + effectiveViewportWidth, safeViewportStartPx + 1, regionWidthPx)
 
-  if (viewportEndPx <= viewportStartPx) return null
-
-  const leftPx = clamp(Math.floor((viewportStartPx - TILE_BUFFER_PX) / TILE_SIZE_PX) * TILE_SIZE_PX, 0, regionWidthPx)
-  const rightPx = clamp(Math.ceil((viewportEndPx + TILE_BUFFER_PX) / TILE_SIZE_PX) * TILE_SIZE_PX, leftPx + 1, regionWidthPx)
+  // Bei sehr schnellem Scrollen/Zoomen lieber das letzte sinnvolle Fenster halten
+  // als den Canvas komplett leer werden zu lassen.
+  const leftPx = clamp(Math.floor((safeViewportStartPx - overscanPx) / TILE_SIZE_PX) * TILE_SIZE_PX, 0, regionWidthPx)
+  const rightPx = clamp(Math.ceil((safeViewportEndPx + overscanPx) / TILE_SIZE_PX) * TILE_SIZE_PX, leftPx + 1, regionWidthPx)
   const widthPx = Math.max(1, rightPx - leftPx)
   const pitchRate = safeAudioDuration / safeDisplayDuration
   const localDisplayStart = leftPx / pixelsPerSecond
@@ -132,6 +182,12 @@ function buildRenderWindow({
     sourceDuration,
     requestPixels
   }
+}
+
+// Bildet einen Datenpunkt-Index auf seine X-Position im Canvas ab
+function mapX(mapping: DrawMapping, index: number, count: number): number {
+  if (count <= 1) return mapping.offsetPx
+  return mapping.offsetPx + (index / (count - 1)) * mapping.spanPx
 }
 
 function drawZeroLine(ctx: CanvasRenderingContext2D, width: number, y: number): void {
@@ -153,6 +209,7 @@ function drawPeakChannel(
   ctx: CanvasRenderingContext2D,
   channel: WaveformChannel,
   width: number,
+  mapping: DrawMapping,
   top: number,
   height: number,
   scale: number,
@@ -180,21 +237,21 @@ function drawPeakChannel(
     drawZeroLine(ctx, width, baseline)
 
     ctx.beginPath()
-    ctx.moveTo(0, baseline)
+    ctx.moveTo(mapX(mapping, 0, count), baseline)
     for (let i = 0; i < count; i++) {
-      const x = count === 1 ? 0 : (i / (count - 1)) * width
+      const x = mapX(mapping, i, count)
       const amplitude = Math.max(Math.abs(minValues[i] || 0), Math.abs(maxValues[i] || 0))
       const y = baseline - clamp(amplitude * scale * gain, 0, 1) * amplitudeHeight
       ctx.lineTo(x, y)
     }
-    ctx.lineTo(width, baseline)
+    ctx.lineTo(mapX(mapping, count - 1, count), baseline)
     ctx.closePath()
     ctx.fillStyle = fillGradient
     ctx.fill()
 
     ctx.beginPath()
     for (let i = 0; i < count; i++) {
-      const x = count === 1 ? 0 : (i / (count - 1)) * width
+      const x = mapX(mapping, i, count)
       const amplitude = Math.max(Math.abs(minValues[i] || 0), Math.abs(maxValues[i] || 0))
       const y = baseline - clamp(amplitude * scale * gain, 0, 1) * amplitudeHeight
       if (i === 0) ctx.moveTo(x, y)
@@ -212,13 +269,13 @@ function drawPeakChannel(
 
   ctx.beginPath()
   for (let i = 0; i < count; i++) {
-    const x = count === 1 ? 0 : (i / (count - 1)) * width
+    const x = mapX(mapping, i, count)
     const y = center - clamp((maxValues[i] || 0) * scale * gain, -1, 1) * amplitudeHeight
     if (i === 0) ctx.moveTo(x, y)
     else ctx.lineTo(x, y)
   }
   for (let i = count - 1; i >= 0; i--) {
-    const x = count === 1 ? 0 : (i / (count - 1)) * width
+    const x = mapX(mapping, i, count)
     const y = center - clamp((minValues[i] || 0) * scale * gain, -1, 1) * amplitudeHeight
     ctx.lineTo(x, y)
   }
@@ -230,13 +287,13 @@ function drawPeakChannel(
   if (rmsValues.length >= 2) {
     ctx.beginPath()
     for (let i = 0; i < rmsValues.length; i++) {
-      const x = (i / (rmsValues.length - 1)) * width
+      const x = mapX(mapping, i, rmsValues.length)
       const y = center - clamp((rmsValues[i] || 0) * scale * gain, 0, 1) * amplitudeHeight
       if (i === 0) ctx.moveTo(x, y)
       else ctx.lineTo(x, y)
     }
     for (let i = rmsValues.length - 1; i >= 0; i--) {
-      const x = (i / (rmsValues.length - 1)) * width
+      const x = mapX(mapping, i, rmsValues.length)
       const y = center + clamp((rmsValues[i] || 0) * scale * gain, 0, 1) * amplitudeHeight
       ctx.lineTo(x, y)
     }
@@ -247,7 +304,7 @@ function drawPeakChannel(
 
   ctx.beginPath()
   for (let i = 0; i < count; i++) {
-    const x = count === 1 ? 0 : (i / (count - 1)) * width
+    const x = mapX(mapping, i, count)
     const y = center - clamp((maxValues[i] || 0) * scale * gain, -1, 1) * amplitudeHeight
     if (i === 0) ctx.moveTo(x, y)
     else ctx.lineTo(x, y)
@@ -258,7 +315,7 @@ function drawPeakChannel(
 
   ctx.beginPath()
   for (let i = 0; i < count; i++) {
-    const x = count === 1 ? 0 : (i / (count - 1)) * width
+    const x = mapX(mapping, i, count)
     const y = center - clamp((minValues[i] || 0) * scale * gain, -1, 1) * amplitudeHeight
     if (i === 0) ctx.moveTo(x, y)
     else ctx.lineTo(x, y)
@@ -272,6 +329,7 @@ function drawSampleChannel(
   ctx: CanvasRenderingContext2D,
   channel: WaveformChannel,
   width: number,
+  mapping: DrawMapping,
   top: number,
   height: number,
   scale: number,
@@ -287,7 +345,7 @@ function drawSampleChannel(
 
   ctx.beginPath()
   for (let i = 0; i < samples.length; i++) {
-    const x = (i / (samples.length - 1)) * width
+    const x = mapX(mapping, i, samples.length)
     const sample = halfWaveform ? Math.abs(samples[i] || 0) : (samples[i] || 0)
     const direction = halfWaveform ? 1 : -1
     const y = center - direction * clamp(sample * scale * gain, -1, 1) * amplitudeHeight
@@ -300,11 +358,11 @@ function drawSampleChannel(
   ctx.lineCap = 'round'
   ctx.stroke()
 
-  const spacing = width / Math.max(1, samples.length - 1)
+  const spacing = mapping.spanPx / Math.max(1, samples.length - 1)
   if (spacing >= 5) {
     ctx.fillStyle = 'rgba(220, 252, 255, 0.95)'
     for (let i = 0; i < samples.length; i++) {
-      const x = (i / (samples.length - 1)) * width
+      const x = mapX(mapping, i, samples.length)
       const sample = halfWaveform ? Math.abs(samples[i] || 0) : (samples[i] || 0)
       const direction = halfWaveform ? 1 : -1
       const y = center - direction * clamp(sample * scale * gain, -1, 1) * amplitudeHeight
@@ -331,10 +389,14 @@ export function WaveformRenderer({
 }: WaveformRendererProps) {
   const wrapperRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const lastRenderWindowRef = useRef<RenderWindow | null>(null)
   const [waveform, setWaveform] = useState<WaveformWindowData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [size, setSize] = useState({ width: 0, height: 0 })
   const [halfWaveform, setHalfWaveform] = useState<boolean>(false)
+  // Zaehler, um nach Fertigstellung der Peak-Pyramide einmal neu anzufragen
+  const [refreshTick, setRefreshTick] = useState(0)
+  const lastRendererDiagnosticRef = useRef('')
 
   useEffect(() => {
     const node = wrapperRef.current
@@ -378,6 +440,18 @@ export function WaveformRenderer({
     return () => window.removeEventListener('SETTINGS_UPDATED', handleSettingsUpdate as EventListener)
   }, [])
 
+  // Sobald die Peak-Pyramide fuer diese Datei fertig ist, einmal neu anfragen,
+  // damit Uebergangsdaten (provisional) durch praezise Daten ersetzt werden.
+  useEffect(() => {
+    if (!window.api || typeof window.api.onWaveformPyramidReady !== 'function') return
+    const unsubscribe = window.api.onWaveformPyramidReady((data: { filePath: string }) => {
+      if (data && data.filePath === filePath) {
+        setRefreshTick((tick) => tick + 1)
+      }
+    })
+    return unsubscribe
+  }, [filePath])
+
   const renderWindow = useMemo(() => {
     const safeDuration = Math.max(0.001, duration || fileDuration || 1)
     const safeDisplayDuration = Math.max(0.001, displayDuration || safeDuration)
@@ -407,6 +481,14 @@ export function WaveformRenderer({
       ].join('|')
     : ''
 
+  const effectiveRenderWindow = renderWindow || lastRenderWindowRef.current
+
+  useEffect(() => {
+    if (renderWindow) {
+      lastRenderWindowRef.current = renderWindow
+    }
+  }, [renderWindow?.leftPx, renderWindow?.widthPx, renderWindow?.sourceStart, renderWindow?.sourceDuration, renderWindow?.requestPixels])
+
   useEffect(() => {
     if (!filePath || !renderWindow || renderWindow.sourceDuration <= 0) {
       return
@@ -430,7 +512,11 @@ export function WaveformRenderer({
         channel
       }).then((data: WaveformWindowData) => {
         if (!active) return
-        rememberRendererWaveform(requestKey, data)
+        // Uebergangsantworten nicht cachen — sie werden nach dem
+        // pyramid-ready-Event durch praezise Daten ersetzt.
+        if (!data.provisional) {
+          rememberRendererWaveform(requestKey, data)
+        }
         setWaveform(data)
       }).catch((err: any) => {
         if (!active) return
@@ -442,14 +528,14 @@ export function WaveformRenderer({
       active = false
       window.clearTimeout(timeout)
     }
-  }, [channel, filePath, requestKey, renderWindow])
+  }, [channel, filePath, requestKey, renderWindow?.sourceDuration, refreshTick])
 
   useEffect(() => {
     const canvas = canvasRef.current
     const ctx = canvas?.getContext('2d')
-    if (!canvas || !ctx || !renderWindow) return
+    if (!canvas || !ctx || !effectiveRenderWindow) return
 
-    const cssWidth = Math.max(1, renderWindow.widthPx)
+    const cssWidth = Math.max(1, effectiveRenderWindow.widthPx)
     const cssHeight = Math.max(1, size.height || 80)
     const dpr = getSafeCanvasRatio(cssWidth, cssHeight)
     canvas.width = Math.max(1, Math.round(cssWidth * dpr))
@@ -462,6 +548,19 @@ export function WaveformRenderer({
 
     if (!waveform || waveform.channels.length === 0) {
       const laneCount = channel || sourceChannels < 2 ? 1 : 2
+      const diagnosticKey = `empty:${filePath}:${effectiveRenderWindow.leftPx}:${effectiveRenderWindow.widthPx}`
+      if (lastRendererDiagnosticRef.current !== diagnosticKey) {
+        lastRendererDiagnosticRef.current = diagnosticKey
+        writeDiagnosticLog('timeline', 'Waveform-Renderer ohne Daten gezeichnet', {
+          filePath,
+          leftPx: Math.round(effectiveRenderWindow.leftPx),
+          widthPx: Math.round(effectiveRenderWindow.widthPx),
+          canvasWidth: cssWidth,
+          canvasHeight: cssHeight,
+          channel,
+          sourceChannels
+        })
+      }
       for (let i = 0; i < laneCount; i++) {
         const laneTop = (cssHeight / laneCount) * i
         drawZeroLine(ctx, cssWidth, laneTop + (cssHeight / laneCount) / 2)
@@ -469,12 +568,48 @@ export function WaveformRenderer({
       return
     }
 
+    // Zeitliche Lage der gelieferten Daten im aktuellen Fenster bestimmen.
+    // Bei veralteten Daten (anderer Zoom) sorgt das Mapping dafuer, dass sie
+    // an der richtigen Stelle erscheinen, bis die frischen Daten da sind.
+    const windowSourceDuration = Math.max(0.000001, effectiveRenderWindow.sourceDuration)
+    const relStart = (waveform.startTime - effectiveRenderWindow.sourceStart) / windowSourceDuration
+    const relSpan = Math.max(0.000001, waveform.duration / windowSourceDuration)
+    const mapping: DrawMapping = {
+      offsetPx: relStart * cssWidth,
+      spanPx: relSpan * cssWidth
+    }
+
     const drawableChannels = waveform.channels.slice(0, channel ? 1 : 2)
     const laneCount = Math.max(1, drawableChannels.length)
     const laneHeight = cssHeight / laneCount
-    const peak = Math.max(0.0001, waveform.peak)
-    const visualScale = peak > 0.05 ? clamp(0.92 / peak, 0.5, 8) : 1
+    const localMaxAbs = Math.max(...drawableChannels.map((waveChannel) => getChannelMaxAbs(waveChannel, waveform.mode)), 0.0001)
+    // Stabile Normalisierung auf den Datei-Peak statt auf das Sichtfenster,
+    // damit die Amplitude beim Scrollen und Zoomen nicht "pumpt".
+    const normPeak = Math.max(waveform.filePeak || waveform.peak || 0, 0.0001)
+    const visualScale = clamp(0.92 / normPeak, 0.5, 16)
     const safeGain = clamp(gain || 1, 0, 8)
+
+    if (localMaxAbs < 0.015 || cssWidth > 12000 || waveform.points < 2) {
+      const diagnosticKey = `flat:${filePath}:${waveform.mode}:${waveform.startTime.toFixed(5)}:${waveform.duration.toFixed(5)}:${localMaxAbs.toFixed(5)}:${cssWidth}`
+      if (lastRendererDiagnosticRef.current !== diagnosticKey) {
+        lastRendererDiagnosticRef.current = diagnosticKey
+        writeDiagnosticLog('timeline', 'Waveform-Renderer auffaelliges Fenster', {
+          filePath,
+          mode: waveform.mode,
+          startTime: waveform.startTime,
+          duration: waveform.duration,
+          points: waveform.points,
+          peak: waveform.peak,
+          localMaxAbs,
+          visualScale,
+          cssWidth,
+          cssHeight,
+          leftPx: Math.round(effectiveRenderWindow.leftPx),
+          widthPx: Math.round(effectiveRenderWindow.widthPx),
+          channelLengths: drawableChannels.map((waveChannel) => getChannelLength(waveChannel, waveform.mode))
+        })
+      }
+    }
 
     drawableChannels.forEach((waveChannel, index) => {
       const laneTop = index * laneHeight
@@ -493,20 +628,31 @@ export function WaveformRenderer({
       }
 
       if (waveform.mode === 'samples') {
-        drawSampleChannel(ctx, waveChannel, cssWidth, contentTop, contentHeight, visualScale, safeGain, halfWaveform)
+        drawSampleChannel(ctx, waveChannel, cssWidth, mapping, contentTop, contentHeight, visualScale, safeGain, halfWaveform)
       } else {
-        drawPeakChannel(ctx, waveChannel, cssWidth, contentTop, contentHeight, visualScale, safeGain, halfWaveform)
+        drawPeakChannel(ctx, waveChannel, cssWidth, mapping, contentTop, contentHeight, visualScale, safeGain, halfWaveform)
       }
     })
-  }, [channel, gain, halfWaveform, renderWindow, size.height, sourceChannels, waveform])
+  }, [
+    channel,
+    gain,
+    halfWaveform,
+    size.height,
+    sourceChannels,
+    waveform,
+    effectiveRenderWindow?.leftPx,
+    effectiveRenderWindow?.widthPx,
+    effectiveRenderWindow?.sourceStart,
+    effectiveRenderWindow?.sourceDuration
+  ])
 
   return (
     <div ref={wrapperRef} className="absolute inset-0 overflow-hidden pointer-events-none">
-      {renderWindow && (
+      {effectiveRenderWindow && (
         <canvas
           ref={canvasRef}
           className="absolute top-0 bottom-0 opacity-95"
-          style={{ left: `${renderWindow.leftPx}px` }}
+          style={{ left: `${effectiveRenderWindow.leftPx}px` }}
         />
       )}
       {error && (

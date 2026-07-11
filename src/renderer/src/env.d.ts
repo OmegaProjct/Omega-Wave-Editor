@@ -56,6 +56,7 @@ interface Window {
       pixels?: number;
       channel?: 'left' | 'right';
     }) => Promise<any>;
+    onWaveformPyramidReady: (callback: (data: { filePath: string }) => void) => (() => void);
     openPath: (dirPath: string) => Promise<{ success: boolean; error?: string }>;
     downloadPluginFile: (payload: { url: string; fileName?: string; pluginName?: string }) => Promise<{ success: boolean; error?: string; filePath?: string; directory?: string }>;
     transcodeExport: (tempWavPath: string, outputPath: string, options: any, id3Tags?: any) => Promise<boolean>;
@@ -77,7 +78,16 @@ interface Window {
     installUpdate: (payload: { installNow: boolean }) => Promise<{ success: boolean; error?: string; deferred?: boolean }>;
     readChangelog: () => Promise<string>;
     onDownloadProgress: (callback: (data: any) => void) => () => void;
-    getPerformanceStats: () => Promise<{ cpuUsage: number, processRamBytes: number, systemRamPct: number, systemCpuPct: number }>;
+    getPerformanceStats: () => Promise<{
+      cpuUsage: number;
+      processRamBytes: number;
+      systemRamPct: number;
+      systemCpuPct: number;
+      gpuProcessCpuPct?: number;
+      gpuProcessRamBytes?: number;
+      gpuModel?: string;
+      gpuFeatureStatus?: Record<string, string> | null;
+    }>;
     getLocales: () => Promise<any>;
     saveLocale: (lang: string, content: any) => Promise<{ success: boolean; error?: string }>;
     openExportSettings: (tracks: any, selection?: any, exportSettings?: any) => void;

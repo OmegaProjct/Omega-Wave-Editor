@@ -237,6 +237,9 @@ export function ManualModal({ onClose }: { onClose: () => void }) {
             <p className="leading-relaxed text-gray-300 text-sm">
               {t('manual.sec9_text', { defaultValue: 'Der Editor verfügt über ein integriertes Diagnose-Protokollierungssystem (Logging). Alle Hintergrundprozesse, FFmpeg-Aufrufe, VST-Bridge-Interaktionen und Timeline-Änderungen (Verschiebungen um Millisekunden, Splits, Gain-Änderungen) werden lückenlos aufgezeichnet. Über das Hilfe-Menü -> „Diagnose-Protokolle...“ können Sie das Protokollfenster öffnen, um Logs zu filtern, in die Zwischenablage zu kopieren oder den Speicherordner zu öffnen.' })}
             </p>
+            <p className="leading-relaxed text-gray-400 text-xs mt-3">
+              {t('manual.sec9_log_settings', { defaultValue: 'Unter Einstellungen -> Logs koennen die zusaetzlichen UI-Diagnosen gezielt ein- oder ausgeschaltet werden, z.B. Timeline, Performance, Menues, Dialoge, Popouts und Toolbar.' })}
+            </p>
           </section>
 
         </div>

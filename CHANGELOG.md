@@ -2,6 +2,30 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.13.9] - 2026-07-11
+
+### English
+
+#### Changed
+- **Waveform Analysis Pipeline**: Waveform data is now served from a multi-resolution peak pyramid that is computed once per file. Zooming and scrolling no longer trigger repeated audio decoding and respond without noticeable delay.
+- **Stable Waveform Scaling**: The displayed waveform amplitude is now normalized to the file's overall peak instead of the visible window, keeping the waveform height consistent while scrolling and zooming.
+- **Time-Aligned Rendering**: Waveform data is drawn based on its source time position. During zoom operations the previous view stays correctly aligned until refined data arrives, removing visual jumping.
+- **Typed Data Transfer**: Waveform windows are transferred as typed arrays between processes, reducing serialization overhead for large views.
+
+#### Fixed
+- Fixed a quadratic buffer accumulation during PCM decoding that slowed down waveform requests for longer windows.
+
+### Deutsch
+
+#### Geändert
+- **Waveform-Analyse-Pipeline**: Waveform-Daten werden jetzt aus einer mehrstufigen Peak-Pyramide beantwortet, die einmalig pro Datei berechnet wird. Zoomen und Scrollen lösen keine wiederholte Audio-Dekodierung mehr aus und reagieren ohne spürbare Verzögerung.
+- **Stabile Waveform-Skalierung**: Die dargestellte Amplitude wird jetzt auf den Gesamt-Peak der Datei normalisiert statt auf das sichtbare Fenster. Die Wellenhöhe bleibt beim Scrollen und Zoomen konstant.
+- **Zeitlich verankertes Zeichnen**: Waveform-Daten werden anhand ihrer Quellzeit positioniert. Beim Zoomen bleibt die bisherige Ansicht korrekt ausgerichtet, bis verfeinerte Daten eintreffen; das bisherige Springen entfällt.
+- **Typisierte Datenübertragung**: Waveform-Fenster werden als typisierte Arrays zwischen den Prozessen übertragen, was den Serialisierungsaufwand großer Ansichten senkt.
+
+#### Behoben
+- Quadratisch anwachsende Puffer-Zusammenführung beim PCM-Dekodieren behoben, die Anfragen für längere Fenster verlangsamt hat.
+
 ## [0.13.8] - 2026-06-20
 
 ### English
@@ -9,6 +33,8 @@ The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Sem
 #### Added
 - **Dedicated Symbol Manager**: Created a standalone `SymbolManagerModal` component for managing toolbar symbols' order and visibility, featuring visual category grouping, mass actions, and drag-and-drop support.
 - **Popout Window Routing**: Added a standalone `symbol-manager` window route to support launching the Symbol Manager as an independent Electron popout window.
+- **Timeline Diagnostics Logging**: Added throttled diagnostic logging for timeline wheel input, keyboard input, scroll updates, zoom commits, playhead state, and performance samples including CPU, RAM, and GPU-process metrics.
+- **Configurable UI Diagnostics**: Added a dedicated Logs settings tab with category toggles for timeline input, performance samples, menus, settings, dialogs, popouts, and toolbar events.
 
 #### Changed
 - **Simplified Toolbar Customization**: Replaced the crowded inline dropdown "Toolbar-Manager" in the timeline toolbar with a single, clean button that triggers the new Symbol Manager dialog (inline modal or separate popout).
@@ -23,6 +49,10 @@ The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Sem
 #### Geändert
 - **Vereinfachte Toolbar-Anpassung**: Das überladene integrierte Dropdown-Menü "Toolbar-Manager" in der Werkzeugleiste wurde durch eine einfache Schaltfläche ersetzt, die das neue Symbol-Manager-Modal (entweder als Overlay oder separates Fenster) öffnet.
 - **Echtzeit-Synchronisierung**: Koppelung des Symbol-Managers mit der Timeline über `localStorage` und Custom-Events, um alle geöffneten Fenster bei Änderungen verzögerungsfrei zu aktualisieren.
+
+#### Diagnostik
+- **Timeline-Diagnoseprotokollierung**: Gedrosselte Diagnoseprotokolle fuer Mausrad-Eingaben, Tastatureingaben, Scroll-Aktualisierungen, Zoom-Commits, Playhead-Zustand und Performance-Samples inklusive CPU-, RAM- und GPU-Prozesswerten hinzugefuegt.
+- **Konfigurierbare UI-Diagnose**: Neuer Logs-Tab in den Einstellungen mit Kategorien fuer Timeline-Eingaben, Performance-Samples, Menues, Einstellungen, Dialoge, Popouts und Toolbar-Ereignisse.
 
 ## [0.13.6] - 2026-06-20
 
