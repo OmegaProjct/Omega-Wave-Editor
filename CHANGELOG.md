@@ -2,6 +2,26 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.13.20] - 2026-07-12
+
+### English
+
+#### Added
+- Objects can now be renamed inline in their title bar (F2 or context menu -> Rename).
+- New Appearance settings area: customizable waveform color, opacity, and RMS core display.
+
+#### Changed
+- Redesigned waveform rendering: consistent, solidly filled look across all zoom levels matching professional DAWs; shadow effect removed.
+
+### Deutsch
+
+#### Hinzugefügt
+- Objekte können jetzt direkt in der Titelleiste umbenannt werden (F2 oder Kontextmenü -> Umbenennen).
+- Neuer Einstellungsbereich Darstellung: Waveform-Farbe, Deckkraft und RMS-Kern anpassbar.
+
+#### Geändert
+- Waveform-Darstellung überarbeitet: durchgehend einheitlicher, deckend gefüllter Look über alle Zoomstufen im Stil professioneller DAWs; Schatten-Effekt entfernt.
+
 ## [0.13.15] - 2026-07-12
 
 ### English

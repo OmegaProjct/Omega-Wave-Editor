@@ -1,6 +1,17 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { shouldLogDiagnostic, writeDiagnosticLog } from '../lib/diagnosticLogging'
 
+function hexToRgb(hex: string) {
+  const shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i
+  const fullHex = hex.replace(shorthandRegex, (_, r, g, b) => r + r + g + g + b + b)
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(fullHex)
+  return result ? {
+    r: parseInt(result[1], 16),
+    g: parseInt(result[2], 16),
+    b: parseInt(result[3], 16)
+  } : { r: 0, g: 150, b: 205 }
+}
+
 // Waveform-Daten koennen als normale Arrays (Uebergangs-/Sample-Pfad) oder
 // als Float32Arrays (Pyramiden-Pfad) ankommen.
 type WaveformSeries = Float32Array | number[]
@@ -264,11 +275,11 @@ function mapX(mapping: DrawMapping, index: number, count: number): number {
   return mapping.offsetPx + (index / (count - 1)) * mapping.spanPx
 }
 
-function drawZeroLine(ctx: CanvasRenderingContext2D, width: number, y: number): void {
+function drawZeroLine(ctx: CanvasRenderingContext2D, width: number, y: number, colorRgbStr: string): void {
   ctx.beginPath()
   ctx.moveTo(0, y)
   ctx.lineTo(width, y)
-  ctx.strokeStyle = 'rgba(163, 232, 255, 0.18)'
+  ctx.strokeStyle = `rgba(${colorRgbStr}, 0.12)`
   ctx.lineWidth = 1
   ctx.stroke()
 }
@@ -288,27 +299,26 @@ function drawPeakChannel(
   height: number,
   scale: number,
   gain: number,
-  halfWaveform: boolean
+  halfWaveform: boolean,
+  waveformColor: string,
+  waveformOpacity: number,
+  waveformShowRms: boolean
 ): void {
   const minValues = channel.min || []
   const maxValues = channel.max || []
   const count = Math.min(minValues.length, maxValues.length)
   if (count < 2) return
 
-  const fillGradient = ctx.createLinearGradient(0, top, 0, top + height)
-  fillGradient.addColorStop(0, 'rgba(0, 229, 255, 0.46)')
-  fillGradient.addColorStop(0.5, 'rgba(0, 126, 180, 0.18)')
-  fillGradient.addColorStop(1, 'rgba(0, 229, 255, 0.38)')
-
-  const strokeGradient = ctx.createLinearGradient(0, top, 0, top + height)
-  strokeGradient.addColorStop(0, 'rgba(163, 244, 255, 0.95)')
-  strokeGradient.addColorStop(0.5, 'rgba(0, 168, 232, 0.82)')
-  strokeGradient.addColorStop(1, 'rgba(163, 244, 255, 0.95)')
+  const { r, g, b } = hexToRgb(waveformColor)
+  const colorRgbStr = `${r}, ${g}, ${b}`
+  const rKern = Math.min(255, Math.round(r + (255 - r) * 0.5))
+  const gKern = Math.min(255, Math.round(g + (255 - g) * 0.5))
+  const bKern = Math.min(255, Math.round(b + (255 - b) * 0.5))
 
   if (halfWaveform) {
     const baseline = top + height * 0.92
     const amplitudeHeight = height * 0.84
-    drawZeroLine(ctx, width, baseline)
+    drawZeroLine(ctx, width, baseline, colorRgbStr)
 
     ctx.beginPath()
     ctx.moveTo(mapX(mapping, 0, count), baseline)
@@ -320,8 +330,23 @@ function drawPeakChannel(
     }
     ctx.lineTo(mapX(mapping, count - 1, count), baseline)
     ctx.closePath()
-    ctx.fillStyle = fillGradient
+    ctx.fillStyle = `rgba(${colorRgbStr}, ${waveformOpacity})`
     ctx.fill()
+
+    const rmsValues = channel.rms || []
+    if (waveformShowRms && rmsValues.length >= 2) {
+      ctx.beginPath()
+      ctx.moveTo(mapX(mapping, 0, rmsValues.length), baseline)
+      for (let i = 0; i < rmsValues.length; i++) {
+        const x = mapX(mapping, i, rmsValues.length)
+        const y = baseline - clamp((rmsValues[i] || 0) * scale * gain, 0, 1) * amplitudeHeight
+        ctx.lineTo(x, y)
+      }
+      ctx.lineTo(mapX(mapping, rmsValues.length - 1, rmsValues.length), baseline)
+      ctx.closePath()
+      ctx.fillStyle = `rgba(${rKern}, ${gKern}, ${bKern}, ${waveformOpacity})`
+      ctx.fill()
+    }
 
     ctx.beginPath()
     for (let i = 0; i < count; i++) {
@@ -331,15 +356,15 @@ function drawPeakChannel(
       if (i === 0) ctx.moveTo(x, y)
       else ctx.lineTo(x, y)
     }
-    ctx.strokeStyle = strokeGradient
-    ctx.lineWidth = 1.35
+    ctx.strokeStyle = `rgba(${rKern}, ${gKern}, ${bKern}, 0.35)`
+    ctx.lineWidth = 1
     ctx.stroke()
     return
   }
 
   const center = top + height / 2
   const amplitudeHeight = height * 0.43
-  drawZeroLine(ctx, width, center)
+  drawZeroLine(ctx, width, center, colorRgbStr)
 
   ctx.beginPath()
   for (let i = 0; i < count; i++) {
@@ -354,11 +379,11 @@ function drawPeakChannel(
     ctx.lineTo(x, y)
   }
   ctx.closePath()
-  ctx.fillStyle = fillGradient
+  ctx.fillStyle = `rgba(${colorRgbStr}, ${waveformOpacity})`
   ctx.fill()
 
   const rmsValues = channel.rms || []
-  if (rmsValues.length >= 2) {
+  if (waveformShowRms && rmsValues.length >= 2) {
     ctx.beginPath()
     for (let i = 0; i < rmsValues.length; i++) {
       const x = mapX(mapping, i, rmsValues.length)
@@ -372,7 +397,7 @@ function drawPeakChannel(
       ctx.lineTo(x, y)
     }
     ctx.closePath()
-    ctx.fillStyle = 'rgba(186, 245, 255, 0.18)'
+    ctx.fillStyle = `rgba(${rKern}, ${gKern}, ${bKern}, ${waveformOpacity})`
     ctx.fill()
   }
 
@@ -383,8 +408,8 @@ function drawPeakChannel(
     if (i === 0) ctx.moveTo(x, y)
     else ctx.lineTo(x, y)
   }
-  ctx.strokeStyle = strokeGradient
-  ctx.lineWidth = 1.35
+  ctx.strokeStyle = `rgba(${rKern}, ${gKern}, ${bKern}, 0.35)`
+  ctx.lineWidth = 1
   ctx.stroke()
 
   ctx.beginPath()
@@ -394,8 +419,8 @@ function drawPeakChannel(
     if (i === 0) ctx.moveTo(x, y)
     else ctx.lineTo(x, y)
   }
-  ctx.strokeStyle = strokeGradient
-  ctx.lineWidth = 1.35
+  ctx.strokeStyle = `rgba(${rKern}, ${gKern}, ${bKern}, 0.35)`
+  ctx.lineWidth = 1
   ctx.stroke()
 }
 
@@ -408,14 +433,37 @@ function drawSampleChannel(
   height: number,
   scale: number,
   gain: number,
-  halfWaveform: boolean
+  halfWaveform: boolean,
+  waveformColor: string,
+  waveformOpacity: number
 ): void {
   const samples = channel.samples || []
   if (samples.length < 2) return
 
   const center = halfWaveform ? top + height * 0.92 : top + height / 2
   const amplitudeHeight = halfWaveform ? height * 0.84 : height * 0.43
-  drawZeroLine(ctx, width, center)
+
+  const { r, g, b } = hexToRgb(waveformColor)
+  const colorRgbStr = `${r}, ${g}, ${b}`
+  const rKern = Math.min(255, Math.round(r + (255 - r) * 0.5))
+  const gKern = Math.min(255, Math.round(g + (255 - g) * 0.5))
+  const bKern = Math.min(255, Math.round(b + (255 - b) * 0.5))
+
+  drawZeroLine(ctx, width, center, colorRgbStr)
+
+  ctx.beginPath()
+  ctx.moveTo(mapX(mapping, 0, samples.length), center)
+  for (let i = 0; i < samples.length; i++) {
+    const x = mapX(mapping, i, samples.length)
+    const sample = halfWaveform ? Math.abs(samples[i] || 0) : (samples[i] || 0)
+    const direction = halfWaveform ? 1 : -1
+    const y = center - direction * clamp(sample * scale * gain, -1, 1) * amplitudeHeight
+    ctx.lineTo(x, y)
+  }
+  ctx.lineTo(mapX(mapping, samples.length - 1, samples.length), center)
+  ctx.closePath()
+  ctx.fillStyle = `rgba(${colorRgbStr}, ${waveformOpacity * 0.8})`
+  ctx.fill()
 
   ctx.beginPath()
   for (let i = 0; i < samples.length; i++) {
@@ -426,7 +474,7 @@ function drawSampleChannel(
     if (i === 0) ctx.moveTo(x, y)
     else ctx.lineTo(x, y)
   }
-  ctx.strokeStyle = 'rgba(178, 246, 255, 0.96)'
+  ctx.strokeStyle = `rgba(${rKern}, ${gKern}, ${bKern}, 1.0)`
   ctx.lineWidth = 1.35
   ctx.lineJoin = 'round'
   ctx.lineCap = 'round'
@@ -434,7 +482,7 @@ function drawSampleChannel(
 
   const spacing = mapping.spanPx / Math.max(1, samples.length - 1)
   if (spacing >= 5) {
-    ctx.fillStyle = 'rgba(220, 252, 255, 0.95)'
+    ctx.fillStyle = `rgba(${rKern}, ${gKern}, ${bKern}, 1.0)`
     for (let i = 0; i < samples.length; i++) {
       const x = mapX(mapping, i, samples.length)
       const sample = halfWaveform ? Math.abs(samples[i] || 0) : (samples[i] || 0)
@@ -471,6 +519,9 @@ export function WaveformRenderer({
   const [error, setError] = useState<string | null>(null)
   const [size, setSize] = useState({ width: 0, height: 0 })
   const [halfWaveform, setHalfWaveform] = useState<boolean>(false)
+  const [waveformColor, setWaveformColor] = useState<string>('#0096cd')
+  const [waveformOpacity, setWaveformOpacity] = useState<number>(0.9)
+  const [waveformShowRms, setWaveformShowRms] = useState<boolean>(true)
   // Zaehler, um nach Fertigstellung der Peak-Pyramide einmal neu anzufragen
   const [refreshTick, setRefreshTick] = useState(0)
   // Analysefortschritt (Phase C, Proxy-Dateien): waehrend eine Datei zum
@@ -505,15 +556,37 @@ export function WaveformRenderer({
   useEffect(() => {
     if (window.api && typeof window.api.getSettings === 'function') {
       window.api.getSettings().then((settings: any) => {
-        if (settings && typeof settings.halfWaveform === 'boolean') {
-          setHalfWaveform(settings.halfWaveform)
+        if (settings) {
+          if (typeof settings.halfWaveform === 'boolean') {
+            setHalfWaveform(settings.halfWaveform)
+          }
+          if (typeof settings.waveformColor === 'string') {
+            setWaveformColor(settings.waveformColor)
+          }
+          if (typeof settings.waveformOpacity === 'number') {
+            setWaveformOpacity(settings.waveformOpacity)
+          }
+          if (typeof settings.waveformShowRms === 'boolean') {
+            setWaveformShowRms(settings.waveformShowRms)
+          }
         }
       })
     }
 
     const handleSettingsUpdate = (event: any) => {
-      if (event.detail && typeof event.detail.halfWaveform === 'boolean') {
-        setHalfWaveform(event.detail.halfWaveform)
+      if (event.detail) {
+        if (typeof event.detail.halfWaveform === 'boolean') {
+          setHalfWaveform(event.detail.halfWaveform)
+        }
+        if (typeof event.detail.waveformColor === 'string') {
+          setWaveformColor(event.detail.waveformColor)
+        }
+        if (typeof event.detail.waveformOpacity === 'number') {
+          setWaveformOpacity(event.detail.waveformOpacity)
+        }
+        if (typeof event.detail.waveformShowRms === 'boolean') {
+          setWaveformShowRms(event.detail.waveformShowRms)
+        }
       }
     }
 
@@ -677,6 +750,8 @@ export function WaveformRenderer({
     if (!canvas || !ctx || !effectiveRenderWindow) return
 
     const drawStartedAt = performance.now()
+    const { r, g, b } = hexToRgb(waveformColor)
+    const colorRgbStr = `${r}, ${g}, ${b}`
     const cssWidth = Math.max(1, effectiveRenderWindow.widthPx)
     const cssHeight = Math.max(1, size.height || 80)
     const dpr = getSafeCanvasRatio(cssWidth, cssHeight)
@@ -716,7 +791,7 @@ export function WaveformRenderer({
       }
       for (let i = 0; i < laneCount; i++) {
         const laneTop = (cssHeight / laneCount) * i
-        drawZeroLine(ctx, cssWidth, laneTop + (cssHeight / laneCount) / 2)
+        drawZeroLine(ctx, cssWidth, laneTop + (cssHeight / laneCount) / 2, colorRgbStr)
       }
       if (shouldLogDiagnostic('waveformTrace')) {
         writeDiagnosticLog('waveformTrace', 'Waveform gezeichnet (ohne Daten)', {
@@ -763,7 +838,10 @@ export function WaveformRenderer({
       Math.round(cssHeight),
       Math.round(dpr * 100),
       halfWaveform ? 1 : 0,
-      Math.round(safeGain * 1000)
+      Math.round(safeGain * 1000),
+      waveformColor,
+      waveformOpacity.toFixed(2),
+      waveformShowRms ? 1 : 0
     ].join('|')
 
     const cachedBitmap = tileCacheKey ? getTileBitmap(tileCacheKey) : undefined
@@ -816,14 +894,14 @@ export function WaveformRenderer({
       }
 
       if (length < 2) {
-        drawZeroLine(ctx, cssWidth, contentTop + contentHeight / 2)
+        drawZeroLine(ctx, cssWidth, contentTop + contentHeight / 2, colorRgbStr)
         return
       }
 
       if (waveform.mode === 'samples') {
-        drawSampleChannel(ctx, waveChannel, cssWidth, mapping, contentTop, contentHeight, visualScale, safeGain, halfWaveform)
+        drawSampleChannel(ctx, waveChannel, cssWidth, mapping, contentTop, contentHeight, visualScale, safeGain, halfWaveform, waveformColor, waveformOpacity)
       } else {
-        drawPeakChannel(ctx, waveChannel, cssWidth, mapping, contentTop, contentHeight, visualScale, safeGain, halfWaveform)
+        drawPeakChannel(ctx, waveChannel, cssWidth, mapping, contentTop, contentHeight, visualScale, safeGain, halfWaveform, waveformColor, waveformOpacity, waveformShowRms)
       }
     })
 
@@ -856,7 +934,7 @@ export function WaveformRenderer({
     // ausloesen — das uebernimmt der Reposition-Effekt unten per CSS.
     // Sobald sich `waveform` aendert, liest dieser Effekt trotzdem die
     // jeweils aktuelle Fenstergeometrie (sie ist Teil des Closures).
-  }, [channel, gain, halfWaveform, size.height, sourceChannels, waveform])
+  }, [channel, gain, halfWaveform, size.height, sourceChannels, waveform, waveformColor, waveformOpacity, waveformShowRms])
 
   // Reposition-Effekt: laeuft bei jeder Zoom-/Scroll-Geometrieaenderung.
   // Solange der Paint-Effekt noch nicht mit frischen Daten nachgezogen hat,
