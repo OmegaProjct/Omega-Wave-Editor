@@ -2,6 +2,18 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.13.21] - 2026-07-12
+
+### English
+
+#### Fixed
+- Fixed a bug where keyboard shortcuts (e.g., `T` for split, `Z`/`C`/`U` for trim) and region dragging were blocked under certain conditions after initiating rename mode.
+
+### Deutsch
+
+#### Behoben
+- Ein Fehler wurde behoben, bei dem Tastenkürzel (z. B. `T` zum Schneiden, `Z`/`C`/`U` zum Trimmen) sowie das Verschieben von Audio-Objekten nach der Aktivierung des Umbenennungsmodus blockiert blieben.
+
 ## [0.13.20] - 2026-07-12
 
 ### English

@@ -1956,7 +1956,6 @@ export function Timeline({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (renamingRegionId) return;
       const target = e.target as HTMLElement
       if (document.querySelector('[data-settings-modal="true"]')) return
       const isTextInput = 
@@ -3494,6 +3493,9 @@ export function Timeline({
   }
 
   const handleRegionMouseDown = (e: React.MouseEvent, trackId: string, regionId: string, action: 'move' | 'trimStart' | 'trimEnd' = 'move') => {
+    if (renamingRegionId) {
+      handleRenameSubmit()
+    }
     if (toolMode !== 'select') return;
     e.stopPropagation();
     const cleanTrackId = trackId.replace(/_[LR]$/, '');
@@ -5239,6 +5241,9 @@ export function Timeline({
                 setContextMenu(null);
               }}
              onMouseDown={(e) => {
+               if (renamingRegionId) {
+                 handleRenameSubmit()
+               }
                // Only start lasso on primary click on the track area itself (not on a region)
                if (e.button !== 0 || e.ctrlKey) return;
                const target = e.target as HTMLElement;
