@@ -17,7 +17,7 @@ import {
   writeDiagnosticLog
 } from '../lib/diagnosticLogging'
 
-export type Tab = 'Wiedergabe' | 'Ordner' | 'Ansicht' | 'System' | 'Logs' | 'Tastaturkuerzel' | 'Projekteinstellungen' | 'MIDI' | 'Sprache & Anzeige'
+export type Tab = 'Wiedergabe' | 'Ordner' | 'Ansicht' | 'Darstellung' | 'System' | 'Logs' | 'Tastaturkuerzel' | 'Projekteinstellungen' | 'MIDI' | 'Sprache & Anzeige'
 
 export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', onTriggerUpdate }: { onClose: () => void; initialTab?: Tab; onTriggerUpdate?: (info: any) => void }) {
   const { t, i18n } = useTranslation()
@@ -33,6 +33,9 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
     tracksCount: 32,
     maxUndoSteps: 50,
     halfWaveform: false,
+    waveformColor: '#0096cd',
+    waveformOpacity: 0.9,
+    waveformShowRms: true,
     showVerticalGuidelines: false,
     videoAudioOnOneTrack: true,
     midiMappings: [],
@@ -64,7 +67,8 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
       'defaultExplorerPath', 'driverType', 'bufferCount', 'midiInputDeviceId', 
       'midiOutputDeviceId', 'midiChannel', 'autoScroll', 'spacebarStops', 
       'autoSave', 'autoSaveInterval', 'sampleRate', 'tracksCount', 
-      'maxUndoSteps', 'showStartScreen', 'halfWaveform', 'showExportGapWarning', 
+      'maxUndoSteps', 'showStartScreen', 'halfWaveform', 'waveformColor', 
+      'waveformOpacity', 'waveformShowRms', 'showExportGapWarning', 
       'showDeleteConfirmation', 'importOverlapBehavior', 'language', 'textScale',
       'showDiscardWarning', 'discardBehavior', 'showUpdateUpgradeNotice'
     ]
@@ -901,6 +905,58 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
     </div>
   )
 
+  const renderDarstellung = () => (
+    <div className="border border-gray-700 p-4 rounded bg-[#1e2124] h-full flex flex-col">
+      <h3 className="text-center font-semibold mb-4 text-sm">{t('settings.appearance.title', { defaultValue: 'Darstellung & Design' })}</h3>
+      <div className="flex flex-col gap-4 text-sm max-w-md mx-auto w-full pt-4">
+        {/* Color picker */}
+        <div className="flex items-center justify-between gap-4">
+          <span className="text-gray-300 font-medium">{t('settings.appearance.waveform_color', { defaultValue: 'Wellenform-Farbe' })}</span>
+          <div className="flex items-center gap-2">
+            <input 
+              type="color" 
+              value={settings.waveformColor || '#0096cd'} 
+              onChange={(e) => setSettings({ ...settings, waveformColor: e.target.value })} 
+              className="bg-transparent border border-gray-700 rounded cursor-pointer w-10 h-8 p-0"
+            />
+            <span className="text-xs font-mono text-gray-400 uppercase">{settings.waveformColor || '#0096cd'}</span>
+          </div>
+        </div>
+
+        {/* Opacity slider */}
+        <div className="flex flex-col gap-1.5 mt-2">
+          <div className="flex items-center justify-between">
+            <span className="text-gray-300 font-medium">{t('settings.appearance.waveform_opacity', { defaultValue: 'Deckkraft Wellenform' })}</span>
+            <span className="text-xs font-semibold text-omega-accent">{Math.round((settings.waveformOpacity ?? 0.9) * 100)}%</span>
+          </div>
+          <input 
+            type="range" 
+            min="0.3" 
+            max="1.0" 
+            step="0.05" 
+            value={settings.waveformOpacity ?? 0.9} 
+            onChange={(e) => setSettings({ ...settings, waveformOpacity: parseFloat(e.target.value) })} 
+            className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-omega-accent"
+          />
+        </div>
+
+        {/* RMS Checkbox */}
+        <label className="flex items-center gap-3 cursor-pointer mt-4 py-2 border-t border-gray-700/50">
+          <input 
+            type="checkbox" 
+            checked={!!settings.waveformShowRms} 
+            onChange={(e) => setSettings({ ...settings, waveformShowRms: e.target.checked })} 
+            className="text-omega-accent bg-[#1a1d21] border-gray-600 focus:ring-0 rounded w-4 h-4 cursor-pointer"
+          />
+          <div className="flex flex-col">
+            <span className="text-gray-200 font-medium">{t('settings.appearance.show_rms', { defaultValue: 'RMS-Kern anzeigen' })}</span>
+            <span className="text-xs text-gray-400">{t('settings.appearance.show_rms_desc', { defaultValue: 'Zeigt die Hüllkurve des RMS-Energieverlaufs heller im Inneren der Wellenform' })}</span>
+          </div>
+        </label>
+      </div>
+    </div>
+  )
+
   const updateDiagnosticLogging = (key: keyof typeof DEFAULT_DIAGNOSTIC_LOGGING_SETTINGS, value: boolean) => {
     setSettings((prev: any) => ({
       ...prev,
@@ -1416,7 +1472,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
     setOriginalLanguage(settings.language || 'de')
   }
 
-  const tabs: Tab[] = ['Projekteinstellungen', 'Wiedergabe', 'Ordner', 'Ansicht', 'System', 'Logs', 'Tastaturkuerzel', 'MIDI', 'Sprache & Anzeige']
+  const tabs: Tab[] = ['Projekteinstellungen', 'Wiedergabe', 'Ordner', 'Ansicht', 'Darstellung', 'System', 'Logs', 'Tastaturkuerzel', 'MIDI', 'Sprache & Anzeige']
 
   const getTabLabel = (tab: Tab) => {
     switch (tab) {
@@ -1424,6 +1480,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
       case 'Wiedergabe': return t('settings.tabs.playback', { defaultValue: 'Wiedergabe' })
       case 'Ordner': return t('settings.tabs.folders', { defaultValue: 'Ordner' })
       case 'Ansicht': return t('settings.tabs.view', { defaultValue: 'Ansicht' })
+      case 'Darstellung': return t('settings.tabs.appearance', { defaultValue: 'Darstellung' })
       case 'System': return t('settings.tabs.system', { defaultValue: 'System' })
       case 'Logs': return t('settings.tabs.logs', { defaultValue: 'Logs' })
       case 'Tastaturkuerzel': return t('settings.tabs.shortcuts', { defaultValue: 'Tastaturkuerzel' })
@@ -1464,6 +1521,7 @@ export function SettingsModal({ onClose, initialTab = 'Projekteinstellungen', on
           {activeTab === 'Wiedergabe' && renderWiedergabe()}
           {activeTab === 'Ordner' && renderOrdner()}
           {activeTab === 'Ansicht' && renderAnsicht()}
+          {activeTab === 'Darstellung' && renderDarstellung()}
           {activeTab === 'System' && renderSystem()}
           {activeTab === 'Logs' && renderLogs()}
           {activeTab === 'Tastaturkuerzel' && renderTastaturkuerzel()}

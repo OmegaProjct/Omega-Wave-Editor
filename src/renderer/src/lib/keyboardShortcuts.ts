@@ -35,6 +35,7 @@ export type ShortcutAction =
   | 'scrollVertical'
   | 'zoomVertical'
   | 'selectAllRegions'
+  | 'renameRegion'
 
 export type KeyboardShortcuts = Record<ShortcutAction, string>
 
@@ -73,7 +74,8 @@ export const DEFAULT_KEYBOARD_SHORTCUTS: KeyboardShortcuts = {
   jumpForward: 'ArrowRight',
   scrollVertical: 'Shift',
   zoomVertical: 'Ctrl+Shift',
-  selectAllRegions: 'Ctrl+A'
+  selectAllRegions: 'Ctrl+A',
+  renameRegion: 'F2'
 }
 
 export const SHORTCUT_DEFINITIONS: { id: ShortcutAction; label: string; group: string }[] = [
@@ -111,7 +113,8 @@ export const SHORTCUT_DEFINITIONS: { id: ShortcutAction; label: string; group: s
   { id: 'jumpForward', label: 'Vorwärtsspringen', group: 'Transport' },
   { id: 'scrollVertical', label: 'Vertikales Scrollen (Mausrad-Modifikator)', group: 'Timeline' },
   { id: 'zoomVertical', label: 'Vertikaler Zoom (Mausrad-Modifikator)', group: 'Timeline' },
-  { id: 'selectAllRegions', label: 'Alle Audio-Objekte markieren', group: 'Bearbeiten' }
+  { id: 'selectAllRegions', label: 'Alle Audio-Objekte markieren', group: 'Bearbeiten' },
+  { id: 'renameRegion', label: 'Ausgewähltes Objekt umbenennen', group: 'Bearbeiten' }
 ]
 
 const modifierKeys = new Set(['Control', 'Shift', 'Alt', 'Meta'])

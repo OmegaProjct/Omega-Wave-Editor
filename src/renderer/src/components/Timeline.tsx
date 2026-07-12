@@ -7,6 +7,7 @@ import { AudioCleaningModal } from './AudioCleaningModal'
 import { ObjectPropertiesModal } from './ObjectPropertiesModal'
 import { AudioRecordingModal } from './AudioRecordingModal'
 import { AudioEngine } from '../lib/AudioEngine'
+import { useTranslation } from 'react-i18next'
 import { ProjectManager } from '../lib/ProjectManager'
 import * as projectCore from '../../../common/projectCore'
 import { MidiEngine } from '../lib/MidiEngine'
@@ -105,6 +106,9 @@ export function Timeline({
   onOpenSymbolManager?: () => void
 }) {
   const engine = AudioEngine.getInstance()
+  const { t } = useTranslation()
+  const [renamingRegionId, setRenamingRegionId] = useState<string | null>(null)
+  const [renameText, setRenameText] = useState<string>('')
   const [zoomLevel, setZoomLevel] = useState(1)
   const zoomLevelRef = useRef(1)
   const pixelsPerSecond = PIXELS_PER_SECOND_BASE * zoomLevel
@@ -1396,6 +1400,36 @@ export function Timeline({
     setSelectedRegionIds(new Set());
   }, [selectedRegionIds, tracks, engine]);
 
+  const startRename = useCallback((regionId: string) => {
+    const region = tracks.flatMap(t => t.regions).find(r => r.id === regionId)
+    if (region) {
+      setRenamingRegionId(regionId)
+      setRenameText(region.name || region.file.name || '')
+    }
+  }, [tracks])
+
+  const handleRenameSubmit = () => {
+    if (renamingRegionId) {
+      const trimmed = renameText.trim()
+      if (trimmed) {
+        const region = tracks.flatMap(t => t.regions).find(r => r.id === renamingRegionId)
+        const originalName = region ? (region.name || region.file.name) : ''
+        if (trimmed !== originalName) {
+          const newTracks = tracks.map(t => ({
+            ...t,
+            regions: t.regions.map(r => r.id === renamingRegionId ? { ...r, name: trimmed } : r)
+          }))
+          updateTracksWithHistory(newTracks)
+        }
+      }
+      setRenamingRegionId(null)
+    }
+  }
+
+  const handleRenameCancel = () => {
+    setRenamingRegionId(null)
+  }
+
   useEffect(() => {
     if (!externalAction) return;
 
@@ -1922,6 +1956,7 @@ export function Timeline({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (renamingRegionId) return;
       const target = e.target as HTMLElement
       if (document.querySelector('[data-settings-modal="true"]')) return
       const isTextInput = 
@@ -2315,12 +2350,18 @@ export function Timeline({
           });
         });
         setSelectedRegionIds(allIds);
+      } else if (matchesShortcut(e, activeShortcuts.renameRegion)) {
+        if (selectedRegionIds.size === 1) {
+          e.preventDefault();
+          const singleSelectedId = [...selectedRegionIds][0];
+          startRename(singleSelectedId);
+        }
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedRegionId, selectedRegionIds, deleteSelectedRegions, togglePlayback, tracks, handleCopy, handlePaste, activeShortcuts, engine, keepDiagnosticPerformanceSampling, queueTimelineDiagnostic, stepZoomLevel, zoomLevel]);
+  }, [selectedRegionId, selectedRegionIds, deleteSelectedRegions, togglePlayback, tracks, handleCopy, handlePaste, activeShortcuts, engine, keepDiagnosticPerformanceSampling, queueTimelineDiagnostic, stepZoomLevel, zoomLevel, startRename, renamingRegionId]);
 
   useEffect(() => {
     const container = tracksRef.current;
@@ -3786,12 +3827,12 @@ export function Timeline({
         return (
           <div key={key} className="flex gap-1 text-gray-400 border-r border-gray-700 pr-2">
             <button
-              title="LÃ¼cken finden und schlieÃŸen (horizontal Ã¼ber alle Spuren)"
+              title="Lücken finden und schließen (horizontal über alle Spuren)"
               className="p-1.5 hover:bg-gray-700 rounded text-gray-300 flex items-center justify-center hover:text-white"
               onClick={closeAllGaps}
             >
               <GapCloseIcon />
-              <span className="text-[10px] ml-1 font-semibold">LÃ¼cken schlieÃŸen</span>
+              <span className="text-[10px] ml-1 font-semibold">Lücken schließen</span>
             </button>
           </div>
         )
@@ -4538,6 +4579,13 @@ export function Timeline({
             Audio Cleaning... <span className="text-[10px] text-gray-500 group-hover:text-gray-200 transition-colors font-mono">Objekt</span>
           </button>
           <button className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors text-gray-300 group cursor-pointer" onClick={() => { setShowProperties(true); setContextMenu(null); }}>Objekteigenschaften...</button>
+          <button 
+            className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors flex items-center justify-between text-gray-300 group cursor-pointer" 
+            onClick={() => { startRename(contextMenu.regionId); setContextMenu(null); }}
+          >
+            {t('menu.rename', { defaultValue: 'Umbenennen' })}
+            <span className="text-[10px] text-gray-500 group-hover:text-gray-200 transition-colors font-mono">F2</span>
+          </button>
           
           <div className="h-px bg-gray-700/50 my-1 mx-1"></div>
 
@@ -5437,17 +5485,53 @@ export function Timeline({
                                    isSelected ? 'bg-[#ffbe00] text-black font-bold' : `${region.color} text-white`
                                  }`}
                                >
-                                 {/* Schwebendes Label, zentriert im sichtbaren Bereich */}
-                                 <div 
-                                   className="absolute inset-y-0 flex items-center justify-center pointer-events-none"
-                                   style={{ left: `${localLeft}px`, width: `${visibleWidth}px` }}
-                                 >
-                                   <span className="truncate px-2 text-center max-w-full">
-                                     {region.name || region.file.name}{region.visualNameSuffix || (region.channels === 1 ? ' [Mono]' : ' [Stereo]')}
-                                   </span>
-                                 </div>
-                                 {region.groupId && (
-                                   <div className="w-1.5 h-1.5 bg-yellow-300 rounded-full flex-shrink-0 shadow absolute right-2 top-[6px] z-10" title="Gruppiert" />
+                                 {renamingRegionId === region.id ? (
+                                   <div className="flex items-center w-full h-full pointer-events-auto">
+                                     <input
+                                       type="text"
+                                       key="rename-input"
+                                       ref={(el) => {
+                                         if (el && !el.dataset.hasSelected) {
+                                           el.focus()
+                                           el.select()
+                                           el.dataset.hasSelected = 'true'
+                                         }
+                                       }}
+                                       value={renameText}
+                                       onChange={(e) => setRenameText(e.target.value)}
+                                       onKeyDown={(e) => {
+                                         e.stopPropagation()
+                                         if (e.key === 'Enter') {
+                                           handleRenameSubmit()
+                                         } else if (e.key === 'Escape') {
+                                           handleRenameCancel()
+                                         }
+                                       }}
+                                       onMouseDown={(e) => e.stopPropagation()}
+                                       onClick={(e) => e.stopPropagation()}
+                                       onContextMenu={(e) => e.stopPropagation()}
+                                       onBlur={() => handleRenameSubmit()}
+                                       className="flex-1 min-w-0 h-[14px] bg-[#141619] text-white border border-[#ffbe00] rounded px-1 text-[9px] font-sans outline-none"
+                                     />
+                                     <span className="text-[9px] text-gray-400 ml-1 flex-shrink-0 select-none">
+                                       {region.visualNameSuffix || (region.channels === 1 ? ' [Mono]' : ' [Stereo]')}
+                                     </span>
+                                   </div>
+                                 ) : (
+                                   <>
+                                     {/* Schwebendes Label, zentriert im sichtbaren Bereich */}
+                                     <div 
+                                       className="absolute inset-y-0 flex items-center justify-center pointer-events-none"
+                                       style={{ left: `${localLeft}px`, width: `${visibleWidth}px` }}
+                                     >
+                                       <span className="truncate px-2 text-center max-w-full">
+                                         {region.name || region.file.name}{region.visualNameSuffix || (region.channels === 1 ? ' [Mono]' : ' [Stereo]')}
+                                       </span>
+                                     </div>
+                                     {region.groupId && (
+                                       <div className="w-1.5 h-1.5 bg-yellow-300 rounded-full flex-shrink-0 shadow absolute right-2 top-[6px] z-10" title="Gruppiert" />
+                                     )}
+                                   </>
                                  )}
                                </div>
 
