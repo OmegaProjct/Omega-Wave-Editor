@@ -2,6 +2,26 @@
 
 The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Semantic Versioning (`X.Y.Z`).
 
+## [0.13.22] - 2026-08-22
+
+### English
+
+#### Fixed
+- Fixed an issue where moving audio clips or adjusting fades/gains could trigger React re-render loops (Error #185).
+- Replaced the deprecated `slider-vertical` CSS keyword on the master volume fader with standard writing-mode directives.
+- Hardened peak pyramid audio streaming against DataView range errors using aligned Buffer float decoding.
+- Improved updater resilience and messaging when platform-specific release assets are temporarily unavailable.
+- Synchronized MCP server fallback version reporting with package.json.
+
+### Deutsch
+
+#### Behoben
+- Ein Problem wurde behoben, bei dem das Verschieben von Audio-Objekten oder das Anpassen von Fades/Gains zu React-Re-Render-Schleifen (Fehler #185) führen konnte.
+- Das veraltete `slider-vertical` CSS-Keyword am Master-Volume-Fader durch moderne, standardkonforme CSS-Direktiven ersetzt.
+- Das Streaming-Decodieren der Peak-Pyramide durch direkte Float-Puffer-Abfragen gegen DataView-RangeErrors abgesichert.
+- Die Fehlerbehandlung und Statusmeldung des Updaters bei vorübergehend nicht verfügbaren Installationspaketen verbessert.
+- Die Versionsrückmeldung des MCP-Servers synchron zur package.json aktualisiert.
+
 ## [0.13.21] - 2026-07-12
 
 ### English

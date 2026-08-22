@@ -238,10 +238,10 @@ function decodePcmWindow(
     command.on('end', () => {
       const pcmBuffer = Buffer.concat(chunks)
       const usableLength = pcmBuffer.length - (pcmBuffer.length % 4)
-      const view = new DataView(pcmBuffer.buffer, pcmBuffer.byteOffset, usableLength)
-      const copy = new Float32Array(usableLength / 4)
-      for (let i = 0; i < copy.length; i++) {
-        copy[i] = view.getFloat32(i * 4, true)
+      const samplesCount = usableLength / 4
+      const copy = new Float32Array(samplesCount)
+      for (let i = 0; i < samplesCount; i++) {
+        copy[i] = pcmBuffer.readFloatLE(i * 4)
       }
       resolve({ data: copy, channels: outputChannels, sampleRate: decodeSampleRate })
     })
@@ -284,10 +284,10 @@ function decodePcmStream(
       const usable = buffer.length - (buffer.length % bytesPerFrame)
       leftover = usable < buffer.length ? buffer.subarray(usable) : null
       if (usable === 0) return
-      const view = new DataView(buffer.buffer, buffer.byteOffset, usable)
-      const samples = new Float32Array(usable / 4)
-      for (let i = 0; i < samples.length; i++) {
-        samples[i] = view.getFloat32(i * 4, true)
+      const samplesCount = usable / 4
+      const samples = new Float32Array(samplesCount)
+      for (let i = 0; i < samplesCount; i++) {
+        samples[i] = buffer.readFloatLE(i * 4)
       }
       onChunk(samples)
     })
