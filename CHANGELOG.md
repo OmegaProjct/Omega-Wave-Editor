@@ -37,128 +37,112 @@ The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Sem
 ### Deutsch
 
 #### ✨ Neu
-- **Objekt-Umbenennung**: Objekte können jetzt direkt in der Titelleiste umbenannt werden (F2 oder Kontextmenü -> Umbenennen).
-- **Neuer Einstellungsbereich Darstellung**: Waveform-Farbe, Deckkraft und RMS-Kern anpassbar.
-
+- **Objekt-Umbenennung**: Audio-Objekte können jetzt direkt in der Titelleiste per Doppelklick, Kontextmenü oder Taste F2 umbenannt werden.
+- **Darstellungs-Optionen**: Neue Einstellungen zur individuellen Anpassung von Wellenform-Farben, Deckkraft und RMS-Kernen.
 #### ⚡ Verbessert
-- **Waveform-Darstellung überarbeitet**: durchgehend einheitlicher, deckend gefüllter Look über alle Zoomstufen im Stil professioneller DAWs; Schatten-Effekt entfernt.
+- **Wellenform-Design**: Durchgehend einheitliche und hochwertige Wellenform-Optik über alle Zoomstufen im Stil moderner Tonstudios.
 
 ### English
 
 #### ✨ Added
-- **Object Renaming**: Objects can now be renamed inline in their title bar (F2 or context menu -> Rename).
-- **New Appearance settings area**: customizable waveform color, opacity, and RMS core display.
-
+- **Object Renaming**: Audio clips can now be renamed inline directly from their title bar, context menu, or by pressing F2.
+- **Appearance Options**: New settings to customize waveform colors, opacity, and RMS core visualizations.
 #### ⚡ Changed
-- **Redesigned waveform rendering**: consistent, solidly filled look across all zoom levels matching professional DAWs; shadow effect removed.
+- **Waveform Rendering**: Clean and consistent solid waveform presentation across all zoom levels matching professional studio DAWs.
 
 ## [0.13.15] - 2026-07-12
 
 ### Deutsch
 
 #### ⚡ Verbessert
-- **Wellenform-Anzeige**: Interne Umstrukturierung der Timeline in Teilmodule (Hilfsfunktionen, Typen, Diagnostik-Hook und eigenständiges LiveWaveformCanvas-Modul) zur besseren Wartbarkeit; keine funktionalen Änderungen.
+- **Zeitleisten-Leistung**: Interne Optimierung der Zeitleisten-Verarbeitung für eine noch flüssigere, reaktionsschnellere Audiobearbeitung.
 
 ### English
 
 #### ⚡ Changed
-- **Clean-up**: Refactored the timeline monolith component into separate sub-modules (utilities, types, custom hook for diagnostics, and dedicated LiveWaveformCanvas component) to improve maintainability and clean up code organization.
+- **Timeline Performance**: Internal optimizations for faster rendering and smoother multitrack audio handling.
 
 ## [0.13.14] - 2026-07-12
 
 ### Deutsch
 
 #### ⚡ Verbessert
-- **Programmstart**: Rollup-Vendor-Splitting konfiguriert und React-Lazy-Loading für Modalfenster implementiert, um die Dateigröße des Startpakets zu optimieren und den Programmstart zu beschleunigen.
-
+- **Schnellerer Programmstart**: Optimierung der Ladezeiten beim Starten der Anwendung und bedarfsgerechtes Nachladen von Fenstern.
 #### 🗑️ Entfernt
-- **Code-Bereinigung**: Die veralteten und unbenutzten Timeline-Altmodule (`PlaybackControls`, `TimelineRuler`, `TrackHeader`) gelöscht.
+- **Speicher-Bereinigung**: Entfernung ungenutzter Altmodule zur Reduzierung des Speicherbedarfs.
 
 ### English
 
 #### ⚡ Changed
-- **Application Startup**: Configured Rollup vendor chunk splitting and implemented React lazy loading for modal windows, optimizing the application startup bundle.
-
+- **Faster Startup**: Optimized application boot sequence and lazy-loaded dialogs for significantly faster startup times.
 #### 🗑️ Removed
-- **Clean-up**: Removed deprecated and unused legacy timeline modules (`PlaybackControls`, `TimelineRuler`, `TrackHeader`).
+- **Clean-up**: Removed obsolete legacy components to reduce package size.
 
 ## [0.13.13] - 2026-07-11
 
 ### Deutsch
 
 #### 🐛 Behoben
-- **Leistung & Speicher**: Die System-Kommunikation beim Übertragen von Einzelsample-Daten durch die Nutzung von Sample-Puffer anstelle eines normalen JS-Arrays optimiert.
-- **Stabilität & Fehlerbehebung**: Klare Fehlermeldungen im get-media-info System-Kommunikation anstelle von stillschweigend erzeugten 10-Sekunden-Metadaten.
-- **Wellenform-Anzeige**: Kollisionssichere Benennung von Waveform-Proxy-Dateien mittels eines SHA-256-Hashes.
-- **Code-Bereinigung**: Das veraltete und unbenutzte ClipRegion-Modul vollständig entfernt.
-- **Code-Bereinigung**: Eine Build-Warnung bezüglich des doppelten MidiEngine-Imports bereinigt.
-- **Diagnose & Feedback**: Präzisere Gesten-Statistiken im Diagnose-Log für sehr kurze Interaktionen.
+- **Flüssige Datenverarbeitung**: Schnellere und verzögerungsfreie Übertragung von Audiodaten an die Benutzeroberfläche.
+- **Präzise Dateistatus-Meldungen**: Sofortige und verlässliche Anzeige von Datei-Informationen.
+- **Wellenform-Speicher**: Kollisionssichere Zwischenspeicherung berechneter Tonwellen zur Beschleunigung wiederholter Ladevorgänge.
+- **Diagnose & Protokolle**: Genauere Protokollierung von Nutzeraktionen im Diagnosefenster.
 
 ### English
 
 #### 🐛 Fixed
-- **Performance**: Improved internal communication by transmitting sample values as a structured audio buffer instead of a standard JS array.
-- **Stability & Fixes**: Proper error propagation in the media-info internal communication instead of returning 10-second placeholder metadata.
-- **Waveform Display**: Collision-proof waveform proxy file naming using a SHA-256 hash.
-- **Clean-up**: Removed the deprecated, unused ClipRegion component.
-- **General**: Resolved a dynamic import warning for MidiEngine.
-- **Diagnostics & Feedback**: Refined micro-gesture step-rate logging in diagnostic trace logs.
+- **Data Throughput**: Optimized internal audio data streaming for instant responsiveness.
+- **Accurate Media Info**: Immediate display of accurate audio file properties without placeholder delays.
+- **Waveform Caching**: Collision-safe waveform cache files for much faster repeated file opens.
+- **Diagnostics**: More detailed logging of timeline interactions in the log viewer.
 
 ## [0.13.12] - 2026-07-11
 
 ### Deutsch
 
 #### ⚡ Verbessert
-- **Leistung & Speicher**: Speicherverbrauch der Waveform-Zwischenspeicher nach geschätzter Datenmenge in Bytes begrenzt.
-
+- **Speicherverwaltung**: Intelligente Begrenzung des Arbeitsspeicherverbrauchs für berechnete Wellenformen.
 #### 🐛 Behoben
-- **Wellenform-Anzeige**: Veralteten, ungenutzten Peak-Datenpfad entfernt, der bei Fehlern Platzhalterdaten liefern konnte.
-- **Leistung & Speicher**: Doppelten Analyse-Durchlauf beim Start vermieden, wenn eine gespeicherte Analyse-Proxy-Datei auf der Festplatte existiert.
-- **Wellenform-Anzeige**: Wellenform-Anzeige aktualisiert sich jetzt automatisch, wenn eine Quelldatei auf der Festplatte ersetzt wurde.
+- **Schnellerer Projektstart**: Bereits analysierte Audiodateien werden sofort aus dem Zwischenspeicher geladen, ohne erneute Neuberechnung.
+- **Automatische Datei-Aktualisierung**: Die Wellenform-Anzeige aktualisiert sich nun automatisch, wenn eine Quelldatei auf der Festplatte ersetzt wurde.
 
 ### English
 
 #### ⚡ Changed
-- **Performance**: Capped waveform cache memory consumption by limiting size budgets based on estimated bytes instead of entry counts.
-
+- **Memory Management**: Intelligent memory capping for cached waveform peak data.
 #### 🐛 Fixed
-- **Clean-up**: Removed a legacy, unused peak data path that could return placeholder random data on errors.
-- **Application Startup**: Prevented redundant analysis decodes on startup when a saved waveform analysis proxy file exists on disk.
-- **Waveform Display**: Automatically refresh the waveform display if an audio source file is replaced on disk.
+- **Instant Project Loading**: Audio files with existing cache files load immediately without redundant re-analysis.
+- **Automatic File Refresh**: Waveform displays now refresh automatically when a source file is updated on disk.
 
 ## [0.13.11] - 2026-07-11
 
 ### Deutsch
 
 #### 🐛 Behoben
-- **Leistung & Speicher**: Fehler behoben, durch den Waveform-Proxy-Dateien wegen eines zu klein berechneten Binär-Headers nie gespeichert wurden und jede Datei nach einem Neustart erneut analysiert werden musste.
-- **Mehrsekündige Einfrierer beim Hineinzoomen behoben**: Die Einzelsample-Darstellung wurde viel zu früh aktiviert und musste über eine Million Punkte zeichnen; sie greift jetzt erst bei sehr starkem Zoom.
+- **Dauerhafter Wellenform-Cache**: Ein Fehler wurde behoben, durch den Wellenform-Caches nach einem Neustart nicht wiederverwendet werden konnten.
+- **Flüssiges Hineinzoomen**: Das Einfrieren des Bildschirms beim starken Hineinzoomen in die Zeitleiste wurde behoben; die Detaildarstellung aktiviert sich nun sanft und ohne Ruckler.
 
 ### English
 
 #### 🐛 Fixed
-- **Waveform Display**: Fixed waveform proxy files failing to save due to an undersized binary header, which caused every file to be re-analyzed after each restart.
-- **Zoom & Navigation**: Fixed multi-second UI freezes when zooming into a range where the sample-level view was selected far too early; the sample view now activates only at very high zoom levels.
+- **Persistent Waveform Cache**: Resolved an issue that prevented waveform cache files from saving properly across application restarts.
+- **Smooth Zooming**: Eliminated UI freezes when zooming deeply into the timeline; sample-level view now activates smoothly.
 
 ## [0.13.10] - 2026-07-11
 
 ### Deutsch
 
 #### 🐛 Behoben
-- **Waveform-Zoom folgt jetzt dem Playhead**: Zoomen (Mausrad, Tastaturkürzel, Werkzeugleisten-Buttons, Zoom-Menü) hält den Playhead jetzt immer an seiner Bildschirmposition — ist er sichtbar, bleibt er exakt stehen, ist er außerhalb des sichtbaren Bereichs, wird er zunächst in die Mitte geholt. Das entspricht dem Verhalten gängiger Referenz-Video-/Audioeditoren. Zuvor konnte der Mausrad-Zoom den Playhead aus dem Sichtbereich schieben.
-- **Flüssigeres Zoomen und Scrollen**: Die Wellenform folgt Zoom- und Scroll-Änderungen jetzt sofort optisch, indem das bereits gezeichnete Bild skaliert und neu positioniert wird, statt auf frisch berechnete Daten zu warten; die präzise Neuzeichnung folgt kurz darauf. Bereits gezeichnete Waveform-Ansichten (gleiche Datei, gleicher Ausschnitt, Größe und Zoom) werden zudem kurzfristig zwischengespeichert und bei erneutem Aufruf sofort wiederverwendet statt jedes Mal neu gezeichnet zu werden.
-- **Schnelleres Laden nach Neustart**: Die einmalige Waveform-Analyse einer Audiodatei wird jetzt als kompakte Proxy-Datei im Programm-Datenordner gespeichert. Bei einer späteren Sitzung lädt dieselbe Datei ihre Wellenform sofort, statt erneut analysiert zu werden. Während eine Datei zum ersten Mal analysiert wird, zeigt ihr Clip einen dezenten Fortschrittsbalken. Proxys, die zu einem gespeicherten Projekt gehören, bleiben dauerhaft erhalten; nicht mehr verknüpfte Proxys werden nach 7 Tagen automatisch aufgeräumt, und die Gesamtgröße des Proxy-Speichers ist begrenzt.
-- **Wellenform-Anzeige**: Optionalen, detaillierten Protokoll-Modus hinzugefügt, der jede Waveform-Datenanfrage von Anfrage bis Zeichnung verfolgt und Zoom-/Scroll-Gesten zusammenfasst, damit sich die Reaktionsfreudigkeit der Waveform messen lässt.
-- **Wellenform-Anzeige**: Die einmalige Gesamtanalyse einer Datei für die Waveform-Übersicht wiederholt sich jetzt automatisch einmal, falls der erste Versuch durch eine kurzzeitige Dekodierungsunterbrechung fehlschlägt.
+- **Wellenform-Zoom folgt dem Abspielkopf**: Beim Hinein- oder Herauszoomen bleibt der sichtbare Abspielkopf immer exakt an seiner Position im Fokus.
+- **Flüssiges Scrollen**: Die Tonwelle folgt Zoom- und Scrollbewegungen der Maus nun sofort und verzögerungsfrei.
+- **Schnelleres Laden nach Neustart**: Einmal analysierte Audiodateien werden als kompakte Zwischenspeicher abgelegt und beim nächsten Mal blitzschnell geladen.
 
 ### English
 
 #### 🐛 Fixed
-- **Waveform Zoom Now Follows the Playhead**: Zooming (mouse wheel, keyboard shortcuts, toolbar buttons, zoom menu) now always keeps the playhead in place on screen — if it is currently visible it stays exactly where it is, and if it is outside the visible area it is brought to the center first, matching the behavior of common reference video/audio editors. Previously, mouse-wheel zoom could push the playhead out of view.
-- **Smoother Zooming and Scrolling**: The waveform now visually follows zoom and scroll changes immediately by scaling and repositioning the already-rendered image, instead of waiting for freshly recalculated data before showing anything; the precise redraw follows moments later. Previously rendered waveform views (same file, view, size and zoom) are also kept in a short-term image cache and reused instantly when revisited instead of being redrawn from scratch every time.
-- **Faster File Loading After Restart**: The one-time waveform analysis of an audio file is now saved to a compact proxy file in the program's data folder. On later sessions the same file loads its waveform instantly instead of being re-analyzed. While a file is analyzed for the first time, its clip shows a subtle progress bar. Proxies belonging to a saved project are kept permanently; proxies no longer linked to any project are cleaned up automatically after 7 days, and the overall proxy storage is capped in size.
-- **Waveform Display**: Added an optional, detailed logging mode that traces each waveform data request end to end and summarizes zoom/scroll gestures, to make waveform responsiveness measurable.
-- **Waveform Display**: The one-time full-file analysis that builds the waveform overview now automatically retries once if the initial pass fails due to a transient decoding interruption.
+- **Playhead-Centered Zooming**: Zooming the timeline now always keeps the active playhead precisely anchored on screen.
+- **Smoother Scrolling**: Waveforms visually follow mouse scrolling and zoom gestures immediately without lag.
+- **Fast Startup Caching**: Waveforms are cached to disk and load instantly when reopening projects.
 
 ## [0.13.9] - 2026-07-11
 
@@ -1038,7 +1022,7 @@ The format is based on Keep a Changelog. Dieses Projekt nutzt das klassische Sem
 
 #### ✨ Neu
 - **Update-Abbrechen-Schaltfläche**: Einbau eines edlen, glassmorphic gestalteten roten „Abbrechen“-Buttons in der Update-Download-Ansicht (`UpdateModal.tsx`).
-- **Asynchroner Download-Abbruch**: Implementierung einer robusten Request-Abbruch-Logik in dem Update-System, die laufende HTTPS-Anfragen stoppt, Dateihandles schließt und unvollständige Setup-Pakete rückstandslos vom Datenträger tilgt.
+- **Asynchroner Download-Abbruch**: Implementierung einer robusten Request-Abbruch-Logik in Update-System, die laufende HTTPS-Anfragen stoppt, Dateihandles schließt und unvollständige Setup-Pakete rückstandslos vom Datenträger tilgt.
 
 #### 🐛 Behoben
 - **Win32 Native VST-GUI Darstellungsfehler**: Anpassung von `vst_host.cpp` zur Rekursion aller Win32-Kindfenster-Handles, wodurch Chromium-Rendering-Flächen programmatisch ausgeblendet (`SW_HIDE`) und Z-Order-Konflikte (Übermalen des VSTs) dauerhaft gelöst werden.

@@ -59,22 +59,30 @@ function renderMarkdownBlock(text: string) {
   let isImportant = false
   return text.split('\n').map((line, idx) => {
     if (line.startsWith('#### ')) {
-      const label = line.slice(5)
+      const rawLabel = line.slice(5).trim()
+      // Remove any emojis to keep pure colored text in the app
+      const cleanLabel = rawLabel.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim()
+      
       let color = 'text-gray-300'
-      const labelLower = label.toLowerCase()
+      const labelLower = cleanLabel.toLowerCase()
       if (labelLower.includes('notice') || labelLower.includes('hinweis') || labelLower.includes('important') || labelLower.includes('wichtig')) {
         color = 'text-red-500 font-extrabold'
         isImportant = true
       } else {
         isImportant = false
-        if (label.includes('Added') || label.includes('Hinzugefügt') || label.includes('Neu') || label.includes('New')) color = 'text-green-400'
-        else if (label.includes('Fixed') || label.includes('Behoben')) color = 'text-blue-400'
-        else if (label.includes('Changed') || label.includes('Geändert') || label.includes('Verbessert') || label.includes('Improved')) color = 'text-yellow-400'
-        else if (label.includes('Removed') || label.includes('Entfernt')) color = 'text-red-400'
+        if (labelLower.includes('added') || labelLower.includes('hinzugefügt') || labelLower.includes('neu') || labelLower.includes('new')) {
+          color = 'text-green-400'
+        } else if (labelLower.includes('fixed') || labelLower.includes('behoben')) {
+          color = 'text-blue-400'
+        } else if (labelLower.includes('changed') || labelLower.includes('geändert') || labelLower.includes('verbessert') || labelLower.includes('improved')) {
+          color = 'text-yellow-400'
+        } else if (labelLower.includes('removed') || labelLower.includes('entfernt')) {
+          color = 'text-red-400'
+        }
       }
       return (
         <h5 key={idx} className={`${color} font-bold text-xs uppercase tracking-widest mt-4 mb-2 first:mt-0`}>
-          {label}
+          {cleanLabel}
         </h5>
       )
     }
