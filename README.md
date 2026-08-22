@@ -7,7 +7,8 @@
 <p align="center">
   <a href="#english">English Documentation</a> • 
   <a href="#deutsch">Deutsche Dokumentation</a> • 
-  <a href="CHANGELOG.md">Changelog</a> • 
+  <a href="CHANGELOG.md">User Changelog</a> • 
+  <a href="CHANGELOG_DEV.md">Dev Changelog</a> • 
   <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
@@ -21,11 +22,28 @@
 
 ---
 
+## 📑 Table of Contents / Inhaltsverzeichnis
+
+| 🇬🇧 English | 🇩🇪 Deutsch |
+| :--- | :--- |
+| ⚡ [Quick Download](#quick-download) | ⚡ [Schnelldownload](#schnelldownload) |
+| 📸 [Screenshots & Workflow](#screenshots) | 📸 [Screenshots & Arbeitsbereich](#screenshots) |
+| 🌟 [Core Features](#en-core-features) | 🌟 [Hauptfunktionen](#de-hauptfunktionen) |
+| 🤖 [AI Core & MCP Server](#en-mcp-server) | 🤖 [KI-Core & MCP-Server](#de-mcp-server) |
+| 🛠️ [Architecture & Tech Stack](#en-tech-stack) | 🛠️ [Architektur & Tech-Stack](#de-tech-stack) |
+| 💻 [Development & Setup](#en-development) | 💻 [Entwicklung & Setup](#de-entwicklung) |
+| 📜 [Changelogs (User & Dev)](#en-changelog) | 📜 [Versionsverlauf (Changelogs)](#de-changelog) |
+| ❤️ [Support the Project](#en-support) | ❤️ [Projekt unterstützen](#de-support) |
+
+---
+
+<a name="quick-download"></a>
+<a name="schnelldownload"></a>
 ## ⚡ Quick Download / Schnelldownload
 
-Get the latest version of **Omega Wave Editor** directly from our [Releases Page](https://github.com/OmegaProjct/Omega-Wave-Editor/releases/latest):
+Get the latest stable version of **Omega Wave Editor** directly from our [Releases Page](https://github.com/OmegaProjct/Omega-Wave-Editor/releases/latest):
 
-| Operating System | Recommended Package | Portable / Alternative |
+| Operating System | Recommended Installer | Standalone / Alternative |
 | :--- | :--- | :--- |
 | **🪟 Windows** (x64) | [**Download Setup (.exe)**](https://github.com/OmegaProjct/Omega-Wave-Editor/releases/latest) | [**Download Portable (.exe)**](https://github.com/OmegaProjct/Omega-Wave-Editor/releases/latest) |
 | **🍎 macOS** (Apple Silicon / Intel) | [**Download DMG Image (.dmg)**](https://github.com/OmegaProjct/Omega-Wave-Editor/releases/latest) | [**Download ZIP Archive (.zip)**](https://github.com/OmegaProjct/Omega-Wave-Editor/releases/latest) |
@@ -33,6 +51,7 @@ Get the latest version of **Omega Wave Editor** directly from our [Releases Page
 
 ---
 
+<a name="screenshots"></a>
 ## 📸 Screenshots & Workflow
 
 <p align="center">
@@ -49,6 +68,7 @@ Get the latest version of **Omega Wave Editor** directly from our [Releases Page
 
 ---
 
+<a name="en-core-features"></a>
 ## 🌟 Core Highlights
 
 ### 1. Multitrack Timeline & Fluid Audio Manipulation
@@ -81,19 +101,18 @@ A dedicated suite for repairing and enhancing noisy, distorted, or legacy record
 * **MIDI Pro & Learn Engine**: Play virtual instruments live with MIDI keyboards; map hardware knobs to plugin parameters with 1-click MIDI Learn.
 * **Free VST Store**: Curated sidebar catalog offering 1-click downloads and automatic installation of top-tier free plugins (Vital, Surge XT, Dexed, etc.).
 
-### 5. 🤖 AI & Automation Core (Model Context Protocol / MCP Server)
+---
+
+<a name="en-mcp-server"></a>
+## 🤖 AI & Automation Core (Model Context Protocol / MCP Server)
 Omega Wave Editor includes a built-in JSON-RPC 2.0 MCP server (`src/main/mcpServer.ts`), allowing AI assistants (Antigravity, Claude Desktop, Cursor) and automated scripts to control the editor:
 * **Project Management**: `project_create`, `project_load`, `project_save`, `project_export`.
 * **Track & Clip Operations**: `track_add`, `track_remove`, `clip_import`, `clip_split`, `clip_adjust_gain`.
 * **Batch Execution**: Run multi-step recipes and audio transformations headless without GUI overhead.
 
-### 6. Recording, Video Audio Extraction & ID3 Tag Studio
-* **Direct Audio Recording**: Record from any microphone or audio interface directly onto the timeline.
-* **Video Sound Extractor**: Extract high-fidelity audio tracks from video files with one click.
-* **ID3v2.3 Tag Editor**: Edit metadata (Artist, Title, Album, Year, Genre, Cover Art) with full Windows Explorer and media player compatibility.
-
 ---
 
+<a name="en-tech-stack"></a>
 ## 🛠️ Architecture & Tech Stack
 
 ```mermaid
@@ -121,6 +140,7 @@ graph TD
 
 ---
 
+<a name="en-development"></a>
 ## 💻 Development & Building
 
 ### Prerequisites
@@ -152,6 +172,24 @@ npm run build
 
 ---
 
+<a name="en-changelog"></a>
+## 📜 Changelogs & Release History
+
+We maintain two separate, dedicated changelogs to cater to both users and contributors:
+* 👉 [**User Changelog (`CHANGELOG.md`)**](CHANGELOG.md) – End-user focused, readable overview of all new features, improvements, and fixes across all 98 releases.
+* 👉 [**Developer Changelog (`CHANGELOG_DEV.md`)**](CHANGELOG_DEV.md) – Detailed technical log containing architectural changes, IPC handlers, low-level data structures, and code refactorings.
+
+---
+
+<a name="en-support"></a>
+## ❤️ Support the Project
+
+Omega Wave Editor is free, open-source software under the MIT License. If you enjoy using the editor and would like to support ongoing development, donations are gratefully accepted via PayPal:
+
+👉 [**Support us on PayPal**](https://www.paypal.com/paypalme/OmegaProjects)
+
+---
+
 <a name="deutsch"></a>
 # 🇩🇪 Deutsche Dokumentation
 
@@ -161,6 +199,7 @@ Er kombiniert die Flexibilität moderner Webtechnologien (**Electron, React, Typ
 
 ---
 
+<a name="de-hauptfunktionen"></a>
 ## 🌟 Hauptfunktionen (Feature-Übersicht)
 
 ### 1. Professionelle Mehrspur-Zeitleiste (Multitrack Timeline)
@@ -193,38 +232,57 @@ Spezialwerkzeuge zur Beseitigung von Störgeräuschen und Restaurierung alter Au
 * **MIDI Pro & Learn**: Synthesizer live per MIDI-Keyboard spielen und Regler per 1-Klick MIDI Learn verknüpfen.
 * **Kostenloser In-App VST Store**: Kuriertes Verzeichnis in der Seitenleiste für den direkten 1-Klick-Download beliebter kostenloser Qualitäts-Plugins (Vital, Surge XT, Dexed etc.).
 
-### 5. 🤖 KI & Automations-Kern (Model Context Protocol / MCP-Server)
+---
+
+<a name="de-mcp-server"></a>
+## 🤖 KI & Automations-Kern (Model Context Protocol / MCP-Server)
 Der Omega Wave Editor enthält einen vollwertigen JSON-RPC 2.0 MCP-Server (`src/main/mcpServer.ts`), mit dem KI-Assistenten (Claude Desktop, Antigravity, Skripte) den Editor steuern können:
 * **Projektverwaltung**: `project_create`, `project_load`, `project_save`, `project_export`.
 * **Spur- & Schnittbefehle**: `track_add`, `track_remove`, `clip_import`, `clip_split`, `clip_adjust_gain`.
 * **Automatisierte Stapelverarbeitung**: Mehrstufige Audio-Bearbeitungen headless im Hintergrund ausführen.
 
-### 6. Aufnahme, Video-Audio-Extraktion & ID3-Metadaten
-* **Mikrofonaufnahme**: Aufnahme direkt über jedes angeschlossene Mikrofon oder Audio-Interface auf eine Spur.
-* **Tonspur aus Video extrahieren**: Extrahiert Tonspuren aus Videodateien mit einem Klick in voller Qualität.
-* **ID3v2.3 Metadaten-Editor**: Komfortables Bearbeiten von Künstler, Titel, Album, Jahr, Genre und Cover direkt im Exportfenster mit voller Windows-Explorer-Kompatibilität.
+---
+
+<a name="de-tech-stack"></a>
+## 🛠️ Technologie & Architektur
+
+* **Frontend**: React 18, TypeScript, TailwindCSS, Lucide Icons, Canvas API.
+* **Backend**: Electron 30, Node.js, natives C++ Addon (`omega-vst-host`).
+* **Audio-Processing**: Web Audio API (Echtzeit-Effekte/Wiedergabe) und FFmpeg / FFprobe (Konvertierung & Mixdown).
+* **CI/CD & Builds**: Automatische Multi-Plattform-Builds über GitHub Actions bei jedem Versions-Tag.
 
 ---
 
-## ⌨️ Wichtige Tastaturkürzel (Shortcuts)
+<a name="de-entwicklung"></a>
+## 🚀 Installation & Lokale Einrichtung
 
-| Taste | Funktion |
-| :--- | :--- |
-| **Leertaste** | Wiedergabe starten / pausieren |
-| **T** | Ausgewähltes Tonstück an Abspielkopf-Position schneiden (Split) |
-| **F2** | Ausgewähltes Audio-Objekt direkt umbenennen |
-| **Z** | Anfang des Tonstücks bis zur Abspielposition trimmen |
-| **C** | Ende des Tonstücks ab Abspielposition trimmen |
-| **U** | Tonstück am Abspielkopf teilen und Cursor positionieren |
-| **F1** | Integriertes zweisprachiges Benutzerhandbuch öffnen |
-| **Strg + Z / Strg + Y** | Rückgängig / Wiederholen (Undo / Redo) |
-| **Strg + E** | Export-Dialog (Mixdown) öffnen |
+```bash
+# Repository klonen
+git clone https://github.com/OmegaProjct/Omega-Wave-Editor.git
+cd Omega-Wave-Editor
+
+# Abhängigkeiten installieren
+npm install
+
+# Entwicklungsmodus starten
+npm run dev
+```
 
 ---
 
+<a name="de-changelog"></a>
+## 📜 Versionsverlauf & Changelogs
+
+Das Projekt pflegt eine saubere Trennung zwischen Anwender- und Entwicklerdokumentation:
+* 👉 [**Benutzer-Changelog (`CHANGELOG.md`)**](CHANGELOG.md) – Alle Neuerungen, Verbesserungen und Korrekturen in klarer Anwendersprache.
+* 👉 [**Entwickler-Changelog (`CHANGELOG_DEV.md`)**](CHANGELOG_DEV.md) – Vollständige technische Dokumentation mit internen IPC-Endpunkten, Modul-Refactorings und Datenstrukturen.
+
+---
+
+<a name="de-support"></a>
 ## ❤️ Projekt unterstützen
 
-Der **Omega Wave Editor** ist freie, quelloffene Open-Source-Software unter der MIT-Lizenz. Wenn Ihnen das Programm gefällt und Sie die Weiterentwicklung unterstützen möchten, freuen wir uns über eine kleine Spende via PayPal:
+Der **Omega Wave Editor** ist freie Open-Source-Software unter der MIT-Lizenz. Wenn Ihnen das Programm gefällt und Sie die Weiterentwicklung unterstützen möchten, freuen wir uns über einen Kaffee via PayPal:
 
 👉 [**Omega Projects auf PayPal unterstützen**](https://www.paypal.com/paypalme/OmegaProjects)
 
