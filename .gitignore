@@ -44,9 +44,12 @@ discord_vorstellung.md
 docs/
 implementation_plan*.md
 walkthrough*.md
+task.md
+codex/
 
 # Temporary scratch files and cache
 scratch-setup.exe
+scratch/
 cache/
 Anschaungsmaterial/
 
