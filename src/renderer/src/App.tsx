@@ -348,6 +348,24 @@ function App(): JSX.Element {
     { id: '4', index: 4, name: '', regions: [], muted: false, solo: false, locked: false, visible: true, volume: 1, height: 64, automation: [] },
   ];
 
+  if (typeof window !== 'undefined') {
+    (window as any).__openScreenshotModal = (name: string, payload?: any) => {
+      setShowChangelog(false)
+      setShowManual(false)
+      setShowSettings(false)
+      setShowExport(false)
+      setShowAbout(false)
+      if (name === 'changelog') setShowChangelog(true)
+      if (name === 'manual') setShowManual(true)
+      if (name === 'settings') { setSettingsTab(payload || 'Darstellung'); setShowSettings(true) }
+      if (name === 'export') setShowExport(true)
+      if (name === 'about') setShowAbout(true)
+    };
+    (window as any).__selectClip = (regionId: string) => {
+      setSelectedRegionIds(new Set([regionId]))
+    };
+  }
+
   const { state: tracks, push: pushTracks, undo, redo } = useHistory(initialTracks, maxUndoSteps);
 
   const tracksRef = useRef(tracks);
