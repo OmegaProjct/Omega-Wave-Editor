@@ -42,6 +42,8 @@ discord_vorstellung.md
 
 # Internal AI planning and reports
 docs/
+implementation_plan*.md
+walkthrough*.md
 
 # Temporary scratch files and cache
 scratch-setup.exe

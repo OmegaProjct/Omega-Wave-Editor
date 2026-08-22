@@ -1,17 +1,21 @@
 # Mitwirken am Omega Wave Editor
 
+Vielen Dank, dass du dich an der Entwicklung des Omega Wave Editors beteiligen möchtest! Dieses Dokument enthält alle Richtlinien und Checklisten, die dir helfen, deinen Code sauber, stabil und im Einklang mit dem Gesamtprojekt zu halten.
+
 > [!TIP]
-> Unseren vollständigen und detaillierten Versionsverlauf findest du in der [CHANGELOG.md](CHANGELOG.md).
+> Unseren vollständigen Versionsverlauf findest du in der [CHANGELOG.md](CHANGELOG.md).
+
+---
 
 ## 0. Strategischer Sanierungsplan
 
-Vor groesseren Aenderungen an Architektur, Timeline, AudioEngine, Export, MCP, Headless-Betrieb oder Plugin-Support muss der strategische Plan gelesen werden:
+Vor größeren Änderungen an Architektur, Timeline, AudioEngine, Export, MCP, Headless-Betrieb oder Plugin-Support muss der strategische Plan gelesen werden:
 
 - [`docs/SANIERUNGSPLAN_MCP_PLUGIN_SUPPORT.md`](docs/SANIERUNGSPLAN_MCP_PLUGIN_SUPPORT.md)
 
-Dieser Plan ist die verbindliche Orientierung fuer die geplante vollstaendige MCP-Bedienbarkeit, Headless-Sessions, Jobs, Recipes, ID3-/Analysefunktionen und Cross-Plattform Plugin-Support fuer VST2/VST3/AU/LV2.
+Dieser Plan ist die verbindliche Orientierung für die geplante vollständige MCP-Bedienbarkeit, Headless-Sessions, Jobs, Recipes, ID3-/Analysefunktionen und Cross-Plattform Plugin-Support für VST2/VST3/AU/LV2.
 
-Vielen Dank, dass du dich an der Entwicklung des Omega Wave Editors beteiligen möchtest! Dieses Dokument enthält alle Richtlinien und Checklisten, die dir helfen, deinen Code sauber, stabil und im Einklang mit dem Gesamtprojekt zu halten.
+---
 
 ## 1. Unsere Entwicklungs-Prinzipien
 
