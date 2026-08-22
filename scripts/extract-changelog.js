@@ -42,17 +42,7 @@ function extractChangelog(version) {
 }
 
 function generateReleaseNotes(version, rawNotes) {
-  return `### English
-#### Upgrade Notice
-Before updating the Omega Wave Editor, please make sure to save your active projects (\`.owep\`). If you are upgrading from an older version, your settings and recent project lists will be preserved safely.
-
-### Deutsch
-#### Wichtiger Hinweis zum Update
-Bitte stelle vor dem Update des Omega Wave Editors sicher, dass deine aktiven Projekte (\`.owep\`) gespeichert sind. Wenn du von einer älteren Version aktualisierst, bleiben deine Einstellungen und die Liste der letzten Projekte sicher erhalten.
-
----
-
-${rawNotes}`;
+  return rawNotes;
 }
 
 const targetVersion = process.argv[2];

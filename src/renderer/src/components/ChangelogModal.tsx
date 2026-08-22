@@ -67,10 +67,10 @@ function renderMarkdownBlock(text: string) {
         isImportant = true
       } else {
         isImportant = false
-        if (label === 'Added' || label === 'Hinzugefügt' || label === 'Hinzugefuegt') color = 'text-green-400'
-        if (label === 'Fixed' || label === 'Behoben') color = 'text-blue-400'
-        if (label === 'Changed' || label === 'Geändert' || label === 'Geaendert') color = 'text-yellow-400'
-        if (label === 'Removed' || label === 'Entfernt') color = 'text-red-400'
+        if (label.includes('Added') || label.includes('Hinzugefügt') || label.includes('Neu') || label.includes('New')) color = 'text-green-400'
+        else if (label.includes('Fixed') || label.includes('Behoben')) color = 'text-blue-400'
+        else if (label.includes('Changed') || label.includes('Geändert') || label.includes('Verbessert') || label.includes('Improved')) color = 'text-yellow-400'
+        else if (label.includes('Removed') || label.includes('Entfernt')) color = 'text-red-400'
       }
       return (
         <h5 key={idx} className={`${color} font-bold text-xs uppercase tracking-widest mt-4 mb-2 first:mt-0`}>
