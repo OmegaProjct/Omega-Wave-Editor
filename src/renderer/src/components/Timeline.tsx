@@ -2692,30 +2692,29 @@ export function Timeline({
         const newVal = newSettings.videoAudioOnOneTrack;
         setVideoAudioOnOneTrack(newVal);
         
-        setTracks(prevTracks => {
-          HistoryManager.pushState(prevTracks);
-          let updatedTracks = [...prevTracks];
-          if (newVal) {
-            updatedTracks = mergeSplitTracks(updatedTracks);
-          } else {
-            updatedTracks = splitMergedTracks(updatedTracks);
-          }
-          
-          if (engine.isPlaying) {
-            const dispTracks = getDisplayedTracks(updatedTracks, newVal);
-            dispTracks.forEach(t => {
-              t.regions.forEach((r: any) => {
-                engine.rescheduleRegion(t.id, r, t.regions);
-              });
+        const prevTracks = currentTracksRef.current;
+        HistoryManager.pushState(prevTracks);
+        let updatedTracks = [...prevTracks];
+        if (newVal) {
+          updatedTracks = mergeSplitTracks(updatedTracks);
+        } else {
+          updatedTracks = splitMergedTracks(updatedTracks);
+        }
+        
+        if (engine.isPlaying) {
+          const dispTracks = getDisplayedTracks(updatedTracks, newVal);
+          dispTracks.forEach(t => {
+            t.regions.forEach((r: any) => {
+              engine.rescheduleRegion(t.id, r, t.regions);
             });
-          }
-          
-          if (onTracksChange) {
-            isInternalUpdateRef.current = true;
-            onTracksChange(updatedTracks);
-          }
-          return updatedTracks;
-        });
+          });
+        }
+        
+        setTracks(updatedTracks);
+        if (onTracksChange) {
+          isInternalUpdateRef.current = true;
+          onTracksChange(updatedTracks);
+        }
       }
     };
 
@@ -4055,13 +4054,10 @@ export function Timeline({
     };
     const onUp = () => {
       setDraggingGain(null);
-      setTracks(cur => {
-        if (onTracksChange) {
-          isInternalUpdateRef.current = true;
-          onTracksChange(cur);
-        }
-        return cur;
-      });
+      if (onTracksChange) {
+        isInternalUpdateRef.current = true;
+        onTracksChange(currentTracksRef.current);
+      }
       justDraggedRef.current = true;
       setTimeout(() => { justDraggedRef.current = false; }, 50);
     };
@@ -4089,13 +4085,10 @@ export function Timeline({
     };
     const onUp = () => {
       setDraggingFade(null);
-      setTracks(cur => {
-        if (onTracksChange) {
-          isInternalUpdateRef.current = true;
-          onTracksChange(cur);
-        }
-        return cur;
-      });
+      if (onTracksChange) {
+        isInternalUpdateRef.current = true;
+        onTracksChange(currentTracksRef.current);
+      }
       justDraggedRef.current = true;
       setTimeout(() => { justDraggedRef.current = false; }, 50);
     };
@@ -4338,50 +4331,48 @@ export function Timeline({
       }
 
       setDraggingRegion(null);
-      setTracks(current => {
-         if (onTracksChange) {
-           isInternalUpdateRef.current = true;
-           onTracksChange(current);
-         }
+      const current = currentTracksRef.current;
+      if (onTracksChange) {
+        isInternalUpdateRef.current = true;
+        onTracksChange(current);
+      }
 
-         // Echte Finalisierung des Audioschnitts beim Loslassen
-         if (engine.isPlaying) {
-           const dispTracks = getDisplayedTracks(current, videoAudioOnOneTrack);
-           let foundDispRegion: Region | null = null;
-           let foundDispTrackId = '';
-           let foundDispTrackRegions: Region[] = [];
-           for (const t of dispTracks) {
-             const r = t.regions.find((reg: any) => reg.id === draggingRegion.id);
-             if (r) {
-               foundDispRegion = r;
-               foundDispTrackId = t.id;
-               foundDispTrackRegions = t.regions;
-               break;
-             }
-           }
+      // Echte Finalisierung des Audioschnitts beim Loslassen
+      if (engine.isPlaying) {
+        const dispTracks = getDisplayedTracks(current, videoAudioOnOneTrack);
+        let foundDispRegion: Region | null = null;
+        let foundDispTrackId = '';
+        let foundDispTrackRegions: Region[] = [];
+        for (const t of dispTracks) {
+          const r = t.regions.find((reg: any) => reg.id === draggingRegion.id);
+          if (r) {
+            foundDispRegion = r;
+            foundDispTrackId = t.id;
+            foundDispTrackRegions = t.regions;
+            break;
+          }
+        }
 
-           if (foundDispRegion && foundDispTrackId) {
-             engine.rescheduleRegion(foundDispTrackId, foundDispRegion, foundDispTrackRegions);
-           }
+        if (foundDispRegion && foundDispTrackId) {
+          engine.rescheduleRegion(foundDispTrackId, foundDispRegion, foundDispTrackRegions);
+        }
 
-           // Reschedule andere Regionen in der Gruppe
-           const sourceTrackIdx = current.findIndex(t => t.regions.some((r: any) => r.id === draggingRegion.id));
-           if (sourceTrackIdx !== -1) {
-             const region = current[sourceTrackIdx].regions.find((r: any) => r.id === draggingRegion.id)!;
-             if (region.groupId) {
-               dispTracks.forEach(t => {
-                 t.regions.forEach((r: any) => {
-                   if (r.id !== draggingRegion.id && r.groupId === region.groupId) {
-                     engine.rescheduleRegion(t.id, r, t.regions);
-                   }
-                 });
-               });
-             }
-           }
-         }
+        // Reschedule andere Regionen in der Gruppe
+        const sourceTrackIdx = current.findIndex(t => t.regions.some((r: any) => r.id === draggingRegion.id));
+        if (sourceTrackIdx !== -1) {
+          const region = current[sourceTrackIdx].regions.find((r: any) => r.id === draggingRegion.id)!;
+          if (region.groupId) {
+            dispTracks.forEach(t => {
+              t.regions.forEach((r: any) => {
+                if (r.id !== draggingRegion.id && r.groupId === region.groupId) {
+                  engine.rescheduleRegion(t.id, r, t.regions);
+                }
+              });
+            });
+          }
+        }
+      }
 
-         return current;
-      });
       justDraggedRef.current = true;
       setTimeout(() => { justDraggedRef.current = false; }, 50);
     }
@@ -4999,7 +4990,8 @@ export function Timeline({
                 }}
                 className="vertical-fader"
                 style={{
-                  WebkitAppearance: 'slider-vertical',
+                  writingMode: 'vertical-lr',
+                  direction: 'rtl',
                   width: '14px',
                   height: '100%',
                   background: 'transparent',

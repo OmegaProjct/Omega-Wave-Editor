@@ -72,7 +72,7 @@ export function setupUpdateDownloader(mainWindow: BrowserWindow) {
         }
 
         if (!targetAsset || !targetAsset.browser_download_url) {
-          throw new Error(`Kein passendes Download-Asset für Plattform "${platform}" gefunden.`)
+          throw new Error(`Für Plattform "${platform}" ist derzeit kein passendes Installationspaket im Release verfügbar.`)
         }
 
         downloadUrl = targetAsset.browser_download_url
@@ -141,7 +141,11 @@ export function setupUpdateDownloader(mainWindow: BrowserWindow) {
 
       return { success: true, filePath: tempFilePath }
     } catch (error: any) {
-      logger.error('Updater', 'Fehler beim Download', error)
+      if (error.message?.includes('kein passendes Installationspaket')) {
+        logger.warn('Updater', error.message)
+      } else {
+        logger.error('Updater', 'Fehler beim Download', error)
+      }
       const isCanceled = isDownloadCancelled || error.message === 'Canceled'
       targetWebContents.send('download-progress', { 
         percent: 0, 

@@ -12,7 +12,7 @@ import * as path from 'path'
 import { logger } from './logger'
 
 // Dynamic version retrieval matching package.json
-let appVersion = '0.4.1'
+let appVersion = '0.13.22'
 try {
   const pkgPath = path.join(__dirname, '..', '..', 'package.json')
   if (fs.existsSync(pkgPath)) {
