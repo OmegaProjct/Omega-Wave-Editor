@@ -1,297 +1,237 @@
 <p align="center">
-  <img src="assets/logo.png" alt="Omega Wave Editor Logo" width="420"/>
+  <img src="assets/logo.png" alt="Omega Wave Editor Logo" width="440"/>
+</p>
+
+<h3 align="center">Modern, High-Performance Multitrack Audio Editor, DAW & AI Audio Core</h3>
+
+<p align="center">
+  <a href="#english">English Documentation</a> • 
+  <a href="#deutsch">Deutsche Dokumentation</a> • 
+  <a href="CHANGELOG.md">Changelog</a> • 
+  <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
 <p align="center">
-  <a href="#english">English Documentation</a> • <a href="#deutsch">Deutsche Dokumentation</a> • <a href="CHANGELOG.md">Changelog</a>
-</p>
-
-<p align="center">
-  <img src="https://img.shields.io/github/v/release/OmegaProjct/Omega-Wave-Editor?color=blue&style=flat-square" alt="Release" />
-  <img src="https://img.shields.io/badge/platform-windows%20%7C%20macos%20%7C%20linux-lightgrey?style=flat-square" alt="Platform Support" />
-  <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License" />
-  <img src="https://img.shields.io/badge/built%20with-Electron%20%7C%20React%20%7C%20TypeScript-blueviolet?style=flat-square" alt="Built with Electron" />
+  <a href="https://github.com/OmegaProjct/Omega-Wave-Editor/releases/latest"><img src="https://img.shields.io/github/v/release/OmegaProjct/Omega-Wave-Editor?color=00c853&style=flat-square&label=Latest%20Release" alt="Latest Release" /></a>
+  <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-3b82f6?style=flat-square" alt="Cross-Platform" />
+  <img src="https://img.shields.io/badge/Audio%20Engine-Web%20Audio%20%2B%20FFmpeg%20%2B%20C%2B%2B-8b5cf6?style=flat-square" alt="Audio Engine" />
+  <img src="https://img.shields.io/badge/AI%20Integration-MCP%20Server%202.0-f59e0b?style=flat-square" alt="MCP Server Protocol" />
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="MIT License" /></a>
 </p>
 
 ---
 
-## Contents / Inhalt
+## ⚡ Quick Download / Schnelldownload
 
-| English | Deutsch |
-| --- | --- |
-| [Screenshots](#screenshots) | [Screenshots](#screenshots) |
-| [English Documentation](#english) | [Deutsche Dokumentation](#deutsch) |
-| [Core Features](#en-core-features) | [Hauptfunktionen](#de-hauptfunktionen) |
-| [Tech Stack & Architecture](#en-tech-stack--architecture) | [Technologie & Architektur](#de-technologie--architektur) |
-| [Installation & Development](#en-installation--development) | [Installation & Entwicklung](#de-installation--entwicklung) |
-| [Supported Distribution Packages](#en-supported-distribution-packages) | [Distributionen](#de-distributionen) |
-| [Support the Project](#en-support-the-project) | [Projekt unterstützen](#de-projekt-unterstuetzen) |
-| [Changelog](CHANGELOG.md) | [Changelog](CHANGELOG.md) |
+Get the latest version of **Omega Wave Editor** directly from our [Releases Page](https://github.com/OmegaProjct/Omega-Wave-Editor/releases/latest):
+
+| Operating System | Recommended Package | Portable / Alternative |
+| :--- | :--- | :--- |
+| **🪟 Windows** (x64) | [**Download Setup (.exe)**](https://github.com/OmegaProjct/Omega-Wave-Editor/releases/latest) | [**Download Portable (.exe)**](https://github.com/OmegaProjct/Omega-Wave-Editor/releases/latest) |
+| **🍎 macOS** (Apple Silicon / Intel) | [**Download DMG Image (.dmg)**](https://github.com/OmegaProjct/Omega-Wave-Editor/releases/latest) | [**Download ZIP Archive (.zip)**](https://github.com/OmegaProjct/Omega-Wave-Editor/releases/latest) |
+| **🐧 Linux** (x64) | [**Download AppImage**](https://github.com/OmegaProjct/Omega-Wave-Editor/releases/latest) | [**Download Debian (.deb)**](https://github.com/OmegaProjct/Omega-Wave-Editor/releases/latest) |
 
 ---
 
-<a name="screenshots"></a>
-## 📸 Screenshots
+## 📸 Screenshots & Workflow
 
 <p align="center">
-  <img src="assets/screenshot_1.png" width="49%" alt="Omega Wave Editor Workspace" />
-  <img src="assets/screenshot_2.png" width="49%" alt="Equalizer & Effects Panel" />
+  <img src="assets/screenshot_1.png" width="49%" alt="Omega Wave Editor Main Workspace" />
+  <img src="assets/screenshot_2.png" width="49%" alt="Real-Time Effects & Equalizer Panel" />
 </p>
 
 ---
 
 <a name="english"></a>
-# EN English Documentation
+# 🇬🇧 English Documentation
 
-A modern, cross-platform **desktop audio editor & DAW** (Digital Audio Workstation) for fast, non-destructive, and creative audio editing. 
-
-**Omega Wave Editor** combines the flexibility of modern web technologies (**Electron, React, TypeScript, TailwindCSS**) with the power of the **Web Audio API** and **FFmpeg** to provide a fluid, real-time audio editing experience directly on your computer.
+**Omega Wave Editor** is a fast, versatile, non-destructive multitrack audio workstation and Digital Audio Workstation (DAW). It unifies modern desktop performance with real-time DSP audio processing, native VST2/VSTi plugin hosting, an integrated free VST store, and a full **Model Context Protocol (MCP) server** for AI-assisted editing and headless automated workflows.
 
 ---
 
-<a name="en-core-features"></a>
-## 🌟 Core Features
+## 🌟 Core Highlights
 
-### 1. Professional Multitrack Timeline
-* **Non-Destructive Clip Handling**: Cut, move, rename, and arrange audio regions freely across multiple tracks.
-* **Real-Time Gain Dragging (Volume Line)**: Adjust clip gain envelopes directly on the timeline with instant audio feedback during playback.
-* **Fade-In & Fade-Out**: Drag and drop smooth volume transitions directly at the start or end of any audio clip.
-* **Solo / Mute / Pan**: Full track controls for precise mixdown blending.
-* **Click-Event Absorber**: Intelligent click-propagation defense prevents accidental playback jumps when releasing fades or volume lines.
+### 1. Multitrack Timeline & Fluid Audio Manipulation
+* **Non-Destructive Clip Arrangement**: Freely move, trim, cut (Hotkey `T`), duplicate, and organize audio regions across unlimited tracks.
+* **Inline Clip Renaming**: Rename audio objects directly on the timeline via inline header editing, context menu, or by pressing `F2`.
+* **Real-Time Gain Envelopes**: Adjust volume curves directly on the audio clip with live auditory feedback during playback.
+* **Permanent Fade Handles**: Instant drag-and-drop volume fade-ins and fade-outs at clip borders.
+* **Playhead-Centered Zoom & Fluid Navigation**: High-performance waveform rendering with playhead-anchored zooming and sub-millisecond scrolling.
+* **Custom Appearance**: Personalize waveform colors, opacity, RMS core visibility, and switch between dual-sided and half-waveform views.
 
-### 2. Real-Time Object DSP Effects (Per Clip)
-Apply non-destructive, isolated effects per audio clip, computed in real time via the Web Audio API:
-* **10-Band Graphic Equalizer**: Precise frequency shaping from 60 Hz to 16 kHz (up to ±15 dB boost/cut).
-* **Compressor**: Dynamics leveling with adjustable threshold and compression ratio (1:1 to 20:1).
-* **Reverb (Hall)**: Add spatial depth with adjustable dry/wet mix and decay time (0.1s to 8.0s).
-* **Delay (Echo)**: Rhythmic delay taps with adjustable feedback and time (10ms to 2000ms).
-* **De-Esser**: Dynamically suppress sharp sibilants (S, SH, and Z sounds) above 6 kHz.
-* **Pitch & Timestretch**: Adjust playback speed and pitch in real time (factor 0.5x to 2.0x).
-* **Preset Manager**: Save and load effect chains (`.owea`), copy/paste settings between clips, or apply the current chain to all clips.
+### 2. Real-Time Object DSP Effects Suite (Per Clip)
+Every individual audio object has its own isolated, real-time effects chain computed via the Web Audio API:
+* **10-Band Graphic Equalizer**: Precise frequency boosting and cutting (60 Hz – 16 kHz, up to ±15 dB).
+* **Dynamics Compressor**: Pro-grade threshold, ratio (1:1 to 20:1), attack, and release controls.
+* **Spatial Reverb & Echo Delay**: Smooth decay times (0.1s to 8.0s) and rhythmic feedback echo taps.
+* **De-Esser**: Intelligent sibilance suppression above 6 kHz for crisp, non-harsh vocals.
+* **Time-Stretching & Pitch Shifting**: Non-destructive speed and pitch adjustments (0.5x to 2.0x).
+* **Preset Library (`.owea`)**: Save, load, and copy effect chains between clips or apply them globally.
 
-### 3. Audio Cleaning Suite
-A dedicated tool for restoring and enhancing low-quality or noisy recordings:
-* **DeClipper**: Automatically reconstruct digitally clipped/distorted audio signals.
-* **DeNoiser**: Attenuate background noise and hum using tailored profiles (e.g., camera noise, mains hum).
-* **DeHisser**: High-frequency filter for tape hiss and high-end static.
-* **Stereo FX**: Enhance stereo width, adjust pan balance, and create mono downmixes.
-* **Preset Export**: Save cleaning configurations as `.owepreset` files.
+### 3. Audio Cleaning & Restoration Suite
+A dedicated suite for repairing and enhancing noisy, distorted, or legacy recordings:
+* **DeClipper**: Algorithmic reconstruction of digitally clipped and overloaded waveforms.
+* **DeNoiser**: Tailored background hum, electrical buzz, and room noise suppression.
+* **DeHisser**: High-frequency static and tape hiss reduction.
+* **Stereo Widener & Balancing**: Stereo field expansion, pan balancing, and true mono downmixing.
 
-### 4. VST2 & VSTi Plugin Host & Store (Windows Native, macOS/Linux Fallback)
-* **Plugin Scanner**: Automatically scans default installation paths on Windows, macOS, and Linux for VST2, VST3, AU, and LV2 audio plugins.
-* **VST2 & VSTi Host (Windows)**: Load and route VST2 effects (compressors, EQs, delays) and VST Instruments (synthesizers, samplers) in real-time. Zero-copy audio/MIDI routing via SharedArrayBuffer ring buffers and a dedicated high-priority native C++ audio thread. Opens native plugin GUI editors inside floating OS windows.
-* **MIDI Pro & Learn Integration**: Play VST instruments live with extremely low latency. Connect knobs/sliders of your MIDI controllers to VST parameters instantly via the built-in MIDI Learn toggle.
-* **Two-Way MIDI & DJ Navigation**: Support for active MIDI controller feedback (Midi Out). Map Jog-Wheels/dials to timeline scrolling, scrubbing, and horizontal zoom.
-* **Free VST Store**: Curated built-in shop in the side panel offering direct downloads and automated installation of free pro-quality VST effects and synths (Vital, Surge XT, Dexed, etc.).
+### 4. VST2 & VSTi Plugin Host & In-App Store
+* **Native VST2 Host (Windows)**: Run 64-bit VST2 audio effects and VSTi synthesizers with ultra-low latency through dedicated C++ ring buffers.
+* **Floating Plugin GUIs**: Open and interact with original native plugin interfaces.
+* **MIDI Pro & Learn Engine**: Play virtual instruments live with MIDI keyboards; map hardware knobs to plugin parameters with 1-click MIDI Learn.
+* **Free VST Store**: Curated sidebar catalog offering 1-click downloads and automatic installation of top-tier free plugins (Vital, Surge XT, Dexed, etc.).
 
-### 5. Recording, Import & Export
-* **Built-in Recorder**: Record audio directly from your default mic or audio interface and insert it instantly into the timeline.
-* **High-Quality Export (Mixdown)**: Mix down all tracks to MP3, WAV, or FLAC via FFmpeg (respects mute, solo, and delay offsets).
-* **ID3 Tag Editor**: Edit title, artist, album, year, genre, and comments within the export window. Features full Windows Explorer compatibility (ID3v2.3 tagging).
-* **Audio Extractor**: Extract audio tracks from any video file with a single click.
-* **File Browser**: Browse local drives with audio previewing in the side panel.
+### 5. 🤖 AI & Automation Core (Model Context Protocol / MCP Server)
+Omega Wave Editor includes a built-in JSON-RPC 2.0 MCP server (`src/main/mcpServer.ts`), allowing AI assistants (Antigravity, Claude Desktop, Cursor) and automated scripts to control the editor:
+* **Project Management**: `project_create`, `project_load`, `project_save`, `project_export`.
+* **Track & Clip Operations**: `track_add`, `track_remove`, `clip_import`, `clip_split`, `clip_adjust_gain`.
+* **Batch Execution**: Run multi-step recipes and audio transformations headless without GUI overhead.
+
+### 6. Recording, Video Audio Extraction & ID3 Tag Studio
+* **Direct Audio Recording**: Record from any microphone or audio interface directly onto the timeline.
+* **Video Sound Extractor**: Extract high-fidelity audio tracks from video files with one click.
+* **ID3v2.3 Tag Editor**: Edit metadata (Artist, Title, Album, Year, Genre, Cover Art) with full Windows Explorer and media player compatibility.
 
 ---
 
-<a name="en-tech-stack--architecture"></a>
-## 🛠️ Tech Stack & Architecture
+## 🛠️ Architecture & Tech Stack
 
 ```mermaid
 graph TD
-    A[Electron Main Process] -->|IPC-Bridge| B[React Renderer Frontend]
-    B -->|User Interaction| C[Timeline & Components]
-    B -->|Web Audio API| D[Echtzeit DSP Engine]
-    A -->|FFmpeg / FFprobe| E[Audio-Extraktion & Mixdown]
-    A -->|System APIs| F[Audio Plugin Scanner & File I/O]
-    A -->|GitHub API| G[Auto-Updater]
+    subgraph Electron Main Process
+        A[Electron Core] --> B[FFmpeg / FFprobe Engine]
+        A --> C[Native VST Host C++ Bridge]
+        A --> D[JSON-RPC 2.0 MCP Server]
+        A --> E[System IPC & Auto-Updater]
+    end
+
+    subgraph Renderer Frontend
+        F[React 18 + TypeScript] --> G[Multitrack Timeline Canvas]
+        F --> H[Web Audio DSP Pipeline]
+        F --> I[Audio Cleaning & FX Panels]
+    end
+
+    A <==>|Secure IPC Bridge| F
 ```
 
-* **Frontend**: React (18), TypeScript, TailwindCSS, Lucide Icons, Framer Motion.
-* **Backend**: Electron (30), Node.js, native system bridges.
-* **Audio Engines**: Web Audio API (real-time playback/effects), FFmpeg & FFprobe (conversions/mixdown).
-* **CI/CD**: GitHub Actions workflows compile builds on every tag push.
+* **Frontend**: React 18, TypeScript, TailwindCSS, Lucide Icons, Canvas API.
+* **Backend**: Electron 30, Node.js, native C++ addon (`omega-vst-host`).
+* **Audio Engines**: Web Audio API (real-time playback/effects), FFmpeg & FFprobe (mixdown & conversion).
+* **Automation**: Model Context Protocol (MCP) Server for AI agent workflows.
 
 ---
 
-<a name="en-installation--development"></a>
-## 🚀 Installation & Development
+## 💻 Development & Building
 
 ### Prerequisites
-* **Node.js** (v18 or higher recommended)
-* **npm** or **yarn**
+* **Node.js**: `v18.0.0` or higher
+* **npm**: `v9.0.0` or higher
+* **C++ Build Tools**: Required only if modifying the native VST host on Windows (Visual Studio Build Tools / CMake).
 
-### Local Setup
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/OmegaProjct/Omega-Wave-Editor.git
-   cd Omega-Wave-Editor
-   ```
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Start development server:
-   ```bash
-   npm run dev
-   ```
-
-### Compile Releases
-Creates installable files and portable binaries under `dist-bin/`:
+### Quick Start
 ```bash
-# Build frontend assets
-npm run build
+# 1. Clone the repository
+git clone https://github.com/OmegaProjct/Omega-Wave-Editor.git
+cd Omega-Wave-Editor
 
-# Pack installers (OS-specific)
-npm run dist
+# 2. Install dependencies
+npm install
+
+# 3. Start development server
+npm run dev
 ```
 
----
+### Type Checking & Building
+```bash
+# Typecheck TypeScript code
+npm run typecheck
 
-<a name="en-supported-distribution-packages"></a>
-## 📦 Supported Distribution Packages
-
-Every release automatically compiles the following:
-* **Windows**:
-  * Setup Installer (`.exe`)
-  * **Portable Binary** (`Omega-Wave-Editor-Portable-X.Y.Z.exe` – standalone, no installation required)
-* **macOS**:
-  * DMG Image (`.dmg`)
-  * ZIP Archive (`.zip`)
-* **Linux**:
-  * AppImage (portable format)
-  * Debian Package (`.deb`)
-
----
-
-<a name="en-support-the-project"></a>
-## ❤️ Support the Project
-
-Omega Wave Editor is free, open-source software. If you find the program useful and would like to support its development, feel free to buy us a coffee via PayPal:
-
-👉 [**Support us on PayPal**](https://www.paypal.com/paypalme/OmegaProjects)
+# Build frontend & production assets
+npm run build
+```
 
 ---
 
 <a name="deutsch"></a>
-# DE Deutsche Dokumentation
+# 🇩🇪 Deutsche Dokumentation
 
-Ein moderner, plattformübergreifender **Desktop-Audioeditor & DAW** (Digital Audio Workstation) für die schnelle, verlustfreie und kreative Audio-Bearbeitung. 
+**Omega Wave Editor** ist ein moderner, plattformübergreifender **Multitrack-Audioeditor & DAW** (Digital Audio Workstation) für schnelles, verlustfreies und kreatives Arbeiten mit Audiodaten. 
 
-Der **Omega Wave Editor** kombiniert die Flexibilität moderner Webtechnologien (**Electron, React, TypeScript, TailwindCSS**) mit der Leistung der **Web Audio API** und **FFmpeg**, um eine flüssige Echtzeit-Audiobearbeitung direkt auf Ihrem Rechner zu ermöglichen.
-
----
-
-<a name="de-hauptfunktionen"></a>
-## 🌟 Hauptfunktionen (Core Features)
-
-### 1. Professionelle Multitrack-Timeline
-* **Non-destruktives Clip-Handling**: Schneiden, Verschieben, Umbenennen und freies Anordnen von Audio-Regionen auf mehreren Spuren.
-* **Echtzeit-Gain-Dragging (Lautstärke-Linie)**: Dynamische Gain-Hüllkurven direkt auf den Audio-Clips verschieben – mit sofortiger akustischer Rückmeldung im laufenden Betrieb.
-* **Fade-In & Fade-Out**: Zeichnen Sie flüssige Übergänge per Drag & Drop direkt am Clip-Anfang oder -Ende.
-* **Solo / Mute / Pan**: Volle Spurkontrolle für präzises Mischen im Arrangement.
-* **Klick-Event-Absorber**: Ein intelligenter Schutz verhindert ungewollte Wiedergabe-Sprünge beim Loslassen von Gain- oder Fade-Punkten.
-
-### 2. Echtzeit DSP-Effekt-Prozessor (Pro Objekt)
-Wenden Sie Effekte isoliert und nicht-destruktiv pro Audio-Clip an – berechnet in Echtzeit über die Web Audio API:
-* **10-Band Graphic Equalizer**: Präzise Frequenzkorrektur von 60 Hz bis 16 kHz (Boost/Cut um bis zu 15 dB).
-* **Kompressor**: Dynamik-Anpassung mit einstellbarem Schwellwert (Threshold) und Kompressions-Verhältnis (Ratio).
-* **Hall (Reverb)**: Räumliche Tiefe mit Reglern für Dry/Wet-Mix und Nachhallzeit (Decay).
-* **Echo (Delay)**: Rhythmische Echos mit einstellbarer Verzögerungszeit (ms) und Feedback.
-* **De-Esser**: Intelligente Dämpfung scharfer Sibilanten (S-, SCH- und Zischlaute) ab 6 kHz.
-* **Pitch & Timestretch**: Echtzeit-Veränderung der Abspielgeschwindigkeit und Tonhöhe (Faktor 0.5x bis 2.0x).
-* **Preset-Verwaltung**: Speichern und Laden von Effektketten (`.owea`), Kopieren und Einfügen zwischen Objekten, oder Anwenden einer Kette auf alle Audio-Clips.
-
-### 3. Audio Cleaning Suite
-Ein dediziertes Werkzeug zur Restaurierung und Verbesserung problematischer Aufnahmen:
-* **DeClipper**: Automatische Rekonstruktion übersteuerter (geclippter) Audiosignale.
-* **DeNoiser**: Rausch- und Brummreduzierung mit maßgeschneiderten Profilen (z.B. Kamera-Rauschen, Netzbrummen).
-* **DeHisser**: Filterung von Bandrauschen und hochfrequentem Zischen.
-* **Stereo FX**: Erweiterung der Stereobreite, Balance-Regler und Mono-Downmix.
-* **Profil-Export**: Speichern von Cleaning-Profilen als `.owepreset`.
-
-### 4. VST2 & VSTi Plugin-Host & Store (Windows Nativ, macOS/Linux Fallback)
-* **Plugin-Scanner**: Sucht automatisch in den Standardpfaden auf Windows, macOS und Linux nach installierten VST2-, VST3-, AU- und LV2-Audio-Plugins.
-* **VST2 & VSTi Host (Windows)**: Laden und Routen von VST2-Effekten (Kompressoren, EQs, Delays) und VST-Instrumenten (Synthesizer, Sampler) in Echtzeit. Latenzfreies Audio/MIDI-Routing via SharedArrayBuffer-Ringpuffer und eigenem C++ High-Priority Audio-Thread. Öffnet native Plugin-Editoren in separaten Betriebssystem-Fenstern.
-* **MIDI Pro & Learn Integration**: Live-Spielen von Synthesizern über angeschlossene Keyboards. Verbinden von Hardware-Reglern mit VST-Parametern per einfachem MIDI-Learn Klick.
-* **Zwei-Wege-MIDI & DJ Navigation**: Unterstützung für aktives MIDI-Controller-Feedback (Midi Out). Mappen von Jog-Wheels/Drehrädern auf Timeline-Scrollen, Scrubben und horizontales Zoomen.
-* **Kostenloser VST Store**: Kuriertes In-App-Verzeichnis in der Seitenleiste für den direkten Download und automatischen Import exzellenter freier VSTs und Synths (Vital, Surge XT, Dexed etc.).
-
-### 5. Aufnahme, Import & Export
-* **Integrierter Rekorder**: Audioaufnahmen direkt über Ihr Standard-Mikrofon oder -Interface aufnehmen und sofort in die Timeline einfügen.
-* **High-Quality Export (Mixdown)**: Schnelles und präzises Zusammenmischen aller Spuren als MP3, WAV oder FLAC via FFmpeg (unterstützt Mute, Solo und zeitliche Offsets).
-* **ID3-Metadaten-Editor**: Editieren Sie Titel, Interpret, Album, Jahr, Genre und Kommentare direkt im Export-Dialog. Volle Windows-Explorer-Kompatibilität durch ID3v2.3-Codierung.
-* **Audio Extractor**: Extrahieren Sie die Tonspur aus beliebigen Videodateien mit einem Klick.
-* **Datei-Browser**: Schnelles Durchsuchen Ihrer Festplatte mit Dateivorschau direkt in der Seitenleiste.
+Er kombiniert die Flexibilität moderner Webtechnologien (**Electron, React, TypeScript, TailwindCSS**) mit der Leistungsfähigkeit der **Web Audio API**, **FFmpeg**, einem nativen **VST2/VSTi-Host** sowie einem integrierten **MCP-Server** zur intelligenten Automatisierung und KI-gestützten Audiobearbeitung.
 
 ---
 
-<a name="de-technologie--architektur"></a>
-## 🛠️ Technologie & Architektur
+## 🌟 Hauptfunktionen (Feature-Übersicht)
 
-* **Frontend**: React (18), TypeScript, TailwindCSS, Lucide Icons, Framer Motion.
-* **Backend**: Electron (30), Node.js, native System-Verbindungen.
-* **Audio-Processing**: Web Audio API (für Echtzeit-Effekte/Wiedergabe) und FFmpeg / FFprobe (für Konvertierung und Mixdown).
-* **CI/CD & Releases**: GitHub Actions erzeugen bei jedem Versions-Tag automatisch Builds für alle Betriebssysteme.
+### 1. Professionelle Mehrspur-Zeitleiste (Multitrack Timeline)
+* **Verlustfreie Audio-Arrangements**: Tonstücke frei auf Spuren verschieben, trimmen, schneiden (Taste `T`) und duplizieren.
+* **Direktes Umbenennen von Objekten**: Audio-Objekte direkt in der Spurtitelleiste, per Rechtsklick oder Taste `F2` umbenennen.
+* **Echtzeit-Lautstärkelinien (Gain-Envelopes)**: Lautstärken direkt auf dem Tonstück mit sofortiger akustischer Rückmeldung anpassen.
+* **Permanente Ein-/Ausblend-Anfasser**: Runde Fade-Punkte an Clip-Rändern für sofortiges Ziehen weicher Lautstärkeübergänge.
+* **Abspielkopf-zentrierter Zoom & flüssige Navigation**: Schnelle Wellenform-Darstellung, bei der der Abspielkopf beim Zoomen stets im Blickfeld bleibt.
+* **Individuelle Optik**: Einstellbare Wellenform-Farben, Deckkraft, RMS-Kern-Anzeige und kompakte Halbe-Wellenform-Ansicht.
 
----
+### 2. Echtzeit-Effekte pro Audio-Objekt (DSP Suite)
+Jedes einzelne Tonstück besitzt eine eigene, nicht-destruktive Effektkette in Studioqualität:
+* **10-Band Grafischer Equalizer**: Präzise Frequenzanpassung von 60 Hz bis 16 kHz (bis zu ±15 dB Boost/Cut).
+* **Kompressor**: Dynamik-Kontrolle mit Schwellwert, Ratio (1:1 bis 20:1), Attack und Release.
+* **Hall (Reverb) & Echo (Delay)**: Räumlicher Raumklang (0,1s bis 8,0s) und anpassbare rhythmische Echo-Wiederholungen.
+* **De-Esser**: Dämpft scharfe Sibilanten (S- und Zischlaute) ab 6 kHz für weiche Sprachaufnahmen.
+* **Pitch & Tempo (Timestretch)**: Abspielgeschwindigkeit und Tonhöhe unabhängig voneinander im Bereich von 0.5x bis 2.0x anpassen.
+* **Effekt-Presets (`.owea`)**: Speichern und Laden kompletter Effektketten sowie schnelles Übertragen auf andere Clips.
 
-<a name="de-installation--entwicklung"></a>
-## 🚀 Installation & Entwicklung
+### 3. Audio Cleaning Suite (Restaurierung)
+Spezialwerkzeuge zur Beseitigung von Störgeräuschen und Restaurierung alter Aufnahmen:
+* **DeClipper**: Rekonstruiert übersteuerte, digital geclippte Audiospitzen.
+* **DeNoiser**: Beseitigt Netzbrummen, Lüfter- und Umgebungsgeräusche über gezielte Profile.
+* **DeHisser**: Filtert Tonbandrauschen und hochfrequentes Zischen heraus.
+* **Stereo-Optimierung**: Verbreiterung der Stereobasis, Balanceregler und Mono-Downmix.
 
-### Voraussetzungen
-* **Node.js** (v18 oder höher empfohlen)
-* **npm** oder **yarn**
+### 4. VST2 & VSTi Plugin-Host & Kostenloser Store
+* **Nativer VST2-Host (Windows)**: 64-Bit VST2-Effekte und VSTi-Instrumente latenzfrei über optimierte C++ Ringpuffer einbinden.
+* **Originale Plugin-Bedienoberflächen**: Öffnet native Plugin-Oberflächen in separaten Fenstern.
+* **MIDI Pro & Learn**: Synthesizer live per MIDI-Keyboard spielen und Regler per 1-Klick MIDI Learn verknüpfen.
+* **Kostenloser In-App VST Store**: Kuriertes Verzeichnis in der Seitenleiste für den direkten 1-Klick-Download beliebter kostenloser Qualitäts-Plugins (Vital, Surge XT, Dexed etc.).
 
-### Lokales Setup
-1. Repository klonen:
-   ```bash
-   git clone https://github.com/OmegaProjct/Omega-Wave-Editor.git
-   cd Omega-Wave-Editor
-   ```
-2. Abhängigkeiten installieren:
-   ```bash
-   npm install
-   ```
-3. Entwicklungsmodus starten:
-   ```bash
-   npm run dev
-   ```
+### 5. 🤖 KI & Automations-Kern (Model Context Protocol / MCP-Server)
+Der Omega Wave Editor enthält einen vollwertigen JSON-RPC 2.0 MCP-Server (`src/main/mcpServer.ts`), mit dem KI-Assistenten (Claude Desktop, Antigravity, Skripte) den Editor steuern können:
+* **Projektverwaltung**: `project_create`, `project_load`, `project_save`, `project_export`.
+* **Spur- & Schnittbefehle**: `track_add`, `track_remove`, `clip_import`, `clip_split`, `clip_adjust_gain`.
+* **Automatisierte Stapelverarbeitung**: Mehrstufige Audio-Bearbeitungen headless im Hintergrund ausführen.
 
-### Builds erstellen
-Erstellt installierbare Installationspakete und Portable-Versionen im Ordner `dist-bin/`:
-```bash
-# Produktions-Build vorbereiten
-npm run build
-
-# Installationspakete für alle Zielplattformen packen (OS-spezifisch)
-npm run dist
-```
-
----
-
-<a name="de-distributionen"></a>
-## 📦 Distributionen (Releases)
-
-Für jedes Release werden automatisch folgende Formate gebaut:
-* **Windows**:
-  * Setup-Installer (`.exe` mit geführter Installation)
-  * **Portable-Version** (`Omega-Wave-Editor-Portable-X.Y.Z.exe` – startet sofort ohne Installation, ideal für USB-Sticks)
-* **macOS**:
-  * DMG-Archiv (`.dmg` mit Drag-to-Applications Unterstützung)
-  * ZIP-Archiv (`.zip` für die manuelle Platzierung)
-* **Linux**:
-  * AppImage (portables, distributionsunabhängiges Format)
-  * Debian-Paket (`.deb` für Ubuntu/Debian-Systeme)
+### 6. Aufnahme, Video-Audio-Extraktion & ID3-Metadaten
+* **Mikrofonaufnahme**: Aufnahme direkt über jedes angeschlossene Mikrofon oder Audio-Interface auf eine Spur.
+* **Tonspur aus Video extrahieren**: Extrahiert Tonspuren aus Videodateien mit einem Klick in voller Qualität.
+* **ID3v2.3 Metadaten-Editor**: Komfortables Bearbeiten von Künstler, Titel, Album, Jahr, Genre und Cover direkt im Exportfenster mit voller Windows-Explorer-Kompatibilität.
 
 ---
 
-<a name="de-projekt-unterstuetzen"></a>
+## ⌨️ Wichtige Tastaturkürzel (Shortcuts)
+
+| Taste | Funktion |
+| :--- | :--- |
+| **Leertaste** | Wiedergabe starten / pausieren |
+| **T** | Ausgewähltes Tonstück an Abspielkopf-Position schneiden (Split) |
+| **F2** | Ausgewähltes Audio-Objekt direkt umbenennen |
+| **Z** | Anfang des Tonstücks bis zur Abspielposition trimmen |
+| **C** | Ende des Tonstücks ab Abspielposition trimmen |
+| **U** | Tonstück am Abspielkopf teilen und Cursor positionieren |
+| **F1** | Integriertes zweisprachiges Benutzerhandbuch öffnen |
+| **Strg + Z / Strg + Y** | Rückgängig / Wiederholen (Undo / Redo) |
+| **Strg + E** | Export-Dialog (Mixdown) öffnen |
+
+---
+
 ## ❤️ Projekt unterstützen
 
-Der Omega Wave Editor ist freie Open-Source-Software. Wenn dir das Programm gefällt und du die Weiterentwicklung unterstützen möchtest, freuen wir uns über einen Kaffee via PayPal:
+Der **Omega Wave Editor** ist freie, quelloffene Open-Source-Software unter der MIT-Lizenz. Wenn Ihnen das Programm gefällt und Sie die Weiterentwicklung unterstützen möchten, freuen wir uns über eine kleine Spende via PayPal:
 
-👉 [**Unterstütze uns auf PayPal**](https://www.paypal.com/paypalme/OmegaProjects)
+👉 [**Omega Projects auf PayPal unterstützen**](https://www.paypal.com/paypalme/OmegaProjects)
 
 ---
 
-*Lizenziert unter der MIT-Lizenz. © 2026 Omega Projects.*
+## 📄 Lizenz
+
+Dieses Projekt ist unter der **MIT-Lizenz** lizenziert. Weitere Details finden Sie in der Datei [LICENSE](LICENSE).
+
+*© 2026 Omega Projects. Entwickelt mit Leidenschaft für Audioproduzenten und Musiker.*
