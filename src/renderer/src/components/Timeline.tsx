@@ -1813,6 +1813,15 @@ export function Timeline({
   const [showCleaning, setShowCleaning] = useState(false)
   const [showProperties, setShowProperties] = useState(false)
 
+  if (typeof window !== 'undefined') {
+    (window as any).__openTimelineModal = (name: string) => {
+      setShowCleaning(false)
+      setShowProperties(false)
+      if (name === 'cleaning') setShowCleaning(true)
+      if (name === 'properties') setShowProperties(true)
+    }
+  }
+
   const applyScrollVisuals = useCallback((nextLeft: number, nextTop: number) => {
     if (stripContentRef.current) {
       stripContentRef.current.style.transform = `translateX(-${nextLeft}px)`

@@ -57,23 +57,37 @@ Get the latest stable version of **Omega Wave Editor** directly from our [Releas
 | 🎛️ Multitrack Studio Workspace | 🎚️ 10-Band Graphic EQ & DSP Effects |
 | :---: | :---: |
 | <img src="assets/screenshot_1.png" alt="Omega Wave Editor Multitrack Timeline" width="100%" /> | <img src="assets/screenshot_2.png" alt="10-Band Graphic EQ & Real-Time DSP Effects" width="100%" /> |
-| *Non-destructive multitrack arrangement with colored cuts, volume envelopes & fade handles.* | *Real-time per-clip DSP chain with 10-band EQ, Dynamics Compressor & Reverb.* |
+| *Non-destructive multitrack arrangement with colored tracks, volume envelopes & fade handles.* | *Real-time per-clip DSP chain with 10-band EQ, Dynamics Compressor & Reverb.* |
 
-| 🏪 Curated In-App VST Plugin Store | 📜 In-App Changelog & Release Notes |
+| 🗜️ Pro Dynamics Compressor | ⛪ Spatial Reverb & Stereo Delay |
 | :---: | :---: |
-| <img src="assets/screenshot_vst_store.png" alt="In-App VST Plugin Store" width="100%" /> | <img src="assets/screenshot_changelog.png" alt="In-App Changelog Viewer" width="100%" /> |
-| *1-click freeware discovery and automatic installation (Vital, Surge XT, Dexed, Kotelnikov).* | *Modern bilingual changelog with color-coded category badges and user-friendly notes.* |
+| <img src="assets/screenshot_effects_compressor.png" alt="Dynamics Compressor and Limiter" width="100%" /> | <img src="assets/screenshot_effects_reverb.png" alt="Spatial Reverb and Delay" width="100%" /> |
+| *Accurate transient control with threshold, ratio, attack, release and auto-gain makeup.* | *Studio-grade algorithmic reverb and synchronized ping-pong delay effects.* |
 
-| 🎨 Appearance & Waveform Customization | 📦 High-Resolution Mixdown & ID3 Studio |
+| 🧹 Audio Cleaning & Restoration Suite | 🎙️ Live Audio Recording Studio |
 | :---: | :---: |
-| <img src="assets/screenshot_settings.png" alt="Appearance & Waveform Customization Settings" width="100%" /> | <img src="assets/screenshot_export.png" alt="Audio Mixdown & ID3 Studio" width="100%" /> |
-| *Personalize waveform colors, opacity, RMS energy core, and half-waveform views.* | *Lossless WAV/FLAC & MP3 export with 24-bit Studio mastering & embedded ID3 tags.* |
+| <img src="assets/screenshot_cleaning.png" alt="Audio Cleaning and Restoration Suite" width="100%" /> | <img src="assets/screenshot_recording.png" alt="Live Audio Recording Studio" width="100%" /> |
+| *DeClipper, DeNoiser, DeHisser, stereo widening, and balance tools with live preview.* | *Professional multi-input recording studio with VU metering, ASIO support & zero latency.* |
 
-<p align="center">
-  <img src="assets/screenshot_manual.png" alt="Bilingual In-App User Manual" width="85%" />
-  <br />
-  <em>Integrated bilingual reference manual explaining workflows, hotkeys, and modular window docking.</em>
-</p>
+| 🏪 Curated In-App VST Plugin Store | 🎨 Appearance & Waveform Customization |
+| :---: | :---: |
+| <img src="assets/screenshot_vst_store.png" alt="In-App VST Plugin Store" width="100%" /> | <img src="assets/screenshot_settings.png" alt="Appearance & Waveform Customization Settings" width="100%" /> |
+| *1-click freeware discovery and automatic installation (Vital, Surge XT, Dexed, Kotelnikov).* | *Personalize waveform colors, opacity, RMS energy core, and half-waveform views.* |
+
+| 🛠️ Symbol & Toolbar Manager | ⏱️ Clip Properties & Pitch/Time-Stretch |
+| :---: | :---: |
+| <img src="assets/screenshot_toolbar_symbols.png" alt="Toolbar and Symbol Customization Manager" width="100%" /> | <img src="assets/screenshot_object_properties.png" alt="Object Properties and Pitch/Time-Stretching" width="100%" /> |
+| *Reorganize toolbars, toggle visibility, and customize your personalized DAW layout.* | *Inspect audio file metadata, source paths, and non-destructive pitch & speed tuning.* |
+
+| 📦 High-Resolution Mixdown & ID3 Studio | 📜 In-App Changelog & Release Notes |
+| :---: | :---: |
+| <img src="assets/screenshot_export.png" alt="Audio Mixdown & ID3 Studio" width="100%" /> | <img src="assets/screenshot_changelog.png" alt="In-App Changelog Viewer" width="100%" /> |
+| *Lossless WAV/FLAC & MP3 export with 24-bit Studio mastering & embedded ID3 tags.* | *Modern bilingual changelog with color-coded category badges and user-friendly notes.* |
+
+| 📖 Bilingual User Manual | 📋 System Diagnostics & Log Monitor |
+| :---: | :---: |
+| <img src="assets/screenshot_manual.png" alt="Bilingual In-App User Manual" width="100%" /> | <img src="assets/screenshot_log_viewer.png" alt="Diagnostic Log Viewer and Event Stream" width="100%" /> |
+| *Integrated reference manual explaining workflows, hotkeys, and modular window docking.* | *Real-time session logger and diagnostic monitor for audio buffers and IPC traces.* |
 
 ---
 
