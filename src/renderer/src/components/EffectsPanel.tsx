@@ -214,6 +214,16 @@ export function EffectsPanel({
   const [vstOpen, setVstOpen] = useState(true)
   const [selectedItem, setSelectedItem] = useState<string>('eq')
   const [activeView, setActiveView] = useState<'effects' | 'vst_rack' | 'vst_store'>('effects')
+
+  if (typeof window !== 'undefined') {
+    (window as any).__setEffectView = (effectId: string) => {
+      setSelectedItem(effectId)
+      setActiveView('effects')
+    };
+    (window as any).__setEffectMainView = (view: 'effects' | 'vst_rack' | 'vst_store') => {
+      setActiveView(view)
+    };
+  }
   // Beim Start vorhandene Plugin-Registry laden und filtern
   useEffect(() => {
     const loadPlugins = () => {

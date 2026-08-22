@@ -10,7 +10,9 @@ function setupIpcMocks() {
     'get-recent-projects', 'get-project-details', 'get-theme-colors',
     'save-theme-colors', 'save-settings', 'get-app-version', 'get-system-info',
     'check-for-updates', 'get-changelog', 'log-message', 'read-file-buffer',
-    'get-audio-metadata', 'get-audio-analysis', 'waveform:cancel-trace'
+    'get-audio-metadata', 'get-audio-analysis', 'waveform:cancel-trace',
+    'get-locales', 'get-system-path', 'scan-vst-plugins', 'write-log',
+    'get-startup-file', 'get-home-dir', 'get-performance-stats', 'get-asio-drivers'
   ]
   noopHandlers.forEach(ch => {
     try { ipcMain.handle(ch, async () => ({})) } catch (e) {}
@@ -24,6 +26,21 @@ function setupIpcMocks() {
       halfWaveform: false,
       theme: 'dark',
       language: 'de'
+    }))
+  } catch (e) {}
+
+  try {
+    ipcMain.handle('get-settings', async () => ({
+      waveformColor: '#00E5FF',
+      waveformOpacity: 0.9,
+      waveformShowRms: true,
+      halfWaveform: false,
+      theme: 'dark',
+      language: 'de',
+      sampleRate: 48000,
+      bitDepth: 24,
+      channels: 2,
+      latency: 128
     }))
   } catch (e) {}
 
@@ -109,45 +126,74 @@ app.whenReady().then(async () => {
   `)
   await new Promise(r => setTimeout(r, 3000))
 
-  // 1. Main Timeline Workspace
+  // 1. Main Multitrack Studio Workspace
   const img1 = await win.webContents.capturePage()
   fs.writeFileSync(path.join(assetsDir, 'screenshot_1.png'), img1.toPNG())
-  console.log('✅ 1/7 Captured assets/screenshot_1.png (Main Multitrack Timeline)')
+  console.log('✅ 1/14 Captured assets/screenshot_1.png (Main Multitrack Timeline)')
 
-  // 2. Equalizer & DSP Effects
+  // 2. Equalizer & DSP Effects (select clip)
   await win.webContents.executeJavaScript(`
     if (window.__selectClip) window.__selectClip("reg-1-intro");
-    const clipEl = document.querySelector('[data-region-id="reg-1-intro"]');
-    if (clipEl) clipEl.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    const eqItem = Array.from(document.querySelectorAll("div, button, span")).find(el => el.textContent === "Equalizer");
-    if (eqItem) eqItem.click();
+    if (window.__setEffectView) window.__setEffectView('eq');
   `)
-  await new Promise(r => setTimeout(r, 1200))
+  await new Promise(r => setTimeout(r, 1000))
   const img2 = await win.webContents.capturePage()
   fs.writeFileSync(path.join(assetsDir, 'screenshot_2.png'), img2.toPNG())
-  console.log('✅ 2/7 Captured assets/screenshot_2.png (10-Band Graphic Equalizer & DSP)')
+  console.log('✅ 2/14 Captured assets/screenshot_2.png (10-Band Graphic Equalizer & DSP)')
 
-  // 3. VST Store
+  // 3. Dynamics Compressor Effect View
+  await win.webContents.executeJavaScript(`
+    if (window.__setEffectView) window.__setEffectView('comp');
+  `)
+  await new Promise(r => setTimeout(r, 1000))
+  const imgComp = await win.webContents.capturePage()
+  fs.writeFileSync(path.join(assetsDir, 'screenshot_effects_compressor.png'), imgComp.toPNG())
+  console.log('✅ 3/14 Captured assets/screenshot_effects_compressor.png (Dynamics Compressor)')
+
+  // 4. Spatial Reverb & Echo Delay Effect View
+  await win.webContents.executeJavaScript(`
+    if (window.__setEffectView) window.__setEffectView('reverb');
+  `)
+  await new Promise(r => setTimeout(r, 1000))
+  const imgReverb = await win.webContents.capturePage()
+  fs.writeFileSync(path.join(assetsDir, 'screenshot_effects_reverb.png'), imgReverb.toPNG())
+  console.log('✅ 4/14 Captured assets/screenshot_effects_reverb.png (Spatial Reverb & Delay)')
+
+  // 5. Audio Cleaning & Restoration Suite
+  await win.webContents.executeJavaScript(`
+    if (window.__openTimelineModal) window.__openTimelineModal('cleaning');
+  `)
+  await new Promise(r => setTimeout(r, 1200))
+  const imgCleaning = await win.webContents.capturePage()
+  fs.writeFileSync(path.join(assetsDir, 'screenshot_cleaning.png'), imgCleaning.toPNG())
+  console.log('✅ 5/14 Captured assets/screenshot_cleaning.png (Audio Cleaning & Restoration Suite)')
+
+  // 6. Object Properties & Pitch/Time-Stretching Modal
+  await win.webContents.executeJavaScript(`
+    if (window.__openTimelineModal) window.__openTimelineModal('properties');
+  `)
+  await new Promise(r => setTimeout(r, 1200))
+  const imgProps = await win.webContents.capturePage()
+  fs.writeFileSync(path.join(assetsDir, 'screenshot_object_properties.png'), imgProps.toPNG())
+  console.log('✅ 6/14 Captured assets/screenshot_object_properties.png (Object Properties & Pitch/Time)')
+
+  // Close Timeline modals
+  await win.webContents.executeJavaScript(`
+    if (window.__openTimelineModal) window.__openTimelineModal(null);
+  `)
+  await new Promise(r => setTimeout(r, 500))
+
+  // 7. VST Store
   await win.webContents.executeJavaScript(`
     if (window.__openScreenshotModal) window.__openScreenshotModal(null);
-    const storeBtn = Array.from(document.querySelectorAll("button, div, span")).find(b => b.textContent && b.textContent.includes("VST Store"));
-    if (storeBtn) storeBtn.click();
+    if (window.__setEffectMainView) window.__setEffectMainView('vst_store');
   `)
   await new Promise(r => setTimeout(r, 1200))
   const imgVst = await win.webContents.capturePage()
   fs.writeFileSync(path.join(assetsDir, 'screenshot_vst_store.png'), imgVst.toPNG())
-  console.log('✅ 3/7 Captured assets/screenshot_vst_store.png (Curated VST Plugin Store)')
+  console.log('✅ 7/14 Captured assets/screenshot_vst_store.png (Curated VST Plugin Store)')
 
-  // 4. Changelog Modal
-  await win.webContents.executeJavaScript(`
-    if (window.__openScreenshotModal) window.__openScreenshotModal("changelog");
-  `)
-  await new Promise(r => setTimeout(r, 1500))
-  const imgChangelog = await win.webContents.capturePage()
-  fs.writeFileSync(path.join(assetsDir, 'screenshot_changelog.png'), imgChangelog.toPNG())
-  console.log('✅ 4/7 Captured assets/screenshot_changelog.png (In-App Changelog Modal)')
-
-  // 5. Settings Modal
+  // 8. Settings Modal (Appearance Tab)
   await win.webContents.executeJavaScript(`
     if (window.__openScreenshotModal) window.__openScreenshotModal("settings");
     setTimeout(() => {
@@ -158,26 +204,84 @@ app.whenReady().then(async () => {
   await new Promise(r => setTimeout(r, 1500))
   const imgSettings = await win.webContents.capturePage()
   fs.writeFileSync(path.join(assetsDir, 'screenshot_settings.png'), imgSettings.toPNG())
-  console.log('✅ 5/7 Captured assets/screenshot_settings.png (Appearance Settings)')
+  console.log('✅ 8/14 Captured assets/screenshot_settings.png (Appearance Settings)')
 
-  // 6. User Manual Modal
+  // 9. Toolbar & Symbol Manager Modal
+  await win.webContents.executeJavaScript(`
+    if (window.__openScreenshotModal) window.__openScreenshotModal("symbols");
+  `)
+  await new Promise(r => setTimeout(r, 1500))
+  const imgSymbols = await win.webContents.capturePage()
+  fs.writeFileSync(path.join(assetsDir, 'screenshot_toolbar_symbols.png'), imgSymbols.toPNG())
+  console.log('✅ 9/14 Captured assets/screenshot_toolbar_symbols.png (Symbol & Toolbar Manager)')
+
+  // 10. In-App Changelog Modal
+  await win.webContents.executeJavaScript(`
+    if (window.__openScreenshotModal) window.__openScreenshotModal("changelog");
+  `)
+  await new Promise(r => setTimeout(r, 1500))
+  const imgChangelog = await win.webContents.capturePage()
+  fs.writeFileSync(path.join(assetsDir, 'screenshot_changelog.png'), imgChangelog.toPNG())
+  console.log('✅ 10/14 Captured assets/screenshot_changelog.png (In-App Changelog Modal)')
+
+  // 11. User Manual Modal
   await win.webContents.executeJavaScript(`
     if (window.__openScreenshotModal) window.__openScreenshotModal("manual");
   `)
   await new Promise(r => setTimeout(r, 1500))
   const imgManual = await win.webContents.capturePage()
   fs.writeFileSync(path.join(assetsDir, 'screenshot_manual.png'), imgManual.toPNG())
-  console.log('✅ 6/7 Captured assets/screenshot_manual.png (Bilingual User Manual)')
+  console.log('✅ 11/14 Captured assets/screenshot_manual.png (Bilingual User Manual)')
 
-  // 7. Mixdown Export Modal
+  // 12. Mixdown Export Modal
   await win.webContents.executeJavaScript(`
     if (window.__openScreenshotModal) window.__openScreenshotModal("export");
   `)
   await new Promise(r => setTimeout(r, 1500))
   const imgExport = await win.webContents.capturePage()
   fs.writeFileSync(path.join(assetsDir, 'screenshot_export.png'), imgExport.toPNG())
-  console.log('✅ 7/7 Captured assets/screenshot_export.png (Mixdown & ID3 Export)')
+  console.log('✅ 12/14 Captured assets/screenshot_export.png (Mixdown & ID3 Export)')
 
-  console.log('🎉 ALL 7 SCREENSHOTS FULLY UPDATED AND SAVED!')
+  win.close()
+
+  // 13. Standalone Window: Live Audio Recording Studio
+  const recWin = new BrowserWindow({
+    width: 820,
+    height: 620,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, '../out/preload/index.js'),
+      sandbox: false,
+      contextIsolation: true,
+      webSecurity: false
+    }
+  })
+  await recWin.loadFile(path.join(__dirname, '../out/renderer/index.html'), { query: { window: 'audio-recorder' } })
+  await new Promise(r => setTimeout(r, 1500))
+  const imgRec = await recWin.webContents.capturePage()
+  fs.writeFileSync(path.join(assetsDir, 'screenshot_recording.png'), imgRec.toPNG())
+  console.log('✅ 13/14 Captured assets/screenshot_recording.png (Live Audio Recording Studio)')
+  recWin.close()
+
+  // 14. Standalone Window: Diagnostic Log Viewer
+  const logWin = new BrowserWindow({
+    width: 880,
+    height: 640,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, '../out/preload/index.js'),
+      sandbox: false,
+      contextIsolation: true,
+      webSecurity: false
+    }
+  })
+  await logWin.loadFile(path.join(__dirname, '../out/renderer/index.html'), { query: { window: 'logs' } })
+  await new Promise(r => setTimeout(r, 1500))
+  const imgLog = await logWin.webContents.capturePage()
+  fs.writeFileSync(path.join(assetsDir, 'screenshot_log_viewer.png'), imgLog.toPNG())
+  console.log('✅ 14/14 Captured assets/screenshot_log_viewer.png (Diagnostic Log Viewer)')
+  logWin.close()
+
+  console.log('🎉 ALL 14 HIGH-RESOLUTION SCREENSHOTS FULLY GENERATED AND SAVED!')
   app.quit()
 })

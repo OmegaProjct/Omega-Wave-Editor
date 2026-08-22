@@ -355,11 +355,14 @@ function App(): JSX.Element {
       setShowSettings(false)
       setShowExport(false)
       setShowAbout(false)
+      setShowSymbolManager(false)
+      setShowStartDashboard(false)
       if (name === 'changelog') setShowChangelog(true)
       if (name === 'manual') setShowManual(true)
       if (name === 'settings') { setSettingsTab(payload || 'Darstellung'); setShowSettings(true) }
       if (name === 'export') setShowExport(true)
       if (name === 'about') setShowAbout(true)
+      if (name === 'symbols') setShowSymbolManager(true)
     };
     (window as any).__selectClip = (regionId: string) => {
       setSelectedRegionIds(new Set([regionId]))
