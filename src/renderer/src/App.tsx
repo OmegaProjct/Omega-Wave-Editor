@@ -364,6 +364,9 @@ function App(): JSX.Element {
     (window as any).__selectClip = (regionId: string) => {
       setSelectedRegionIds(new Set([regionId]))
     };
+    (window as any).__loadDemoTracks = (demoTracks: any[]) => {
+      if (Array.isArray(demoTracks)) pushTracks(demoTracks);
+    };
   }
 
   const { state: tracks, push: pushTracks, undo, redo } = useHistory(initialTracks, maxUndoSteps);

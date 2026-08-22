@@ -53,6 +53,7 @@ type WaveformRendererProps = {
   scrollLeft?: number
   viewportWidth?: number
   sourceChannels?: number
+  color?: string
 }
 
 type RenderWindow = {
@@ -507,7 +508,8 @@ export function WaveformRenderer({
   regionStart = 0,
   scrollLeft = 0,
   viewportWidth = 0,
-  sourceChannels = 1
+  sourceChannels = 1,
+  color: propColor
 }: WaveformRendererProps) {
   const wrapperRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -520,6 +522,7 @@ export function WaveformRenderer({
   const [size, setSize] = useState({ width: 0, height: 0 })
   const [halfWaveform, setHalfWaveform] = useState<boolean>(false)
   const [waveformColor, setWaveformColor] = useState<string>('#0096cd')
+  const effectiveWaveformColor = propColor || waveformColor
   const [waveformOpacity, setWaveformOpacity] = useState<number>(0.9)
   const [waveformShowRms, setWaveformShowRms] = useState<boolean>(true)
   // Zaehler, um nach Fertigstellung der Peak-Pyramide einmal neu anzufragen
@@ -824,11 +827,9 @@ export function WaveformRenderer({
     const visualScale = clamp(0.92 / normPeak, 0.5, 16)
     const safeGain = clamp(gain || 1, 0, 8)
 
-    // Bitmap-Cache (Phase B3): bereits fertig gezeichnete Ansichten desselben
-    // Ausschnitts/Zooms nur kopieren statt neu zu zeichnen. Uebergangsdaten
-    // werden nie ueber den Cache bedient, um spaeter keine veraltete
-    // Grobansicht faelschlich als Ergebnis zu zeigen.
-    const tileCacheKey = waveform.provisional ? null : [
+    // Bitmap-Tile-Cache: Vorberechneten gerenderten Canvas wiederverwenden,
+    // wenn Datei, Zoom, Gain und Farbe identisch sind.
+    const tileCacheKey = [
       filePath,
       channel || 'stereo',
       waveform.mode,
@@ -839,7 +840,7 @@ export function WaveformRenderer({
       Math.round(dpr * 100),
       halfWaveform ? 1 : 0,
       Math.round(safeGain * 1000),
-      waveformColor,
+      effectiveWaveformColor,
       waveformOpacity.toFixed(2),
       waveformShowRms ? 1 : 0
     ].join('|')
@@ -899,9 +900,9 @@ export function WaveformRenderer({
       }
 
       if (waveform.mode === 'samples') {
-        drawSampleChannel(ctx, waveChannel, cssWidth, mapping, contentTop, contentHeight, visualScale, safeGain, halfWaveform, waveformColor, waveformOpacity)
+        drawSampleChannel(ctx, waveChannel, cssWidth, mapping, contentTop, contentHeight, visualScale, safeGain, halfWaveform, effectiveWaveformColor, waveformOpacity)
       } else {
-        drawPeakChannel(ctx, waveChannel, cssWidth, mapping, contentTop, contentHeight, visualScale, safeGain, halfWaveform, waveformColor, waveformOpacity, waveformShowRms)
+        drawPeakChannel(ctx, waveChannel, cssWidth, mapping, contentTop, contentHeight, visualScale, safeGain, halfWaveform, effectiveWaveformColor, waveformOpacity, waveformShowRms)
       }
     })
 
@@ -934,7 +935,7 @@ export function WaveformRenderer({
     // ausloesen — das uebernimmt der Reposition-Effekt unten per CSS.
     // Sobald sich `waveform` aendert, liest dieser Effekt trotzdem die
     // jeweils aktuelle Fenstergeometrie (sie ist Teil des Closures).
-  }, [channel, gain, halfWaveform, size.height, sourceChannels, waveform, waveformColor, waveformOpacity, waveformShowRms])
+  }, [channel, gain, halfWaveform, size.height, sourceChannels, waveform, effectiveWaveformColor, waveformOpacity, waveformShowRms])
 
   // Reposition-Effekt: laeuft bei jeder Zoom-/Scroll-Geometrieaenderung.
   // Solange der Paint-Effekt noch nicht mit frischen Daten nachgezogen hat,

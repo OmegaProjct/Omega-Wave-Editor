@@ -8,20 +8,56 @@ import type {
   ToolbarVisibilityKey
 } from './timelineTypes'
 
-export const REGION_COLORS: { label: string; value: string }[] = [
-  { label: 'Standard', value: 'bg-omega-accent' },
-  { label: 'Türkis', value: 'bg-cyan-500' },
-  { label: 'Blaugrün', value: 'bg-teal-600' },
-  { label: 'Grün', value: 'bg-green-600' },
-  { label: 'Hellgrün', value: 'bg-lime-500' },
-  { label: 'Orange', value: 'bg-orange-500' },
-  { label: 'Braun', value: 'bg-amber-800' },
-  { label: 'Rot', value: 'bg-red-600' },
-  { label: 'Pink', value: 'bg-pink-500' },
-  { label: 'Lila', value: 'bg-purple-500' },
-  { label: 'Violett', value: 'bg-violet-600' },
-  { label: 'Dunkelblau', value: 'bg-blue-900' },
+export const AUDIO_COLOR_PALETTE: { label: string; value: string; hex: string }[] = [
+  { label: 'Cyan Neon', value: '#00E5FF', hex: '#00E5FF' },
+  { label: 'Sky Blau', value: '#00B0FF', hex: '#00B0FF' },
+  { label: 'Elektro Lila', value: '#E040FB', hex: '#E040FB' },
+  { label: 'Neon Pink', value: '#FF4081', hex: '#FF4081' },
+  { label: 'Korallenrot', value: '#FF5252', hex: '#FF5252' },
+  { label: 'Vibrant Orange', value: '#FF9100', hex: '#FF9100' },
+  { label: 'Gold / Amber', value: '#FFB300', hex: '#FFB300' },
+  { label: 'Smaragdgrün', value: '#00E676', hex: '#00E676' },
+  { label: 'Mint / Türkis', value: '#00BFA5', hex: '#00BFA5' },
+  { label: 'Graphit / Slate', value: '#78909C', hex: '#78909C' },
 ]
+
+export const REGION_COLORS: { label: string; value: string }[] = [
+  { label: 'Cyan Neon', value: '#00E5FF' },
+  { label: 'Sky Blau', value: '#00B0FF' },
+  { label: 'Elektro Lila', value: '#E040FB' },
+  { label: 'Neon Pink', value: '#FF4081' },
+  { label: 'Korallenrot', value: '#FF5252' },
+  { label: 'Vibrant Orange', value: '#FF9100' },
+  { label: 'Gold / Amber', value: '#FFB300' },
+  { label: 'Smaragdgrün', value: '#00E676' },
+  { label: 'Mint / Türkis', value: '#00BFA5' },
+  { label: 'Graphit / Slate', value: '#78909C' },
+  { label: 'Standard Blau', value: 'bg-omega-accent' },
+]
+
+export function getTrackDefaultColor(trackIndex: number): string {
+  return AUDIO_COLOR_PALETTE[Math.abs(trackIndex) % AUDIO_COLOR_PALETTE.length].hex
+}
+
+export function resolveColorValue(color?: string, fallback: string = '#00E5FF'): string {
+  if (!color) return fallback
+  if (color.startsWith('#') || color.startsWith('rgb')) return color
+  const tailwindMap: Record<string, string> = {
+    'bg-cyan-500': '#06b6d4',
+    'bg-teal-600': '#0d9488',
+    'bg-green-600': '#16a34a',
+    'bg-lime-500': '#84cc16',
+    'bg-orange-500': '#f97316',
+    'bg-amber-800': '#92400e',
+    'bg-red-600': '#dc2626',
+    'bg-pink-500': '#ec4899',
+    'bg-purple-500': '#a855f7',
+    'bg-violet-600': '#7c3aed',
+    'bg-blue-900': '#1e3a8a',
+    'bg-omega-accent': '#0096cd'
+  }
+  return tailwindMap[color] || fallback
+}
 
 export const mergeSplitTracks = (tracksList: Track[]): Track[] => {
   let updatedTracks = tracksList.map(t => ({ ...t, regions: [...t.regions] }));

@@ -61,6 +61,7 @@ export type Track = {
   pan?: number
   panL?: number
   panR?: number
+  color?: string
 }
 
 export type ToolbarVisibilityKey =
