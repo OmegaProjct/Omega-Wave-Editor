@@ -21,6 +21,9 @@ import {
 import { shouldLogDiagnostic, writeDiagnosticLog } from '../lib/diagnosticLogging'
 import {
   REGION_COLORS,
+  AUDIO_COLOR_PALETTE,
+  getTrackDefaultColor,
+  resolveColorValue,
   mergeSplitTracks,
   splitMergedTracks,
   shareChannels,
@@ -4701,27 +4704,49 @@ export function Timeline({
 
           <div className="relative" onMouseEnter={() => setColorSubmenuOpen(true)} onMouseLeave={() => setColorSubmenuOpen(false)}>
             <button className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors flex items-center justify-between text-gray-300 group cursor-pointer">
-              Objektfarbe <ChevronRight size={13} className="text-gray-500 group-hover:text-white transition-colors" />
+              <span>🎨 Objektfarbe</span>
+              <ChevronRight size={13} className="text-gray-500 group-hover:text-white transition-colors" />
             </button>
             {colorSubmenuOpen && (
-              <div className={`absolute left-full bg-[#1e2124]/95 backdrop-blur-md text-gray-200 border border-gray-700/60 rounded-lg shadow-2xl py-1.5 w-36 z-[10000] ${isBottomHalf ? 'bottom-0' : 'top-0'}`}>
-                {REGION_COLORS.map(c => (
-                  <button
-                    key={c.value}
-                    className="w-full text-left px-3 py-1.5 hover:bg-omega-accent hover:text-white transition-colors flex items-center gap-2 text-gray-300 group cursor-pointer"
-                    onClick={() => {
-                      updateTracksWithHistory(tracks.map(t => ({
-                        ...t,
-                        regions: t.regions.map(r => r.id === contextMenu.regionId ? { ...r, color: c.value } : r)
-                      })));
-                      setContextMenu(null);
-                      setColorSubmenuOpen(false);
-                    }}
-                  >
-                    <span className={`w-3 h-3 rounded-sm ${c.value} inline-block flex-shrink-0`} />
-                    {c.label}
-                  </button>
-                ))}
+              <div className={`absolute left-full bg-[#1e2124]/95 backdrop-blur-md text-gray-200 border border-gray-700/60 rounded-lg shadow-2xl p-2 w-52 z-[10000] ${isBottomHalf ? 'bottom-0' : 'top-0'}`}>
+                <div className="text-[10px] text-gray-400 mb-1.5 font-medium">Clip-Farbe wählen:</div>
+                <div className="grid grid-cols-5 gap-1.5 mb-2">
+                  {AUDIO_COLOR_PALETTE.map(c => (
+                    <button
+                      key={c.hex}
+                      title={c.label}
+                      type="button"
+                      className="w-7 h-6 rounded border border-white/20 hover:scale-110 hover:border-white transition-all cursor-pointer shadow-sm"
+                      style={{ backgroundColor: c.hex }}
+                      onClick={() => {
+                        updateTracksWithHistory(tracks.map(t => ({
+                          ...t,
+                          regions: t.regions.map(r => r.id === contextMenu.regionId ? { ...r, color: c.hex } : r)
+                        })));
+                        setContextMenu(null);
+                        setColorSubmenuOpen(false);
+                      }}
+                    />
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  className="w-full text-left px-2 py-1 text-[10px] rounded hover:bg-omega-accent hover:text-white text-gray-300 transition-colors cursor-pointer flex items-center gap-1.5"
+                  onClick={() => {
+                    const parentTrack = tracks.find(t => t.regions.some(r => r.id === contextMenu.regionId))
+                    const trackColor = parentTrack?.color || getTrackDefaultColor(parentTrack?.index || 0)
+                    updateTracksWithHistory(tracks.map(t => ({
+                      ...t,
+                      regions: t.regions.map(r => r.id === contextMenu.regionId ? { ...r, color: trackColor } : r)
+                    })));
+                    setContextMenu(null);
+                    setColorSubmenuOpen(false);
+                  }}
+                >
+                  <span>↩️</span>
+                  <span>Farbe von Spur übernehmen</span>
+                </button>
               </div>
             )}
           </div>
@@ -4759,19 +4784,103 @@ export function Timeline({
  
       {trackContextMenu && (
         <div 
-          className="fixed bg-[#1e2124]/95 backdrop-blur-md text-gray-200 border border-gray-700/60 rounded-lg shadow-2xl py-1.5 z-[9999] text-xs w-60 flex flex-col select-none" 
-          style={{ top: trackContextMenu.y, left: trackContextMenu.x }} 
+          className="fixed bg-[#1e2124]/95 backdrop-blur-md text-gray-200 border border-gray-700/60 rounded-lg shadow-2xl py-1.5 z-[9999] text-xs w-64 flex flex-col select-none" 
+          style={{ 
+            top: typeof window !== 'undefined' ? Math.min(trackContextMenu.y, window.innerHeight - 320) : trackContextMenu.y, 
+            left: typeof window !== 'undefined' ? Math.min(trackContextMenu.x, window.innerWidth - 270) : trackContextMenu.x 
+          }} 
           onClick={(e) => e.stopPropagation()}
         >
+          <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-400 border-b border-gray-700/50 flex items-center justify-between">
+            <span>🎨 Spurfarbe & Optionen</span>
+          </div>
+
+          {/* Color Palette Grid */}
+          <div className="p-2 border-b border-gray-700/50">
+            <div className="text-[10px] text-gray-400 mb-1.5 font-medium">Spurfarbe wählen:</div>
+            <div className="grid grid-cols-5 gap-1.5">
+              {AUDIO_COLOR_PALETTE.map((colorItem) => (
+                <button
+                  key={colorItem.hex}
+                  type="button"
+                  title={colorItem.label}
+                  className="w-8 h-6 rounded border border-white/20 hover:scale-110 hover:border-white transition-all cursor-pointer flex items-center justify-center shadow-sm"
+                  style={{ backgroundColor: colorItem.hex }}
+                  onClick={() => {
+                    const cleanTrackId = trackContextMenu.trackId.replace(/_[LR]$/, '')
+                    const newTracks = tracks.map(t => {
+                      if (t.id === cleanTrackId) {
+                        return { ...t, color: colorItem.hex }
+                      }
+                      return t
+                    })
+                    updateTracksWithHistory(newTracks)
+                    setTrackContextMenu(null)
+                  }}
+                />
+              ))}
+            </div>
+
+            <div className="mt-2 flex flex-col gap-1">
+              <button
+                type="button"
+                className="w-full text-left px-2 py-1 text-[11px] rounded hover:bg-omega-accent hover:text-white text-gray-300 transition-colors flex items-center gap-1.5 cursor-pointer"
+                onClick={() => {
+                  const cleanTrackId = trackContextMenu.trackId.replace(/_[LR]$/, '')
+                  const targetTrack = tracks.find(t => t.id === cleanTrackId)
+                  const trackColor = targetTrack?.color || getTrackDefaultColor(targetTrack?.index || 0)
+                  const newTracks = tracks.map(t => {
+                    if (t.id === cleanTrackId) {
+                      return {
+                        ...t,
+                        regions: t.regions.map(r => ({ ...r, color: trackColor }))
+                      }
+                    }
+                    return t
+                  })
+                  updateTracksWithHistory(newTracks)
+                  setTrackContextMenu(null)
+                }}
+              >
+                <span>🖌️</span>
+                <span>Farbe auf alle Clips übertragen</span>
+              </button>
+
+              <button
+                type="button"
+                className="w-full text-left px-2 py-1 text-[11px] rounded hover:bg-omega-accent hover:text-white text-gray-300 transition-colors flex items-center gap-1.5 cursor-pointer"
+                onClick={() => {
+                  const cleanTrackId = trackContextMenu.trackId.replace(/_[LR]$/, '')
+                  const randomColor = AUDIO_COLOR_PALETTE[Math.floor(Math.random() * AUDIO_COLOR_PALETTE.length)].hex
+                  const newTracks = tracks.map(t => {
+                    if (t.id === cleanTrackId) {
+                      return {
+                        ...t,
+                        color: randomColor,
+                        regions: t.regions.map(r => ({ ...r, color: randomColor }))
+                      }
+                    }
+                    return t
+                  })
+                  updateTracksWithHistory(newTracks)
+                  setTrackContextMenu(null)
+                }}
+              >
+                <span>🎲</span>
+                <span>Zufällige Farbe (Spur & Clips)</span>
+              </button>
+            </div>
+          </div>
+
           <button 
-            className="w-full text-left px-4 py-1.5 hover:bg-omega-accent hover:text-white transition-colors flex items-center justify-between text-gray-300 font-semibold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+            className="w-full text-left px-3 py-1.5 hover:bg-omega-accent hover:text-white transition-colors flex items-center justify-between text-gray-300 font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
             onClick={() => {
               splitStereoTrack(trackContextMenu.trackId);
               setTrackContextMenu(null);
             }}
             disabled={!tracks.find(t => t.id === trackContextMenu.trackId)?.regions.some(r => r.channels && r.channels !== 1)}
           >
-            Spur: Stereo in zwei Mono-Spuren aufteilen
+            <span>✂️ Stereo in 2 Mono-Spuren aufteilen</span>
           </button>
         </div>
       )}
@@ -5078,10 +5187,12 @@ export function Timeline({
            <div className="w-32 bg-omega-panel border-r border-omega-border z-[160] shadow-[2px_0_5px_rgba(0,0,0,0.3)] flex flex-col overflow-hidden relative">
               <div className="flex-1 overflow-hidden relative">
                  <div ref={trackHeadersContentRef} className="flex flex-col" style={{ transform: `translateY(-${scrollTop}px)` }}>
-                   {displayedTracks.map(track => (
+                    {displayedTracks.map(track => {
+                      const trackColor = track.color || getTrackDefaultColor(track.index || 0);
+                      return (
                         <div 
                            key={track.id} 
-                           className="border-b border-[#282b30] bg-omega-panel flex flex-col justify-center px-1 overflow-hidden" 
+                           className="border-b border-[#282b30] bg-omega-panel flex flex-row items-stretch overflow-hidden relative group select-none" 
                            style={{ height: trackHeight }}
                            onContextMenu={(e) => {
                              e.preventDefault();
@@ -5091,31 +5202,53 @@ export function Timeline({
                              setEditorContextMenu(null);
                            }}
                         >
-                            {trackHeight >= 55 && (
-                              <div className="flex items-center gap-1 mb-1 px-1">
-                                 <input 
-                                   value={track.name} 
-                                   placeholder="kein Name" 
-                                   onChange={(e) => {
-                                     const isL = track.id.endsWith('_L');
-                                     const isR = track.id.endsWith('_R');
-                                     const cleanTrackId = track.id.replace(/_[LR]$/, '');
-                                     const newTracks = tracks.map(t => {
-                                       if (t.id === cleanTrackId) {
-                                         if (isL) return { ...t, nameL: e.target.value };
-                                         if (isR) return { ...t, nameR: e.target.value };
-                                         return { ...t, name: e.target.value };
-                                       }
-                                       return t;
-                                     });
-                                     updateTracksWithHistory(newTracks);
-                                   }} 
-                                   className="flex-1 h-4 bg-[#1a1d21] border border-gray-600 rounded-sm px-1 text-[9px] text-gray-300 outline-none focus:border-omega-accent" 
-                                 />
-                                 <ChevronDown size={8} className="text-gray-500" />
-                                 <Plus size={10} className="text-gray-400 hover:text-white cursor-pointer" />
-                              </div>
-                            )}
+                            {/* Vertical Track Color Accent Indicator */}
+                            <div 
+                              className="w-1.5 self-stretch cursor-pointer hover:w-2.5 transition-all flex-shrink-0"
+                              style={{ backgroundColor: trackColor }}
+                              title={`Spurfarbe: ${trackColor} (Klicken zum Ändern)`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setTrackContextMenu({ x: e.clientX, y: e.clientY, trackId: track.originalTrackId || track.id });
+                              }}
+                            />
+
+                            <div className="flex-1 flex flex-col justify-center px-1 overflow-hidden">
+                              {trackHeight >= 55 && (
+                                <div className="flex items-center gap-1 mb-1 px-1">
+                                   <button
+                                     type="button"
+                                     className="w-2.5 h-2.5 rounded-full border border-white/30 hover:scale-125 transition-transform flex-shrink-0 cursor-pointer shadow-sm"
+                                     style={{ backgroundColor: trackColor }}
+                                     title="Klicken, um Spurfarbe zu wählen"
+                                     onClick={(e) => {
+                                       e.stopPropagation();
+                                       setTrackContextMenu({ x: e.clientX, y: e.clientY, trackId: track.originalTrackId || track.id });
+                                     }}
+                                   />
+                                   <input 
+                                     value={track.name} 
+                                     placeholder="kein Name" 
+                                     onChange={(e) => {
+                                       const isL = track.id.endsWith('_L');
+                                       const isR = track.id.endsWith('_R');
+                                       const cleanTrackId = track.id.replace(/_[LR]$/, '');
+                                       const newTracks = tracks.map(t => {
+                                         if (t.id === cleanTrackId) {
+                                           if (isL) return { ...t, nameL: e.target.value };
+                                           if (isR) return { ...t, nameR: e.target.value };
+                                           return { ...t, name: e.target.value };
+                                         }
+                                         return t;
+                                       });
+                                       updateTracksWithHistory(newTracks);
+                                     }} 
+                                     className="flex-1 h-4 bg-[#1a1d21] border border-gray-600 rounded-sm px-1 text-[9px] text-gray-300 outline-none focus:border-omega-accent" 
+                                   />
+                                   <ChevronDown size={8} className="text-gray-500" />
+                                   <Plus size={10} className="text-gray-400 hover:text-white cursor-pointer" />
+                                </div>
+                              )}
                             <div className="flex items-center gap-1 px-1 py-1 text-gray-400">
                                 <button 
                                   type="button"
@@ -5210,8 +5343,10 @@ export function Timeline({
                                 />
                               </div>
                             )}
+                            </div>
                         </div>
-                     ))}
+                      );
+                    })}
                      <div style={{ height: 48 }} className="flex-shrink-0" />
                   </div>
                </div>
@@ -5460,6 +5595,11 @@ export function Timeline({
                            const localRight = Math.max(0, visibleRight - regionLeft);
                            const visibleWidth = Math.max(0, localRight - localLeft);
 
+                           const trackDefaultColor = track.color || getTrackDefaultColor(track.index || 0);
+                           const rawRegionColor = region.color || trackDefaultColor;
+                           const regionHexColor = resolveColorValue(rawRegionColor, trackDefaultColor);
+                           const isHexColor = rawRegionColor.startsWith('#') || rawRegionColor.startsWith('rgb');
+
                            return (
                              <div
                                key={region.id}
@@ -5479,8 +5619,9 @@ export function Timeline({
                                {/* Namensleiste (Header) */}
                                <div
                                  className={`h-[18px] select-none flex-shrink-0 font-semibold flex items-center justify-between px-2 text-[10px] truncate relative overflow-hidden ${
-                                   isSelected ? 'bg-[#ffbe00] text-black font-bold' : `${region.color} text-white`
+                                   isSelected ? 'bg-[#ffbe00] text-black font-bold' : (!isHexColor ? `${rawRegionColor} text-white` : 'text-white')
                                  }`}
+                                 style={!isSelected && isHexColor ? { backgroundColor: regionHexColor } : undefined}
                                >
                                  {renamingRegionId === region.id ? (
                                    <div className="flex items-center w-full h-full pointer-events-auto">
@@ -5533,7 +5674,10 @@ export function Timeline({
                                </div>
 
                                {/* Körper (Body) */}
-                               <div className="flex-1 bg-[#15171a] relative overflow-hidden pointer-events-auto">
+                               <div 
+                                 className="flex-1 bg-[#15171a] relative overflow-hidden pointer-events-auto"
+                                 style={{ backgroundColor: `${regionHexColor}14` }}
+                               >
                                  {/* z-[1]: Waveform — always at bottom */}
                                  <div className="absolute inset-0 z-[1] pointer-events-none">
                                    <WaveformRenderer 
@@ -5549,6 +5693,7 @@ export function Timeline({
                                       scrollLeft={scrollLeft}
                                       viewportWidth={vw}
                                       sourceChannels={region.channels}
+                                      color={regionHexColor}
                                     />
                                  </div>
 

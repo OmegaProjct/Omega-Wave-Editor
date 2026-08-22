@@ -60,6 +60,7 @@ export interface Track {
   automation: any[] // reserved for parameter automation curves
   denoise?: number // reduction dB (0 to 24)
   dehiss?: number // reduction dB (0 to 24)
+  color?: string // Track color (hex code or tailwind color)
   [key: string]: any // allow unknown/extra fields at runtime
 }
 
