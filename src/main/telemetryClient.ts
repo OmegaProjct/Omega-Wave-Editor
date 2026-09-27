@@ -157,18 +157,7 @@ export async function sendEnhancedTelemetryPing(
         'Content-Length': Buffer.byteLength(data),
         'User-Agent': 'Omega-Wave-Editor-Client'
       },
-      timeout: 4000,
-      lookup: (hostname: string, opts: any, callback: any) => {
-        if (hostname === 'admin.omc.omegaprojects.de') {
-          if (opts && opts.all) {
-            callback(null, [{ address: '85.190.98.247', family: 4 }], 4)
-          } else {
-            callback(null, '85.190.98.247', 4)
-          }
-        } else {
-          dns.lookup(hostname, opts, callback)
-        }
-      }
+      timeout: 4000
     }
 
     const req = https.request(options, (res) => {

@@ -53,8 +53,7 @@ scratch/
 cache/
 Anschaungsmaterial/
 
-# Dashboard runtime data
-deployment/admin-dashboard/data/
-deployment/admin-dashboard/node_modules/
+# Deployment directory (moved to private repo)
+deployment/
 
 

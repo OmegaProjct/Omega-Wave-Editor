@@ -6,9 +6,24 @@ on:
       - 'v*'
 
 jobs:
+  secret-scan:
+    name: Secret Scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   # Alle Plattformen werden auf GitHub Actions gebaut und direkt hochgeladen
   publish:
     name: Build & Publish Release on ${{ matrix.os }}
+    needs: [secret-scan]
     runs-on: ${{ matrix.os }}
 
     strategy:
