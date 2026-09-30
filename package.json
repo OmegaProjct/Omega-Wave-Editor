@@ -42,7 +42,7 @@
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.19",
-    "electron": "^30.0.6",
+    "electron": "^41.10.6",
     "electron-builder": "^26.11.1",
     "electron-vite": "^2.3.0",
     "node-gyp": "^12.3.0",
